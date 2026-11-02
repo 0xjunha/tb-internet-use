@@ -127,10 +127,10 @@ class ToolCallOutput:
 class ToolCallKey:
     """Unique position of a tool call in the logs."""
 
-    trial_id: str
-    trajectory_id: str
-    step_id: int
-    call_index: int
+    trial_id: str  # Harbor Hub trial id
+    trajectory_id: str  # "main", or "main/sub0" for the first subagent (0-based)
+    step_id: int  # as logged; 1-based in each trajectory
+    call_index: int  # 0-based position in the step's tool_calls
 
 
 @dataclass(frozen=True, slots=True)
