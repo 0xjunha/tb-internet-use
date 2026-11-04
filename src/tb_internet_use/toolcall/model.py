@@ -10,6 +10,7 @@ class ExecutionHandleKind(StrEnum):
 
     COMMAND = "command"  # one shell command string
     SCRIPT = "script"  # code that can run several commands
+    SUBAGENT = "subagent"  # a subagent started earlier
 
 
 class ExecutionStatus(StrEnum):
@@ -22,16 +23,9 @@ class ExecutionStatus(StrEnum):
     UNKNOWN = "unknown"
 
 
-class WebToolKind(StrEnum):
-    """What a web tool does."""
-
-    SEARCH = "search"
-    FETCH = "fetch"
-
-
 @dataclass(frozen=True, slots=True)
 class ExecutionHandle:
-    """Id that a later call uses to read or stop a command or script."""
+    """Id that a later call uses to read or stop what an earlier call started."""
 
     kind: ExecutionHandleKind
     id: str
@@ -42,7 +36,6 @@ class RunCommandAction:
     """Run a string in a shell in one go; it can chain several commands."""
 
     command_str: str | None = None  # None when Codex `exec` JS builds it at run time
-    workdir: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,16 +65,29 @@ class ReadFileAction:
 
 
 @dataclass(frozen=True, slots=True)
-class WebToolAction:
-    """Search or fetch with a dedicated web tool."""
+class WebSearchAction:
+    """Search with a dedicated web tool."""
 
-    kind: WebToolKind
-    target: str | None = None
+    queries: tuple[str, ...] = ()  # empty when the log has none
+
+
+@dataclass(frozen=True, slots=True)
+class WebFetchAction:
+    """Open pages with a dedicated web tool."""
+
+    urls: tuple[str, ...] = ()  # empty when the log has none
+
+
+@dataclass(frozen=True, slots=True)
+class WebFindAction:
+    """Find text in a page with a dedicated web tool."""
+
+    urls: tuple[str, ...] = ()  # empty when the log has none
 
 
 @dataclass(frozen=True, slots=True)
 class PollAction:
-    """Read from, write to or stop a command or script started earlier."""
+    """Read from, write to or stop a command, script or subagent started earlier."""
 
     handles: tuple[ExecutionHandle, ...] = ()
     input: str | None = None  # text sent to stdin; None if the poll only reads
@@ -103,7 +109,9 @@ type Action = (
     | WriteFileAction
     | EditFileAction
     | ReadFileAction
-    | WebToolAction
+    | WebSearchAction
+    | WebFetchAction
+    | WebFindAction
     | PollAction
     | OtherAction
     | UnknownAction
