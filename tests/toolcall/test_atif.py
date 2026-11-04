@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from tb_internet_use.toolcall.atif import (
+from tb_internet_use.toolcall.atif_reader import (
     TrajectoryStatus,
     _drop_agent_loop_notices,
     _pair_calls_with_results,

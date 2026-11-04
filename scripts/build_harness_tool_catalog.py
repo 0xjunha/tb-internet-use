@@ -11,7 +11,7 @@ from collections import Counter, defaultdict
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
-from tb_internet_use.toolcall.atif import TrajectoryStatus, read_trial_tool_calls
+from tb_internet_use.toolcall.atif_reader import TrajectoryStatus, read_trial_tool_calls
 
 PACKAGE_DIR = Path(__file__).parents[1] / "src/tb_internet_use"
 DEFAULT_OUTPUT_CSV = PACKAGE_DIR / "toolcall/catalogs/harness_tool_catalog.csv"
