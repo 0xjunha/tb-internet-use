@@ -19,7 +19,7 @@ DEFAULT_OUTPUT_CSV = PACKAGE_DIR / "toolcall/catalogs/harness_tool_catalog.csv"
 CSV_COLUMNS = [
     "harness",  # ATIF agent.name
     "tool",  # ATIF function_name
-    "action_type",  # filled by hand: Action class for this tool
+    "action_type",  # filled by hand: Action class for this tool, or Deferred
     "tool_call_count",  # number of calls to this tool
     "tool_trial_count",  # number of trials that called this tool at least once
     "arg_name",  # ATIF arguments key; empty if the tool never had an argument
