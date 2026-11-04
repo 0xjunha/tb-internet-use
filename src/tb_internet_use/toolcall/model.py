@@ -42,7 +42,7 @@ class RunCommandAction:
 class WriteFileAction:
     """Write a whole file with a dedicated tool."""
 
-    path: str
+    path: str | None = None  # None when the log has none
     content: str | None = None
 
 
@@ -50,7 +50,7 @@ class WriteFileAction:
 class EditFileAction:
     """Replace text in a file with a dedicated tool."""
 
-    path: str
+    path: str | None = None  # None when the log has none
     old: str | None = None
     new: str | None = None
 
@@ -59,7 +59,7 @@ class EditFileAction:
 class ReadFileAction:
     """Read a file with a dedicated tool."""
 
-    path: str
+    path: str | None = None  # None when the log has none
     offset: int | None = None  # 1-based line; negative counts from the end
     limit: int | None = None  # number of lines
 
