@@ -2,14 +2,17 @@
 
 from dataclasses import fields
 from pathlib import Path
-from typing import get_args
 
 import pytest
 
-from tb_internet_use.toolcall.catalog_loader import DEFERRED, ToolLabel, load_catalog
-from tb_internet_use.toolcall.model import Action, HarnessTool
+from tb_internet_use.toolcall.catalog_loader import (
+    ACTION_CLASSES,
+    DEFERRED,
+    ToolLabel,
+    load_catalog,
+)
+from tb_internet_use.toolcall.model import HarnessTool
 
-_ACTION_CLASSES = {cls.__name__: cls for cls in get_args(Action.__value__)}
 _HEADER = "harness,tool,action_type,arg_name,action_field\n"
 
 
@@ -42,7 +45,7 @@ def test_load_catalog_rejects_conflicting_action_types(tmp_path):
 
 
 def test_catalog_action_types_are_known():
-    allowed = {DEFERRED, *_ACTION_CLASSES}  # an empty label is not allowed either
+    allowed = {DEFERRED, *ACTION_CLASSES}  # an empty label is not allowed either
 
     for tool, label in load_catalog().items():
         assert label.action_type in allowed, tool
@@ -50,7 +53,7 @@ def test_catalog_action_types_are_known():
 
 def test_catalog_fields_exist_on_their_action_type():
     for tool, label in load_catalog().items():
-        action_class = _ACTION_CLASSES.get(label.action_type)
+        action_class = ACTION_CLASSES.get(label.action_type)
         # A Deferred tool has no Action class, so it can map no fields.
         allowed = {f.name for f in fields(action_class)} if action_class else set()
 

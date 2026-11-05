@@ -40,7 +40,7 @@ class ExecutionHandle:
 class RunCommandAction:
     """Run a string in a shell in one go; it can chain several commands."""
 
-    command_str: str | None = None  # None when Codex `exec` JS builds it at run time
+    command_str: str | None = None  # None when the log has none or JS builds it later
 
 
 @dataclass(frozen=True, slots=True)

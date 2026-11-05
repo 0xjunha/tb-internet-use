@@ -3,9 +3,11 @@
 import csv
 from dataclasses import dataclass
 from pathlib import Path
+from typing import get_args
 
-from tb_internet_use.toolcall.model import HarnessTool
+from tb_internet_use.toolcall.model import Action, HarnessTool
 
+ACTION_CLASSES = {cls.__name__: cls for cls in get_args(Action.__value__)}
 CATALOG_CSV = Path(__file__).parent / "catalogs" / "harness_tool_catalog.csv"
 DEFERRED = "Deferred"  # the converter decides the Action type per call
 
