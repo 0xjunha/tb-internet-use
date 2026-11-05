@@ -23,7 +23,8 @@ class ExecutionStatus(StrEnum):
 
     FINISHED = "finished"  # ended on its own, whether it succeeded or not
     RUNNING = "running"  # still going; the result comes in a later call
-    KILLED = "killed"  # stopped from outside
+    TIMED_OUT = "timed_out"  # stopped by the harness's time limit
+    KILLED = "killed"  # stopped by a signal or a stop request
     NOT_RUN = "not_run"  # the tool did no work
     UNKNOWN = "unknown"  # the log does not say
 
