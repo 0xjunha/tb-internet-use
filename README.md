@@ -25,22 +25,30 @@ Further analysis builds on this data.
 
 ## Pipeline
 
-Parse records what the logs say, without deciding whether a call used the internet.
-Interpret applies rules to decide what happened, so rules can change without touching the parser.
+- `Collect` checks the inputs and records facts about every trial.
+- `Parse` records what the logs say, without deciding whether a call used the internet.
+- `Interpret` applies rules to decide what happened, so rules can change without touching the parser.
+- `Output` makes the results safe to share and reports them.
 
 | # | Part | Step | Status |
 |---|---|---|---|
-| 1 | Parse | Define common types for tool calls and their outputs | Done |
-| 2 | Parse | Catalog every tool call in the trajectories | Done |
-| 3 | Parse | Convert each harness's `trajectory.json` to common types | In progress |
-| 4 | Parse | Split shell commands and code into individual commands | Planned |
-| 5 | Interpret | Extract internet requests and their targets | Planned |
-| 6 | Interpret | Extract observations of network results | Planned |
-| 7 | Interpret | Link requests to their observations | Planned |
-| 8 | Interpret | Decide how far each request got | Planned |
-| 9 | Interpret | Aggregate the results for each research question | Planned |
+| 1 | Collect | Verify the trial list and file hashes against the leaderboard snapshot | Planned |
+| 2 | Collect | Record facts for every trial (e.g. task, leaderboard entry, reward, whether the trajectory is readable) | Planned |
+| 3 | Parse | Define common types for tool calls and their outputs | Done |
+| 4 | Parse | Catalog and manually label every tool call in the trajectories | Done |
+| 5 | Parse | Convert each harness's `trajectory.json` to common types | In progress |
+| 6 | Parse | Parse shell text into a command tree (e.g. operators, control flow, heredocs) | Planned |
+| 7 | Interpret | Resolve what each call runs (e.g. written files, variables) | Planned |
+| 8 | Interpret | Extract candidate requests with their types and targets | Planned |
+| 9 | Interpret | Extract observations of network results (e.g. download lines, exit status) | Planned |
+| 10 | Interpret | Link requests to their observations, including requests only the output reveals | Planned |
+| 11 | Interpret | Decide the furthest level shown and why it stopped, keeping the evidence | Planned |
+| 12 | Output | Redact credentials and omit hidden task lines before rows are written | Planned |
+| 13 | Output | Aggregate the results for each research question | Planned |
+| 14 | Output | Build the spreadsheet (e.g. tabs, formulas, charts) and check it against the aggregates | Planned |
 
-Stages 1 to 3 are described in [Tool call parsing](src/tb_internet_use/toolcall/README.md).
+Stages 3 to 5 are described in [Tool call parsing](src/tb_internet_use/toolcall/README.md).
+For how the data changes shape from stage to stage, see the [pipeline example](docs/pipeline-example.md).
 
 ## Limits
 

@@ -1,6 +1,6 @@
 # Tool call parsing
 
-Stages 1 to 3 of the [pipeline](../../../README.md#pipeline): read ATIF trajectories and convert every logged tool call to common types.
+Stages 3 to 5 of the [pipeline](../../../README.md#pipeline): read ATIF trajectories and convert every logged tool call to common types.
 
 ## Data model
 
