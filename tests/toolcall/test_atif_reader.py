@@ -118,8 +118,8 @@ def test_reads_trial(tmp_path):
     call = trial.calls[0]
     assert call.key == ToolCallKey("trial-1", "main", 3, 0)
     assert call.tool.harness == "codex"
-    assert call.output.raw_result["content"] == "ok"
-    assert call.actions == ()
+    assert call.args == {}
+    assert call.result == {"source_call_id": "a", "content": "ok"}
 
 
 def test_missing_trajectory(tmp_path):

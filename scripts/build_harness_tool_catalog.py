@@ -49,7 +49,7 @@ def count_trial(trial_dir: Path) -> tuple[TrajectoryStatus, Counter, Counter]:
     for call in trial.calls:
         harness_tool = (call.tool.harness, call.tool.name)
         tool_counter[harness_tool] += 1
-        for arg_name, value in call.raw_args.items():
+        for arg_name, value in call.args.items():
             arg_counter[(harness_tool, arg_name, JSON_TYPES[type(value)])] += 1
     return trial.trajectory_status, tool_counter, arg_counter
 

@@ -48,20 +48,22 @@ For example, a shell call is named `Bash` in Claude Code, `exec_command` in Code
 ATIF has an `agent.tool_definitions` field, but none of these trajectories fill it.
 Therefore, analysis needs common types to represent tool calls:
 
-- **`ToolCall`:** one logged call, in a harness-agnostic form.
+- **`RawToolCall`:** one logged call and its result, as is.
+- **`ToolCall`:** the same call, in a harness-agnostic form.
 - **`Action`:** what the call tried to do, abstracted to the kinds that matter for internet use.
 
 Defined in [model.py](src/tb_internet_use/toolcall/model.py).
 
 | `ToolCall` field | Content |
 |---|---|
-| `raw_args`, `output.raw_result` | Log as is |
-| `actions` | Request, in common types |
+| `raw` | Log as is |
+| `action` | Request, in common types |
 | `output` | Result: text, status, exit code, handles |
 
 | `Action` | Why tracked |
 |---|---|
 | `RunCommandAction` | Shell requests, such as `curl`, `pip install`, `git clone` |
+| `RunScriptAction` | Requests from code that can call several tools, such as Codex `exec` |
 | `WebSearchAction`, `WebFetchAction`, `WebFindAction` | Dedicated web tools |
 | `WriteFileAction`, `EditFileAction` | Network code written to a file and run later |
 | `ReadFileAction` | Output sent to a log file instead of stdout |

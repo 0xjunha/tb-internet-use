@@ -1,6 +1,6 @@
-"""Read one trial's ATIF trajectory into tool calls paired with their raw results.
+"""Read one trial's ATIF trajectory into raw tool calls paired with their results.
 
-Actions and parsed output fields stay empty; harness converters fill them in.
+Harness converters turn these into common types.
 """
 
 import json
@@ -11,12 +11,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
-from tb_internet_use.toolcall.model import (
-    HarnessTool,
-    ToolCall,
-    ToolCallKey,
-    ToolCallOutput,
-)
+from tb_internet_use.toolcall.model import HarnessTool, RawToolCall, ToolCallKey
 
 _SUPPORTED_SCHEMA_VERSIONS = {"ATIF-v1.7", "ATIF-v1.8"}
 _AGENT_LOOP_NOTICE_PREFIX = "Tool call error"
@@ -37,7 +32,7 @@ class TrialToolCalls:
 
     trial_id: str
     trajectory_status: TrajectoryStatus
-    calls: tuple[ToolCall, ...] = ()  # empty if the trajectory cannot be read
+    calls: tuple[RawToolCall, ...] = ()  # empty if the trajectory cannot be read
 
 
 def _drop_agent_loop_notices(
@@ -96,7 +91,7 @@ def _walk_trajectory(
     harness: str,
     trajectory_id: str,
     is_subagent: bool,
-) -> Iterator[ToolCall]:
+) -> Iterator[RawToolCall]:
     """Yield the tool calls of a trajectory, then those of its subagents."""
     for step in trajectory["steps"]:
         calls = step.get("tool_calls") or []
@@ -106,14 +101,13 @@ def _walk_trajectory(
 
         pairs = _pair_calls_with_results(calls, results)
         for call_index, (call, result) in enumerate(pairs):
-            # Fill what the log records. Actions and parsed output fields come later.
-            yield ToolCall(
+            yield RawToolCall(
                 key=ToolCallKey(trial_id, trajectory_id, step["step_id"], call_index),
                 tool=HarnessTool(harness, call["function_name"]),
                 tool_call_id=call["tool_call_id"],
-                raw_args=call["arguments"],
+                args=call["arguments"],
+                result=result,
                 is_subagent=is_subagent or is_sidechain,
-                output=None if result is None else ToolCallOutput(raw_result=result),
             )
 
     for index, subagent in enumerate(trajectory.get("subagent_trajectories") or []):
@@ -122,7 +116,7 @@ def _walk_trajectory(
         )
 
 
-def iter_tool_calls(trajectory: dict[str, Any], trial_id: str) -> Iterator[ToolCall]:
+def iter_tool_calls(trajectory: dict[str, Any], trial_id: str) -> Iterator[RawToolCall]:
     """Yield every tool call in a trajectory, including its subagents' calls."""
     version = trajectory["schema_version"]
     if version not in _SUPPORTED_SCHEMA_VERSIONS:

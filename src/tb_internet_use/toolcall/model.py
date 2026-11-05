@@ -11,16 +11,21 @@ class ExecutionHandleKind(StrEnum):
     COMMAND = "command"  # one shell command string
     SCRIPT = "script"  # code that can run several commands
     SUBAGENT = "subagent"  # a subagent started earlier
+    UNKNOWN = "unknown"  # cannot confirm from the log
 
 
 class ExecutionStatus(StrEnum):
-    """How a command or script stood when its tool call returned."""
+    """How the requested work stood when the tool call returned.
 
-    EXITED = "exited"
-    RUNNING = "running"
-    KILLED = "killed"
-    NOT_RUN = "not_run"
-    UNKNOWN = "unknown"
+    For a poll, this is the polled target's state, except NOT_RUN, which means
+    the poll itself did nothing.
+    """
+
+    FINISHED = "finished"  # ended on its own, whether it succeeded or not
+    RUNNING = "running"  # still going; the result comes in a later call
+    KILLED = "killed"  # stopped from outside
+    NOT_RUN = "not_run"  # the tool did no work
+    UNKNOWN = "unknown"  # the log does not say
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,6 +41,14 @@ class RunCommandAction:
     """Run a string in a shell in one go; it can chain several commands."""
 
     command_str: str | None = None  # None when Codex `exec` JS builds it at run time
+
+
+@dataclass(frozen=True, slots=True)
+class RunScriptAction:
+    """Run code that can call several tools; the log has one result for all of it."""
+
+    code: str | None = None  # None when the log has none
+    steps: tuple[Action, ...] = ()  # tool calls found in the code, in order
 
 
 @dataclass(frozen=True, slots=True)
@@ -106,6 +119,7 @@ class UnknownAction:
 
 type Action = (
     RunCommandAction
+    | RunScriptAction
     | WriteFileAction
     | EditFileAction
     | ReadFileAction
@@ -120,9 +134,8 @@ type Action = (
 
 @dataclass(frozen=True, slots=True)
 class ToolCallOutput:
-    """What a tool call returned."""
+    """What a tool call returned, in common types."""
 
-    raw_result: dict[str, Any]  # result object as logged
     text: str | None = None  # body without what the harness wrapped around it
     execution_status: ExecutionStatus = ExecutionStatus.UNKNOWN
     exit_code: int | None = None  # real exit codes only
@@ -150,13 +163,21 @@ class HarnessTool:
 
 
 @dataclass(frozen=True, slots=True)
-class ToolCall:
-    """One logged tool call, converted to common types."""
+class RawToolCall:
+    """One tool call as logged, paired with its result."""
 
     key: ToolCallKey
     tool: HarnessTool
     tool_call_id: str  # as logged; can be empty or repeated, so not a key
-    raw_args: dict[str, Any]  # arguments as logged
+    args: dict[str, Any]  # arguments as logged
+    result: dict[str, Any] | None  # result object as logged; None when there is none
     is_subagent: bool = False
-    actions: tuple[Action, ...] = ()
-    output: ToolCallOutput | None = None  # None when the log has no result
+
+
+@dataclass(frozen=True, slots=True)
+class ToolCall:
+    """One tool call in common types."""
+
+    raw: RawToolCall
+    action: Action
+    output: ToolCallOutput | None  # None when the log has no result
