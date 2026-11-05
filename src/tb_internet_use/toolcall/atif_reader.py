@@ -63,7 +63,8 @@ def _pair_calls_with_results(
 
     unmatched = []
     for result in results:
-        call_indexes = call_indexes_by_id.get(result.get("source_call_id"))
+        source_id = result.get("source_call_id")
+        call_indexes = None if source_id is None else call_indexes_by_id.get(source_id)
         if call_indexes:
             paired[call_indexes.popleft()] = result
         else:
