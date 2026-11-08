@@ -1,0 +1,357 @@
+harness,tool,format,kind,call_count,trial_count,example_calls,roundtrip_mismatches,harness_text_hits,multi_match
+claude-code,Bash,tool_use_error,text,160,117,00a40122-de0d-50ba-91fd-a0f3a16b8be9/main#484.0 0224a0e8-31c0-4613-9ce7-d293c326ade8/main#18.0 031ece5d-476f-5c59-a2ae-b3e8ea0133e8/main#21.0,0,0,0
+claude-code,Bash,timed_out,text,872,545,000ac076-558e-5d94-8c09-f1ea0d6f65b2/main#80.0 0019151c-bf1f-4738-a9c1-84abf254a453/main#12.0 00b996ef-2ff6-402e-8511-10a3e2ac52f7/main#52.0,0,0,872
+claude-code,Bash,timed_out_silent,text,5056,1347,00860d15-920a-422b-acf1-ba3187904004/main#18.0 00860d15-920a-422b-acf1-ba3187904004/main#35.0 00860d15-920a-422b-acf1-ba3187904004/main#85.0,0,0,5056
+claude-code,Bash,exited,text,21017,5643,000ac076-558e-5d94-8c09-f1ea0d6f65b2/main#54.0 000ac076-558e-5d94-8c09-f1ea0d6f65b2/main#74.0 0012d5f8-88bb-5877-a05c-32d1108b9718/main#2.1,0,0,5928
+claude-code,Bash,exited_silent,text,5249,1892,0041a4c3-0083-5217-9b17-d60aa81c00c8/main#51.0 0077475b-97d9-4d28-8a49-c5112ff9c235/main#71.0 0077475b-97d9-4d28-8a49-c5112ff9c235/main#83.0,0,0,0
+claude-code,Bash,refused_permission,text,149,48,0669d37d-df4d-5cab-9f62-86be2cc5a6e9/main#13.0 06d2711b-dde8-5847-86fd-0dbbba249c03/main#4.0 06d2711b-dde8-5847-86fd-0dbbba249c03/main#5.0,0,0,0
+claude-code,Bash,refused_dangerous,text,116,100,02c290eb-e09d-5a6b-9cc8-b59f6ef1a2be/main#16.0 02c290eb-e09d-5a6b-9cc8-b59f6ef1a2be/main#103.0 03f9adff-7f1d-5304-8bfb-0620692b3a4f/main#67.0,0,0,0
+claude-code,Bash,refused_multiple,text,93,71,02c290eb-e09d-5a6b-9cc8-b59f6ef1a2be/main#15.0 04d6a407-c9dd-540d-bef8-a699f45e5526/main#43.0 0cea8a7b-b926-464b-a2d2-4eb9b9d86748/main#90.0,0,0,0
+claude-code,Bash,interrupted_classifier,text,4,4,4df2b650-13f1-5ac7-bab5-f8ac9198205c/main#99.0 c29abb2b-a7b4-5fba-acbe-f3782a4f4932/main#26.0 e1651669-2298-56e1-a4ac-bbbb59b2054a/main#3.0,0,0,0
+claude-code,Bash,refused_user,text,1,1,772ba600-03dc-59fb-92ac-b76035d1a150/main#597.0,0,0,0
+claude-code,Bash,no_output,text,11849,2657,000ac076-558e-5d94-8c09-f1ea0d6f65b2/main#18.0 0014f284-a5a2-5c8a-af81-97dbbb5ddbd3/main#5.0 0019151c-bf1f-4738-a9c1-84abf254a453/main#9.0,0,0,11849
+claude-code,Bash,background,text,6096,1308,000ac076-558e-5d94-8c09-f1ea0d6f65b2/main#82.0 0041a4c3-0083-5217-9b17-d60aa81c00c8/main#16.0 0041a4c3-0083-5217-9b17-d60aa81c00c8/main#48.0,0,0,6096
+claude-code,Bash,background_v3,text,1,1,bdcbb64c-b015-5c69-bb04-1955a853ff5d/main#99.0,0,0,1
+claude-code,Bash,background_after_output,text,47,8,01422d1a-f441-4929-b8c4-ff83a67583e2/main#43.0 509dc564-e61b-5387-a1ea-f9aa458d7e80/main#73.0 7c0adc70-ebb9-5b32-896e-dc0040c07ead/main#70.0,0,0,47
+claude-code,Bash,background_timeout,text,3036,1362,0077475b-97d9-4d28-8a49-c5112ff9c235/main#101.0 0077475b-97d9-4d28-8a49-c5112ff9c235/main#209.0 00ad504b-62df-4921-85ca-24556cdcd821/main#24.0,0,0,3036
+claude-code,Bash,background_timeout_v2,text,318,158,0255a42f-9257-56ef-a345-85c78aeb0681/main#44.0 0255a42f-9257-56ef-a345-85c78aeb0681/main#46.0 0255a42f-9257-56ef-a345-85c78aeb0681/main#54.0,0,0,318
+claude-code,Bash,background_timeout_after_output,text,0,0,,0,0,0
+claude-code,Bash,background_timeout_after_output_v2,text,0,0,,0,0,0
+claude-code,Bash,background_short,text,0,0,,0,0,0
+claude-code,Bash,background_timeout_short,text,0,0,,0,0,0
+claude-code,Bash,persisted_output,text,1960,1305,0014f284-a5a2-5c8a-af81-97dbbb5ddbd3/main#21.0 0077475b-97d9-4d28-8a49-c5112ff9c235/main#199.0 008f40c2-3199-5eb0-9fd6-ec32ddc807ba/main#52.0,0,0,1960
+claude-code,Bash,persisted_output_partial,text,4,4,53700fd3-a056-5b6e-b933-97de761053a8/main#154.0 a0b1fa7f-9a82-5186-95c8-e72ea54f9696/main#73.0 ab007bc8-feac-54b6-a8db-e2b495d1bb60/main#280.0,0,0,4
+claude-code,Bash,bare_output,text,529908,7670,0009327f-9094-44f2-ab10-35df6e4a583d/main#2.0 0009327f-9094-44f2-ab10-35df6e4a583d/main#3.0 0009327f-9094-44f2-ab10-35df6e4a583d/main#4.0,0,6,23311
+claude-code,Read,tool_use_error,text,357,130,0077475b-97d9-4d28-8a49-c5112ff9c235/main#91.0 008f40c2-3199-5eb0-9fd6-ec32ddc807ba/main#23.0 008f40c2-3199-5eb0-9fd6-ec32ddc807ba/main#25.0,0,0,0
+claude-code,Read,interrupted_classifier,text,1,1,05088455-d48d-5df8-afd2-f4f6edb3e008/main#37.1,0,0,0
+claude-code,Read,warning,text,516,238,03a110a3-0aff-5dde-afca-39041068fae1/main#14.0 044b830d-ac99-492d-92d7-11674a859e5a/main#104.0 047acb06-8df0-4654-8027-f6c7b79c35d1/main#25.0,0,0,0
+claude-code,Read,unchanged,text,554,222,01db7039-22d9-5f65-9fc0-601b2c67f28f/main#90.0 01db7039-22d9-5f65-9fc0-601b2c67f28f/main#90.1 01db7039-22d9-5f65-9fc0-601b2c67f28f/main#91.0,0,0,0
+claude-code,Read,pdf,text,710,163,006eeea2-8cee-573a-bcf3-de1f0a20cac2/main#2.1 01c58b03-bd68-5a91-8281-66b364464bbb/main#6.0 01c58b03-bd68-5a91-8281-66b364464bbb/main#6.1,0,0,0
+claude-code,Read,pdf_pages,text,30,10,00d7ae0b-0048-5808-b958-7474456d6c6a/main#20.0 00d7ae0b-0048-5808-b958-7474456d6c6a/main#22.0 293adc8f-dfd0-58f4-80f5-7aecbe95d1f4/main#39.0,0,0,0
+claude-code,Read,pdf_tool_missing,text,13,13,00d7ae0b-0048-5808-b958-7474456d6c6a/main#18.0 15f07e30-4fe2-5be6-b9ab-465a58116c61/main#14.0 293adc8f-dfd0-58f4-80f5-7aecbe95d1f4/main#37.0,0,0,0
+claude-code,Read,pdf_too_many_pages,text,2,2,3ca9614f-65d2-488a-b573-94e65623f231/main#10.0 60a3ccee-4665-4eef-8ff1-2e6b096e7945/main#9.1,0,0,0
+claude-code,Read,pdf_too_large,text,1,1,e2a400bc-1963-50a2-9842-c5cf76b88842/main#17.0,0,0,0
+claude-code,Read,image_too_large,text,4,2,6afb9dd0-9da4-5ef0-b0cb-04ffb100521d/main#36.0 6afb9dd0-9da4-5ef0-b0cb-04ffb100521d/main#45.0 b4c4f7a8-13a7-5935-9d09-4b130b910346/main#91.0,0,0,0
+claude-code,Read,directory,text,2,2,8e403e1f-c4b8-48eb-bfd3-de103e1d277e/main#24.0 c3fd4700-634e-56c7-90a8-49d023618687/main#365.0,0,0,0
+claude-code,Read,missing,text,62,57,00921b0a-5104-5c3e-a283-7a55e981be1b/main#74.1 01295732-567b-4626-a12a-eb9e521f590f/main#40.0 01295732-567b-4626-a12a-eb9e521f590f/main#85.0,0,0,0
+claude-code,Read,too_large,text,12,11,05c880d7-a12f-5f0b-886a-e5fa5e6e269d/main#117.0 54ee30f4-a0bc-54a6-8784-64db8186505f/main#151.0 6874d7dc-2024-551c-b4a7-b4d0ffbaae1b/main#34.0,0,0,0
+claude-code,Read,persisted_output,text,0,0,,0,0,0
+claude-code,Read,persisted_output_partial,text,0,0,,0,0,0
+claude-code,Read,listing,text,43185,4329,000ac076-558e-5d94-8c09-f1ea0d6f65b2/main#6.0 000ac076-558e-5d94-8c09-f1ea0d6f65b2/main#7.0 000ac076-558e-5d94-8c09-f1ea0d6f65b2/main#8.0,0,0,0
+claude-code,Write,tool_use_error,text,340,248,01e94276-1b48-488b-8ac0-eb174e987f45/main#39.0 02cdd571-50b3-5e13-99aa-399f61f66c3b/main#8.0 032c955b-82f1-5c96-9ccb-f8ed6e041c81/main#69.0,0,0,0
+claude-code,Write,interrupted_classifier,text,0,0,,0,0,0
+claude-code,Write,not_run_classifier,text,1,1,4d89516b-ee12-58c2-94ba-7a75248dd850/main#20.0,0,0,0
+claude-code,Write,refused_symlink,text,0,0,,0,0,0
+claude-code,Write,created_fresh,text,18107,3061,0012d5f8-88bb-5877-a05c-32d1108b9718/main#14.0 0012d5f8-88bb-5877-a05c-32d1108b9718/main#29.2 0077475b-97d9-4d28-8a49-c5112ff9c235/main#36.0,0,0,18107
+claude-code,Write,created,text,1172,910,0012d5f8-88bb-5877-a05c-32d1108b9718/main#29.0 0012d5f8-88bb-5877-a05c-32d1108b9718/main#29.1 00d7ae0b-0048-5808-b958-7474456d6c6a/main#28.0,0,0,18107
+claude-code,Write,updated_fresh,text,5651,1597,0077475b-97d9-4d28-8a49-c5112ff9c235/main#49.0 0077475b-97d9-4d28-8a49-c5112ff9c235/main#50.0 0077475b-97d9-4d28-8a49-c5112ff9c235/main#59.0,0,0,0
+claude-code,Write,updated,text,218,153,02c290eb-e09d-5a6b-9cc8-b59f6ef1a2be/main#279.0 032259fc-6ec3-53ad-b4c1-b1bc3065c1e4/main#133.0 06b2abe2-1590-4a95-9a88-a921e487dcd0/main#68.0,0,0,0
+claude-code,Edit,tool_use_error,text,1539,906,000ac076-558e-5d94-8c09-f1ea0d6f65b2/main#86.0 0052591b-c915-5b83-9b40-a3857ce7127d/main#9.0 00921b0a-5104-5c3e-a283-7a55e981be1b/main#304.0,0,0,0
+claude-code,Edit,interrupted_classifier,text,0,0,,0,0,0
+claude-code,Edit,not_run_classifier,text,0,0,,0,0,0
+claude-code,Edit,refused_symlink,text,1,1,3b72854f-5394-5384-a2e7-d63554b574b7/main#138.0,0,0,0
+claude-code,Edit,updated_fresh,text,41384,3641,000ac076-558e-5d94-8c09-f1ea0d6f65b2/main#89.0 000ac076-558e-5d94-8c09-f1ea0d6f65b2/main#90.0 000ac076-558e-5d94-8c09-f1ea0d6f65b2/main#91.0,0,0,0
+claude-code,Edit,updated,text,3950,444,0012d5f8-88bb-5877-a05c-32d1108b9718/main#23.0 0012d5f8-88bb-5877-a05c-32d1108b9718/main#24.0 0012d5f8-88bb-5877-a05c-32d1108b9718/main#24.1,0,0,0
+claude-code,Edit,updated_note,text,894,532,00b996ef-2ff6-402e-8511-10a3e2ac52f7/main#84.0 00c93f7b-a3ab-456e-80cd-95743e88ac61/main#82.0 00c93f7b-a3ab-456e-80cd-95743e88ac61/main#92.0,0,0,0
+claude-code,Edit,replaced_all_fresh,text,65,41,069c090a-fa0d-4094-9521-1352241d8f77/main#328.0 0fee66cf-dd32-5c60-9a75-718f6f108dd3/main#24.0 102b3509-a745-55b8-9934-c8b891022edd/main#43.0,0,0,0
+claude-code,Edit,replaced_all,text,9,6,37ddec86-4f0b-510a-b826-bfef500ff111/main#98.1 37ddec86-4f0b-510a-b826-bfef500ff111/main#100.0 3aeb1755-9d68-50fe-83e9-31d2ffe62a34/main#73.0,0,0,0
+claude-code,Edit,replaced_all_note,text,2,2,23682f77-7156-4022-bed9-b65293b9208b/main#101.0 27123d9d-cd12-4262-8406-43bbd41aa6ce/main#33.0,0,0,0
+claude-code,WebFetch,tool_use_error,text,0,0,,0,0,0
+claude-code,WebFetch,interrupted_classifier,text,0,0,,0,0,0
+claude-code,WebFetch,persisted_output,text,0,0,,0,0,0
+claude-code,WebFetch,persisted_output_partial,text,0,0,,0,0,0
+claude-code,WebFetch,binary_saved,text,0,0,,0,0,0
+claude-code,WebFetch,no_model_response,text,27,13,160659b5-b48d-5ddc-94de-eb1459b29ba4/main#18.0 160659b5-b48d-5ddc-94de-eb1459b29ba4/main#19.0 3b17e633-72df-5433-b086-f65e1eb0c5e4/main#6.0,0,0,27
+claude-code,WebFetch,no_model_response_binary_saved,text,1,1,a76244f2-e705-5348-928e-fcd70a7252fa/main#10.1,0,0,1
+claude-code,WebFetch,http_error_body_not_retrieved,text,22,10,12c67198-733c-590d-a844-c73f1613abba/main#9.0 12c67198-733c-590d-a844-c73f1613abba/main#10.0 12c67198-733c-590d-a844-c73f1613abba/main#12.0,0,0,22
+claude-code,WebFetch,http_error,text,0,0,,0,0,0
+claude-code,WebFetch,api_error,text,8,6,0d284716-4fa9-5c83-9371-281dda3dff5c/main#126.0 0ed5b507-aff1-5034-8291-88bbbc4cd0ec/main#82.0 0ed5b507-aff1-5034-8291-88bbbc4cd0ec/main#84.0,0,0,8
+claude-code,WebFetch,connection_error,text,17,4,4d814709-9035-4c12-8807-455a3e78070b/main#14.0 4d814709-9035-4c12-8807-455a3e78070b/main#14.1 4d814709-9035-4c12-8807-455a3e78070b/main#14.2,0,0,17
+claude-code,WebFetch,body_not_retrieved,text,0,0,,0,0,22
+claude-code,WebFetch,page_binary_saved,text,3,3,15f07e30-4fe2-5be6-b9ab-465a58116c61/main#12.0 2c46db20-c521-590e-a9d3-fb76e9d6dc6e/main#62.0 49f44038-4d56-5277-9375-b399c06d3b6d/main#62.0,0,0,5
+claude-code,WebFetch,page,text,96,26,02673e56-8dc4-54e5-bb67-ad4057eeb7a7/main#62.1 02673e56-8dc4-54e5-bb67-ad4057eeb7a7/main#73.0 02673e56-8dc4-54e5-bb67-ad4057eeb7a7/main#73.1,0,0,78
+claude-code,WebSearch,tool_use_error,text,0,0,,0,0,0
+claude-code,WebSearch,interrupted_classifier,text,0,0,,0,0,0
+claude-code,WebSearch,persisted_results,text,2,2,160659b5-b48d-5ddc-94de-eb1459b29ba4/main#17.0 e208349d-ed27-54f7-b3d2-95da8a07e789/main#18.0,0,0,2
+claude-code,WebSearch,persisted_output,text,0,0,,0,0,2
+claude-code,WebSearch,persisted_output_partial,text,0,0,,0,0,0
+claude-code,WebSearch,cut_off,text,3,3,15f07e30-4fe2-5be6-b9ab-465a58116c61/main#9.0 d5c103ea-ebb7-5b02-980c-687797289e2a/main#16.1 dddc7265-58d1-56ad-81e4-17fd9a14ae0d/main#5.0,0,0,0
+claude-code,WebSearch,results,text,132,41,0ed5b507-aff1-5034-8291-88bbbc4cd0ec/main#81.0 0ed5b507-aff1-5034-8291-88bbbc4cd0ec/main#83.0 14c7f9a6-ce97-516b-8ed5-0b41c22b7741/main#892.0,0,0,0
+claude-code,TaskStop,tool_use_error,text,16,13,0ee4b7dc-69c6-5252-a626-8cfb6241c6e3/main#50.0 0ee4b7dc-69c6-5252-a626-8cfb6241c6e3/main#367.0 15346e57-39bc-5187-8330-20c29f1d36ac/main#126.0,0,0,0
+claude-code,TaskStop,interrupted_classifier,text,0,0,,0,0,0
+claude-code,TaskStop,persisted_stopped,text,1,1,d305aeb6-5d31-44f5-8cdf-d6864e880d60/main#12.0,0,0,1
+claude-code,TaskStop,persisted_output,text,0,0,,0,0,1
+claude-code,TaskStop,persisted_output_partial,text,0,0,,0,0,0
+claude-code,TaskStop,not_owner,text,4,3,00a40122-de0d-50ba-91fd-a0f3a16b8be9/main#760.0 a2cb2236-fcdb-5d04-b8a6-c5a4c4fcb6b4/main#392.0 f855735b-d594-5430-9616-e81a377caa77/main#244.0,0,0,0
+claude-code,TaskOutput,task_running,json,55,16,03a110a3-0aff-5dde-afca-39041068fae1/main#18.0 041f3769-7c65-5835-a4c4-2eb33311728f/main#38.0 041f3769-7c65-5835-a4c4-2eb33311728f/main#40.0,0,0,0
+claude-code,TaskOutput,task_completed,json,47,16,041f3769-7c65-5835-a4c4-2eb33311728f/main#43.0 041f3769-7c65-5835-a4c4-2eb33311728f/main#82.0 041f3769-7c65-5835-a4c4-2eb33311728f/main#91.0,0,0,0
+claude-code,TaskOutput,task_failed,json,14,7,03a110a3-0aff-5dde-afca-39041068fae1/main#20.0 9175b63e-537c-5c59-b8fe-53c9877b8d8b/main#55.0 973b091c-3a8a-520c-abd8-e7acda0c0481/main#51.0,0,0,0
+claude-code,TaskOutput,task_killed,json,0,0,,0,0,0
+claude-code,TaskStop,stopped,json,343,193,0144cd7f-4af4-51f7-badb-417be5317e93/main#54.0 0144cd7f-4af4-51f7-badb-417be5317e93/main#88.0 0255a42f-9257-56ef-a345-85c78aeb0681/main#45.0,0,0,0
+codex,exec_command,exited_truncated,text,6488,1503,001e393b-5e36-436a-8db5-f18dda0fb4a5/main#16.0 001e393b-5e36-436a-8db5-f18dda0fb4a5/main#21.0 001e393b-5e36-436a-8db5-f18dda0fb4a5/main#23.0,0,0,6488
+codex,exec_command,exited_truncated_no_line_count,text,8,8,28708162-09fb-418e-bc5a-3789195d8314/main#33.0 3d031c6d-514d-47d6-986b-b3ca1bf4b07f/main#10.0 53241c98-dc94-45c8-8b62-9652618e3038/main#6.0,0,0,6496
+codex,exec_command,exited,text,40678,1979,001e393b-5e36-436a-8db5-f18dda0fb4a5/main#5.0 001e393b-5e36-436a-8db5-f18dda0fb4a5/main#7.0 001e393b-5e36-436a-8db5-f18dda0fb4a5/main#8.0,0,13,6496
+codex,exec_command,running_truncated,text,135,118,001e393b-5e36-436a-8db5-f18dda0fb4a5/main#26.0 0035a872-975d-4f49-8b0c-db4844bb6f75/main#12.0 014c87e2-cd9a-4427-9ab0-b50174d1ec4a/main#32.0,0,0,135
+codex,exec_command,running,text,19279,1527,001e393b-5e36-436a-8db5-f18dda0fb4a5/main#6.0 001e393b-5e36-436a-8db5-f18dda0fb4a5/main#11.0 001e393b-5e36-436a-8db5-f18dda0fb4a5/main#15.0,0,0,135
+codex,exec_command,v2_exited,text,1412,345,006e610a-6528-4db2-926e-da32526cbdd8/main#9.0 006e610a-6528-4db2-926e-da32526cbdd8/main#13.0 006e610a-6528-4db2-926e-da32526cbdd8/main#17.0,0,0,0
+codex,exec_command,v2_running,text,0,0,,0,0,0
+codex,exec_command,rejected,text,67,66,01402b3c-3c30-5b44-a2ab-a9500bface58/main#47.0 136e8265-9f3c-5e14-a48e-a2f858442c75/main#34.0 16c38d74-6704-5ced-bba0-b6f0e59c6778/main#59.0,0,0,0
+codex,exec_command,rejected_command,text,327,327,01d80e35-2f03-4008-9445-490acf5a1724/main#79.0 027bfc14-0b53-49ec-9049-e760a2f05369/main#46.0 0413e482-e730-4bf7-83b5-79ffe84c8721/main#45.0,0,0,0
+codex,exec_command,rejected_patch,text,55,45,0390ddbe-36ca-4721-9180-b9c67b342421/main#16.0 08e4d10b-307f-5470-9c7b-bd934ea94d4d/main#82.0 14825549-6dc2-4c23-95b1-535a6ec96f55/main#40.0,0,0,0
+codex,exec_command,rejected_stdin,text,0,0,,0,0,0
+codex,write_stdin,exited_truncated,text,407,288,01b844c0-fa53-44c2-8e92-97a603909535/main#12.0 02a8f8f7-4d2b-4c06-afe7-f1551a8e3781/main#35.0 036fe37f-e035-589f-a40c-c47cd4ea2a20/main#8.1,0,0,407
+codex,write_stdin,exited_truncated_no_line_count,text,0,0,,0,0,407
+codex,write_stdin,exited,text,13563,1484,001e393b-5e36-436a-8db5-f18dda0fb4a5/main#9.0 001e393b-5e36-436a-8db5-f18dda0fb4a5/main#14.0 001e393b-5e36-436a-8db5-f18dda0fb4a5/main#19.0,0,2,407
+codex,write_stdin,running_truncated,text,62,53,01812dbf-19c7-4302-bf5a-9903690295f7/main#10.0 07d28840-98f7-477a-95e0-efa7fed2972d/main#62.0 0b916161-0623-58fd-b060-c6ac9c81adf9/main#10.0,0,0,62
+codex,write_stdin,running,text,5821,882,001e393b-5e36-436a-8db5-f18dda0fb4a5/main#13.0 001e393b-5e36-436a-8db5-f18dda0fb4a5/main#17.0 001e393b-5e36-436a-8db5-f18dda0fb4a5/main#18.0,0,0,62
+codex,write_stdin,v2_exited,text,0,0,,0,0,0
+codex,write_stdin,v2_running,text,0,0,,0,0,0
+codex,write_stdin,rejected,text,0,0,,0,0,0
+codex,write_stdin,rejected_command,text,0,0,,0,0,0
+codex,write_stdin,rejected_patch,text,0,0,,0,0,0
+codex,write_stdin,rejected_stdin,text,7,7,141f3e96-a366-504d-b5d8-5dd24bf92b65/main#103.0 2628a870-2f54-4b81-8b84-6560187e5ffa/main#111.0 420012a0-db17-513b-8b74-dcc0cdf528eb/main#212.0,0,0,0
+cursor-cli,shellToolCall,not_spawned,json,1,1,6afa7882-29fc-5857-bb9c-5551055acec2/main#38.0,0,0,0
+cursor-cli,shellToolCall,background,json,1326,160,0130f753-b3af-50e6-b8f6-3871665f69b7/main#46.0 0130f753-b3af-50e6-b8f6-3871665f69b7/main#51.0 0130f753-b3af-50e6-b8f6-3871665f69b7/main#56.0,0,0,0
+cursor-cli,shellToolCall,background_requested,json,148,33,034d6ae3-4358-5fa7-bca9-e231276a4cd0/main#20.0 036c6e91-03a5-5eb6-ba94-f5b601762c72/main#17.0 036c6e91-03a5-5eb6-ba94-f5b601762c72/main#36.0,0,0,0
+cursor-cli,shellToolCall,exited_saved,json,110,47,0381e50f-cece-5f73-85eb-379aa7bf0d50/main#48.0 08ba2c17-4b0e-5188-8e52-25c45dc31ac9/main#9.0 101093fe-0bf4-515e-9a53-0aeb20843f62/main#13.1,0,0,0
+cursor-cli,shellToolCall,exited,json,15876,332,00e85ba9-e98e-50a5-8e8c-1e3e48e7357a/main#4.3 00e85ba9-e98e-50a5-8e8c-1e3e48e7357a/main#6.3 00e85ba9-e98e-50a5-8e8c-1e3e48e7357a/main#7.3,0,0,0
+cursor-cli,shellToolCall,failed_saved,json,7,7,08ba2c17-4b0e-5188-8e52-25c45dc31ac9/main#26.0 43fb12ab-633f-55c0-8275-8598e4f067e6/main#9.0 5063e3a0-971c-5c9d-a325-294c2f60bfe6/main#33.0,0,0,0
+cursor-cli,shellToolCall,failed,json,1386,275,00e85ba9-e98e-50a5-8e8c-1e3e48e7357a/main#22.2 00e85ba9-e98e-50a5-8e8c-1e3e48e7357a/main#29.0 00e85ba9-e98e-50a5-8e8c-1e3e48e7357a/main#31.0,0,0,0
+cursor-cli,awaitToolCall,no_task,json,51,13,036c6e91-03a5-5eb6-ba94-f5b601762c72/main#20.0 036c6e91-03a5-5eb6-ba94-f5b601762c72/main#37.0 036c6e91-03a5-5eb6-ba94-f5b601762c72/main#39.0,0,0,0
+cursor-cli,awaitToolCall,complete,json,703,136,0130f753-b3af-50e6-b8f6-3871665f69b7/main#47.0 0130f753-b3af-50e6-b8f6-3871665f69b7/main#52.0 0130f753-b3af-50e6-b8f6-3871665f69b7/main#57.0,0,0,0
+cursor-cli,awaitToolCall,still_running,json,653,93,0298fe46-0615-5eae-97ea-d80e1823d44c/main#26.0 034d6ae3-4358-5fa7-bca9-e231276a4cd0/main#21.0 034d6ae3-4358-5fa7-bca9-e231276a4cd0/main#22.0,0,0,0
+cursor-cli,awaitToolCall,error,json,0,0,,0,0,0
+cursor-cli,readToolCall,content,json,4710,306,00e85ba9-e98e-50a5-8e8c-1e3e48e7357a/main#3.0 00e85ba9-e98e-50a5-8e8c-1e3e48e7357a/main#4.0 00e85ba9-e98e-50a5-8e8c-1e3e48e7357a/main#6.0,0,0,0
+cursor-cli,readToolCall,content_truncated,json,33,22,0a172938-fed6-5082-942f-385670015855/main#5.0 1ec7b839-4289-5102-a942-8e9b5cec0d5a/main#4.0 23e6b538-6958-5fb3-9842-580f5c7dc146/main#11.3,0,0,0
+cursor-cli,readToolCall,blob,json,1040,91,00e85ba9-e98e-50a5-8e8c-1e3e48e7357a/main#6.1 00e85ba9-e98e-50a5-8e8c-1e3e48e7357a/main#16.0 01c2d2ac-460d-5baa-a196-00a8b3fdfae2/main#2.1,0,0,0
+cursor-cli,readToolCall,error,json,88,38,00e85ba9-e98e-50a5-8e8c-1e3e48e7357a/main#5.0 034d6ae3-4358-5fa7-bca9-e231276a4cd0/main#2.0 137f6b51-174c-5cd1-83f4-c42f689569d8/main#44.0,0,0,0
+cursor-cli,editToolCall,edited,json,4013,242,00e85ba9-e98e-50a5-8e8c-1e3e48e7357a/main#27.0 00e85ba9-e98e-50a5-8e8c-1e3e48e7357a/main#27.1 00e85ba9-e98e-50a5-8e8c-1e3e48e7357a/main#27.2,0,0,0
+cursor-cli,editToolCall,error,json,132,64,09e4e686-4a65-54cf-bbfe-6a8381863290/main#14.0 0a172938-fed6-5082-942f-385670015855/main#36.0 0a172938-fed6-5082-942f-385670015855/main#55.0,0,0,0
+cursor-cli,webFetchToolCall,page_saved,json,27,19,234151cc-1d3b-5cd5-9921-91ec464ab4ee/main#12.1 399e641c-6094-584e-a12d-3fcb1980d449/main#10.1 436c6653-79c1-5ebe-b8e3-f82938e59259/main#3.2,0,0,0
+cursor-cli,webFetchToolCall,page,json,81,30,00e85ba9-e98e-50a5-8e8c-1e3e48e7357a/main#19.2 00e85ba9-e98e-50a5-8e8c-1e3e48e7357a/main#19.3 00e85ba9-e98e-50a5-8e8c-1e3e48e7357a/main#20.3,0,0,0
+cursor-cli,webFetchToolCall,refused_localhost,json,4,4,01494c67-090c-58c4-94bc-b27d1c2dbb91/main#2.0 11afa08c-26ac-5b96-b4bf-cdd538e1d954/main#2.0 1261a63b-69d2-5aa4-8b91-b0413c14d61d/main#2.0,0,0,0
+cursor-cli,webFetchToolCall,error,json,35,21,0381e50f-cece-5f73-85eb-379aa7bf0d50/main#38.0 0dce93d5-eba0-5ad5-9991-d7251d0cfbb1/main#18.1 201bf118-8918-5c0b-bc9f-a5fa3d59ab00/main#61.1,0,0,0
+cursor-cli,webSearchToolCall,results,json,255,72,00e85ba9-e98e-50a5-8e8c-1e3e48e7357a/main#17.3 00e85ba9-e98e-50a5-8e8c-1e3e48e7357a/main#18.2 00e85ba9-e98e-50a5-8e8c-1e3e48e7357a/main#25.1,0,0,0
+cursor-cli,webSearchToolCall,error,json,0,0,,0,0,0
+cursor-cli,mcpToolCall,content,json,3,2,7702553a-1ccf-5c43-99a4-39fab58ff5b4/main#23.0 7702553a-1ccf-5c43-99a4-39fab58ff5b4/main#24.1 f1db40dc-69f9-514a-9da2-147dcd34f92d/main#15.0,0,0,0
+cursor-cli,mcpToolCall,tool_error,json,0,0,,0,0,0
+cursor-cli,mcpToolCall,error,json,0,0,,0,0,0
+devin,exec,exited_truncated_after_warning,text,6,3,4b155a51-fa71-5169-8e1c-9472ad6f1fa0/main#7.0 4b155a51-fa71-5169-8e1c-9472ad6f1fa0/main#38.0 4b155a51-fa71-5169-8e1c-9472ad6f1fa0/main#132.0,0,0,6
+devin,exec,exited_after_warning,text,3,3,3ce6ba1e-d1d6-577f-9b22-a65fbdeda30b/main#95.0 b554aa72-7b84-5786-ab12-190853eddba9/main#26.0 e27a659b-3a11-5a28-9f6b-f3444b9e93f8/main#76.0,0,0,3
+devin,exec,exited_truncated,text,457,113,0159a8b4-9112-5f6d-9fee-025a3000892b/main#81.0 01edee19-bfaf-55a8-8ad2-230e644c22fc/main#24.0 01edee19-bfaf-55a8-8ad2-230e644c22fc/main#116.0,0,1,6
+devin,exec,exited,text,16435,368,00104948-4235-5fbe-ae22-c3a538280912/main#8.0 00104948-4235-5fbe-ae22-c3a538280912/main#9.0 00104948-4235-5fbe-ae22-c3a538280912/main#10.0,0,0,3
+devin,exec,killed,text,60,16,1486e239-a7f1-552e-a254-f36a78e07168/main#13.0 1486e239-a7f1-552e-a254-f36a78e07168/main#35.0 1486e239-a7f1-552e-a254-f36a78e07168/main#49.0,0,0,0
+devin,exec,exited_live_file,text,95,56,0159a8b4-9112-5f6d-9fee-025a3000892b/main#9.0 04862dbf-bd2d-5679-b2c9-77aff740c553/main#8.0 088d428c-71ee-5aa6-a58c-38230603868a/main#32.0,0,0,0
+devin,exec,exited_live_file_head,text,4,4,5e65907e-8c28-52ab-b762-1fea6ff3e729/main#14.0 9550791e-7bfc-5d22-b015-88c1fda0bc82/main#22.0 a1ffd535-1ebc-5bcf-8036-52bbcada763b/main#115.0,0,0,0
+devin,exec,background_silent,text,1035,181,036291f6-4447-59cb-b9af-9e2d1dbcd89d/main#56.0 04862dbf-bd2d-5679-b2c9-77aff740c553/main#10.0 04862dbf-bd2d-5679-b2c9-77aff740c553/main#68.0,0,0,0
+devin,exec,background_after_output_truncated,text,11,9,184826a8-a940-5f30-a885-dfa6a788dbae/main#18.0 1b87fd05-da10-5b51-8ffe-de535cc33934/main#8.0 1b87fd05-da10-5b51-8ffe-de535cc33934/main#23.0,0,0,0
+devin,exec,background_after_output,text,192,59,036291f6-4447-59cb-b9af-9e2d1dbcd89d/main#13.0 036291f6-4447-59cb-b9af-9e2d1dbcd89d/main#19.0 036291f6-4447-59cb-b9af-9e2d1dbcd89d/main#23.0,0,0,0
+devin,exec,background_requested,text,307,51,003b746a-dc35-559a-a798-67defcee0c9b/main#13.0 003b746a-dc35-559a-a798-67defcee0c9b/main#33.0 003b746a-dc35-559a-a798-67defcee0c9b/main#41.0,0,0,0
+devin,exec,rejected,text,2,2,aa1d89d8-e12a-5f1a-8a49-333acd1d8653/main#44.0 d69cd5eb-a9e1-5d13-8af1-cf4e07c5ba0f/main#14.0,0,0,0
+devin,exec,rejected_env,text,1,1,a4f4d0ac-a23d-5c25-9c21-4da4cf43da88/main#72.0,0,0,0
+devin,exec,rejected_busy,text,1,1,43dc4246-0ec8-5f74-b7af-f257a1384696/main#126.0,0,0,0
+devin,get_output,exited_silent_twice,text,84,29,0c251043-e3b9-5036-89a3-0f0b2f51f62c/main#85.0 0f421ee7-5fb9-5749-86b6-892d6b6adf24/main#62.0 1486e239-a7f1-552e-a254-f36a78e07168/main#68.0,0,0,84
+devin,get_output,killed_silent_twice,text,3,2,661ace5b-7a17-583e-80ae-8b36a30d9a37/main#93.0 661ace5b-7a17-583e-80ae-8b36a30d9a37/main#121.0 8d537377-4366-55fe-a22d-d7573ed6313d/main#69.0,0,0,3
+devin,get_output,exited_incremental,text,5,1,a120f4aa-e709-5cbb-8b09-2aca8a2f6082/main#27.0 a120f4aa-e709-5cbb-8b09-2aca8a2f6082/main#38.0 a120f4aa-e709-5cbb-8b09-2aca8a2f6082/main#45.0,0,0,5
+devin,get_output,running_incremental,text,18,2,73e59e6b-76ef-52bc-b643-d7f6d4d8a793/main#41.0 73e59e6b-76ef-52bc-b643-d7f6d4d8a793/main#43.0 73e59e6b-76ef-52bc-b643-d7f6d4d8a793/main#45.0,0,0,23
+devin,get_output,exited,text,1112,188,036291f6-4447-59cb-b9af-9e2d1dbcd89d/main#42.0 036291f6-4447-59cb-b9af-9e2d1dbcd89d/main#48.0 04862dbf-bd2d-5679-b2c9-77aff740c553/main#11.0,0,0,1201
+devin,get_output,exited_bare,text,0,0,,0,0,0
+devin,get_output,killed,text,0,0,,0,0,3
+devin,get_output,killed_bare,text,0,0,,0,0,0
+devin,get_output,exited_silent,text,0,0,,0,0,0
+devin,get_output,exited_no_more,text,7,7,24d83481-32f2-56fb-a34f-b653eb7739e9/main#64.0 43dc4246-0ec8-5f74-b7af-f257a1384696/main#12.0 661ace5b-7a17-583e-80ae-8b36a30d9a37/main#83.0,0,0,7
+devin,get_output,running_silent,text,431,72,003b746a-dc35-559a-a798-67defcee0c9b/main#18.0 036291f6-4447-59cb-b9af-9e2d1dbcd89d/main#14.0 036291f6-4447-59cb-b9af-9e2d1dbcd89d/main#15.0,0,0,431
+devin,get_output,rejected,text,15,14,2a22cae4-c3f2-5d05-a3d6-3b0723d8a385/main#66.0 4cec426e-fc89-55c0-b617-3bebf278b567/main#113.0 5474ad81-1b76-54c8-92ce-a4712014d4ed/main#14.0,0,0,15
+devin,get_output,running,text,456,40,003b746a-dc35-559a-a798-67defcee0c9b/main#7.0 003b746a-dc35-559a-a798-67defcee0c9b/main#14.0 003b746a-dc35-559a-a798-67defcee0c9b/main#34.0,0,0,1675
+devin,kill_shell,killed,text,274,88,003b746a-dc35-559a-a798-67defcee0c9b/main#12.0 003b746a-dc35-559a-a798-67defcee0c9b/main#32.0 003b746a-dc35-559a-a798-67defcee0c9b/main#40.0,0,0,0
+devin,kill_shell,rejected,text,1,1,0c251043-e3b9-5036-89a3-0f0b2f51f62c/main#88.0,0,0,0
+devin,write_to_process,written,text,37,3,5474ad81-1b76-54c8-92ce-a4712014d4ed/main#11.0 5474ad81-1b76-54c8-92ce-a4712014d4ed/main#13.0 5474ad81-1b76-54c8-92ce-a4712014d4ed/main#18.0,0,0,0
+devin,read,listing,text,3455,341,00104948-4235-5fbe-ae22-c3a538280912/main#35.0 00104948-4235-5fbe-ae22-c3a538280912/main#63.0 00104948-4235-5fbe-ae22-c3a538280912/main#84.0,0,6,0
+devin,read,image,text,971,40,0f421ee7-5fb9-5749-86b6-892d6b6adf24/main#8.0 0f421ee7-5fb9-5749-86b6-892d6b6adf24/main#14.0 0f421ee7-5fb9-5749-86b6-892d6b6adf24/main#20.0,0,0,0
+devin,read,rejected,text,51,31,01edee19-bfaf-55a8-8ad2-230e644c22fc/main#98.0 0865092f-4117-57a4-ba9a-b0a68f33023f/main#34.0 1751fd40-3d94-5ac1-a47e-7226f28ebaa7/main#38.2,0,0,0
+devin,write,created,text,970,214,00104948-4235-5fbe-ae22-c3a538280912/main#71.0 00104948-4235-5fbe-ae22-c3a538280912/main#74.0 0071ff3e-5113-5a4b-9eb2-24ca665d738b/main#15.0,0,0,0
+devin,write,updated_truncated_note,text,71,60,01ba01d1-5961-51c0-bf74-a8b3b7945a06/main#23.0 088d428c-71ee-5aa6-a58c-38230603868a/main#31.0 09f2ff7c-b171-5aeb-b6d8-10e1cbe1a88e/main#34.0,0,0,71
+devin,write,updated_truncated_cut_line,text,4,4,806426ce-19ed-555b-8337-9f320146c8da/main#64.0 80f48bc8-7955-5396-83d1-abfe00a16b1c/main#9.0 b51eb1f5-cb37-5055-b34f-d556d2772b79/main#10.0,0,0,71
+devin,write,updated_truncated,text,0,0,,0,0,0
+devin,write,updated,text,283,83,003b746a-dc35-559a-a798-67defcee0c9b/main#10.0 003b746a-dc35-559a-a798-67defcee0c9b/main#30.0 003b746a-dc35-559a-a798-67defcee0c9b/main#38.0,0,0,0
+devin,write,rejected,text,2,1,dfd37e5e-52ff-57e5-82ae-b10d989348ed/main#56.0 dfd37e5e-52ff-57e5-82ae-b10d989348ed/main#88.0,0,0,0
+devin,edit,updated_truncated_note,text,3,3,31f77cf5-6d9e-5bd5-a208-5fd5977fd5f3/main#42.0 c2a551b5-3f47-5fd1-8d1a-5d3cd8a84ef7/main#13.0 d1053e93-ed4f-59d3-bec7-9f1570475177/main#77.0,0,0,3
+devin,edit,updated_truncated_cut_line,text,0,0,,0,0,3
+devin,edit,updated_truncated,text,0,0,,0,0,0
+devin,edit,updated,text,3007,275,003b746a-dc35-559a-a798-67defcee0c9b/main#53.0 01432c86-f999-5675-b3f3-c82bbf6180f9/main#21.0 01432c86-f999-5675-b3f3-c82bbf6180f9/main#22.0,0,0,0
+devin,edit,rejected,text,76,53,088d428c-71ee-5aa6-a58c-38230603868a/main#14.0 088d428c-71ee-5aa6-a58c-38230603868a/main#39.0 0c251043-e3b9-5036-89a3-0f0b2f51f62c/main#60.0,0,0,0
+devin,webfetch,page_truncated,text,116,53,0071ff3e-5113-5a4b-9eb2-24ca665d738b/main#56.0 0865092f-4117-57a4-ba9a-b0a68f33023f/main#31.0 0865092f-4117-57a4-ba9a-b0a68f33023f/main#39.0,0,0,116
+devin,webfetch,page,text,63,29,0865092f-4117-57a4-ba9a-b0a68f33023f/main#32.0 0865092f-4117-57a4-ba9a-b0a68f33023f/main#40.0 0865092f-4117-57a4-ba9a-b0a68f33023f/main#59.0,0,0,116
+devin,webfetch,http_error,text,10,7,0865092f-4117-57a4-ba9a-b0a68f33023f/main#17.0 0c692d91-fa04-5440-a902-0a32413048fb/main#9.0 0c692d91-fa04-5440-a902-0a32413048fb/main#10.0,0,0,0
+devin,webfetch,rejected,text,1,1,b1e979ac-1201-57dd-9a5d-7b4ee73fd832/main#7.0,0,0,0
+devin,web_search,results_truncated,text,86,44,0071ff3e-5113-5a4b-9eb2-24ca665d738b/main#55.0 0865092f-4117-57a4-ba9a-b0a68f33023f/main#38.0 0865092f-4117-57a4-ba9a-b0a68f33023f/main#41.0,0,0,86
+devin,web_search,results_crlf_truncated,text,3,3,3331a34d-b4e2-5cf1-843a-e8bd7690f011/main#13.0 8a7d4c25-24f2-5338-a230-230fed22e9be/main#23.0 b51eb1f5-cb37-5055-b34f-d556d2772b79/main#47.0,0,0,3
+devin,web_search,results,text,262,85,00104948-4235-5fbe-ae22-c3a538280912/main#54.0 0865092f-4117-57a4-ba9a-b0a68f33023f/main#30.0 0865092f-4117-57a4-ba9a-b0a68f33023f/main#44.0,0,0,86
+devin,web_search,results_crlf,text,0,0,,0,0,3
+devin,browser_preview,preview_running,text,13,10,01edee19-bfaf-55a8-8ad2-230e644c22fc/main#57.0 01edee19-bfaf-55a8-8ad2-230e644c22fc/main#69.0 0c251043-e3b9-5036-89a3-0f0b2f51f62c/main#100.0,0,0,0
+grok-build,run_terminal_command,exited_truncated,text,1000,500,01565283-ca5c-5a51-a7bf-564212f49070/main#19.0 020bd868-562e-4ec0-ac95-d662f20d2159/main#9.0 020bd868-562e-4ec0-ac95-d662f20d2159/main#17.0,0,4,0
+grok-build,run_terminal_command,exited,text,33964,1342,004bafb8-6bbe-42d9-998b-28d7627234e8/main#11.0 004bafb8-6bbe-42d9-998b-28d7627234e8/main#15.0 004bafb8-6bbe-42d9-998b-28d7627234e8/main#17.0,0,15,0
+grok-build,run_terminal_command,exited_silent,text,0,0,,0,0,0
+grok-build,run_terminal_command,killed_truncated,text,1,1,c8df3ce2-3572-43ec-89d1-f9e2387caeb1/main#25.0,0,0,0
+grok-build,run_terminal_command,killed,text,282,133,02f1081e-624b-4664-875a-6d19465378aa/main#19.0 0386c3bb-ff02-408a-a037-3a49ee37d269/main#58.0 0386c3bb-ff02-408a-a037-3a49ee37d269/main#83.0,0,0,0
+grok-build,run_terminal_command,background,text,3362,586,00b2b345-c6b0-4479-8d0e-33811aa5f324/main#21.0 00b2b345-c6b0-4479-8d0e-33811aa5f324/main#28.0 020bd868-562e-4ec0-ac95-d662f20d2159/main#23.0,0,0,0
+grok-build,run_terminal_command,background_v2,text,721,190,026984c0-93d6-59fd-accc-66549446ada4/main#8.0 026984c0-93d6-59fd-accc-66549446ada4/main#10.0 026984c0-93d6-59fd-accc-66549446ada4/main#21.0,0,0,0
+grok-build,run_terminal_command,rejected,text,72,66,083e7419-b8cb-4783-98cc-17babcdb8b67/main#39.0 08a9dcf1-2e6a-47c5-b921-299d9479d689/main#74.0 0a5300d5-05d5-4594-90d6-45738454145c/main#67.0,0,0,0
+grok-build,run_terminal_command,rejected_arguments,text,2,2,9ff99252-6f6e-40c2-905b-14584d114d3a/main#30.0 dfd46ca0-9487-45ff-b545-3f2f81243210/main#81.0,0,0,0
+grok-build,get_command_or_subagent_output,done_empty,text,29,20,026984c0-93d6-59fd-accc-66549446ada4/main#9.0 08f6922b-4841-42ab-adf5-09ba8a80018b/main#19.0 08f6922b-4841-42ab-adf5-09ba8a80018b/main#43.0,0,0,29
+grok-build,get_command_or_subagent_output,done_empty_truncated,text,9,8,0dc60738-4fd7-46ed-80ba-65ac592fc6e6/main#53.0 2b65bef4-5bd5-46ff-9e18-1db327c600a6/main#49.0 30f9e046-98d6-528a-8038-32b2c156a4e4/main#34.0,0,0,9
+grok-build,get_command_or_subagent_output,done_truncated_bytes,text,5,5,237ca8f3-86b8-480d-88b3-f2adfb2dd159/main#44.0 42662d17-347c-4182-afa5-ecfd8e498eb2/main#25.0 a355919e-f3dc-47ad-8565-303a3fc9a918/main#66.0,0,0,5
+grok-build,get_command_or_subagent_output,done_truncated,text,86,59,026984c0-93d6-59fd-accc-66549446ada4/main#22.0 15c34684-ee9b-420a-bc31-9bc25f6f1281/main#18.0 1b59e019-60b7-5724-a643-c6b5927e0363/main#30.0,0,0,100
+grok-build,get_command_or_subagent_output,done,text,2821,662,020bd868-562e-4ec0-ac95-d662f20d2159/main#24.0 020bd868-562e-4ec0-ac95-d662f20d2159/main#34.0 026984c0-93d6-59fd-accc-66549446ada4/main#11.0,0,0,129
+grok-build,get_command_or_subagent_output,failed_empty,text,0,0,,0,0,0
+grok-build,get_command_or_subagent_output,failed_empty_truncated,text,4,4,631da71c-12bf-4788-9d92-e7d6118715cf/main#24.0 c75c6e11-aab9-4a64-8bf9-e3f9658ed1a3/main#50.0 c77c31be-3a3f-4e8f-ade2-c0df451fb7e3/main#68.0,0,0,4
+grok-build,get_command_or_subagent_output,failed_truncated,text,7,6,356adb58-afa8-4a0f-8b07-f73a75896a03/main#120.0 5fbffd9c-7b37-4c49-af80-061e989a4b87/main#34.0 64cb6813-64ca-48b9-8baa-9c8e6bb08754/main#9.0,0,0,11
+grok-build,get_command_or_subagent_output,failed,text,156,95,031fea4d-d294-4933-97b2-aad7342e5c14/main#101.0 0386c3bb-ff02-408a-a037-3a49ee37d269/main#32.0 0386c3bb-ff02-408a-a037-3a49ee37d269/main#117.0,0,0,11
+grok-build,get_command_or_subagent_output,failed_signaled_empty,text,1,1,d7f189de-80a9-4fd0-a128-c6b0efc71309/main#23.0,0,0,1
+grok-build,get_command_or_subagent_output,failed_signaled,text,3,3,75212224-263b-4ae3-ba00-d7a295aafebb/main#23.0 7da15b19-6c41-4050-8132-ca2893141090/main#73.0 fc209c75-644b-4981-b024-b878de0498cf/main#44.0,0,0,1
+grok-build,get_command_or_subagent_output,running_empty,text,0,0,,0,0,0
+grok-build,get_command_or_subagent_output,running_empty_truncated,text,0,0,,0,0,0
+grok-build,get_command_or_subagent_output,running_truncated,text,67,19,1d2a17e5-4666-493a-bcb2-60b22d12581e/main#26.0 1d2a17e5-4666-493a-bcb2-60b22d12581e/main#31.0 1d2a17e5-4666-493a-bcb2-60b22d12581e/main#33.0,0,0,67
+grok-build,get_command_or_subagent_output,running,text,1123,264,00b2b345-c6b0-4479-8d0e-33811aa5f324/main#22.0 00b2b345-c6b0-4479-8d0e-33811aa5f324/main#29.0 027d81bb-0502-4dd6-9707-84506165b327/main#20.2,0,0,1123
+grok-build,get_command_or_subagent_output,running_no_note,text,0,0,,0,0,1190
+grok-build,get_command_or_subagent_output,cancelled_empty,text,1,1,cb2815e2-d3e5-4339-b44a-a6fdfd76f410/main#35.0,0,0,1
+grok-build,get_command_or_subagent_output,cancelled,text,0,0,,0,0,1
+grok-build,get_command_or_subagent_output,timed_out_empty,text,0,0,,0,0,0
+grok-build,get_command_or_subagent_output,timed_out,text,3,3,b027ee05-b114-4517-a813-72b0c13b3fe8/main#15.0 dacfb0d9-77b2-4175-a3ba-a7bdbcc993fe/main#48.0 fc209c75-644b-4981-b024-b878de0498cf/main#38.0,0,0,0
+grok-build,get_command_or_subagent_output,multi_wait,text,34,21,027d81bb-0502-4dd6-9707-84506165b327/main#16.1 027d81bb-0502-4dd6-9707-84506165b327/main#17.0 027d81bb-0502-4dd6-9707-84506165b327/main#21.0,0,0,0
+grok-build,get_command_or_subagent_output,rejected,text,4,4,12e54d75-3798-49fa-bad0-4a8968c81d02/main#41.0 6f77dcf4-da09-4940-8640-0b7ad6cb6b3f/main#45.0 d23fd240-40c2-40cd-a562-5495fdd5fdd4/main#42.0,0,0,0
+grok-build,get_command_or_subagent_output,unknown_task,text,5,5,2a89d507-4b8d-4be2-8416-b0b512c99a5c/main#25.0 39dd19e2-5b9c-48a6-990a-704fafa5710e/main#35.0 b5274565-3f71-4c02-a066-f3619e796136/main#9.0,0,0,0
+grok-build,kill_command_or_subagent,killed,text,165,73,027d81bb-0502-4dd6-9707-84506165b327/main#18.0 09b45994-50c2-5379-b039-72e3a759d297/main#18.0 09b45994-50c2-5379-b039-72e3a759d297/main#49.0,0,0,0
+grok-build,kill_command_or_subagent,already_exited,text,14,12,1431b127-602f-48d4-b4e9-95a4f575fc01/main#74.1 214dd7a4-bca1-5253-9363-473fd32dd1b7/main#72.0 4f588bed-f051-5668-aa22-5736069acfa7/main#29.0,0,0,0
+grok-build,kill_command_or_subagent,unknown_task,text,2,2,c0705e81-8a58-439b-9876-b2e6f51cac33/main#36.2 e5c3e3ef-eda9-5a97-bd36-0c9e44256702/main#49.0,0,0,0
+grok-build,monitor,started,text,6,3,c0705e81-8a58-439b-9876-b2e6f51cac33/main#89.0 cb2815e2-d3e5-4339-b44a-a6fdfd76f410/main#12.0 cb2815e2-d3e5-4339-b44a-a6fdfd76f410/main#25.0,0,0,0
+grok-build,read_file,image,text,5518,237,00b2b345-c6b0-4479-8d0e-33811aa5f324/main#7.0 00b2b345-c6b0-4479-8d0e-33811aa5f324/main#7.1 00b2b345-c6b0-4479-8d0e-33811aa5f324/main#8.0,0,0,5518
+grok-build,read_file,pdf,text,93,29,0aa5e988-a4b3-4c89-88ad-a264c6349585/main#12.0 10bb6587-5606-4dbd-b0f9-641d497ca47a/main#8.1 1289cdb8-17fe-5c1c-8eb0-96c381959e3b/main#8.1,0,0,93
+grok-build,read_file,empty,text,44,44,08a9dcf1-2e6a-47c5-b921-299d9479d689/main#88.0 0db26239-3fec-4bec-8305-7b8a2a90c5d4/main#40.0 0ffa4380-f1c7-503f-81fd-4bf1ef96efeb/main#5.0,0,0,44
+grok-build,read_file,past_end,text,17,17,24459caa-7445-43fa-95e2-87f38b43e7c9/main#172.0 2838ba4c-841c-43b8-9c5f-8a8a035c42dc/main#148.0 2ae865d0-c3f3-4e24-b97b-21cb7079f48a/main#47.0,0,0,17
+grok-build,read_file,missing,text,45,35,0fc8c038-285e-59e2-a908-ad834951e569/main#7.1 13643872-f947-4dca-9984-f832afb99345/main#7.2 1566568c-5666-4ead-9964-500729723240/main#20.1,0,0,45
+grok-build,read_file,too_large,text,25,17,03573273-dc5d-5aee-9fab-2356ab2b1451/main#5.1 06d40cdc-6f8a-4fb7-a3b0-728ffe73ff33/main#5.1 07b2be48-b1bc-4c69-a507-7c329a5f57df/main#19.0,0,0,25
+grok-build,read_file,range_too_large,text,12,10,03573273-dc5d-5aee-9fab-2356ab2b1451/main#7.1 06d40cdc-6f8a-4fb7-a3b0-728ffe73ff33/main#14.1 111d3595-803f-5540-b533-bc27996b4349/main#7.1,0,0,12
+grok-build,read_file,listing,text,15348,1154,004bafb8-6bbe-42d9-998b-28d7627234e8/main#7.0 004bafb8-6bbe-42d9-998b-28d7627234e8/main#7.1 004bafb8-6bbe-42d9-998b-28d7627234e8/main#7.2,0,8,5754
+grok-build,write,written,text,1992,374,00b2b345-c6b0-4479-8d0e-33811aa5f324/main#20.0 0191de04-e3dc-4b02-b42b-db2322dea77f/main#12.0 0252777c-f06d-50d9-816e-ae9662107be0/main#14.0,0,0,0
+grok-build,write,created,text,1567,475,00b2b345-c6b0-4479-8d0e-33811aa5f324/main#10.0 00b2b345-c6b0-4479-8d0e-33811aa5f324/main#10.1 00b2b345-c6b0-4479-8d0e-33811aa5f324/main#10.2,0,0,0
+grok-build,search_replace,updated,text,12786,836,004bafb8-6bbe-42d9-998b-28d7627234e8/main#18.0 004bafb8-6bbe-42d9-998b-28d7627234e8/main#18.1 004bafb8-6bbe-42d9-998b-28d7627234e8/main#18.2,0,0,0
+grok-build,search_replace,created,text,841,253,004bafb8-6bbe-42d9-998b-28d7627234e8/main#16.0 007b98f0-21e9-5616-adb6-cfdc47d19a7e/main#33.0 01565283-ca5c-5a51-a7bf-564212f49070/main#18.0,0,0,0
+grok-build,search_replace,replaced_all,text,45,20,12e54d75-3798-49fa-bad0-4a8968c81d02/main#23.5 12e54d75-3798-49fa-bad0-4a8968c81d02/main#38.1 267d973d-bd13-5f87-aa4b-f2b6a296a0ed/main#49.2,0,0,0
+grok-build,search_replace,not_found,text,93,67,0521d1df-ca94-5bf3-8286-32e734cc988e/main#41.0 05e887de-fd72-4e2a-88ae-721b6dae5900/main#27.2 09de2f57-4166-41a6-9b81-dd6aa22dbe8e/main#103.4,0,0,0
+grok-build,search_replace,not_unique,text,30,23,08a9dcf1-2e6a-47c5-b921-299d9479d689/main#146.0 09b45994-50c2-5379-b039-72e3a759d297/main#97.0 0ef95ec7-b142-4cc6-a95f-998337877d54/main#62.1,0,0,0
+grok-build,search_replace,same_strings,text,63,46,07b2be48-b1bc-4c69-a507-7c329a5f57df/main#37.0 0a9fa98f-7953-4477-ba42-c4ec20bbbcb2/main#52.1 13643872-f947-4dca-9984-f832afb99345/main#65.1,0,0,0
+grok-build,search_replace,missing,text,1,1,01565283-ca5c-5a51-a7bf-564212f49070/main#24.0,0,0,0
+grok-build,search_replace,rejected_arguments,text,1,1,356adb58-afa8-4a0f-8b07-f73a75896a03/main#111.0,0,0,0
+mini-swe-agent,bash,not_executed,json,981,981,001fae10-f2bb-4a7d-9ada-cce94bd774f8/main#65.0 0030b76e-3579-4b6d-8bb1-039451d2c12d/main#174.0 0086277e-7e20-4cb0-805b-f6d1202751f3/main#79.0,0,0,0
+mini-swe-agent,bash,timed_out,json,3166,610,001fae10-f2bb-4a7d-9ada-cce94bd774f8/main#32.0 001fae10-f2bb-4a7d-9ada-cce94bd774f8/main#51.0 0030b76e-3579-4b6d-8bb1-039451d2c12d/main#9.0,0,0,0
+mini-swe-agent,bash,timed_out_truncated,json,115,63,09471658-f88b-4228-a41b-cd5f922b4238/main#236.0 0c593bd4-c746-4a07-a305-715416400f1f/main#6.0 100b8fe4-6236-4815-b800-181d11849b5e/main#388.0,0,0,0
+mini-swe-agent,bash,killed,json,398,137,01c22ff3-795f-5fd1-b4d1-8a8930914906/main#110.0 01c22ff3-795f-5fd1-b4d1-8a8930914906/main#114.0 01c22ff3-795f-5fd1-b4d1-8a8930914906/main#125.0,0,0,0
+mini-swe-agent,bash,killed_truncated,json,1,1,68e40a11-11f0-4f4e-9723-f6096155a04e/main#42.0,0,0,0
+mini-swe-agent,bash,exited,json,134527,1014,001fae10-f2bb-4a7d-9ada-cce94bd774f8/main#3.0 001fae10-f2bb-4a7d-9ada-cce94bd774f8/main#4.0 001fae10-f2bb-4a7d-9ada-cce94bd774f8/main#5.0,0,0,0
+mini-swe-agent,bash,exited_truncated,json,4700,806,001fae10-f2bb-4a7d-9ada-cce94bd774f8/main#8.0 001fae10-f2bb-4a7d-9ada-cce94bd774f8/main#61.0 0030b76e-3579-4b6d-8bb1-039451d2c12d/main#83.0,0,0,0
+muse-code,bash,rejected,text,41,35,01b42afb-7fa2-5f5f-8d19-a1344ce1f3af/main#25.0 033524c6-b9bc-55ff-90f5-be6b53af03dd/main#62.0 13e3686a-536d-516a-ba51-821a76d53db5/main#14.0,0,0,0
+muse-code,bash_input,rejected,text,1,1,6e5b4db5-9bff-53fc-a27a-90c103ba6836/main#513.0,0,0,0
+muse-code,read_file,listing,text,1828,229,0189ba91-d0cb-52bc-ba08-4400ff2438d4/main#4.0 0189ba91-d0cb-52bc-ba08-4400ff2438d4/main#4.1 0189ba91-d0cb-52bc-ba08-4400ff2438d4/main#101.0,0,0,0
+muse-code,read_file,listing_after,text,324,122,02ada58c-9a4c-550c-9a1c-0c0149f82c9b/main#12.0 02ada58c-9a4c-550c-9a1c-0c0149f82c9b/main#60.0 090d2995-c663-59fe-b061-c13fec4a82f4/main#22.0,0,0,0
+muse-code,read_file,listing_before,text,268,110,02ada58c-9a4c-550c-9a1c-0c0149f82c9b/main#10.0 02ada58c-9a4c-550c-9a1c-0c0149f82c9b/main#24.0 02ada58c-9a4c-550c-9a1c-0c0149f82c9b/main#56.0,0,0,0
+muse-code,read_file,listing_between,text,1472,147,00d873c5-2441-5757-aefa-e1d7095bb75d/main#39.0 00d873c5-2441-5757-aefa-e1d7095bb75d/main#41.0 01b42afb-7fa2-5f5f-8d19-a1344ce1f3af/main#65.0,0,0,0
+muse-code,read_file,listing_nothing_below,text,10,9,02ada58c-9a4c-550c-9a1c-0c0149f82c9b/main#76.0 2c850470-f61f-507e-adbe-74d3daa383a0/main#506.0 3495df10-0179-5aa4-a2a7-b42e2e65259a/main#15.0,0,0,0
+muse-code,read_file,header_only,text,1,1,75ccd377-24c7-5563-8adc-6766f8683ba7/main#326.3,0,0,0
+muse-code,read_file,image,text,2117,39,02076377-dcbf-5b2b-b065-402e8660fbd7/main#16.0 02076377-dcbf-5b2b-b065-402e8660fbd7/main#16.1 02076377-dcbf-5b2b-b065-402e8660fbd7/main#17.0,0,0,0
+muse-code,read_file,rejected,text,2,2,04b82868-60fa-5100-b0b4-aa43c5037d39/main#3.0 fcb3f70c-1b87-551d-ab02-e685ac6657f0/main#5.0,0,0,0
+muse-code,write_file,written_note,text,428,78,01b42afb-7fa2-5f5f-8d19-a1344ce1f3af/main#44.0 05e6de1b-5b55-5230-b2a9-405130861124/main#11.0 05e6de1b-5b55-5230-b2a9-405130861124/main#15.0,0,0,428
+muse-code,write_file,written,text,1594,237,00d873c5-2441-5757-aefa-e1d7095bb75d/main#28.0 01b42afb-7fa2-5f5f-8d19-a1344ce1f3af/main#17.0 01b42afb-7fa2-5f5f-8d19-a1344ce1f3af/main#18.0,0,0,428
+muse-code,write_file,rejected,text,0,0,,0,0,0
+muse-code,edit_file,edited,text,4702,207,00d873c5-2441-5757-aefa-e1d7095bb75d/main#40.0 00d873c5-2441-5757-aefa-e1d7095bb75d/main#42.0 00d873c5-2441-5757-aefa-e1d7095bb75d/main#43.0,0,0,0
+muse-code,edit_file,edited_bare,text,0,0,,0,0,0
+muse-code,edit_file,rejected,text,68,31,09cb446f-ed18-51bd-ac52-55f2529f4d6a/main#155.0 09cb446f-ed18-51bd-ac52-55f2529f4d6a/main#201.0 09cb446f-ed18-51bd-ac52-55f2529f4d6a/main#207.0,0,0,0
+muse-code,bash,exited,json,33931,319,00d873c5-2441-5757-aefa-e1d7095bb75d/main#3.0 00d873c5-2441-5757-aefa-e1d7095bb75d/main#4.0 00d873c5-2441-5757-aefa-e1d7095bb75d/main#5.0,0,0,0
+muse-code,bash,failed,json,1100,252,00d873c5-2441-5757-aefa-e1d7095bb75d/main#49.0 0189ba91-d0cb-52bc-ba08-4400ff2438d4/main#30.0 0189ba91-d0cb-52bc-ba08-4400ff2438d4/main#70.0,0,0,0
+muse-code,bash,signaled,json,28,21,01b42afb-7fa2-5f5f-8d19-a1344ce1f3af/main#73.0 02ada58c-9a4c-550c-9a1c-0c0149f82c9b/main#117.0 13e3686a-536d-516a-ba51-821a76d53db5/main#54.0,0,0,0
+muse-code,bash,cancelled,json,0,0,,0,0,0
+muse-code,bash,background,json,435,121,00d873c5-2441-5757-aefa-e1d7095bb75d/main#21.0 02ada58c-9a4c-550c-9a1c-0c0149f82c9b/main#110.0 02ada58c-9a4c-550c-9a1c-0c0149f82c9b/main#114.0,0,0,0
+muse-code,bash_input,exited,json,77,27,02ada58c-9a4c-550c-9a1c-0c0149f82c9b/main#111.0 02ada58c-9a4c-550c-9a1c-0c0149f82c9b/main#115.0 09cb446f-ed18-51bd-ac52-55f2529f4d6a/main#151.0,0,0,0
+muse-code,bash_input,failed,json,1,1,5dc8e756-af86-548b-8df8-a9083412d9be/main#323.0,0,0,0
+muse-code,bash_input,signaled,json,0,0,,0,0,0
+muse-code,bash_input,cancelled,json,75,30,030fbcec-81aa-5687-807d-03fcb7e56c19/main#62.0 10b27eeb-e6f4-5ab9-ac1a-7c72a9e0a8ca/main#12.0 20e4d576-ee5a-5f40-b7cc-e1751cd1c806/main#82.0,0,0,0
+muse-code,bash_input,background,json,85,26,030fbcec-81aa-5687-807d-03fcb7e56c19/main#56.0 030fbcec-81aa-5687-807d-03fcb7e56c19/main#58.0 030fbcec-81aa-5687-807d-03fcb7e56c19/main#61.0,0,0,0
+muse-code,work_stop,accepted,json,10,7,440364df-38bf-5a0b-b104-8a0774994c7a/main#53.0 5312f9d7-9bb0-5e00-b60e-e0d4d1e35988/main#34.0 5312f9d7-9bb0-5e00-b60e-e0d4d1e35988/main#37.0,0,0,0
+muse-code,work_stop,already_ended,json,1,1,5d349953-cd3f-5f2d-95a7-c1bacfb60dd5/main#192.0,0,0,0
+muse-code,web_search,results,json,90,16,07a78c16-cdc8-5865-b1ec-032d5e9f02fe/main#13.0 07a78c16-cdc8-5865-b1ec-032d5e9f02fe/main#25.0 0d4da8bf-a740-5f0b-b26f-8906394691aa/main#97.0,0,0,0
+muse-code,monitor,started,json,1,1,5d349953-cd3f-5f2d-95a7-c1bacfb60dd5/main#189.0,0,0,0
+claude-code,,skipped_format,,26,7,43b4da52-fb6d-5996-a905-459ceb134e52/main#38.1 43b4da52-fb6d-5996-a905-459ceb134e52/main#38.2 4d0c7461-bb56-5f1a-9180-958428b911d3/main#25.0,0,0,0
+claude-code,"""",skipped_format,,1,1,ac73a2f8-c9b6-5ef3-9096-476942d4a15d/main#32.1,0,0,0
+claude-code,"""]",skipped_format,,1,1,cd4d390b-d207-5d3f-a593-da3b6221b789/main#33.1,0,0,0
+claude-code,...,skipped_format,,1,1,ac73a2f8-c9b6-5ef3-9096-476942d4a15d/main#68.1,0,0,0
+claude-code,Agent,skipped_format,,988,324,00a40122-de0d-50ba-91fd-a0f3a16b8be9/main#32.0 00a40122-de0d-50ba-91fd-a0f3a16b8be9/main#72.0 00a40122-de0d-50ba-91fd-a0f3a16b8be9/main#96.0,0,0,0
+claude-code,BashOutput,skipped_format,,1,1,1b628267-8d79-51aa-ac08-3db038fef330/main#343.0,0,0,0
+claude-code,BcriptBash,skipped_format,,1,1,2df32d3d-4698-548c-8e48-686cb026c076/main#19.0,0,0,0
+claude-code,Bun_placeholder,skipped_format,,1,1,5f4c4162-7b8f-54f5-bb26-e18643b6e843/main#139.0,0,0,0
+claude-code,ListAgents,skipped_format,,285,65,00a40122-de0d-50ba-91fd-a0f3a16b8be9/main#221.0 00a40122-de0d-50ba-91fd-a0f3a16b8be9/main#405.0 00a40122-de0d-50ba-91fd-a0f3a16b8be9/main#716.0,0,0,0
+claude-code,Read,image,special,32769,1371,0077475b-97d9-4d28-8a49-c5112ff9c235/main#131.0 0077475b-97d9-4d28-8a49-c5112ff9c235/main#139.0 0077475b-97d9-4d28-8a49-c5112ff9c235/main#141.0,0,0,0
+claude-code,ReportFindings,skipped_format,,1,1,ac0c77ef-b075-53f1-8392-701e88f4580a/main#374.0,0,0,0
+claude-code,ScheduleWakeup,skipped_format,,59,43,06a3bb09-003f-5582-a593-3d7c4dbefc56/main#50.0 1d4ff2d6-d0b7-54ae-84f9-d9a00d845093/main#92.0 2b569f6e-08d0-4068-bd41-6576998002da/main#218.0,0,0,0
+claude-code,SendMessage,skipped_format,,103,45,00a40122-de0d-50ba-91fd-a0f3a16b8be9/main#751.0 00a40122-de0d-50ba-91fd-a0f3a16b8be9/main#762.0 0b304298-c242-5f65-993d-8bfee6bf44dd/main#319.0,0,0,0
+claude-code,Skill,skipped_format,,31,29,22d3ae7f-820d-4db9-8beb-89039dd62802/main#26.0 286ac42e-9aca-494b-bda7-eb88f61a8391/main#16.0 2c9929b3-9dca-58a9-a580-1e3c0fc50300/main#189.0,0,0,0
+claude-code,TaskCreate,skipped_format,,1826,503,00d35695-9be4-5dd4-8600-913e02ed19cd/main#92.0 00d35695-9be4-5dd4-8600-913e02ed19cd/main#92.1 00d35695-9be4-5dd4-8600-913e02ed19cd/main#110.1,0,0,0
+claude-code,TaskList,skipped_format,,1,1,f4357f79-04f1-5869-b6bb-22f306f0f036/main#110.0,0,0,0
+claude-code,TaskUpdate,skipped_format,,2476,491,00d35695-9be4-5dd4-8600-913e02ed19cd/main#110.0 00d35695-9be4-5dd4-8600-913e02ed19cd/main#123.0 00d35695-9be4-5dd4-8600-913e02ed19cd/main#148.0,0,0,0
+claude-code,ToolSearch,skipped_format,,104,96,00a40122-de0d-50ba-91fd-a0f3a16b8be9/main#750.0 00a40122-de0d-50ba-91fd-a0f3a16b8be9/main#759.0 00a40122-de0d-50ba-91fd-a0f3a16b8be9/main#761.0,0,0,0
+claude-code,"\n"",",skipped_format,,2,2,5ade5ec5-edd0-50db-8b4c-cb26fcf4fc19/main#97.1 ac73a2f8-c9b6-5ef3-9096-476942d4a15d/main#67.1,0,0,0
+claude-code,"\n```json\n""",skipped_format,,1,1,ac73a2f8-c9b6-5ef3-9096-476942d4a15d/main#68.2,0,0,0
+claude-code,"\n{""name"":",skipped_format,,1,1,58ff1031-4924-5229-95bc-7e178ab8fed7/main#50.1,0,0,0
+claude-code,"\n{\""name\"":",skipped_format,,2,2,210a8c1b-eb83-5901-b468-ea30f2865156/main#172.1 ac73a2f8-c9b6-5ef3-9096-476942d4a15d/main#31.1,0,0,0
+claude-code,"\n{\""name\"":\""get_weather\"",\""arguments\"":{\""city\"":\""SF\""}}\n",skipped_format,,1,1,210a8c1b-eb83-5901-b468-ea30f2865156/main#121.1,0,0,0
+claude-code,bash,skipped_format,,111,82,04d707d3-56b5-567c-a370-e5e8a0b02a83/main#63.0 0b304298-c242-5f65-993d-8bfee6bf44dd/main#231.0 14c7f9a6-ce97-516b-8ed5-0b41c22b7741/main#651.0,0,0,0
+claude-code,bash_placeholder,skipped_format,,27,19,00a40122-de0d-50ba-91fd-a0f3a16b8be9/main#368.0 09817054-5b98-566d-a08d-f4a4418e0f0e/main#24.0 1d0ab51c-4103-50ef-8613-fe0a2473c199/main#14.0,0,0,0
+claude-code,bash_tool_placeholder,skipped_format,,1,1,4ea377d3-3e41-57fa-924b-bc674c0e337f/main#187.0,0,0,0
+claude-code,mcp__playwright__browser_click,skipped_format,,1,1,5e7044e5-ba27-5828-a4e6-ee530f553ee5/main#54.0,0,0,0
+claude-code,mcp__playwright__browser_navigate,skipped_format,,1,1,5e7044e5-ba27-5828-a4e6-ee530f553ee5/main#53.0,0,0,0
+claude-code,mcp__playwright__browser_take_screenshot,skipped_format,,1,1,5e7044e5-ba27-5828-a4e6-ee530f553ee5/main#55.0,0,0,0
+claude-code,"{""name"":...}",skipped_format,,1,1,cd4d390b-d207-5d3f-a593-da3b6221b789/main#25.0,0,0,0
+claude-code,"{\""name\"":\""foo\"",\""arguments\"":{\""x\"":1}}",skipped_format,,2,1,ac73a2f8-c9b6-5ef3-9096-476942d4a15d/main#33.1 ac73a2f8-c9b6-5ef3-9096-476942d4a15d/main#33.2,0,0,0
+codex,create_goal,skipped_format,,30,30,0589fe66-211b-4ca0-9584-eb773564b228/main#4.0 1369eac8-3ece-54c4-b32d-c8ce59b3b82c/main#4.0 141f3e96-a366-504d-b5d8-5dd24bf92b65/main#5.0,0,0,0
+codex,exec,skipped_format,,384669,2749,000fb758-b9a6-5262-a269-6afb3093730b/main#6.0 000fb758-b9a6-5262-a269-6afb3093730b/main#7.0 000fb758-b9a6-5262-a269-6afb3093730b/main#8.0,0,0,0
+codex,get_goal,skipped_format,,20,15,1369eac8-3ece-54c4-b32d-c8ce59b3b82c/main#105.0 141f3e96-a366-504d-b5d8-5dd24bf92b65/main#44.0 174579d5-c127-4bf9-9964-a936c5de7b88/main#59.0,0,0,0
+codex,interrupt_agent,skipped_format,,3,3,2c08687a-ccf7-4110-ab33-98b1bf4aee53/main#124.0 39a50185-9886-41c1-a121-eec4644cfc2c/main#330.0 eca370ec-2974-5449-8312-eb7bd293c2cc/main#331.0,0,0,0
+codex,list_agents,skipped_format,,1,1,f6c1a971-0bce-5e74-9b51-344251671d2c/main#91.0,0,0,0
+codex,request_user_input,skipped_format,,2,2,0ffaac5b-78da-5f55-ac61-9037f84583d7/main#52.0 29cc31bc-a1f7-5865-98e1-2e1955b73700/main#98.0,0,0,0
+codex,request_user_input_async,skipped_format,,55,35,01f8d6de-ac31-54f1-8658-c1243f30a6c4/main#13.0 064e0927-1ac1-5562-95ca-13eab615ff09/main#15.0 064e0927-1ac1-5562-95ca-13eab615ff09/main#16.0,0,0,0
+codex,sleep,skipped_format,,2972,46,064e0927-1ac1-5562-95ca-13eab615ff09/main#22.0 064e0927-1ac1-5562-95ca-13eab615ff09/main#23.0 064e0927-1ac1-5562-95ca-13eab615ff09/main#24.0,0,0,0
+codex,update_goal,skipped_format,,12,12,1369eac8-3ece-54c4-b32d-c8ce59b3b82c/main#114.0 141f3e96-a366-504d-b5d8-5dd24bf92b65/main#106.0 1c7ca041-5603-402f-9e89-3181d99cabaf/main#131.0,0,0,0
+codex,update_plan,skipped_format,,7474,1622,001e393b-5e36-436a-8db5-f18dda0fb4a5/main#4.0 001e393b-5e36-436a-8db5-f18dda0fb4a5/main#20.0 001e393b-5e36-436a-8db5-f18dda0fb4a5/main#29.0,0,0,0
+codex,view_image,skipped_format,,4176,518,00d73ea4-6b90-45ea-8d9d-b36d381fd3eb/main#67.0 011de7e9-b08d-4212-ba78-5945ad40e091/main#15.0 012441aa-9d84-498d-b0f1-eb280fa8cd46/main#17.0,0,0,0
+codex,wait,skipped_format,,30835,869,000fb758-b9a6-5262-a269-6afb3093730b/main#13.0 000fb758-b9a6-5262-a269-6afb3093730b/main#17.0 000fb758-b9a6-5262-a269-6afb3093730b/main#34.0,0,0,0
+codex,wait_agent,skipped_format,,20,3,613e1f64-a754-5705-983e-fa71cb2ade68/main#76.0 613e1f64-a754-5705-983e-fa71cb2ade68/main#78.0 613e1f64-a754-5705-983e-fa71cb2ade68/main#80.0,0,0,0
+codex,web_search_call,no_content,special,1610,485,006e610a-6528-4db2-926e-da32526cbdd8/main#8.0 00d67dbe-78be-4b5b-80b8-0bbcfd95021d/main#7.0 00d67dbe-78be-4b5b-80b8-0bbcfd95021d/main#9.0,0,0,0
+cursor-cli,deleteToolCall,skipped_format,,66,26,101093fe-0bf4-515e-9a53-0aeb20843f62/main#24.1 101093fe-0bf4-515e-9a53-0aeb20843f62/main#39.1 1dcb43a4-af0d-5f7d-ac06-f5e68a63fa14/main#48.0,0,0,0
+cursor-cli,globToolCall,skipped_format,,540,272,00e85ba9-e98e-50a5-8e8c-1e3e48e7357a/main#2.2 00e85ba9-e98e-50a5-8e8c-1e3e48e7357a/main#3.2 00e85ba9-e98e-50a5-8e8c-1e3e48e7357a/main#4.1,0,0,0
+cursor-cli,grepToolCall,skipped_format,,1372,175,00e85ba9-e98e-50a5-8e8c-1e3e48e7357a/main#2.1 00e85ba9-e98e-50a5-8e8c-1e3e48e7357a/main#2.3 00e85ba9-e98e-50a5-8e8c-1e3e48e7357a/main#3.1,0,0,0
+cursor-cli,listMcpResourcesToolCall,skipped_format,,3,2,94ac8604-c6cd-54fc-ab2a-0343f641c894/main#65.0 e8b95a6b-a0c9-5244-b04e-f5ff519f9434/main#68.0 e8b95a6b-a0c9-5244-b04e-f5ff519f9434/main#185.0,0,0,0
+cursor-cli,taskToolCall,skipped_format,,134,19,2544f4fc-5657-5e0c-912e-a459a81e31ce/main#96.0 2544f4fc-5657-5e0c-912e-a459a81e31ce/main#183.1 2544f4fc-5657-5e0c-912e-a459a81e31ce/main#199.1,0,0,0
+cursor-cli,updateTodosToolCall,skipped_format,,257,97,00e85ba9-e98e-50a5-8e8c-1e3e48e7357a/main#2.0 00e85ba9-e98e-50a5-8e8c-1e3e48e7357a/main#26.0 00e85ba9-e98e-50a5-8e8c-1e3e48e7357a/main#40.0,0,0,0
+devin,ask_user_question,skipped_format,,4,3,630fc902-4846-5f43-8fbb-ce207881b5bf/main#19.0 afd26ac7-5ba6-599a-b2fc-1efded9a00b4/main#31.0 afd26ac7-5ba6-599a-b2fc-1efded9a00b4/main#37.0,0,0,0
+devin,close_browser_preview,skipped_format,,3,3,0c251043-e3b9-5036-89a3-0f0b2f51f62c/main#102.0 2951389c-8f85-5ba1-869f-935fb78f32fc/main#65.0 90cb4271-a6c6-5faa-97fc-c048555af961/main#45.0,0,0,0
+devin,find_file_by_name,skipped_format,,306,130,003b746a-dc35-559a-a798-67defcee0c9b/main#48.0 003b746a-dc35-559a-a798-67defcee0c9b/main#48.1 003b746a-dc35-559a-a798-67defcee0c9b/main#48.2,0,0,0
+devin,grep,skipped_format,,1513,224,00104948-4235-5fbe-ae22-c3a538280912/main#34.0 00104948-4235-5fbe-ae22-c3a538280912/main#52.0 00104948-4235-5fbe-ae22-c3a538280912/main#53.0,0,0,0
+devin,mcp_list_servers,skipped_format,,1,1,0865092f-4117-57a4-ba9a-b0a68f33023f/main#24.0,0,0,0
+devin,read_subagent,skipped_format,,38,8,0865092f-4117-57a4-ba9a-b0a68f33023f/main#61.0 0865092f-4117-57a4-ba9a-b0a68f33023f/main#62.0 0865092f-4117-57a4-ba9a-b0a68f33023f/main#63.0,0,0,0
+devin,run_subagent,skipped_format,,8,7,0865092f-4117-57a4-ba9a-b0a68f33023f/main#67.0 0865092f-4117-57a4-ba9a-b0a68f33023f/main#94.0 10a2d64f-3163-5f2c-b4d0-ab7bbb005208/main#23.0,0,0,0
+devin,skill,skipped_format,,18,16,01432c86-f999-5675-b3f3-c82bbf6180f9/main#8.0 0cc61dc8-ae90-557b-8b1d-2ee38893738b/main#8.0 0e117526-b3cc-5241-abba-ea526eb66ae0/main#73.0,0,0,0
+devin,todo_write,skipped_format,,746,296,003b746a-dc35-559a-a798-67defcee0c9b/main#59.0 0071ff3e-5113-5a4b-9eb2-24ca665d738b/main#63.0 01432c86-f999-5675-b3f3-c82bbf6180f9/main#14.0,0,0,0
+grok-build,grep,skipped_format,,4691,688,004bafb8-6bbe-42d9-998b-28d7627234e8/main#10.0 004bafb8-6bbe-42d9-998b-28d7627234e8/main#12.0 004bafb8-6bbe-42d9-998b-28d7627234e8/main#12.1,0,0,0
+grok-build,list_dir,skipped_format,,2341,959,004bafb8-6bbe-42d9-998b-28d7627234e8/main#6.0 004bafb8-6bbe-42d9-998b-28d7627234e8/main#6.1 007b98f0-21e9-5616-adb6-cfdc47d19a7e/main#4.1,0,0,0
+grok-build,search_tool,skipped_format,,19,19,00b2b345-c6b0-4479-8d0e-33811aa5f324/main#24.2 057fe72d-e9af-4a27-aec2-cdd6df3f643c/main#5.3 07ab8562-046e-4471-8fd4-a8f7791e7c4f/main#19.1,0,0,0
+grok-build,todo_write,skipped_format,,1588,613,004bafb8-6bbe-42d9-998b-28d7627234e8/main#22.4 007b98f0-21e9-5616-adb6-cfdc47d19a7e/main#4.0 007b98f0-21e9-5616-adb6-cfdc47d19a7e/main#28.0,0,0,0
+muse-code,add_memory,skipped_format,,1,1,a1ac1a2d-9592-5803-b2b7-bf2b525e16fd/main#1147.0,0,0,0
+muse-code,read_skill,skipped_format,,135,120,01b42afb-7fa2-5f5f-8d19-a1344ce1f3af/main#7.0 02177462-ee33-514d-a9dd-f7167b20bf07/main#4.0 05e6de1b-5b55-5230-b2a9-405130861124/main#25.0,0,0,0
+muse-code,request_user_input,skipped_format,,1,1,b27e19fd-72a3-59c1-a8c3-8814aebb6fd7/main#118.0,0,0,0
+muse-code,search,skipped_format,,147,51,09cb446f-ed18-51bd-ac52-55f2529f4d6a/main#208.0 09cb446f-ed18-51bd-ac52-55f2529f4d6a/main#210.0 09cb446f-ed18-51bd-ac52-55f2529f4d6a/main#213.0,0,0,0
+muse-code,subagent_spawn,skipped_format,,1,1,18584db5-9527-5db3-aabb-2e4df8340e6b/main#92.0,0,0,0
+muse-code,subagent_status,skipped_format,,1,1,18584db5-9527-5db3-aabb-2e4df8340e6b/main#106.0,0,0,0
+muse-code,submit_reminder_decision,skipped_format,,1283,308,00d873c5-2441-5757-aefa-e1d7095bb75d/main/sub0#3.0 00d873c5-2441-5757-aefa-e1d7095bb75d/main/sub1#3.0 0189ba91-d0cb-52bc-ba08-4400ff2438d4/main/sub0#3.0,0,0,0
+muse-code,submit_result,skipped_format,,17,3,44bc0bb2-ddb8-5dba-921f-cdeae38d0aba/main/sub2#16.0 44bc0bb2-ddb8-5dba-921f-cdeae38d0aba/main/sub2#17.0 44bc0bb2-ddb8-5dba-921f-cdeae38d0aba/main/sub3#20.0,0,0,0
+muse-code,work_list,skipped_format,,34,14,030fbcec-81aa-5687-807d-03fcb7e56c19/main#59.0 18584db5-9527-5db3-aabb-2e4df8340e6b/main#109.0 18584db5-9527-5db3-aabb-2e4df8340e6b/main#118.0,0,0,0
+muse-code,workflow,skipped_format,,3,3,44bc0bb2-ddb8-5dba-921f-cdeae38d0aba/main#17.0 6f34f767-a542-5bd3-a178-fdcb190e07cc/main#7.0 872d5fe5-b246-5589-afc9-e28f7c5f8bbc/main#10.0,0,0,0
+muse-code,write_todos,skipped_format,,1407,251,00d873c5-2441-5757-aefa-e1d7095bb75d/main#9.0 00d873c5-2441-5757-aefa-e1d7095bb75d/main#26.0 00d873c5-2441-5757-aefa-e1d7095bb75d/main#30.0,0,0,0

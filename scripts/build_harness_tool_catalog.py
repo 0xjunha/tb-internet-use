@@ -2,7 +2,7 @@
 
 action_type and action_field stay empty, to be filled by hand once.
 
-Usage: uv run python scripts/build_harness_tool_catalog.py <raw_trials_dir> [output_csv]
+Usage: uv run python -I scripts/build_harness_tool_catalog.py <raw_trials_dir> [output_csv]
 """
 
 import argparse

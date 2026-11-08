@@ -6,7 +6,7 @@ from typing import Any
 import pytest
 
 from tb_internet_use.toolcall.convert import convert_call
-from tb_internet_use.toolcall.harnesses.base import HarnessConverter
+from tb_internet_use.toolcall.harnesses.base import HarnessToolCallConverter
 from tb_internet_use.toolcall.model import (
     Action,
     ExecutionHandle,
@@ -24,9 +24,9 @@ from tb_internet_use.toolcall.model import (
 )
 
 
-class _Converter(HarnessConverter):
+class _Converter(HarnessToolCallConverter):
     def parse_output(self, raw: RawToolCall, result: dict[str, Any]) -> ToolCallOutput:
-        return ToolCallOutput(text=result["content"])
+        return ToolCallOutput(tool_output_text=result["content"])
 
 
 class _ScriptConverter(_Converter):
@@ -34,7 +34,9 @@ class _ScriptConverter(_Converter):
         self, raw: RawToolCall, output: ToolCallOutput | None
     ) -> Action:
         assert output is not None
-        return RunScriptAction(raw.args["input"], (RunCommandAction(output.text),))
+        return RunScriptAction(
+            raw.args["input"], (RunCommandAction(output.tool_output_text),)
+        )
 
 
 class _RefiningConverter(_Converter):
@@ -43,7 +45,7 @@ class _RefiningConverter(_Converter):
     ) -> Action:
         assert isinstance(action, PollAction)
         assert output is not None
-        return replace(action, input=output.text, terminate=True)
+        return replace(action, input=output.tool_output_text, terminate=True)
 
 
 def _raw(
@@ -63,7 +65,9 @@ def test_maps_labeled_args_and_ignores_the_rest():
 
 def test_parses_output_when_the_log_has_a_result():
     raw = _raw("claude-code", "Bash", result={"content": "ok"})
-    assert convert_call(raw, _Converter()).output == ToolCallOutput(text="ok")
+    assert convert_call(raw, _Converter()).output == ToolCallOutput(
+        tool_output_text="ok"
+    )
 
 
 def test_output_is_none_without_a_result():

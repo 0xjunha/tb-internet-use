@@ -1,0 +1,744 @@
+harness,tool,format,kind,template,status,is_truncated,handle_kind,reviewed
+claude-code,Bash,tool_use_error,text,<tool_use_error>{reason:text}</tool_use_error>,not_run,,command,
+claude-code,Bash,timed_out,text,"Exit code {exit_code:int}
+Command timed out after {after:rest_of_line}
+{tool_output:text}",timed_out,,command,
+claude-code,Bash,timed_out_silent,text,"Exit code {exit_code:int}
+Command timed out after {after:rest_of_line}",timed_out,,command,
+claude-code,Bash,exited,text,"Exit code {exit_code:int}
+{tool_output:text}",finished,,command,
+claude-code,Bash,exited_silent,text,Exit code {exit_code:int},finished,,command,
+claude-code,Bash,refused_permission,text,Permission to use Bash {reason:text},not_run,,command,
+claude-code,Bash,refused_dangerous,text,Dangerous {operation:line_without_brackets} operation detected{reason:text},not_run,,command,
+claude-code,Bash,refused_multiple,text,This Bash command contains multiple operations{reason:text},not_run,,command,
+claude-code,Bash,interrupted_classifier,text,Interrupted: the response that made this tool call was stopped by a safety classifier{reason:text},unknown,,command,
+claude-code,Bash,refused_user,text,The user doesn't want to proceed with this tool use{reason:text},not_run,,command,
+claude-code,Bash,no_output,text,(Bash completed with no output),finished,,command,
+claude-code,Bash,background,text,"Command running in background with ID: {handle:id}. Output is being written to: {output_path:word}. You will be notified when it completes. To check interim output, use Read on that file path.",running,,command,
+claude-code,Bash,background_v3,text,"Command running in background with ID: {handle:id}. Output is being written to: {output_path:word}. If it exits while you are still working you will be notified, {rest:rest_of_line}",running,,command,
+claude-code,Bash,background_after_output,text,"{tool_output:text}
+Command running in background with ID: {handle:id}. Output is being written to: {output_path:word}. You will be notified when it completes. To check interim output, use Read on that file path.",running,,command,
+claude-code,Bash,background_timeout,text,"Command did not complete within its {seconds:int}s timeout and was moved to the background (ID: {handle:id}). Output is being written to: {output_path:word}. You will be notified when it completes. To check interim output, use Read on that file path.",running,,command,
+claude-code,Bash,background_timeout_v2,text,Command did not complete within its {seconds:int}s timeout and was moved to the background (ID: {handle:id}). Output is being written to: {output_path:word}. You will be notified when it completes. If it is still running after {rest:rest_of_line},running,,command,
+claude-code,Bash,background_timeout_after_output,text,"{tool_output:text}
+Command did not complete within its {seconds:int}s timeout and was moved to the background (ID: {handle:id}). Output is being written to: {output_path:word}. You will be notified when it completes. To check interim output, use Read on that file path.",running,,command,
+claude-code,Bash,background_timeout_after_output_v2,text,"{tool_output:text}
+Command did not complete within its {seconds:int}s timeout and was moved to the background (ID: {handle:id}). Output is being written to: {output_path:word}. You will be notified when it completes. If it is still running after {rest:rest_of_line}",running,,command,
+claude-code,Bash,background_short,text,Command running in background with ID: {handle:id}. Output is being written to: {output_path:word}.,running,,command,
+claude-code,Bash,background_timeout_short,text,Command did not complete within its {seconds:int}s timeout and was moved to the background (ID: {handle:id}). Output is being written to: {output_path:word}.,running,,command,
+claude-code,Bash,persisted_output,text,"<persisted-output>
+Output too large ({size:line_without_brackets}). Full output saved to: {output_path:word}
+
+Preview (first {preview:line_without_brackets}):
+{tool_output:text}
+</persisted-output>",finished,True,command,
+claude-code,Bash,persisted_output_partial,text,"<persisted-output>
+Output exceeded the {limit:line_without_brackets} persist limit; only the first {kept:line_without_brackets} were saved to: {output_path:word}
+
+Preview (first {preview:line_without_brackets}):
+{tool_output:text}
+</persisted-output>",finished,True,command,
+claude-code,Bash,bare_output,text,{tool_output:text},finished,,command,
+claude-code,Read,tool_use_error,text,<tool_use_error>{reason:text}</tool_use_error>,not_run,,command,
+claude-code,Read,interrupted_classifier,text,Interrupted: the response that made this tool call was stopped by a safety classifier{reason:text},unknown,,command,
+claude-code,Read,warning,text,<system-reminder>Warning: {warning:text}</system-reminder>,finished,,command,
+claude-code,Read,unchanged,text,Wasted call — file unchanged since your last Read. Refer to that earlier tool_result instead.,not_run,,command,
+claude-code,Read,pdf,text,PDF file read: {path:line} ({size:line_without_brackets}),finished,,command,
+claude-code,Read,pdf_pages,text,PDF pages extracted: {pages:int} page(s) from {path:line} ({size:line_without_brackets}),finished,,command,
+claude-code,Read,pdf_tool_missing,text,pdftoppm is not installed. {hint:text},not_run,,command,
+claude-code,Read,pdf_too_many_pages,text,"This PDF has {pages:int} pages, which is too many to read at once. {hint:text}",not_run,,command,
+claude-code,Read,pdf_too_large,text,PDF file exceeds maximum allowed size of {limit:rest_of_line},not_run,,command,
+claude-code,Read,image_too_large,text,Unable to resize image {detail:text},not_run,,command,
+claude-code,Read,directory,text,"EISDIR: illegal operation on a directory, {detail:text}",not_run,,command,
+claude-code,Read,missing,text,File does not exist. {note:text},not_run,,command,
+claude-code,Read,too_large,text,File content ({size:line_without_brackets}) exceeds maximum allowed {limit:text},not_run,,command,
+claude-code,Read,persisted_output,text,"<persisted-output>
+Output too large ({size:line_without_brackets}). Full output saved to: {output_path:word}
+
+Preview (first {preview:line_without_brackets}):
+{tool_output:text}
+</persisted-output>",finished,True,command,
+claude-code,Read,persisted_output_partial,text,"<persisted-output>
+Output exceeded the {limit:line_without_brackets} persist limit; only the first {kept:line_without_brackets} were saved to: {output_path:word}
+
+Preview (first {preview:line_without_brackets}):
+{tool_output:text}
+</persisted-output>",finished,True,command,
+claude-code,Read,listing,text,{tool_output:numbered_tab},finished,,command,
+claude-code,Write,tool_use_error,text,<tool_use_error>{reason:text}</tool_use_error>,not_run,,command,
+claude-code,Write,interrupted_classifier,text,Interrupted: the response that made this tool call was stopped by a safety classifier{reason:text},unknown,,command,
+claude-code,Write,not_run_classifier,text,Not run: the response that made this tool call was stopped by a safety classifier{reason:text},not_run,,command,
+claude-code,Write,refused_symlink,text,Refusing to write through symlink: {path:word} {hint:text},not_run,,command,
+claude-code,Write,created_fresh,text,File created successfully at: {path:word} (file state is current in your context — no need to Read it back),finished,,command,
+claude-code,Write,created,text,File created successfully at: {path:rest_of_line},finished,,command,
+claude-code,Write,updated_fresh,text,The file {path:line} has been updated successfully. (file state is current in your context — no need to Read it back),finished,,command,
+claude-code,Write,updated,text,The file {path:line} has been updated successfully.,finished,,command,
+claude-code,Edit,tool_use_error,text,<tool_use_error>{reason:text}</tool_use_error>,not_run,,command,
+claude-code,Edit,interrupted_classifier,text,Interrupted: the response that made this tool call was stopped by a safety classifier{reason:text},unknown,,command,
+claude-code,Edit,not_run_classifier,text,Not run: the response that made this tool call was stopped by a safety classifier{reason:text},not_run,,command,
+claude-code,Edit,refused_symlink,text,Refusing to write through symlink: {path:word} {hint:text},not_run,,command,
+claude-code,Edit,updated_fresh,text,The file {path:line} has been updated successfully. (file state is current in your context — no need to Read it back),finished,,command,
+claude-code,Edit,updated,text,The file {path:line} has been updated successfully.,finished,,command,
+claude-code,Edit,updated_note,text,The file {path:line} has been updated successfully. (note: {note:text},finished,,command,
+claude-code,Edit,replaced_all_fresh,text,The file {path:line} has been updated. All occurrences were successfully replaced. (file state is current in your context — no need to Read it back),finished,,command,
+claude-code,Edit,replaced_all,text,The file {path:line} has been updated. All occurrences were successfully replaced.,finished,,command,
+claude-code,Edit,replaced_all_note,text,The file {path:line} has been updated. All occurrences were successfully replaced. (note: {note:text},finished,,command,
+claude-code,WebFetch,tool_use_error,text,<tool_use_error>{reason:text}</tool_use_error>,not_run,,command,
+claude-code,WebFetch,interrupted_classifier,text,Interrupted: the response that made this tool call was stopped by a safety classifier{reason:text},unknown,,command,
+claude-code,WebFetch,persisted_output,text,"<persisted-output>
+Output too large ({size:line_without_brackets}). Full output saved to: {output_path:word}
+
+Preview (first {preview:line_without_brackets}):
+{tool_output:text}
+</persisted-output>",finished,True,command,
+claude-code,WebFetch,persisted_output_partial,text,"<persisted-output>
+Output exceeded the {limit:line_without_brackets} persist limit; only the first {kept:line_without_brackets} were saved to: {output_path:word}
+
+Preview (first {preview:line_without_brackets}):
+{tool_output:text}
+</persisted-output>",finished,True,command,
+claude-code,WebFetch,binary_saved,text,[Binary content ({detail:line_without_brackets}) also saved to {output_path:line_without_brackets}],finished,,command,
+claude-code,WebFetch,no_model_response,text,No response from model,finished,,command,
+claude-code,WebFetch,no_model_response_binary_saved,text,"No response from model
+
+[Binary content ({detail:line_without_brackets}) also saved to {output_path:line_without_brackets}]",finished,,command,
+claude-code,WebFetch,http_error_body_not_retrieved,text,"The server returned HTTP {code:int} {reason:rest_of_line}
+
+The response body was not retrieved. {detail:text}",finished,,command,
+claude-code,WebFetch,http_error,text,The server returned HTTP {code:int} {reason:rest_of_line},finished,,command,
+claude-code,WebFetch,api_error,text,API Error: {detail:text},finished,,command,
+claude-code,WebFetch,connection_error,text,connect {error:rest_of_line},finished,,command,
+claude-code,WebFetch,body_not_retrieved,text,"{tool_output:text}
+
+The response body was not retrieved. {detail:text}",finished,,command,
+claude-code,WebFetch,page_binary_saved,text,"{tool_output:text}
+
+[Binary content ({detail:line_without_brackets}) also saved to {output_path:line_without_brackets}]",finished,,command,
+claude-code,WebFetch,page,text,{tool_output:text},finished,,command,
+claude-code,WebSearch,tool_use_error,text,<tool_use_error>{reason:text}</tool_use_error>,not_run,,command,
+claude-code,WebSearch,interrupted_classifier,text,Interrupted: the response that made this tool call was stopped by a safety classifier{reason:text},unknown,,command,
+claude-code,WebSearch,persisted_results,text,"<persisted-output>
+Output too large ({size:line_without_brackets}). Full output saved to: {output_path:word}
+
+Preview (first {preview:line_without_brackets}):
+Web search results for query: ""{query:line}""
+
+{tool_output:text}
+</persisted-output>",finished,True,command,
+claude-code,WebSearch,persisted_output,text,"<persisted-output>
+Output too large ({size:line_without_brackets}). Full output saved to: {output_path:word}
+
+Preview (first {preview:line_without_brackets}):
+{tool_output:text}
+</persisted-output>",finished,True,command,
+claude-code,WebSearch,persisted_output_partial,text,"<persisted-output>
+Output exceeded the {limit:line_without_brackets} persist limit; only the first {kept:line_without_brackets} were saved to: {output_path:word}
+
+Preview (first {preview:line_without_brackets}):
+{tool_output:text}
+</persisted-output>",finished,True,command,
+claude-code,WebSearch,cut_off,text,The search was cut off before any results arrived. Try again.,finished,,command,
+claude-code,WebSearch,results,text,"Web search results for query: ""{query:line}""
+
+{tool_output:text}
+
+REMINDER: You MUST include the sources above in your response to the user using markdown hyperlinks.",finished,,command,
+claude-code,TaskStop,tool_use_error,text,<tool_use_error>{reason:text}</tool_use_error>,not_run,,command,
+claude-code,TaskStop,interrupted_classifier,text,Interrupted: the response that made this tool call was stopped by a safety classifier{reason:text},unknown,,command,
+claude-code,TaskStop,persisted_stopped,text,"<persisted-output>
+Output too large ({size:line_without_brackets}). Full output saved to: {output_path:word}
+
+Preview (first {preview:line_without_brackets}):
+{""message"":""Successfully stopped task: {handle:id} {rest:text}",killed,True,command,
+claude-code,TaskStop,persisted_output,text,"<persisted-output>
+Output too large ({size:line_without_brackets}). Full output saved to: {output_path:word}
+
+Preview (first {preview:line_without_brackets}):
+{tool_output:text}
+</persisted-output>",finished,True,command,
+claude-code,TaskStop,persisted_output_partial,text,"<persisted-output>
+Output exceeded the {limit:line_without_brackets} persist limit; only the first {kept:line_without_brackets} were saved to: {output_path:word}
+
+Preview (first {preview:line_without_brackets}):
+{tool_output:text}
+</persisted-output>",finished,True,command,
+claude-code,TaskStop,not_owner,text,Task {task:id} is owned by {owner:id}; agent {agent:id} cannot stop it.,not_run,,command,
+claude-code,TaskOutput,task_running,json,task.status == 'running',running,,by task.task_type,
+claude-code,TaskOutput,task_completed,json,task.status == 'completed',finished,,by task.task_type,
+claude-code,TaskOutput,task_failed,json,task.status == 'failed',finished,,by task.task_type,
+claude-code,TaskOutput,task_killed,json,task.status == 'killed',killed,,by task.task_type,
+claude-code,TaskStop,stopped,json,"present=task_id,message",killed,,by task_type,
+codex,exec_command,exited_truncated,text,"Chunk ID: {chunk:id}
+Wall time: {seconds:line_without_brackets} seconds
+Process exited with code {exit_code:int}
+Original token count: {tokens:int}
+Output:
+Warning: truncated output (original token count: {original:int})
+Total output lines: {lines:int}
+
+{tool_output:text}",finished,True,command,
+codex,exec_command,exited_truncated_no_line_count,text,"Chunk ID: {chunk:id}
+Wall time: {seconds:line_without_brackets} seconds
+Process exited with code {exit_code:int}
+Original token count: {tokens:int}
+Output:
+Warning: truncated output (original token count: {original:int})
+{tool_output:text}",finished,True,command,
+codex,exec_command,exited,text,"Chunk ID: {chunk:id}
+Wall time: {seconds:line_without_brackets} seconds
+Process exited with code {exit_code:int}
+Original token count: {tokens:int}
+Output:
+{tool_output:text}",finished,,command,
+codex,exec_command,running_truncated,text,"Chunk ID: {chunk:id}
+Wall time: {seconds:line_without_brackets} seconds
+Process running with session ID {handle:int}
+Original token count: {tokens:int}
+Output:
+Warning: truncated output (original token count: {original:int})
+Total output lines: {lines:int}
+
+{tool_output:text}",running,True,command,
+codex,exec_command,running,text,"Chunk ID: {chunk:id}
+Wall time: {seconds:line_without_brackets} seconds
+Process running with session ID {handle:int}
+Original token count: {tokens:int}
+Output:
+{tool_output:text}",running,,command,
+codex,exec_command,v2_exited,text,"Wall time: {seconds:line_without_brackets} seconds
+Output:
+Exit code: {exit_code:int}
+Wall time: {seconds2:line_without_brackets} seconds
+Output:
+{tool_output:text}",finished,,command,
+codex,exec_command,v2_running,text,"Wall time: {seconds:line_without_brackets} seconds
+Output:
+Process running with session ID {handle:int}
+Wall time: {seconds2:line_without_brackets} seconds
+Output:
+{tool_output:text}",running,,command,
+codex,exec_command,rejected,text,exec_command failed: {reason:text},not_run,,command,
+codex,exec_command,rejected_command,text,exec_command failed for `{command:text}`: {reason:text},not_run,,command,
+codex,exec_command,rejected_patch,text,apply_patch verification failed: {reason:text},not_run,,command,
+codex,exec_command,rejected_stdin,text,write_stdin failed: {reason:text},not_run,,command,
+codex,write_stdin,exited_truncated,text,"Chunk ID: {chunk:id}
+Wall time: {seconds:line_without_brackets} seconds
+Process exited with code {exit_code:int}
+Original token count: {tokens:int}
+Output:
+Warning: truncated output (original token count: {original:int})
+Total output lines: {lines:int}
+
+{tool_output:text}",finished,True,command,
+codex,write_stdin,exited_truncated_no_line_count,text,"Chunk ID: {chunk:id}
+Wall time: {seconds:line_without_brackets} seconds
+Process exited with code {exit_code:int}
+Original token count: {tokens:int}
+Output:
+Warning: truncated output (original token count: {original:int})
+{tool_output:text}",finished,True,command,
+codex,write_stdin,exited,text,"Chunk ID: {chunk:id}
+Wall time: {seconds:line_without_brackets} seconds
+Process exited with code {exit_code:int}
+Original token count: {tokens:int}
+Output:
+{tool_output:text}",finished,,command,
+codex,write_stdin,running_truncated,text,"Chunk ID: {chunk:id}
+Wall time: {seconds:line_without_brackets} seconds
+Process running with session ID {handle:int}
+Original token count: {tokens:int}
+Output:
+Warning: truncated output (original token count: {original:int})
+Total output lines: {lines:int}
+
+{tool_output:text}",running,True,command,
+codex,write_stdin,running,text,"Chunk ID: {chunk:id}
+Wall time: {seconds:line_without_brackets} seconds
+Process running with session ID {handle:int}
+Original token count: {tokens:int}
+Output:
+{tool_output:text}",running,,command,
+codex,write_stdin,v2_exited,text,"Wall time: {seconds:line_without_brackets} seconds
+Output:
+Exit code: {exit_code:int}
+Wall time: {seconds2:line_without_brackets} seconds
+Output:
+{tool_output:text}",finished,,command,
+codex,write_stdin,v2_running,text,"Wall time: {seconds:line_without_brackets} seconds
+Output:
+Process running with session ID {handle:int}
+Wall time: {seconds2:line_without_brackets} seconds
+Output:
+{tool_output:text}",running,,command,
+codex,write_stdin,rejected,text,exec_command failed: {reason:text},not_run,,command,
+codex,write_stdin,rejected_command,text,exec_command failed for `{command:text}`: {reason:text},not_run,,command,
+codex,write_stdin,rejected_patch,text,apply_patch verification failed: {reason:text},not_run,,command,
+codex,write_stdin,rejected_stdin,text,write_stdin failed: {reason:text},not_run,,command,
+cursor-cli,shellToolCall,not_spawned,json,present=spawnError,not_run,,command,
+cursor-cli,shellToolCall,background,json,"present=success.shellId,success.interleavedOutput",running,,command,
+cursor-cli,shellToolCall,background_requested,json,present=success.shellId absent=success.interleavedOutput,running,,command,
+cursor-cli,shellToolCall,exited_saved,json,"present=success.exitCode,success.outputLocation",finished,True,command,
+cursor-cli,shellToolCall,exited,json,"present=success.exitCode absent=success.shellId,success.outputLocation",finished,,command,
+cursor-cli,shellToolCall,failed_saved,json,"present=failure.exitCode,failure.outputLocation",finished,True,command,
+cursor-cli,shellToolCall,failed,json,present=failure.exitCode absent=failure.outputLocation,finished,,command,
+cursor-cli,awaitToolCall,no_task,json,present=success.complete success.complete.taskId == '',unknown,,command,
+cursor-cli,awaitToolCall,complete,json,present=success.complete success.complete.taskId != '',finished,,command,
+cursor-cli,awaitToolCall,still_running,json,present=success.stillRunning,running,,command,
+cursor-cli,awaitToolCall,error,json,present=error,not_run,,command,
+cursor-cli,readToolCall,content,json,present=success.content success.exceededLimit != True,finished,,command,
+cursor-cli,readToolCall,content_truncated,json,present=success.content success.exceededLimit == True,finished,True,command,
+cursor-cli,readToolCall,blob,json,present=success absent=success.content,finished,,command,
+cursor-cli,readToolCall,error,json,present=error,not_run,,command,
+cursor-cli,editToolCall,edited,json,present=success,finished,,command,
+cursor-cli,editToolCall,error,json,present=error,not_run,,command,
+cursor-cli,webFetchToolCall,page_saved,json,"present=success.markdown,success.outputLocation",finished,True,command,
+cursor-cli,webFetchToolCall,page,json,present=success.markdown absent=success.outputLocation,finished,,command,
+cursor-cli,webFetchToolCall,refused_localhost,json,present=error.error error.error startswith 'Cannot fetch from localhost',not_run,,command,
+cursor-cli,webFetchToolCall,error,json,present=error.error error.error !startswith 'Cannot fetch from localhost',finished,,command,
+cursor-cli,webSearchToolCall,results,json,present=success.references,finished,,command,
+cursor-cli,webSearchToolCall,error,json,present=error,finished,,command,
+cursor-cli,mcpToolCall,content,json,present=success.content success.isError != True,finished,,command,
+cursor-cli,mcpToolCall,tool_error,json,present=success.content success.isError == True,finished,,command,
+cursor-cli,mcpToolCall,error,json,present=error,not_run,,command,
+devin,exec,exited_truncated_after_warning,text,"Output from command in shell {handle:id}:
+Warning: requested timeout {asked:line_without_brackets} exceeds maximum of {max:line_without_brackets}; clamping to {clamped:line_without_brackets}.
+{tool_output:text}
+Exit code: {exit_code:uint}
+
+{note:line}
+<truncation_notice>
+Full output written to: {output_path:word}
+</truncation_notice>",finished,True,command,
+devin,exec,exited_after_warning,text,"Output from command in shell {handle:id}:
+Warning: requested timeout {asked:line_without_brackets} exceeds maximum of {max:line_without_brackets}; clamping to {clamped:line_without_brackets}.
+{tool_output:text}
+Exit code: {exit_code:uint}",finished,,command,
+devin,exec,exited_truncated,text,"Output from command in shell {handle:id}:
+{tool_output:text}
+Exit code: {exit_code:uint}
+
+{note:line}
+<truncation_notice>
+Full output written to: {output_path:word}
+</truncation_notice>",finished,True,command,
+devin,exec,exited,text,"Output from command in shell {handle:id}:
+{tool_output:text}
+Exit code: {exit_code:uint}",finished,,command,
+devin,exec,killed,text,"Output from command in shell {handle:id}:
+{tool_output:text}
+Exit code: -{signal:uint}",killed,,command,
+devin,exec,exited_live_file,text,"Output from command in shell {handle:id}. The full terminal output is being written live to {output_path:word}; read or grep it for anything omitted below. Preview:
+<file-view path=""{path:line}"" start_line=""{start:int}"" end_line=""{end:int}"" total_lines=""{total:int}"">
+{head:numbered_pipe}
+</file-view>
+… {omitted:int} lines omitted …
+<file-view path=""{path2:line}"" start_line=""{start2:int}"" end_line=""{end2:int}"" total_lines=""{total2:int}"">
+{tail:numbered_pipe}
+</file-view>
+
+Exit code: {exit_code:uint}",finished,True,command,
+devin,exec,exited_live_file_head,text,"Output from command in shell {handle:id}. The full terminal output is being written live to {output_path:word}; read or grep it for anything omitted below. Preview:
+<file-view path=""{path:line}"" start_line=""{start:int}"" end_line=""{end:int}"" total_lines=""{total:int}"">
+{head:numbered_pipe}
+</file-view>
+… {omitted:int} lines omitted …
+
+Exit code: {exit_code:uint}",finished,True,command,
+devin,exec,background_silent,text,No output produced after {seconds:line_without_brackets} seconds. Command running in background with ID: {handle:id}. Run get_output with timeout if you need to wait.,running,,command,
+devin,exec,background_after_output_truncated,text,"{tool_output:text}
+
+===
+Stopped waiting for output after {seconds:line_without_brackets} seconds. Command running in background with ID: {handle:id}. Run get_output with timeout if you need to wait.
+<truncation_notice>
+Full output written to: {output_path:word}
+</truncation_notice>",running,True,command,
+devin,exec,background_after_output,text,"{tool_output:text}
+
+===
+Stopped waiting for output after {seconds:line_without_brackets} seconds. Command running in background with ID: {handle:id}. Run get_output with timeout if you need to wait.",running,,command,
+devin,exec,background_requested,text,Command running in background with ID: {handle:id},running,,command,
+devin,exec,rejected,text,Tool 'exec' validation failed: {reason:text},not_run,,command,
+devin,exec,rejected_env,text,`env` can only be set when starting a new shell; {reason:text},not_run,,command,
+devin,exec,rejected_busy,text,Shell {handle:id} still has a running command. {reason:text},not_run,,command,
+devin,get_output,exited_silent_twice,text,"Exited with code {code:int} and no output
+
+Exit code: {exit_code:uint}",finished,,command,
+devin,get_output,killed_silent_twice,text,"Exited with code {code:int} and no output
+
+Exit code: -{signal:uint}",killed,,command,
+devin,get_output,exited_incremental,text,"[Changes since your last read, shown as a unified diff: '+' lines are new, '-' lines were replaced/removed in place, ' ' lines are unchanged context; '@@' line numbers index into the full output.]
+{diff:text}
+Exit code: {exit_code:uint}",finished,,command,
+devin,get_output,running_incremental,text,"[Changes since your last read, shown as a unified diff: '+' lines are new, '-' lines were replaced/removed in place, ' ' lines are unchanged context; '@@' line numbers index into the full output.]
+{diff:text}",running,,command,
+devin,get_output,exited,text,"{tool_output:text}
+Exit code: {exit_code:uint}",finished,,command,
+devin,get_output,exited_bare,text,Exit code: {exit_code:uint},finished,,command,
+devin,get_output,killed,text,"{tool_output:text}
+Exit code: -{signal:uint}",killed,,command,
+devin,get_output,killed_bare,text,Exit code: -{signal:uint},killed,,command,
+devin,get_output,exited_silent,text,Exited with code {exit_code:uint} and no output,finished,,command,
+devin,get_output,exited_no_more,text,No more output to read. Shell {handle:id} exited with code {exit_code:uint}.,finished,,command,
+devin,get_output,running_silent,text,No output yet (still running),running,,command,
+devin,get_output,rejected,text,Tool 'get_output' validation failed: {reason:text},not_run,,command,
+devin,get_output,running,text,{tool_output:text},running,,command,
+devin,kill_shell,killed,text,Shell {handle:id} terminated successfully,killed,,command,
+devin,kill_shell,rejected,text,Tool 'kill_shell' validation failed: {reason:text},not_run,,command,
+devin,write_to_process,written,text,Written {bytes:int} bytes to shell {handle:id},running,,command,
+devin,read,listing,text,"<file-view path=""{path:line}"" start_line=""{start:int}"" end_line=""{end:int}"" total_lines=""{total:int}"">
+{tool_output:numbered_pipe}
+</file-view>",finished,,command,
+devin,read,image,text,[Image {index:int}],finished,,command,
+devin,read,rejected,text,Tool 'read' validation failed: {reason:text},not_run,,command,
+devin,write,created,text,File created successfully at: {path:rest_of_line},finished,,command,
+devin,write,updated_truncated_note,text,"The file {path:line} has been updated. Here's the result of running `cat -n` on a snippet of the edited file:
+{snippet:numbered_pipe}
+… ({cut:int} lines truncated)
+<truncation_notice>
+Full output written to: {output_path:word}
+</truncation_notice>",finished,True,command,
+devin,write,updated_truncated_cut_line,text,"The file {path:line} has been updated. Here's the result of running `cat -n` on a snippet of the edited file:
+{snippet:numbered_pipe}
+{cut_line:line}
+… ({cut:int} lines truncated)
+<truncation_notice>
+Full output written to: {output_path:word}
+</truncation_notice>",finished,True,command,
+devin,write,updated_truncated,text,"The file {path:line} has been updated. Here's the result of running `cat -n` on a snippet of the edited file:
+{snippet:numbered_pipe}
+<truncation_notice>
+Full output written to: {output_path:word}
+</truncation_notice>",finished,True,command,
+devin,write,updated,text,"The file {path:line} has been updated. Here's the result of running `cat -n` on a snippet of the edited file:
+{snippet:numbered_pipe}",finished,,command,
+devin,write,rejected,text,Tool 'write' validation failed: {reason:text},not_run,,command,
+devin,edit,updated_truncated_note,text,"The file {path:line} has been updated. Here's the result of running `cat -n` on a snippet of the edited file:
+{snippet:numbered_pipe}
+… ({cut:int} lines truncated)
+<truncation_notice>
+Full output written to: {output_path:word}
+</truncation_notice>",finished,True,command,
+devin,edit,updated_truncated_cut_line,text,"The file {path:line} has been updated. Here's the result of running `cat -n` on a snippet of the edited file:
+{snippet:numbered_pipe}
+{cut_line:line}
+… ({cut:int} lines truncated)
+<truncation_notice>
+Full output written to: {output_path:word}
+</truncation_notice>",finished,True,command,
+devin,edit,updated_truncated,text,"The file {path:line} has been updated. Here's the result of running `cat -n` on a snippet of the edited file:
+{snippet:numbered_pipe}
+<truncation_notice>
+Full output written to: {output_path:word}
+</truncation_notice>",finished,True,command,
+devin,edit,updated,text,"The file {path:line} has been updated. Here's the result of running `cat -n` on a snippet of the edited file:
+{snippet:numbered_pipe}",finished,,command,
+devin,edit,rejected,text,Tool 'edit' validation failed: {reason:text},not_run,,command,
+devin,webfetch,page_truncated,text,"# Web Content from {url:rest_of_line}
+{tool_output:text}
+<truncation_notice>
+Full output written to: {output_path:word}
+</truncation_notice>",finished,True,command,
+devin,webfetch,page,text,"# Web Content from {url:rest_of_line}
+{tool_output:text}",finished,,command,
+devin,webfetch,http_error,text,HTTP request failed with status: {code:int},finished,,command,
+devin,webfetch,rejected,text,Tool 'webfetch' validation failed: {reason:text},not_run,,command,
+devin,web_search,results_truncated,text,"# Web Search Results for ""{query:line}""
+{tool_output:text}
+<truncation_notice>
+Full output written to: {output_path:word}
+</truncation_notice>",finished,True,command,
+devin,web_search,results_crlf_truncated,text,"# Web Search Results for ""{query:line}""
+{tool_output:text}
+<truncation_notice>
+Full output written to: {output_path:word}
+</truncation_notice>",finished,True,command,
+devin,web_search,results,text,"# Web Search Results for ""{query:line}""
+{tool_output:text}",finished,,command,
+devin,web_search,results_crlf,text,"# Web Search Results for ""{query:line}""
+{tool_output:text}",finished,,command,
+devin,browser_preview,preview_running,text,"Browser preview running with ID: {handle:id}
+{detail:text}",running,,unknown,
+grok-build,run_terminal_command,exited_truncated,text,"exit: {exit_code:int} [truncated: showing {shown:line_without_brackets} - full output at: {output_path:line_without_brackets}]
+{tool_output:text}",finished,True,command,
+grok-build,run_terminal_command,exited,text,"exit: {exit_code:int}
+{tool_output:text}",finished,,command,
+grok-build,run_terminal_command,exited_silent,text,exit: {exit_code:int},finished,,command,
+grok-build,run_terminal_command,killed_truncated,text,"exit: killed (signal {signal:int}) [truncated: showing {shown:line_without_brackets} - full output at: {output_path:line_without_brackets}]
+{tool_output:text}",killed,True,command,
+grok-build,run_terminal_command,killed,text,"exit: killed (signal {signal:int})
+{tool_output:text}",killed,,command,
+grok-build,run_terminal_command,background,text,"<task-id>{handle:id}</task-id>
+<task-type>bash</task-type>
+<output-file>{output_path:line}</output-file>
+<status>running</status>
+<summary>{summary:text}</summary>
+Use get_command_or_subagent_output with task_ids=[""{handle2:id}""] when you need the output.",running,,command,
+grok-build,run_terminal_command,background_v2,text,"<task-id>{handle:id}</task-id>
+<task-type>bash</task-type>
+<output-file>{output_path:line}</output-file>
+<status>running</status>
+<summary>{summary:text}</summary>
+Use get_command_or_subagent_output tool with task_ids=[""{handle2:id}""] to retrieve the output.",running,,command,
+grok-build,run_terminal_command,rejected,text,Tool `run_terminal_command` failed: {reason:text},not_run,,command,
+grok-build,run_terminal_command,rejected_arguments,text,Failed to parse arguments for tool `run_terminal_command`: {reason:text},not_run,,command,
+grok-build,get_command_or_subagent_output,done_empty,text,"=== Task {handle:id} ===
+Command: {command:text}
+Status: completed
+Duration: {duration:line}
+Exit Code: {exit_code:int}
+Output File: {output_path:line}
+
+=== Output ===
+(no output)",finished,,command,
+grok-build,get_command_or_subagent_output,done_empty_truncated,text,"=== Task {handle:id} ===
+Command: {command:text}
+Status: completed
+Duration: {duration:line}
+Exit Code: {exit_code:int}
+Output File: {output_path:line}
+
+=== Output ===
+(no output)
+[truncated - use read_file on output_file for full content]",finished,True,command,
+grok-build,get_command_or_subagent_output,done_truncated_bytes,text,"=== Task {handle:id} ===
+Command: {command:text}
+Status: completed
+Duration: {duration:line}
+Exit Code: {exit_code:int}
+Output File: {output_path:line}
+
+=== Output ===
+{tool_output:text}
+[Output truncated - {bytes:int} bytes total. Use read_file on {saved_to:line_without_brackets} for full content]
+[truncated - use read_file on output_file for full content]",finished,True,command,
+grok-build,get_command_or_subagent_output,done_truncated,text,"=== Task {handle:id} ===
+Command: {command:text}
+Status: completed
+Duration: {duration:line}
+Exit Code: {exit_code:int}
+Output File: {output_path:line}
+
+=== Output ===
+{tool_output:text}
+[truncated - use read_file on output_file for full content]",finished,True,command,
+grok-build,get_command_or_subagent_output,done,text,"=== Task {handle:id} ===
+Command: {command:text}
+Status: completed
+Duration: {duration:line}
+Exit Code: {exit_code:int}
+Output File: {output_path:line}
+
+=== Output ===
+{tool_output:text}",finished,,command,
+grok-build,get_command_or_subagent_output,failed_empty,text,"=== Task {handle:id} ===
+Command: {command:text}
+Status: failed
+Duration: {duration:line}
+Exit Code: {exit_code:int}
+Output File: {output_path:line}
+
+=== Output ===
+(no output)",finished,,command,
+grok-build,get_command_or_subagent_output,failed_empty_truncated,text,"=== Task {handle:id} ===
+Command: {command:text}
+Status: failed
+Duration: {duration:line}
+Exit Code: {exit_code:int}
+Output File: {output_path:line}
+
+=== Output ===
+(no output)
+[truncated - use read_file on output_file for full content]",finished,True,command,
+grok-build,get_command_or_subagent_output,failed_truncated,text,"=== Task {handle:id} ===
+Command: {command:text}
+Status: failed
+Duration: {duration:line}
+Exit Code: {exit_code:int}
+Output File: {output_path:line}
+
+=== Output ===
+{tool_output:text}
+[truncated - use read_file on output_file for full content]",finished,True,command,
+grok-build,get_command_or_subagent_output,failed,text,"=== Task {handle:id} ===
+Command: {command:text}
+Status: failed
+Duration: {duration:line}
+Exit Code: {exit_code:int}
+Output File: {output_path:line}
+
+=== Output ===
+{tool_output:text}",finished,,command,
+grok-build,get_command_or_subagent_output,failed_signaled_empty,text,"=== Task {handle:id} ===
+Command: {command:text}
+Status: failed
+Duration: {duration:line}
+Output File: {output_path:line}
+
+=== Output ===
+(no output)",killed,,command,
+grok-build,get_command_or_subagent_output,failed_signaled,text,"=== Task {handle:id} ===
+Command: {command:text}
+Status: failed
+Duration: {duration:line}
+Output File: {output_path:line}
+
+=== Output ===
+{tool_output:text}",killed,,command,
+grok-build,get_command_or_subagent_output,running_empty,text,"=== Task {handle:id} ===
+Command: {command:text}
+Status: running
+Duration: {duration:line}
+Output File: {output_path:line}
+
+=== Output ===
+(no output)
+
+{note:rest_of_line}",running,,command,
+grok-build,get_command_or_subagent_output,running_empty_truncated,text,"=== Task {handle:id} ===
+Command: {command:text}
+Status: running
+Duration: {duration:line}
+Output File: {output_path:line}
+
+=== Output ===
+(no output)
+
+{note:rest_of_line}
+[truncated - use read_file on output_file for full content]",running,True,command,
+grok-build,get_command_or_subagent_output,running_truncated,text,"=== Task {handle:id} ===
+Command: {command:text}
+Status: running
+Duration: {duration:line}
+Output File: {output_path:line}
+
+=== Output ===
+{tool_output:text}
+
+{note:rest_of_line}
+[truncated - use read_file on output_file for full content]",running,True,command,
+grok-build,get_command_or_subagent_output,running,text,"=== Task {handle:id} ===
+Command: {command:text}
+Status: running
+Duration: {duration:line}
+Output File: {output_path:line}
+
+=== Output ===
+{tool_output:text}
+
+{note:rest_of_line}",running,,command,
+grok-build,get_command_or_subagent_output,running_no_note,text,"=== Task {handle:id} ===
+Command: {command:text}
+Status: running
+Duration: {duration:line}
+Output File: {output_path:line}
+
+=== Output ===
+{tool_output:text}",running,,command,
+grok-build,get_command_or_subagent_output,cancelled_empty,text,"=== Task {handle:id} ===
+Command: {command:text}
+Status: cancelled
+Duration: {duration:line}
+Output File: {output_path:line}
+
+=== Output ===
+(no output)",killed,,command,
+grok-build,get_command_or_subagent_output,cancelled,text,"=== Task {handle:id} ===
+Command: {command:text}
+Status: cancelled
+Duration: {duration:line}
+Output File: {output_path:line}
+
+=== Output ===
+{tool_output:text}",killed,,command,
+grok-build,get_command_or_subagent_output,timed_out_empty,text,"=== Task {handle:id} ===
+Command: {command:text}
+Status: timed_out
+Duration: {duration:line}
+Output File: {output_path:line}
+
+=== Output ===
+(no output)",timed_out,,command,
+grok-build,get_command_or_subagent_output,timed_out,text,"=== Task {handle:id} ===
+Command: {command:text}
+Status: timed_out
+Duration: {duration:line}
+Output File: {output_path:line}
+
+=== Output ===
+{tool_output:text}",timed_out,,command,
+grok-build,get_command_or_subagent_output,multi_wait,text,"=== Multi-wait ({mode:line_without_brackets}) ===
+{tool_output:text}",unknown,,command,
+grok-build,get_command_or_subagent_output,rejected,text,Tool `get_command_or_subagent_output` failed: {reason:text},not_run,,command,
+grok-build,get_command_or_subagent_output,unknown_task,text,Task {handle:id} not found. Known task IDs: {known:rest_of_line},not_run,,command,
+grok-build,kill_command_or_subagent,killed,text,killed: Task was terminated successfully,killed,,command,
+grok-build,kill_command_or_subagent,already_exited,text,already_exited: Task had already completed,finished,,command,
+grok-build,kill_command_or_subagent,unknown_task,text,Task or subagent {handle:id} not found. {reason:text},not_run,,command,
+grok-build,monitor,started,text,"Monitor started (task {handle:id}, timeout {timeout:line_without_brackets}).
+{note:text}",running,,command,
+grok-build,read_file,image,text,Read image file: {path:rest_of_line},finished,,command,
+grok-build,read_file,pdf,text,"Read PDF file: {path:line} ({pages:line_without_brackets} pages rendered, {total:int} total)",finished,,command,
+grok-build,read_file,empty,text,File is empty.,finished,,command,
+grok-build,read_file,past_end,text,(no lines returned: the requested window is past the end of the file; the file has {total:int} lines),finished,,command,
+grok-build,read_file,missing,text,Error: {path:line} does not exist.,not_run,,command,
+grok-build,read_file,too_large,text,File content ({size:line_without_brackets}) exceeds maximum allowed tokens ({limit:line_without_brackets}).{rest:text},not_run,,command,
+grok-build,read_file,range_too_large,text,The requested line range ({range:line_without_brackets}) contains {rest:text},not_run,,command,
+grok-build,read_file,listing,text,{tool_output:partly_numbered_arrow},finished,,command,
+grok-build,write,written,text,Wrote file successfully to {path:rest_of_line},finished,,command,
+grok-build,write,created,text,The file {path:line} has been created.,finished,,command,
+grok-build,search_replace,updated,text,The file {path:line} has been updated successfully.,finished,,command,
+grok-build,search_replace,created,text,The file {path:line} has been created successfully.,finished,,command,
+grok-build,search_replace,replaced_all,text,The file {path:line} has been updated. All occurrences were successfully replaced.,finished,,command,
+grok-build,search_replace,not_found,text,"The string to replace was not found in the file, {hint:text}",not_run,,command,
+grok-build,search_replace,not_unique,text,The string to replace was found multiple times in the file. {hint:text},not_run,,command,
+grok-build,search_replace,same_strings,text,Old string and new string are the same,not_run,,command,
+grok-build,search_replace,missing,text,Error: {path:line} does not exist.,not_run,,command,
+grok-build,search_replace,rejected_arguments,text,Failed to parse arguments for tool `search_replace`: {reason:text},not_run,,command,
+mini-swe-agent,bash,not_executed,json,exception_info startswith 'action was not executed',not_run,,command,
+mini-swe-agent,bash,timed_out,json,absent=elided_chars exception_info contains 'timed out',timed_out,,command,
+mini-swe-agent,bash,timed_out_truncated,json,present=elided_chars exception_info contains 'timed out',timed_out,True,command,
+mini-swe-agent,bash,killed,json,present=output absent=exception_info returncode < 0,killed,,command,
+mini-swe-agent,bash,killed_truncated,json,present=output_head absent=exception_info returncode < 0,killed,True,command,
+mini-swe-agent,bash,exited,json,"present=output absent=exception_info,elided_chars returncode > -1",finished,,command,
+mini-swe-agent,bash,exited_truncated,json,"present=output_head,output_tail absent=exception_info returncode > -1",finished,True,command,
+muse-code,bash,rejected,text,tool failed: {reason:text},not_run,,command,
+muse-code,bash_input,rejected,text,tool failed: {reason:text},not_run,,command,
+muse-code,read_file,listing,text,"Read text file `{path:line}`{detail:rest_of_line}
+{tool_output:numbered_pipe}",finished,,command,
+muse-code,read_file,listing_after,text,"Read text file `{path:line}`{detail:rest_of_line}
+({above:int} line(s) above)
+{tool_output:numbered_pipe}",finished,,command,
+muse-code,read_file,listing_before,text,"Read text file `{path:line}`{detail:rest_of_line}
+{tool_output:numbered_pipe}
+(more lines below)",finished,,command,
+muse-code,read_file,listing_between,text,"Read text file `{path:line}`{detail:rest_of_line}
+({above:int} line(s) above)
+{tool_output:numbered_pipe}
+(more lines below)",finished,,command,
+muse-code,read_file,listing_nothing_below,text,"Read text file `{path:line}`{detail:rest_of_line}
+({above:int} line(s) above)",finished,,command,
+muse-code,read_file,header_only,text,Read text file `{path:line}`{detail:rest_of_line},finished,,command,
+muse-code,read_file,image,text,"Read image file `{path:line}` as model-visible image output.
+media_type: {media:rest_of_line}
+source_bytes: {bytes:int}",finished,,command,
+muse-code,read_file,rejected,text,tool failed: {reason:text},not_run,,command,
+muse-code,write_file,written_note,text,wrote {bytes:int} bytes to {path:line} note: {note:text},finished,,command,
+muse-code,write_file,written,text,wrote {bytes:int} bytes to {path:rest_of_line},finished,,command,
+muse-code,write_file,rejected,text,tool failed: {reason:text},not_run,,command,
+muse-code,edit_file,edited,text,"edited
+{detail:text}",finished,,command,
+muse-code,edit_file,edited_bare,text,edited,finished,,command,
+muse-code,edit_file,rejected,text,tool failed: {reason:text},not_run,,command,
+muse-code,bash,exited,json,terminal_status == 'completed',finished,,command,
+muse-code,bash,failed,json,present=exit_code terminal_status == 'failed',finished,,command,
+muse-code,bash,signaled,json,absent=exit_code terminal_reason startswith 'process exited with signal',killed,,command,
+muse-code,bash,cancelled,json,terminal_status == 'cancelled',killed,,command,
+muse-code,bash,background,json,execution_state == 'background_running',running,,command,
+muse-code,bash_input,exited,json,terminal_status == 'completed',finished,,command,
+muse-code,bash_input,failed,json,present=exit_code terminal_status == 'failed',finished,,command,
+muse-code,bash_input,signaled,json,absent=exit_code terminal_reason startswith 'process exited with signal',killed,,command,
+muse-code,bash_input,cancelled,json,terminal_status == 'cancelled',killed,,command,
+muse-code,bash_input,background,json,execution_state == 'background_running',running,,command,
+muse-code,work_stop,accepted,json,status == 'accepted',killed,,command,
+muse-code,work_stop,already_ended,json,status == 'already_terminal',finished,,command,
+muse-code,web_search,results,json,present=results,finished,,command,
+muse-code,monitor,started,json,present=work_id,running,,command,

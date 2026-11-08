@@ -1,8 +1,8 @@
 """Harness-agnostic common types for tool calls in ATIF trajectories"""
 
 from dataclasses import dataclass
-from enum import StrEnum
-from typing import Any
+from enum import Enum, StrEnum
+from typing import Any, final
 
 
 class ExecutionHandleKind(StrEnum):
@@ -11,7 +11,7 @@ class ExecutionHandleKind(StrEnum):
     COMMAND = "command"  # one shell command string
     SCRIPT = "script"  # code that can run several commands
     SUBAGENT = "subagent"  # a subagent started earlier
-    UNKNOWN = "unknown"  # cannot confirm from the log
+    UNKNOWN = "unknown"  # cannot confirm from the trajectory
 
 
 class ExecutionStatus(StrEnum):
@@ -26,7 +26,7 @@ class ExecutionStatus(StrEnum):
     TIMED_OUT = "timed_out"  # stopped by the harness's time limit
     KILLED = "killed"  # stopped by a signal or a stop request
     NOT_RUN = "not_run"  # the tool did no work
-    UNKNOWN = "unknown"  # the log does not say
+    UNKNOWN = "unknown"  # the trajectory does not say
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,14 +41,15 @@ class ExecutionHandle:
 class RunCommandAction:
     """Run a string in a shell in one go; it can chain several commands."""
 
-    command_str: str | None = None  # None when the log has none or JS builds it later
+    # None when the trajectory has none or JS builds it later
+    command_str: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class RunScriptAction:
-    """Run code that can call several tools; the log has one result for all of it."""
+    """Run code that can call several tools; the trajectory has one result for all of it."""
 
-    code: str | None = None  # None when the log has none
+    code: str | None = None  # None when the trajectory has none
     steps: tuple[Action, ...] = ()  # tool calls found in the code, in order
 
 
@@ -56,7 +57,7 @@ class RunScriptAction:
 class WriteFileAction:
     """Write a whole file with a dedicated tool."""
 
-    path: str | None = None  # None when the log has none
+    path: str | None = None  # None when the trajectory has none
     content: str | None = None
 
 
@@ -64,7 +65,7 @@ class WriteFileAction:
 class EditFileAction:
     """Replace text in a file with a dedicated tool."""
 
-    path: str | None = None  # None when the log has none
+    path: str | None = None  # None when the trajectory has none
     old: str | None = None
     new: str | None = None
 
@@ -73,7 +74,7 @@ class EditFileAction:
 class ReadFileAction:
     """Read a file with a dedicated tool."""
 
-    path: str | None = None  # None when the log has none
+    path: str | None = None  # None when the trajectory has none
     offset: int | None = None  # 1-based line; negative counts from the end
     limit: int | None = None  # number of lines
 
@@ -82,21 +83,21 @@ class ReadFileAction:
 class WebSearchAction:
     """Search with a dedicated web tool."""
 
-    queries: tuple[str, ...] = ()  # empty when the log has none
+    queries: tuple[str, ...] = ()  # empty when the trajectory has none
 
 
 @dataclass(frozen=True, slots=True)
 class WebFetchAction:
     """Open pages with a dedicated web tool."""
 
-    urls: tuple[str, ...] = ()  # empty when the log has none
+    urls: tuple[str, ...] = ()  # empty when the trajectory has none
 
 
 @dataclass(frozen=True, slots=True)
 class WebFindAction:
     """Find text in a page with a dedicated web tool."""
 
-    urls: tuple[str, ...] = ()  # empty when the log has none
+    urls: tuple[str, ...] = ()  # empty when the trajectory has none
 
 
 @dataclass(frozen=True, slots=True)
@@ -133,25 +134,59 @@ type Action = (
 )
 
 
+@final
+@dataclass(frozen=True, slots=True)
+class MatchedFormat:
+    """A declared harness result format matched the result."""
+
+    name: str  # unique within one (harness, tool)
+
+    def __str__(self) -> str:
+        return self.name
+
+
+class UnmatchedFormat(Enum):
+    """No declared format produced the output."""
+
+    UNKNOWN = "unknown_format"  # the tool has formats; this result matched none
+    SKIPPED = "skipped_format"  # the tool has no formats, so none were tried
+
+    def __str__(self) -> str:
+        return self.value
+
+
+# Which format produced a ToolCallOutput; str() gives the name the catalog and audit CSVs use.
+type FormatMatch = MatchedFormat | UnmatchedFormat
+
+
 @dataclass(frozen=True, slots=True)
 class ToolCallOutput:
     """What a tool call returned, in common types."""
 
-    text: str | None = None  # body without what the harness wrapped around it
+    # The tool output as plain text, e.g. without line numbers. "" when the tool
+    # showed no output, None when the format has `tool_output_not_in_trajectory`.
+    # When no format matched, the raw text as is.
+    tool_output_text: str | None = None
     execution_status: ExecutionStatus = ExecutionStatus.UNKNOWN
     exit_code: int | None = None  # real exit codes only
     handles: tuple[ExecutionHandle, ...] = ()
     output_path: str | None = None  # file holding the full output
-    is_truncated: bool | None = None  # None when the log says nothing
+    is_truncated: bool | None = None  # None when the trajectory says nothing
+    # The harness result format that produced the fields above, see result_formats.py.
+    #   MatchedFormat(name)      the format that matched
+    #   UnmatchedFormat.UNKNOWN  the tool has formats, but none matched
+    #   UnmatchedFormat.SKIPPED  the tool has no formats, so none were tried
+    # For audits, review and evidence only. Later stages must not branch on it.
+    harness_result_format: FormatMatch = UnmatchedFormat.SKIPPED
 
 
 @dataclass(frozen=True, slots=True)
 class ToolCallKey:
-    """Unique position of a tool call in the logs."""
+    """Unique position of a tool call in the trajectories."""
 
     trial_id: str  # Harbor Hub trial id
     trajectory_id: str  # "main", or "main/sub0" for the first subagent (0-based)
-    step_id: int  # as logged; 1-based in each trajectory
+    step_id: int  # the step's step_id in the trajectory, 1-based
     call_index: int  # 0-based position in the step's tool_calls
 
 
@@ -165,13 +200,15 @@ class HarnessTool:
 
 @dataclass(frozen=True, slots=True)
 class RawToolCall:
-    """One tool call as logged, paired with its result."""
+    """One tool call from the trajectory, paired with its result."""
 
     key: ToolCallKey
     tool: HarnessTool
-    tool_call_id: str  # as logged; can be empty or repeated, so not a key
-    args: dict[str, Any]  # arguments as logged
-    result: dict[str, Any] | None  # result object as logged; None when there is none
+    # From the trajectory. It can be empty or repeated, so it is not a key.
+    tool_call_id: str
+    args: dict[str, Any]  # the arguments in the trajectory
+    # The result object in the trajectory, or None when the call has none.
+    result: dict[str, Any] | None
     is_subagent: bool = False
 
 
@@ -181,4 +218,4 @@ class ToolCall:
 
     raw: RawToolCall
     action: Action
-    output: ToolCallOutput | None  # None when the log has no result
+    output: ToolCallOutput | None  # None when the trajectory has no result

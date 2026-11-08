@@ -1,0 +1,137 @@
+"""Codex converter tests, with made-up results shaped as in the trajectories."""
+
+from typing import Any
+
+from tb_internet_use.toolcall.convert import convert_call
+from tb_internet_use.toolcall.harnesses.codex import CodexConverter
+from tb_internet_use.toolcall.model import (
+    ExecutionHandle,
+    ExecutionHandleKind,
+    ExecutionStatus,
+    HarnessTool,
+    MatchedFormat,
+    RawToolCall,
+    ToolCallKey,
+    UnknownAction,
+    UnmatchedFormat,
+    WebFetchAction,
+    WebFindAction,
+    WebSearchAction,
+)
+
+S = ExecutionStatus
+CONVERTER = CodexConverter()
+HEAD = "Chunk ID: ab12\nWall time: 0.5 seconds\n"
+
+
+def _raw(tool: str, args: dict[str, Any], content: str | None) -> RawToolCall:
+    return RawToolCall(
+        ToolCallKey("t", "main", 1, 0),
+        HarnessTool("codex", tool),
+        "id",
+        args,
+        {"content": content},
+    )
+
+
+def test_exec_command_exited():
+    content = (
+        HEAD + "Process exited with code 1\nOriginal token count: 3\nOutput:\nerr\n"
+    )
+    output = convert_call(_raw("exec_command", {"cmd": "x"}, content), CONVERTER).output
+    assert output is not None
+    assert (output.execution_status, output.exit_code, output.tool_output_text) == (
+        S.FINISHED,
+        1,
+        "err\n",
+    )
+
+
+def test_exec_command_running_gives_the_session_handle():
+    content = (
+        HEAD + "Process running with session ID 7\nOriginal token count: 0\nOutput:\n"
+    )
+    output = convert_call(_raw("exec_command", {"cmd": "x"}, content), CONVERTER).output
+    assert output is not None
+    assert output.execution_status is S.RUNNING
+    assert output.handles == (ExecutionHandle(ExecutionHandleKind.COMMAND, "7"),)
+
+
+def test_truncation_warning_after_output_header_sets_is_truncated():
+    content = (
+        HEAD + "Process exited with code 0\nOriginal token count: 99\nOutput:\n"
+        "Warning: truncated output (original token count: 99)\nTotal output lines: 500\n\nbody"
+    )
+    output = convert_call(_raw("exec_command", {"cmd": "x"}, content), CONVERTER).output
+    assert output is not None
+    assert (output.is_truncated, output.tool_output_text) == (True, "body")
+
+
+def test_rejected_commands_are_not_run():
+    output = convert_call(
+        _raw("exec_command", {"cmd": "x"}, "exec_command failed: nope"), CONVERTER
+    ).output
+    assert output is not None and output.execution_status is S.NOT_RUN
+    output = convert_call(
+        _raw(
+            "write_stdin",
+            {"session_id": 7, "chars": "y"},
+            "write_stdin failed: Unknown process id 7",
+        ),
+        CONVERTER,
+    ).output
+    assert output is not None and output.execution_status is S.NOT_RUN
+
+
+def test_web_search_call_without_content_is_finished_and_typed_by_action_type():
+    call = convert_call(
+        _raw("web_search_call", {"action_type": "search", "query": "q"}, None),
+        CONVERTER,
+    )
+    assert call.output is not None
+    assert (call.output.execution_status, call.output.tool_output_text) == (
+        S.FINISHED,
+        None,
+    )
+    assert call.action == WebSearchAction(("q",))
+    assert convert_call(
+        _raw("web_search_call", {"action_type": "open_page", "url": "u"}, None),
+        CONVERTER,
+    ).action == WebFetchAction(("u",))
+    assert convert_call(
+        _raw("web_search_call", {"action_type": "find_in_page", "url": "u"}, None),
+        CONVERTER,
+    ).action == WebFindAction(("u",))
+    assert (
+        convert_call(
+            _raw("web_search_call", {"action_type": ""}, None), CONVERTER
+        ).action
+        == UnknownAction()
+    )
+
+
+def test_exec_is_left_unconverted_for_now():
+    call = convert_call(
+        _raw("exec", {"input": "tools.exec_command('ls')"}, "Script completed"),
+        CONVERTER,
+    )
+    assert call.action == UnknownAction()
+    assert (
+        call.output is not None
+        and call.output.harness_result_format == UnmatchedFormat.SKIPPED
+    )
+
+
+def test_exec_command_truncation_warning_without_a_line_count_is_cut_from_the_text():
+    content = (
+        HEAD
+        + "Process exited with code 0\nOriginal token count: 9000\nOutput:\n"
+        + "Warning: truncated output (original token count: 9000)\nbody\n"
+    )
+    output = convert_call(_raw("exec_command", {"cmd": "x"}, content), CONVERTER).output
+    assert output is not None
+    assert (
+        output.harness_result_format,
+        output.is_truncated,
+        output.tool_output_text,
+    ) == (MatchedFormat("exited_truncated_no_line_count"), True, "body\n")

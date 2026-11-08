@@ -6,7 +6,7 @@ Source: 15,813 readable ATIF trajectories out of 15,990 trials of Terminal-Bench
 
 ## What it measures
 
-Each internet request is placed by how far it got, as far as the logs show.
+Each internet request is placed by how far it got, as far as the trajectories show.
 Further analysis builds on this data.
 
 | Level | Meaning |
@@ -26,7 +26,7 @@ Further analysis builds on this data.
 ## Pipeline
 
 - `Collect` checks the inputs and records facts about every trial.
-- `Parse` records what the logs say, without deciding whether a call used the internet.
+- `Parse` records what the trajectories say, without deciding whether a call used the internet.
 - `Interpret` applies rules to decide what happened, so rules can change without touching the parser.
 - `Output` makes the results safe to share and reports them.
 
@@ -36,7 +36,7 @@ Further analysis builds on this data.
 | 2 | Collect | Record facts for every trial (e.g. task, leaderboard entry, reward, whether the trajectory is readable) | Planned |
 | 3 | Parse | Define common types for tool calls and their outputs | Done |
 | 4 | Parse | Catalog and manually label every tool call in the trajectories | Done |
-| 5 | Parse | Convert each harness's `trajectory.json` to common types | In progress |
+| 5 | Parse | Convert each harness's `trajectory.json` to common types | In progress: converters for all seven harnesses, Codex `exec` pending |
 | 6 | Parse | Parse shell text into a command tree (e.g. operators, control flow, heredocs) | Planned |
 | 7 | Interpret | Resolve what each call runs (e.g. written files, variables) | Planned |
 | 8 | Interpret | Extract candidate requests with their types and targets | Planned |

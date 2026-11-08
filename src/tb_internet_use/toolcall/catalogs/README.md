@@ -16,6 +16,43 @@ an existing file, so it cannot erase them.
   `OtherAction`, with no further breakdown.
 - **`action_field`:** Field of that `Action` type for the argument. Empty if unused.
 
+## Result format catalog
+
+`harness_result_format_catalog.csv` lists every result format the converters declare
+(see [Result formats](../README.md#result-formats)), one row per (harness, tool, format),
+in the order the formats are tried.
+[build_harness_result_format_catalog.py](../../../../scripts/build_harness_result_format_catalog.py)
+writes it from the code alone, without reading any trajectory. Only `reviewed` is filled
+by hand, and it is kept as long as `template`, `status`, `is_truncated` and
+`handle_kind` stay the same. A test checks that the committed file matches the code.
+
+- **`kind`:** `text` or `json`.
+- **`template`:** the template of a text format, or the present paths, absent paths and
+  condition of a JSON format.
+- **`handle_kind`:** kind of the handles the format gives; `by <path>`, e.g.
+  `by task.task_type`, means the value at that path of the result names the kind.
+
+## Result format audit
+
+`harness_result_format_audit.csv` holds what the last audit found on the raw trials, one
+row per (harness, tool, format), with the same keys as the catalog.
+[audit_results.py](../../../../scripts/audit_results.py) rewrites it, with the checks in
+[result_format_audit.py](../result_format_audit.py). It also prints a report, which is
+not committed.
+
+- **`kind`:** `text` or `json` for a declared format; `special` for a form built by
+  converter code, e.g. Claude Code `image`, Codex `no_content`; empty for the
+  `unknown_format` and `skipped_format` rows that count a tool's other results.
+- **`call_count`, `trial_count`, `example_calls`:** how often it matched and where
+  (`trial/trajectory#step.index`), never result text.
+- **`roundtrip_mismatches`:** text formats whose matched values, put back into the
+  template, do not give the annotated output again.
+- **`harness_text_hits`:** results whose `tool_output_text` still holds harness text of
+  the tool's templates, i.e. a template part between the tool output and multiline
+  placeholders, searched with its placeholders as regexes.
+- **`multi_match`:** results that also matched a later format of the list; expected
+  where a general form follows a specific one.
+
 ## Deferred tools
 
 `Deferred` means the tool name alone cannot decide the `Action`, so the converter

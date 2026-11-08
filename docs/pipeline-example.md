@@ -1,12 +1,12 @@
 # Pipeline example
 
-One made-up trial, to show how stages 3 to 11 of the [pipeline](../README.md#pipeline) turn logged tool calls into structured, interpreted data for internet use analysis.
+One made-up trial, to show how stages 3 to 11 of the [pipeline](../README.md#pipeline) turn tool calls in a trajectory into structured, interpreted data for internet use analysis.
 
 This is an example, not a specification. Where each part comes from:
 
-- **Stages 3 and 4, and the `action` in stage 5:** output of the current code.
-- **The `output` in stage 5, and stages 6 to 11:** sketches of the intent, not implemented. Each stage should choose a better form if the data calls for it.
-- **The trial and its log format:** made up and simplified. Real results are messier.
+- **Stages 3 to 5:** what the current code gives, simplified like the trial.
+- **Stages 6 to 11:** sketches of the intent, not implemented. Each stage should choose a better form if the data calls for it.
+- **The trial and its trajectory:** made up and simplified. Real results are messier.
 
 ## Input
 
@@ -32,7 +32,7 @@ No data changes shape here. These stages supply what stage 5 uses: the types in 
 
 ## Stage 5: common types
 
-Each logged call becomes a `RawToolCall`, then a `ToolCall` with one action and one output.
+Each call in the trajectory becomes a `RawToolCall`, then a `ToolCall` with one action and one output.
 
 ```python
 c1.action = WriteFileAction(
@@ -44,16 +44,15 @@ c2.action = RunCommandAction(
 c3.action = PollAction(handles=(ExecutionHandle(UNKNOWN, "task-1"),))
 c4.action = ReadFileAction(path="fetch.log")
 
-# Sketch: harness converters are not written yet.
 c1.output = ToolCallOutput(execution_status=FINISHED)
 c2.output = ToolCallOutput(
     execution_status=RUNNING, handles=(ExecutionHandle(COMMAND, "task-1"),)
 )
 c3.output = ToolCallOutput(
-    execution_status=FINISHED, text="Downloading requests-2.32.3 ..."
+    execution_status=FINISHED, tool_output_text="Downloading requests-2.32.3 ..."
 )
 c4.output = ToolCallOutput(
-    execution_status=FINISHED, text="curl: (6) Could not resolve host: ..."
+    execution_status=FINISHED, tool_output_text="curl: (6) Could not resolve host: ..."
 )
 ```
 
@@ -133,7 +132,7 @@ The download line also settles the condition on `r2`: it ran. Without that line,
 
 | Stage | Looks at | Question |
 |---|---|---|
-| 5 | One call | What did the log record? |
+| 5 | One call | What did the trajectory record? |
 | 6 | One call's text | How is the shell text structured? |
 | 7 | The whole trial | What actually ran, and where did its output go? |
 | 8 | What ran | Which of it was an internet request? |
