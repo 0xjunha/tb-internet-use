@@ -157,4 +157,5 @@ Both give `tool_output_text="hello"`, `exit_code=0`, status `finished`.
 | The tool has no formats | The raw text as is | `unknown` | `UnmatchedFormat.SKIPPED` |
 
 `tool_output_text` is `""` when the tool showed no output, and `None` only when the trajectory holds no text of what it returned, e.g. an image, a PDF or a Cursor blob id.
+`handles` name what a later call can poll. A result with handles is usually `running`, but a `finished` Codex `exec` or `wait` result also names the sessions of commands its script left running, read from step results it printed as JSON.
 [`harness_result_format`](model.py) names the format, as in the catalog and the audit, for audits and evidence only. Later stages must not branch on it.

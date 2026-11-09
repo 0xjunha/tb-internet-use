@@ -19,6 +19,9 @@ class ExecutionStatus(StrEnum):
 
     For a poll, this is the polled target's state, except NOT_RUN, which means
     the poll itself did nothing.
+
+    A FINISHED result can still have handles. A Codex script can end while a command
+    it started keeps running, and its exec or wait result names that command's session.
     """
 
     FINISHED = "finished"  # ended on its own, whether it succeeded or not
@@ -40,9 +43,9 @@ class ExecutionHandle:
 def handles_from_ids(
     kind: ExecutionHandleKind, ids: Any
 ) -> tuple[ExecutionHandle, ...]:
-    """Handles of one kind for a list of ids or one id, skipping missing and empty ones."""
-    listed = ids if isinstance(ids, list) else [ids]
-    return tuple(ExecutionHandle(kind, str(i)) for i in listed if i not in (None, ""))
+    """Handles of one kind for a list of ids or one id, in order and without missing,
+    empty or repeated ones."""
+    return tuple(ExecutionHandle(kind, i) for i in string_tuple(ids))
 
 
 def string_tuple(values: Any) -> tuple[str, ...]:

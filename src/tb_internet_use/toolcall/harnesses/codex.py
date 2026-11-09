@@ -1,6 +1,8 @@
 """Codex tool call converter."""
 
 import ast
+import json
+import re
 from dataclasses import replace
 from typing import Any, ClassVar
 
@@ -30,6 +32,7 @@ from tb_internet_use.toolcall.model import (
     WebFetchAction,
     WebFindAction,
     WebSearchAction,
+    handles_from_ids,
     string_tuple,
 )
 from tb_internet_use.toolcall.result_formats import (
@@ -239,6 +242,26 @@ def _printed_only_media(raw: RawToolCall, result: dict[str, Any]) -> bool:
     return any(not _is_text(item) for item in printed)
 
 
+# A step result a script printed as JSON, e.g. `text(JSON.stringify(await tools.exec_command(...)))`.
+_STEP_RESULT_LINE = re.compile(r'^\{"chunk_id".*\}$', re.MULTILINE)
+
+
+def _running_session_ids(text: str | None) -> list[Any]:
+    """The sessions of commands still running, from step results a script printed as JSON.
+
+    A step result with a session_id and no exit_code is a command the script left running.
+    """
+    ids = []
+    for line in _STEP_RESULT_LINE.findall(text or ""):
+        try:
+            step = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(step, dict) and "session_id" in step and "exit_code" not in step:
+            ids.append(step["session_id"])
+    return ids
+
+
 def _sends_ctrl_c(raw: RawToolCall) -> bool:
     return raw.tool.name == "write_stdin" and _CTRL_C in str(raw.args.get("chars", ""))
 
@@ -273,11 +296,21 @@ class CodexConverter(HarnessToolCallConverter):
             output = replace(output, execution_status=S.KILLED, exit_code=None)
         if output.tool_output_text == "" and _printed_only_media(raw, result):
             output = replace(output, tool_output_text=None)
+        if raw.tool.name in _SCRIPT_TOOLS:
+            running = _running_session_ids(output.tool_output_text)
+            sessions = handles_from_ids(ExecutionHandleKind.COMMAND, running)
+            output = replace(output, handles=output.handles + sessions)
         return output
 
     def refine_action(
         self, raw: RawToolCall, action: Action, output: ToolCallOutput | None
     ) -> Action:
+        if raw.tool.name == "wait" and output is not None:
+            # A wait polls its cell, not the sessions the script left running.
+            cells = tuple(
+                h for h in output.handles if h.kind is ExecutionHandleKind.SCRIPT
+            )
+            output = replace(output, handles=cells)
         action = super().refine_action(raw, action, output)
         if isinstance(action, PollAction) and _sends_ctrl_c(raw):
             action = replace(action, terminate=True)

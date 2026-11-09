@@ -338,6 +338,39 @@ def test_running_script_names_its_cell_as_a_script_handle():
     )
 
 
+def test_finished_script_names_the_sessions_it_left_running():
+    started = (
+        '{"chunk_id": "a1", "wall_time_seconds": 1.0, "session_id": 7, "output": ""}'
+    )
+    polled = '{"chunk_id": "a2", "wall_time_seconds": 1.0, "session_id": 7}'
+    no_session = '{"chunk_id": "a3", "wall_time_seconds": 1.0, "session_id": null}'
+    ended = (
+        '{"chunk_id": "b2", "wall_time_seconds": 0.1, "exit_code": 0, "output": "ok"}'
+    )
+    printed = f"{started}\n{polled}\n{no_session}\n{ended}"
+    content = _script_result("Script completed", _printed(printed))
+    output = _script_output("exec", content)
+    assert output is not None
+    assert (output.execution_status, output.handles) == (
+        S.FINISHED,
+        (ExecutionHandle(ExecutionHandleKind.COMMAND, "7"),),
+    )
+
+
+def test_wait_polls_its_cell_and_not_the_sessions_its_script_left_running():
+    running = (
+        '{"chunk_id": "a1", "wall_time_seconds": 1.0, "session_id": 7, "output": ""}'
+    )
+    cell = ExecutionHandle(ExecutionHandleKind.SCRIPT, "g1:2")
+    session = ExecutionHandle(ExecutionHandleKind.COMMAND, "7")
+    still_running = "Script running with cell ID g1:2" + SCRIPT_HEAD + running
+    ended = _script_result("Script completed", _printed(running))
+    for content, handles in ((still_running, (cell, session)), (ended, (session,))):
+        call = convert_call(_raw("wait", {"cell_id": "g1:2"}, content), CONVERTER)
+        assert call.output is not None and call.output.handles == handles
+        assert call.action == PollAction(handles=(cell,))
+
+
 def test_failed_script_keeps_its_error_unless_it_never_ran():
     error = "Script error:\nexec_command failed for `x`: boom"
     output = _script_output("exec", _script_result("Script failed", _printed(error)))
