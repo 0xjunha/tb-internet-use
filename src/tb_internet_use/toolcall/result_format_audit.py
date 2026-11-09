@@ -28,7 +28,7 @@ _HARNESS_TEXT_CUT = re.compile(
 
 
 RESULT_FORMAT_CATALOG_CSV = CATALOGS_DIR / "harness_result_format_catalog.csv"
-# The columns of the result format catalog. Only `reviewed` is filled by hand.
+# The columns of the result format catalog. Only `reviewed` and `note` are filled by hand.
 CATALOG_COLUMNS = [
     "harness",
     "tool",
@@ -40,6 +40,7 @@ CATALOG_COLUMNS = [
     "no_tool_output_text",
     "handle_kind",
     "reviewed",
+    "note",
 ]
 # A hand review stays only while these columns of its row stay the same.
 REVIEWED_LABELS = (
@@ -60,7 +61,7 @@ def iter_declared_formats() -> Iterator[tuple[str, str, HarnessResultFormat[Any]
 
 
 def catalog_rows() -> list[dict[str, str]]:
-    """One catalog row per declared format, in the order the formats are tried, with `reviewed` empty."""
+    """One catalog row per declared format, in the order the formats are tried, with `reviewed` and `note` empty."""
     return [
         {
             "harness": harness,
@@ -73,6 +74,7 @@ def catalog_rows() -> list[dict[str, str]]:
             "no_tool_output_text": "True" if fmt.no_tool_output_text else "",
             "handle_kind": handle_kind_label(fmt),
             "reviewed": "",
+            "note": "",
         }
         for harness, tool, fmt in iter_declared_formats()
     ]
@@ -81,9 +83,10 @@ def catalog_rows() -> list[dict[str, str]]:
 def with_kept_reviews(
     rows: list[dict[str, str]], previous_rows: list[dict[str, str]]
 ) -> list[dict[str, str]]:
-    """The rows with the `reviewed` value of the previous catalog, where a row's labels are unchanged.
+    """The rows with the hand-filled values of the previous catalog.
 
-    A review covers the declaration it saw, so a changed declaration drops it.
+    A review covers the declaration it saw, so `reviewed` stays only while the row's labels
+    are unchanged. A `note` always stays, until it is removed by hand.
     """
     previous = {(r["harness"], r["tool"], r["format"]): r for r in previous_rows}
     kept: list[dict[str, str]] = []
@@ -93,7 +96,8 @@ def with_kept_reviews(
             old.get(column, "") == row[column] for column in REVIEWED_LABELS
         )
         review = old.get("reviewed", "") if old and unchanged else ""
-        kept.append({**row, "reviewed": review})
+        note = old.get("note", "") if old else ""
+        kept.append({**row, "reviewed": review, "note": note})
     return kept
 
 

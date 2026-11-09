@@ -2,6 +2,7 @@
 
 It reads no trajectory. Rows follow the order in which the formats are tried.
 A hand-filled `reviewed` value is kept while its row's template and labels stay the same.
+A hand-filled `note` is always kept.
 
 Usage: uv run python -I scripts/build_harness_result_format_catalog.py [output_csv]
 """

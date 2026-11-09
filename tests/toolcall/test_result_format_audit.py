@@ -115,8 +115,9 @@ def test_a_review_stays_only_while_the_row_labels_stay(label: str):
         "handle_kind": "command",
         "reviewed": "",
     }
-    reviewed = {**row, "reviewed": "ok"}
+    reviewed = {**row, "reviewed": "ok", "note": "n"}
     assert with_kept_reviews([row], [reviewed])[0]["reviewed"] == "ok"
     changed = {**row, label: "changed"}
     assert with_kept_reviews([changed], [reviewed])[0]["reviewed"] == ""
+    assert with_kept_reviews([changed], [reviewed])[0]["note"] == "n"  # a note stays
     assert with_kept_reviews([row], [])[0]["reviewed"] == ""

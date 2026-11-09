@@ -22,10 +22,10 @@ an existing file, so it cannot erase them.
 (see [Result formats](../README.md#result-formats)), one row per (harness, tool, format),
 in the order the formats are tried.
 [build_harness_result_format_catalog.py](../../../../scripts/build_harness_result_format_catalog.py)
-writes it from the code alone, without reading any trajectory. Only `reviewed` is filled
-by hand, and it is kept as long as `template`, `status`, `is_truncated`,
-`no_tool_output_text` and `handle_kind` stay the same. A test checks that the committed
-file matches the code.
+writes it from the code alone, without reading any trajectory. Only `reviewed` and `note`
+are filled by hand. `reviewed` is kept as long as `template`, `status`, `is_truncated`,
+`no_tool_output_text` and `handle_kind` stay the same, and `note` is always kept. A test
+checks that the committed file matches the code.
 
 A row is what the format declares. A converter's `parse_output` may still change
 `status`, `is_truncated` or `no_tool_output_text` after the match, e.g. the status of a
