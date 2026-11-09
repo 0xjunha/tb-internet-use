@@ -483,7 +483,7 @@ devin,web_search,results_truncated,text,"# Web Search Results for ""{query:line}
 <truncation_notice>
 Full output written to: {output_path:word}
 </truncation_notice>",finished,True,,command,,
-devin,web_search,results_crlf_truncated,text,"# Web Search Results for ""{query:line}""
+devin,web_search,results_crlf_truncated,text,"# Web Search Results for ""{query:line}""\r
 {tool_output:text}
 <truncation_notice>
 Full output written to: {output_path:word}

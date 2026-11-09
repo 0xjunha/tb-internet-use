@@ -109,11 +109,12 @@ def format_kind(fmt: HarnessResultFormat[Any]) -> str:
 def describe_format(fmt: HarnessResultFormat[Any]) -> str:
     """The format in one line, for the catalog `template` column.
 
-    A text format gives its template. A JSON format gives its present paths, absent
-    paths and condition.
+    A text format gives its template, with a carriage return written as `\\r` so that
+    editors keep it, and a backslash as `\\\\`. A JSON format gives its present paths,
+    absent paths and condition.
     """
     if isinstance(fmt, HarnessTextResultFormat):
-        return fmt.template
+        return fmt.template.replace("\\", "\\\\").replace("\r", "\\r")
     if not isinstance(fmt, HarnessJsonResultFormat):
         raise TypeError(f"unknown result format kind {type(fmt).__name__}")
     rules: list[str] = []

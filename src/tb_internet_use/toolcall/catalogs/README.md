@@ -34,7 +34,8 @@ Code's structured result, and no tool output text for a Codex script that printe
 
 - **`kind`:** `text` or `json`.
 - **`template`:** the template of a text format, or the present paths, absent paths and
-  condition of a JSON format.
+  condition of a JSON format. A carriage return is written as `\r`, so that editors keep
+  it, and a backslash as `\\`.
 - **`is_truncated`:** `True` or `False` for every result of the format, empty when the
   format does not tell, `when <marker>` when a marker in the tool output tells, or
   `by <path>` when the value at that path of the result tells.

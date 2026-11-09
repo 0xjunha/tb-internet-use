@@ -81,6 +81,8 @@ def test_harness_text_patterns_skip_parts_without_letters_and_optional_edges():
 
 def test_describe_format_gives_the_template_or_the_json_rules():
     assert describe_format(EXITED) == "exit {exit_code:int}\n{tool_output:text}"
+    crlf = Text("crlf", 'C:\\ "{query:line}"\r\n{tool_output:text}', S.FINISHED)
+    assert describe_format(crlf) == 'C:\\\\ "{query:line}"\\r\n{tool_output:text}'
     fmt = Json(
         "failed",
         S.FINISHED,

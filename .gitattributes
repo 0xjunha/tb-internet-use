@@ -1,2 +1,0 @@
-# Catalog templates can hold a carriage return, which must stay as written.
-*.csv -text
