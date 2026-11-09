@@ -9,7 +9,7 @@ class ExecutionHandleKind(StrEnum):
     """What a handle points at."""
 
     COMMAND = "command"  # one shell command string
-    SCRIPT = "script"  # code that can run several commands
+    SCRIPT = "script"  # a tool script, the code of a RunToolScriptAction
     SUBAGENT = "subagent"  # a subagent started earlier
     UNKNOWN = "unknown"  # cannot confirm from the trajectory
 
@@ -59,8 +59,8 @@ class RunCommandAction:
 
 
 @dataclass(frozen=True, slots=True)
-class RunScriptAction:
-    """Run code that can call several tools; the trajectory has one result for all of it."""
+class RunToolScriptAction:
+    """Run code that calls harness tools, e.g. Codex `exec`. The trajectory has one result for all of it."""
 
     code: str | None = None  # None when the trajectory has none
     steps: tuple[Action, ...] = ()  # tool calls found in the code, in order
@@ -134,7 +134,7 @@ class UnknownAction:
 
 type Action = (
     RunCommandAction
-    | RunScriptAction
+    | RunToolScriptAction
     | WriteFileAction
     | EditFileAction
     | ReadFileAction

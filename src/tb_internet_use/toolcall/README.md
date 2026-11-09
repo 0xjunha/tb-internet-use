@@ -29,7 +29,7 @@ Defined in [model.py](model.py).
 | `Action` | Why tracked |
 |---|---|
 | `RunCommandAction` | Shell requests, such as `curl`, `pip install`, `git clone` |
-| `RunScriptAction` | Requests from code that can call several tools, such as Codex `exec` |
+| `RunToolScriptAction` | Requests from code that calls harness tools, such as Codex `exec` |
 | `WebSearchAction`, `WebFetchAction`, `WebFindAction` | Dedicated web tools |
 | `WriteFileAction`, `EditFileAction` | Network code written to a file and run later |
 | `ReadFileAction` | Output sent to a log file instead of stdout |

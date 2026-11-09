@@ -71,6 +71,6 @@ decides it per call in a later stage.
 
 | Harness | Tool | Why | Decided by |
 |---|---|---|---|
-| codex | `exec` | Runs JS that can call several tools, so the steps of its `RunScriptAction` vary by call | The `tools.*` calls in the JS code of the `input` argument |
+| codex | `exec` | Runs JS that can call several tools, so the steps of its `RunToolScriptAction` vary by call | The `tools.*` calls in the JS code of the `input` argument |
 | codex | `web_search_call` | One tool searches, opens a page or finds text in a page, so the `Action` type varies by call | The `action_type` argument: `search`, `open_page` or `find_in_page` |
 | cursor-cli | `mcpToolCall` | Wraps any MCP tool, such as Playwright `browser_navigate`, so the `Action` type depends on the wrapped tool | The `toolName` argument, which names the wrapped tool |

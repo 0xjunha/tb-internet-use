@@ -19,7 +19,7 @@ from tb_internet_use.toolcall.model import (
     RawToolCall,
     ReadFileAction,
     RunCommandAction,
-    RunScriptAction,
+    RunToolScriptAction,
     ToolCallKey,
     ToolCallOutput,
     UnknownAction,
@@ -37,7 +37,7 @@ class _ScriptConverter(_Converter):
         self, raw: RawToolCall, output: ToolCallOutput | None
     ) -> Action:
         assert output is not None
-        return RunScriptAction(
+        return RunToolScriptAction(
             raw.args["input"], (RunCommandAction(output.tool_output_text),)
         )
 
@@ -134,7 +134,7 @@ def test_refine_action_gets_the_action_and_output():
 def test_deferred_tool_uses_deferred_action_with_the_output():
     raw = _raw("codex", "exec", {"input": "code"}, {"content": "done"})
     action = convert_call(raw, _ScriptConverter()).action
-    assert action == RunScriptAction("code", (RunCommandAction("done"),))
+    assert action == RunToolScriptAction("code", (RunCommandAction("done"),))
 
 
 def test_deferred_tool_without_an_implementation_raises():
