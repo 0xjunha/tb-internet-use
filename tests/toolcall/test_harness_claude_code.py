@@ -389,12 +389,13 @@ def test_task_stop_is_a_terminate_whose_target_is_killed():
 
 
 def test_web_tools_that_reached_the_server_are_finished_even_on_errors():
-    for block, name in (
+    for block, name, http_status in (
         (
             "The server returned HTTP 404 Not Found\n\nThe response body was not retrieved. Try another URL.",
             "http_error_body_not_retrieved",
+            404,
         ),
-        ("connect ECONNREFUSED 1.2.3.4:443", "connection_error"),
+        ("connect ECONNREFUSED 1.2.3.4:443", "connection_error", None),
     ):
         output = convert_call(
             _raw("WebFetch", {"url": "u"}, _result(block)), CONVERTER
@@ -404,7 +405,8 @@ def test_web_tools_that_reached_the_server_are_finished_even_on_errors():
             output.execution_status,
             output.harness_result_format,
             output.tool_output_text,
-        ) == (S.FINISHED, MatchedFormat(name), "")
+            output.http_status,
+        ) == (S.FINISHED, MatchedFormat(name), "", http_status)
     output = convert_call(
         _raw(
             "WebFetch",
@@ -487,6 +489,21 @@ def test_bash_background_notice_that_warns_about_the_final_response_is_running()
     assert output.handles == (
         ExecutionHandle(ExecutionHandleKind.COMMAND, "b1a2c3d4e"),
     )
+
+
+def test_web_fetch_takes_the_http_status_from_the_structured_result():
+    structured = {
+        "bytes": 10,
+        "code": 200,
+        "codeText": "OK",
+        "result": "No response from model",
+    }
+    output = convert_call(
+        _raw("WebFetch", {"url": "u"}, _result("No response from model", structured)),
+        CONVERTER,
+    ).output
+    assert output is not None
+    assert (output.tool_output_text, output.http_status) == ("", 200)
 
 
 def test_web_fetch_without_a_model_response_has_no_text_even_with_a_saved_binary():

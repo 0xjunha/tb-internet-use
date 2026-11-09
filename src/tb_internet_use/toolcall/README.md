@@ -22,7 +22,7 @@ trajectory.json -> RawToolCall -> ToolCall(raw, action, output)
 |---|---|
 | `RawToolCall` | One call in the trajectory and its result, as is |
 | `ToolCall.action` | Request: what the call tried to do, in the kinds that matter for internet use |
-| `ToolCall.output` | Result: tool output text, status, exit code, handles |
+| `ToolCall.output` | Result: tool output text, status, exit code, HTTP status, handles |
 
 Defined in [model.py](model.py).
 
@@ -87,7 +87,7 @@ annotated output = annotation + tool output
 | Part | What it is | Where it goes |
 |---|---|---|
 | Tool output | What the tool itself produced | `ToolCallOutput.tool_output_text` |
-| Annotation | What the harness wrote about the call, e.g. an exit code line | Execution status, exit code, handles, output path, truncation |
+| Annotation | What the harness wrote about the call, e.g. an exit code line | Execution status, exit code, HTTP status, handles, output path, truncation |
 | Notice | A message the harness may add at the start or end of any result, e.g. Grok's completion notifications | Cut before matching, fills no field. Still in `raw.result` for stage 10 |
 
 A truncation marker, which a harness leaves inside a tool output it cut, stays in the tool output and sets `is_truncated`.

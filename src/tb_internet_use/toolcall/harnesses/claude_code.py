@@ -304,7 +304,7 @@ _WEB_FETCH = HarnessResultFormatList[str](
         ),
         Text(
             "http_error_body_not_retrieved",
-            "The server returned HTTP {code:int} {reason:rest_of_line}\n\nThe response body was not retrieved. {detail:text}",
+            "The server returned HTTP {http_status:int} {reason:rest_of_line}\n\nThe response body was not retrieved. {detail:text}",
             S.FINISHED,
         ),
         Text("api_error", "API Error: {detail:text}", S.FINISHED),
@@ -463,6 +463,16 @@ def _code_without_header(structured: Mapping[str, Any]) -> int | None:
     return 1 if structured.get("returnCodeInterpretation") else 0
 
 
+def _with_structured_web_fetch(
+    output: ToolCallOutput, structured: Mapping[str, Any]
+) -> ToolCallOutput:
+    """Take the HTTP status from the structured result, which has it even when the text does not."""
+    code = structured.get("code")
+    if isinstance(code, int) and not isinstance(code, bool):
+        return replace(output, http_status=code)
+    return output
+
+
 def _with_structured_bash(
     output: ToolCallOutput, structured: Mapping[str, Any]
 ) -> ToolCallOutput:
@@ -558,4 +568,6 @@ class ClaudeCodeConverter(HarnessToolCallConverter):
             return _with_structured_bash(output, structured)
         if name == "Read":
             return _with_structured_read(output, structured.get("file") or {})
+        if name == "WebFetch":
+            return _with_structured_web_fetch(output, structured)
         return output

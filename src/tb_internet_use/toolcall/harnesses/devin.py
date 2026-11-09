@@ -306,7 +306,11 @@ _WEBFETCH = HarnessResultFormatList[str](
             "# Web Content from {url:rest_of_line}\n{tool_output:text}",
             S.FINISHED,
         ),
-        Text("http_error", "HTTP request failed with status: {code:int}", S.FINISHED),
+        Text(
+            "http_error",
+            "HTTP request failed with status: {http_status:int}",
+            S.FINISHED,
+        ),
         Text("rejected", "Tool 'webfetch' validation failed: {reason:text}", S.NOT_RUN),
     )
 )

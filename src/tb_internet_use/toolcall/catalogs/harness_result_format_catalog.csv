@@ -1,5 +1,5 @@
 harness,tool,format,kind,template,status,is_truncated,no_tool_output_text,handle_kind,reviewed,note
-claude-code,Bash,tool_use_error,text,<tool_use_error>{reason:text}</tool_use_error>,not_run,,,command,"",
+claude-code,Bash,tool_use_error,text,<tool_use_error>{reason:text}</tool_use_error>,not_run,,,command,,
 claude-code,Bash,timed_out,text,"Exit code {code:int}
 Command timed out after {after:rest_of_line}
 {tool_output:text}",timed_out,when ... [{count:int} characters truncated] ...,,command,,
@@ -95,7 +95,7 @@ claude-code,WebFetch,no_model_response,text,No response from model,finished,,,co
 claude-code,WebFetch,no_model_response_binary_saved,text,"No response from model
 
 [Binary content ({detail:line_without_brackets}) also saved to {output_path:line_without_brackets}]",finished,,,command,,
-claude-code,WebFetch,http_error_body_not_retrieved,text,"The server returned HTTP {code:int} {reason:rest_of_line}
+claude-code,WebFetch,http_error_body_not_retrieved,text,"The server returned HTTP {http_status:int} {reason:rest_of_line}
 
 The response body was not retrieved. {detail:text}",finished,,,command,,
 claude-code,WebFetch,api_error,text,API Error: {detail:text},finished,,,command,,
@@ -476,7 +476,7 @@ Full output written to: {output_path:word}
 </truncation_notice>",finished,True,,command,,
 devin,webfetch,page,text,"# Web Content from {url:rest_of_line}
 {tool_output:text}",finished,,,command,,
-devin,webfetch,http_error,text,HTTP request failed with status: {code:int},finished,,,command,,
+devin,webfetch,http_error,text,HTTP request failed with status: {http_status:int},finished,,,command,,
 devin,webfetch,rejected,text,Tool 'webfetch' validation failed: {reason:text},not_run,,,command,,
 devin,web_search,results_truncated,text,"# Web Search Results for ""{query:line}""
 {tool_output:text}

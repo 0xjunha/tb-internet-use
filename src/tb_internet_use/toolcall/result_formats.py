@@ -30,6 +30,7 @@ _NO_OUTPUT_TEXT = ""
 #   handles           handles, a list of ids from JSON or one id from a template
 #   handle_kind_name  the kind of the handles, through `handle_kind_by_name` (JSON only)
 #   exit_code         exit_code
+#   http_status       http_status
 #   output_path       output_path
 #   is_truncated      is_truncated, a bool (JSON only)
 # What every result of a format shares, such as `status`, is a field of the format.
@@ -524,11 +525,11 @@ def _handles(
     )
 
 
-def _exit_code(values: MatchedValues) -> int | None:
-    code = values.get("exit_code")
-    if code is None or isinstance(code, bool):
+def _int_value(values: MatchedValues, name: str) -> int | None:
+    value = values.get(name)
+    if value is None or isinstance(value, bool):
         return None
-    return int(code) if isinstance(code, (int, str)) else None
+    return int(value) if isinstance(value, (int, str)) else None
 
 
 def _build_output(
@@ -538,7 +539,8 @@ def _build_output(
     return ToolCallOutput(
         tool_output_text=fmt.tool_output_text_of(values),
         execution_status=fmt.status,
-        exit_code=_exit_code(values),
+        exit_code=_int_value(values, "exit_code"),
+        http_status=_int_value(values, "http_status"),
         handles=_handles(fmt.handle_kind_of(values), values),
         output_path=str(values["output_path"]) if values.get("output_path") else None,
         is_truncated=fmt.is_truncated_of(values),

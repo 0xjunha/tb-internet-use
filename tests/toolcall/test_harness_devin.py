@@ -211,9 +211,11 @@ def test_webfetch_page_and_http_error():
     assert output is not None and (
         output.tool_output_text,
         output.execution_status,
+        output.http_status,
     ) == (
         "",
         S.FINISHED,
+        404,
     )
 
 
