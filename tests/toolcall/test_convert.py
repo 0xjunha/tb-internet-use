@@ -1,11 +1,14 @@
 """Tests for the common tool call conversion flow."""
 
+import json
 from dataclasses import replace
+from pathlib import Path
 from typing import Any
 
 import pytest
 
-from tb_internet_use.toolcall.convert import convert_call
+from tb_internet_use.toolcall.convert import convert_call, convert_trial
+from tb_internet_use.toolcall.harnesses import converter_for
 from tb_internet_use.toolcall.harnesses.base import HarnessToolCallConverter
 from tb_internet_use.toolcall.model import (
     Action,
@@ -63,7 +66,7 @@ def test_maps_labeled_args_and_ignores_the_rest():
     assert convert_call(raw, _Converter()).action == RunCommandAction("ls")
 
 
-def test_parses_output_when_the_log_has_a_result():
+def test_parses_output_when_the_trajectory_has_a_result():
     raw = _raw("claude-code", "Bash", result={"content": "ok"})
     assert convert_call(raw, _Converter()).output == ToolCallOutput(
         tool_output_text="ok"
@@ -79,7 +82,7 @@ def test_tool_missing_from_catalog_is_unknown():
     assert convert_call(raw, _Converter()).action == UnknownAction()
 
 
-def test_failed_call_with_empty_args_keeps_its_action_type():
+def test_call_with_empty_args_keeps_its_action_type():
     raw = _raw("cursor-cli", "readToolCall")
     assert convert_call(raw, _Converter()).action == ReadFileAction()
 
@@ -137,3 +140,34 @@ def test_deferred_tool_uses_deferred_action_with_the_output():
 def test_deferred_tool_without_an_implementation_raises():
     with pytest.raises(NotImplementedError, match="exec"):
         convert_call(_raw("codex", "exec"), _Converter())
+
+
+def test_convert_trial_reads_and_converts_every_call(tmp_path: Path):
+    trial_dir = tmp_path / "trial-1"
+    trial_dir.mkdir()
+    step = {
+        "step_id": 1,
+        "tool_calls": [
+            {
+                "tool_call_id": "a",
+                "function_name": "Bash",
+                "arguments": {"command": "ls"},
+            }
+        ],
+        "observation": {"results": [{"source_call_id": "a", "content": "out"}]},
+    }
+    trajectory = {
+        "schema_version": "ATIF-v1.7",
+        "agent": {"name": "claude-code"},
+        "steps": [step],
+    }
+    (trial_dir / "trajectory.json").write_text(json.dumps(trajectory))
+    [call] = convert_trial(trial_dir)
+    assert call.action == RunCommandAction("ls")
+    assert call.output is not None and call.output.tool_output_text == "out"
+    assert convert_trial(tmp_path / "missing") == []
+
+
+def test_converter_for_an_unknown_harness_raises():
+    with pytest.raises(ValueError, match="nope"):
+        converter_for("nope")

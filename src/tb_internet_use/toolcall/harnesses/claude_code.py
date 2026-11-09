@@ -5,18 +5,15 @@ from collections.abc import Mapping
 from dataclasses import replace
 from typing import Any, ClassVar
 
-from tb_internet_use.toolcall.harnesses.base import (
-    HarnessToolCallConverter,
-    join_content_items,
-)
+from tb_internet_use.toolcall.harnesses.base import HarnessToolCallConverter
 from tb_internet_use.toolcall.model import (
-    ExecutionHandle,
     ExecutionHandleKind,
     ExecutionStatus,
     MatchedFormat,
     RawToolCall,
     ToolCallOutput,
     UnmatchedFormat,
+    handles_from_ids,
 )
 from tb_internet_use.toolcall.result_formats import (
     HarnessJsonResultFormat,
@@ -25,6 +22,7 @@ from tb_internet_use.toolcall.result_formats import (
     HarnessTextResultFormat,
     JsonCondition,
     JsonObject,
+    join_content_items,
 )
 
 S = ExecutionStatus
@@ -54,7 +52,8 @@ _NOTICES = (
     HarnessNotice("session_cwd_bare", "\nSession cwd {what:rest_of_line}", at="end"),
 )
 
-# Forms any tool can return: a rejected call, a safety-classifier stop, a result saved to a file.
+# Formats several tools share, e.g. a rejected call, a safety-classifier stop, a
+# refused symlink and a result saved to a file.
 _TOOL_USE_ERROR = Text(
     "tool_use_error", "<tool_use_error>{reason:text}</tool_use_error>", S.NOT_RUN
 )
@@ -74,11 +73,6 @@ _REFUSED_SYMLINK = Text(
     "Refusing to write through symlink: {path:word} {hint:text}",
     S.NOT_RUN,
 )
-_PARAMETER_NOTICE = HarnessNotice(
-    "parameter_notice",
-    "\n\nNote: Write's parameters are named {rest:rest_of_line}",
-    at="end",
-)
 
 _PERSISTED_HEAD = (
     "<persisted-output>\nOutput too large ({size:line_without_brackets}). Full output saved to: {output_path:word}\n\n"
@@ -92,13 +86,13 @@ _PERSISTED = Text(
     "persisted_output",
     _PERSISTED_HEAD + "{tool_output:text}\n</persisted-output>",
     S.FINISHED,
-    True,
+    is_truncated=True,
 )
 _PERSISTED_PARTIAL = Text(
     "persisted_output_partial",
     _PERSISTED_PARTIAL_HEAD + "{tool_output:text}\n</persisted-output>",
     S.FINISHED,
-    True,
+    is_truncated=True,
 )
 
 _NOTIFY = " You will be notified when it completes. To check interim output, use Read on that file path."
@@ -231,6 +225,21 @@ _READ = HarnessResultFormatList[str](
     )
 )
 
+# What Write and Edit return after they changed a file.
+_UPDATED = (
+    Text(
+        "updated_fresh",
+        "The file {path:line} has been updated successfully." + _FRESH,
+        S.FINISHED,
+    ),
+    Text("updated", "The file {path:line} has been updated successfully.", S.FINISHED),
+)
+# A notice Write adds to its result.
+_PARAMETER_NOTICE = HarnessNotice(
+    "parameter_notice",
+    "\n\nNote: Write's parameters are named {rest:rest_of_line}",
+    at="end",
+)
 _WRITE = HarnessResultFormatList[str](
     (
         _TOOL_USE_ERROR,
@@ -245,14 +254,7 @@ _WRITE = HarnessResultFormatList[str](
         Text(
             "created", "File created successfully at: {path:rest_of_line}", S.FINISHED
         ),
-        Text(
-            "updated_fresh",
-            "The file {path:line} has been updated successfully." + _FRESH,
-            S.FINISHED,
-        ),
-        Text(
-            "updated", "The file {path:line} has been updated successfully.", S.FINISHED
-        ),
+        *_UPDATED,
     ),
     notices=(_PARAMETER_NOTICE,),
 )
@@ -263,14 +265,7 @@ _EDIT = HarnessResultFormatList[str](
         _INTERRUPTED_CLASSIFIER,
         _NOT_RUN_CLASSIFIER,
         _REFUSED_SYMLINK,
-        Text(
-            "updated_fresh",
-            "The file {path:line} has been updated successfully." + _FRESH,
-            S.FINISHED,
-        ),
-        Text(
-            "updated", "The file {path:line} has been updated successfully.", S.FINISHED
-        ),
+        *_UPDATED,
         Text(
             "updated_note",
             "The file {path:line} has been updated successfully. (note: {note:text}",
@@ -333,7 +328,7 @@ _WEB_SEARCH = HarnessResultFormatList[str](
             "persisted_results",
             _PERSISTED_HEAD + _SEARCH_HEAD + "{tool_output:text}\n</persisted-output>",
             S.FINISHED,
-            True,
+            is_truncated=True,
         ),
         _PERSISTED,
         _PERSISTED_PARTIAL,
@@ -370,7 +365,7 @@ _TASK_STOP_TEXT = HarnessResultFormatList[str](
             _PERSISTED_HEAD
             + '{"message":"Successfully stopped task: {handle:id} {rest:text}',
             S.KILLED,
-            True,
+            is_truncated=True,
         ),
         _PERSISTED,
         _PERSISTED_PARTIAL,
@@ -406,10 +401,18 @@ _TASK_OUTPUT = HarnessResultFormatList[JsonObject](
 )
 
 
-def _structured(result: Mapping[str, Any]) -> dict[str, Any]:
-    """Claude Code's structured result (`tool_use_result`), which most calls carry; empty if absent."""
-    metadata = (result.get("extra") or {}).get("tool_result_metadata") or {}
-    structured = metadata.get("tool_use_result")
+def _extra(result: Mapping[str, Any]) -> Mapping[str, Any]:
+    return result.get("extra") or {}
+
+
+def _metadata(result: Mapping[str, Any]) -> Mapping[str, Any]:
+    """What Harbor keeps of Claude Code's own result."""
+    return _extra(result).get("tool_result_metadata") or {}
+
+
+def structured_result(result: Mapping[str, Any]) -> dict[str, Any]:
+    """Claude Code's structured result (`tool_use_result`), which most calls carry, or {} without one."""
+    structured = _metadata(result).get("tool_use_result")
     return structured if isinstance(structured, dict) else {}
 
 
@@ -429,8 +432,7 @@ def _harbor_items(content: str) -> list[dict[str, Any]] | None:
 
 def _original_text(result: Mapping[str, Any]) -> tuple[str | None, set[str]]:
     """Claude Code's own result text and the kinds of content items it had (e.g. {"image"})."""
-    metadata = (result.get("extra") or {}).get("tool_result_metadata") or {}
-    block = metadata.get("raw_tool_result")
+    block = _metadata(result).get("raw_tool_result")
     if isinstance(block, dict):
         content = block.get("content")
         if isinstance(content, list):
@@ -438,7 +440,9 @@ def _original_text(result: Mapping[str, Any]) -> tuple[str | None, set[str]]:
                 str(item.get("type")) for item in content if isinstance(item, dict)
             }
             return join_content_items(content), kinds
-        return (content.strip() or None) if isinstance(content, str) else None, set()
+        if not isinstance(content, str):
+            return None, set()
+        return content.strip() or None, set()
     content = result.get("content")
     if not isinstance(content, str):
         return None, set()
@@ -468,14 +472,14 @@ def _with_structured_bash(
     exit_code = output.exit_code
     if exit_code is None and output.execution_status is S.FINISHED:
         exit_code = _code_without_header(structured)
+    # stdout is the whole tool output, since its stderr only holds the cwd notice.
+    stdout = structured.get("stdout") or ""
     return replace(
         output,
-        tool_output_text=structured.get("stdout")
-        or "",  # its stderr only holds the cwd notice
+        tool_output_text=stdout,
         exit_code=exit_code,
-        handles=(ExecutionHandle(ExecutionHandleKind.COMMAND, str(task_id)),)
-        if task_id
-        else output.handles,
+        handles=handles_from_ids(ExecutionHandleKind.COMMAND, task_id)
+        or output.handles,
         output_path=saved_to or output.output_path,
         is_truncated=True if saved_to else output.is_truncated,
     )
@@ -494,7 +498,7 @@ def _with_structured_read(
 
 
 class ClaudeCodeConverter(HarnessToolCallConverter):
-    stop_tools: ClassVar[frozenset[str]] = frozenset({"TaskStop"})
+    stop_tools: ClassVar = frozenset({"TaskStop"})
     text_formats: ClassVar = {
         "Bash": _BASH_OK,
         "Read": _READ,
@@ -511,7 +515,8 @@ class ClaudeCodeConverter(HarnessToolCallConverter):
     ) -> str | None:
         """Claude Code's own result text. Harbor keeps it in
         `extra.tool_result_metadata.raw_tool_result`, and `content` is read only when
-        that is missing.
+        that is missing. Text from `raw_tool_result` loses its edge whitespace, and
+        content items are joined.
         """
         return _original_text(result)[0]
 
@@ -519,7 +524,7 @@ class ClaudeCodeConverter(HarnessToolCallConverter):
         self, raw: RawToolCall, result: dict[str, Any]
     ) -> JsonObject | None:
         if raw.tool.name == "TaskOutput":
-            return _structured(result) or None
+            return structured_result(result) or None  # {} has nothing to match
         return super().extract_tool_result_json(raw, result)
 
     def select_formats(
@@ -528,24 +533,24 @@ class ClaudeCodeConverter(HarnessToolCallConverter):
         result: dict[str, Any],
         tool_result_json: JsonObject | None,
     ) -> HarnessResultFormatList[Any] | None:
-        if raw.tool.name == "Bash" and (result.get("extra") or {}).get(
-            "tool_result_is_error"
-        ):
+        if raw.tool.name == "Bash" and _extra(result).get("tool_result_is_error"):
             return _BASH_ERROR
         return super().select_formats(raw, result, tool_result_json)
 
     def declared_formats(self) -> list[tuple[str, HarnessResultFormatList[Any]]]:
+        """Also `_BASH_ERROR`, which `select_formats` picks outside `text_formats`."""
         return [("Bash", _BASH_ERROR), *super().declared_formats()]
 
     def parse_output(self, raw: RawToolCall, result: dict[str, Any]) -> ToolCallOutput:
         name = raw.tool.name
-        structured = _structured(result)
-        raw_text, item_kinds = _original_text(result)
-        if name == "Read" and raw_text is None and "image" in item_kinds:
-            return ToolCallOutput(
-                execution_status=S.FINISHED,
-                harness_result_format=MatchedFormat("image"),
-            )
+        if name == "Read":
+            raw_text, item_kinds = _original_text(result)
+            if raw_text is None and "image" in item_kinds:
+                return ToolCallOutput(
+                    execution_status=S.FINISHED,
+                    harness_result_format=MatchedFormat("image"),
+                )
+        structured = structured_result(result)
         output = super().parse_output(raw, result)
         if isinstance(output.harness_result_format, UnmatchedFormat):
             return output

@@ -12,12 +12,12 @@ from pathlib import Path
 
 from tb_internet_use.toolcall.result_format_audit import (
     CATALOG_COLUMNS,
-    REVIEWED_LABELS,
+    RESULT_FORMAT_CATALOG_CSV,
     catalog_rows,
+    with_kept_reviews,
 )
 
-PACKAGE_DIR = Path(__file__).parents[1] / "src/tb_internet_use"
-DEFAULT_OUTPUT_CSV = PACKAGE_DIR / "toolcall/catalogs/harness_result_format_catalog.csv"
+DEFAULT_OUTPUT_CSV = RESULT_FORMAT_CATALOG_CSV
 
 
 def main() -> None:
@@ -25,20 +25,11 @@ def main() -> None:
     parser.add_argument("output_csv", type=Path, nargs="?", default=DEFAULT_OUTPUT_CSV)
     paths = parser.parse_args()
 
-    rows = catalog_rows()
-    previous: dict[tuple[str, str, str], dict[str, str]] = {}
+    previous: list[dict[str, str]] = []
     if paths.output_csv.exists():
         with paths.output_csv.open(newline="") as f:
-            previous = {
-                (r["harness"], r["tool"], r["format"]): r for r in csv.DictReader(f)
-            }
-    for row in rows:
-        old = previous.get((row["harness"], row["tool"], row["format"]))
-        # A review covers the declaration it saw, so a changed declaration drops it
-        if old and all(
-            old.get(column, "") == row[column] for column in REVIEWED_LABELS
-        ):
-            row["reviewed"] = old.get("reviewed", "")
+            previous = list(csv.DictReader(f))
+    rows = with_kept_reviews(catalog_rows(), previous)
 
     with paths.output_csv.open("w", newline="") as f:
         writer = csv.DictWriter(f, CATALOG_COLUMNS, lineterminator="\n")

@@ -54,11 +54,12 @@ def _bash(
 
 
 def test_bash_body_without_header_is_exit_zero_and_structured_stdout_wins():
-    output = _bash("shown\n", {"stdout": "shown\n", "stderr": "", "interrupted": False})
+    structured = {"stdout": "full stdout\n", "stderr": "", "interrupted": False}
+    output = _bash("shown", structured)
     assert output is not None
     assert (output.execution_status, output.tool_output_text, output.exit_code) == (
         S.FINISHED,
-        "shown\n",
+        "full stdout\n",
         0,
     )
     assert output.harness_result_format == MatchedFormat("bare_output")
@@ -80,7 +81,7 @@ def test_bash_exit_code_without_header_needs_the_structured_result():
     assert output is not None and output.exit_code is None
 
 
-def test_bash_background_notice_fields_leave_the_sentence_period_out():
+def test_bash_background_notice_names_the_task_and_its_output_file():
     block = (
         "Command running in background with ID: b1a2c3d4e. Output is being written to: /tmp/b1a2c3d4e.output."
         " You will be notified when it completes. To check interim output, use Read on that file path."
@@ -93,6 +94,63 @@ def test_bash_background_notice_fields_leave_the_sentence_period_out():
     )
     assert output.output_path == "/tmp/b1a2c3d4e.output"
     assert output.tool_output_text == ""
+
+
+def test_bash_structured_result_gives_the_task_and_the_saved_output():
+    block = (
+        "Command running in background with ID: b1. Output is being written to: /tmp/b1.output."
+        " You will be notified when it completes. To check interim output, use Read on that file path."
+    )
+    output = _bash(
+        block, {"stdout": "", "backgroundTaskId": "b2", "interrupted": False}
+    )
+    assert output is not None
+    assert (output.handles, output.exit_code) == (
+        (ExecutionHandle(ExecutionHandleKind.COMMAND, "b2"),),
+        None,  # still running, so no exit code
+    )
+    output = _bash(
+        "big",
+        {"stdout": "big", "persistedOutputPath": "/tmp/p.txt", "interrupted": False},
+    )
+    assert output is not None
+    assert (output.output_path, output.is_truncated) == ("/tmp/p.txt", True)
+
+
+def test_bash_structured_result_does_not_touch_an_unmatched_result():
+    output = _bash("something else went wrong", {"stdout": "x"}, is_error=True)
+    assert output is not None
+    assert (output.harness_result_format, output.tool_output_text) == (
+        UnmatchedFormat.UNKNOWN,
+        "something else went wrong",
+    )
+
+
+def test_trailing_notices_are_cut_from_bash_and_write_results():
+    for block in (
+        "out\nShell cwd was reset to /app",
+        "out\n[This command modified 2 files you've previously read: a, b]",
+        "out\n\nSession cwd was changed to /app",
+        "out\nSession cwd was changed to /app",
+    ):
+        output = _bash(block)
+        assert output is not None and output.tool_output_text == "out", block
+    for block in ("Shell cwd was reset to /app", "[This command modified 1 file]"):
+        output = _bash(block)
+        assert output is not None and output.tool_output_text == "", block
+    output = convert_call(
+        _raw(
+            "Write",
+            {"file_path": "/a"},
+            _result(
+                "File created successfully at: /a\n\n"
+                "Note: Write's parameters are named file_path and content."
+            ),
+        ),
+        CONVERTER,
+    ).output
+    assert output is not None
+    assert output.harness_result_format == MatchedFormat("created")
 
 
 def test_bash_background_notice_after_partial_output_is_recognized():
@@ -116,6 +174,24 @@ def test_bash_error_output_cut_by_claude_code_is_truncated_and_keeps_the_marker(
     assert (output.is_truncated, output.tool_output_text) == (True, text)
     output = _bash("Exit code 1\nwhole", is_error=True)
     assert output is not None and output.is_truncated is None
+
+
+def test_bash_timeout_with_cut_output_has_no_exit_code_and_is_truncated():
+    output = _bash(
+        "Exit code 143\nCommand timed out after 2m\nhead\n... [9 characters truncated] ...\ntail",
+        is_error=True,
+    )
+    assert output is not None
+    assert (output.execution_status, output.exit_code, output.is_truncated) == (
+        S.TIMED_OUT,
+        None,
+        True,
+    )
+
+
+def test_structured_result_that_is_not_an_object_is_ignored():
+    output = _bash("shown", "not an object")  # type: ignore[arg-type]
+    assert output is not None and output.tool_output_text == "shown"
 
 
 def test_bash_exit_header_and_timeout():
@@ -158,11 +234,6 @@ def test_bash_refusals_are_not_run_and_an_unlabeled_error_body_is_unknown_format
     )
 
 
-def test_bash_trailing_notices_are_cut_from_text():
-    output = _bash("done\nShell cwd was reset to /app")
-    assert output is not None and output.tool_output_text == "done"
-
-
 def test_read_listing_without_structured_result_loses_line_numbers():
     output = convert_call(
         _raw("Read", {"file_path": "/a"}, _result("1\ta\n2\tb\n3")), CONVERTER
@@ -182,13 +253,13 @@ def test_read_listing_without_structured_result_loses_line_numbers():
 def test_read_structured_file_content_is_the_text():
     structured = {
         "type": "text",
-        "file": {"filePath": "/a", "content": "a\nb\n", "numLines": 2},
+        "file": {"filePath": "/a", "content": "a\r\nb\n", "numLines": 2},
     }
     output = convert_call(
         _raw("Read", {"file_path": "/a"}, _result("1\ta\n2\tb\n3", structured)),
         CONVERTER,
     ).output
-    assert output is not None and output.tool_output_text == "a\nb\n"
+    assert output is not None and output.tool_output_text == "a\r\nb\n"
 
 
 def test_read_cut_at_the_token_cap_is_truncated():
@@ -318,13 +389,22 @@ def test_task_stop_is_a_terminate_whose_target_is_killed():
 
 
 def test_web_tools_that_reached_the_server_are_finished_even_on_errors():
-    output = convert_call(
-        _raw(
-            "WebFetch", {"url": "u"}, _result("The server returned HTTP 404 Not Found.")
+    for block, name in (
+        (
+            "The server returned HTTP 404 Not Found\n\nThe response body was not retrieved. Try another URL.",
+            "http_error_body_not_retrieved",
         ),
-        CONVERTER,
-    ).output
-    assert output is not None and output.execution_status is S.FINISHED
+        ("connect ECONNREFUSED 1.2.3.4:443", "connection_error"),
+    ):
+        output = convert_call(
+            _raw("WebFetch", {"url": "u"}, _result(block)), CONVERTER
+        ).output
+        assert output is not None
+        assert (
+            output.execution_status,
+            output.harness_result_format,
+            output.tool_output_text,
+        ) == (S.FINISHED, MatchedFormat(name), "")
     output = convert_call(
         _raw(
             "WebFetch",

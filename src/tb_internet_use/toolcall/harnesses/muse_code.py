@@ -1,6 +1,5 @@
 """Muse Code tool call converter."""
 
-import json
 import re
 from dataclasses import replace
 from typing import Any, ClassVar
@@ -19,6 +18,7 @@ from tb_internet_use.toolcall.result_formats import (
     JsonCondition,
     JsonObject,
     MatchedValues,
+    json_tool_output_text,
     template_regex,
 )
 
@@ -46,11 +46,7 @@ _SAVED_OUTPUT_REMINDER = template_regex(
 
 def _shell_output_text(values: MatchedValues) -> str:
     """The output, without the note Muse puts before it when it replaced invalid UTF-8 bytes."""
-    output = values.get("tool_output")
-    if output is None:
-        return ""
-    if not isinstance(output, str):
-        return json.dumps(output, ensure_ascii=False)
+    output = json_tool_output_text(values)
     note = _REPLACED_BYTES_NOTE.match(output)
     return output[note.end() :] if note else output
 
@@ -102,9 +98,9 @@ _SHELL = HarnessResultFormatList[JsonObject](
         ),
     )
 )
-_SHELL_TEXT = HarnessResultFormatList[str](
-    (Text("rejected", "tool failed: {reason:text}", S.NOT_RUN),)
-)
+# Any tool's call that Muse refused.
+_REJECTED = Text("rejected", "tool failed: {reason:text}", S.NOT_RUN)
+_SHELL_TEXT = HarnessResultFormatList[str]((_REJECTED,))
 
 _WORK_STOP = HarnessResultFormatList[JsonObject](
     (
@@ -168,7 +164,7 @@ _READ_FILE = HarnessResultFormatList[str](
             S.FINISHED,
             no_tool_output_text=True,
         ),
-        Text("rejected", "tool failed: {reason:text}", S.NOT_RUN),
+        _REJECTED,
     )
 )
 _WRITE_FILE = HarnessResultFormatList[str](
@@ -179,13 +175,13 @@ _WRITE_FILE = HarnessResultFormatList[str](
             S.FINISHED,
         ),
         Text("written", "wrote {bytes:int} bytes to {path:rest_of_line}", S.FINISHED),
-        Text("rejected", "tool failed: {reason:text}", S.NOT_RUN),
+        _REJECTED,
     )
 )
 _EDIT_FILE = HarnessResultFormatList[str](
     (
         Text("edited", "edited\n{detail:text}", S.FINISHED),
-        Text("rejected", "tool failed: {reason:text}", S.NOT_RUN),
+        _REJECTED,
     )
 )
 
@@ -194,7 +190,7 @@ _SHELL_TOOLS = ("bash", "bash_input")
 
 
 class MuseCodeConverter(HarnessToolCallConverter):
-    stop_tools: ClassVar[frozenset[str]] = frozenset({"work_stop"})
+    stop_tools: ClassVar = frozenset({"work_stop"})
     # a background bash session
     argument_handle_kinds: ClassVar = {"bash_input": ExecutionHandleKind.COMMAND}
     json_formats: ClassVar = {
@@ -213,8 +209,10 @@ class MuseCodeConverter(HarnessToolCallConverter):
     def parse_output(self, raw: RawToolCall, result: dict[str, Any]) -> ToolCallOutput:
         output = super().parse_output(raw, result)
         text = output.tool_output_text
-        found = _SAVED_OUTPUT_REMINDER.fullmatch(text) if text else None
-        if raw.tool.name not in _SHELL_TOOLS or found is None:
+        if raw.tool.name not in _SHELL_TOOLS or not text:
+            return output
+        found = _SAVED_OUTPUT_REMINDER.fullmatch(text)
+        if found is None:
             return output
         return replace(
             output,

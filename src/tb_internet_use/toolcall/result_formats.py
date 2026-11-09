@@ -21,8 +21,19 @@ from tb_internet_use.toolcall.model import (
 )
 
 # The `tool_output_text` of a result whose tool showed no output, such as one whose
-# format has no tool output placeholder. It is None only with `no_tool_output_text`.
+# format has no tool output placeholder.
 _NO_OUTPUT_TEXT = ""
+
+# Matched values with these names fill ToolCallOutput fields. Other names fill none.
+#   tool_output       tool_output_text
+#   handle            handles, one id
+#   handles           handles, a list of ids from JSON or one id from a template
+#   handle_kind_name  the kind of the handles, through `handle_kind_by_name` (JSON only)
+#   exit_code         exit_code
+#   output_path       output_path
+#   is_truncated      is_truncated, a bool (JSON only)
+# What every result of a format shares, such as `status`, is a field of the format.
+# What every call of a tool shares, such as `stop_tools`, is an attribute of its converter.
 
 # values of the placeholders or JSON paths that matched
 type MatchedValues = Mapping[str, Any]
@@ -50,7 +61,7 @@ class HarnessResultFormat[AnnotatedOutputT](Protocol):
         ...
 
     def handle_kind_of(self, values: MatchedValues) -> ExecutionHandleKind:
-        """The kind of the handles, taken from the matched values."""
+        """The kind of the handles this result gives."""
         ...
 
     def is_truncated_of(self, values: MatchedValues) -> bool | None:
@@ -61,8 +72,8 @@ class HarnessResultFormat[AnnotatedOutputT](Protocol):
         """Return `ToolCallOutput.tool_output_text`, built from the matched values.
 
         It is the value named `tool_output`, or what `text_from_matched_values` builds.
-        It is `_NO_OUTPUT_TEXT` when the tool showed no output, and None when the format
-        has `no_tool_output_text`.
+        It is `_NO_OUTPUT_TEXT` when the tool showed no output, and None in the cases
+        that `ToolCallOutput.tool_output_text` names.
         """
         ...
 
@@ -95,6 +106,13 @@ PLACEHOLDER_TYPE_PATTERNS = {
     # always with the first.
     "partly_numbered_arrow": r"[ ]*\d+→[\s\S]*?",
 }
+# The placeholder types that can take several lines.
+MULTILINE_PLACEHOLDER_TYPES = (
+    "text",
+    "numbered_tab",
+    "numbered_pipe",
+    "partly_numbered_arrow",
+)
 
 # For the placeholder types that carry line numbers, the text after each number.
 # `tool_output_text_of` removes the numbers from the tool output.
@@ -126,6 +144,12 @@ def template_regex(template: str) -> re.Pattern[str]:
     return re.compile("".join(parts))
 
 
+@functools.cache
+def _placeholder_types(template: str) -> dict[str, str]:
+    """The type of each placeholder of a template, by name."""
+    return {p[1]: p[2] for p in PLACEHOLDER_REGEX.finditer(template)}
+
+
 # Text helpers, shared with the harness converters.
 
 
@@ -141,6 +165,22 @@ def strip_line_numbers(listing: str, separator: str, *, every_line: bool = True)
         "",
         listing,
         flags=re.MULTILINE,
+    )
+
+
+def join_texts(texts: Iterable[str]) -> str | None:
+    """Join separate texts with a blank line, each without its edge whitespace. None when all are empty."""
+    return "\n\n".join(text.strip() for text in texts if text.strip()) or None
+
+
+def join_content_items(items: Any) -> str | None:
+    """The text of a list of content items (`{"type": "text", "text": ...}`). Images give nothing."""
+    if not isinstance(items, list):
+        return None
+    return join_texts(
+        str(item.get("text") or "")
+        for item in items
+        if isinstance(item, dict) and item.get("type") == "text"
     )
 
 
@@ -164,8 +204,9 @@ class HarnessTextResultFormat:
 
     - The fixed text must appear exactly as in the trajectory.
     - The placeholder named `tool_output` takes the tool output. Every other placeholder
-      takes an annotation value. `handle`, `exit_code` and `output_path` fill the
-      `ToolCallOutput` fields of those names. Other names fill no field, such as `rest`.
+      takes an annotation value. The value names at the top of this module fill
+      `ToolCallOutput` fields, e.g. `handle` fills `handles`. Other names, such as
+      `rest`, fill none.
     - The type says which characters the placeholder may take, see
       `PLACEHOLDER_TYPE_PATTERNS`. A lazy type stops at the next fixed text.
     - The template is matched against the whole annotated output, from its first
@@ -195,6 +236,7 @@ class HarnessTextResultFormat:
     template: str
     # The execution status of every result of this format.
     status: ExecutionStatus
+    _: KW_ONLY
     # Whether every result of this format has a truncated tool output. None when the
     # format does not tell.
     is_truncated: bool | None = None
@@ -233,18 +275,12 @@ class HarnessTextResultFormat:
         if "tool_output" not in values:
             return _NO_OUTPUT_TEXT
         text = str(values["tool_output"])
-        placeholder_type = self._placeholder_types().get("tool_output", "")
+        placeholder_type = _placeholder_types(self.template).get("tool_output", "")
         separator = _LINE_NUMBER_SEPARATOR_BY_TYPE.get(placeholder_type)
         if separator is None:
             return text
         every_line = placeholder_type != "partly_numbered_arrow"
         return strip_line_numbers(text, separator, every_line=every_line)
-
-    def _placeholder_types(self) -> dict[str, str]:
-        return {
-            placeholder[1]: placeholder[2]
-            for placeholder in PLACEHOLDER_REGEX.finditer(self.template)
-        }
 
 
 @dataclass(frozen=True, slots=True)
@@ -291,6 +327,12 @@ def _json_value(annotated_output: JsonObject, path: str) -> tuple[bool, Any]:
             return False, None
         value = value[key]
     return True, value
+
+
+def json_tool_output_text(values: MatchedValues) -> str:
+    """The value named `tool_output` as text, the default of a JSON format. "" when there is none."""
+    text = values.get("tool_output")
+    return _NO_OUTPUT_TEXT if text is None else _json_text(text)
 
 
 def _json_text(value: Any) -> str:
@@ -342,8 +384,8 @@ class HarnessJsonResultFormat:
       `absent_paths` is, and `condition` holds if there is one. Keys the format does
       not name are ignored.
     - `value_paths` names each value and the JSON path it is read from. The value named
-      `tool_output` is the tool output. Every other value is an annotation value, with
-      the same names a text format gives its placeholders.
+      `tool_output` is the tool output. Every other value is an annotation value, and
+      the value names at the top of this module fill `ToolCallOutput` fields.
 
     Example: Cursor CLI `shellToolCall`, format `exited` in harnesses/cursor_cli.py, with made-up values.
     (The object in the trajectory has more keys than shown)
@@ -366,8 +408,10 @@ class HarnessJsonResultFormat:
     # The execution status of every result of this format.
     status: ExecutionStatus
     # Each value name and the JSON path it is read from. Several paths give the
-    # parts of one tool output in order. For `handles`, they give one handle each.
+    # parts of one tool output in order, or one handle each for `handles`. Missing
+    # and null parts are left out.
     value_paths: Mapping[str, str | tuple[str, ...]] = field(default_factory=dict)
+    _: KW_ONLY
     # JSON paths that every result of this format has.
     present_paths: tuple[str, ...] = ()
     # JSON paths that no result of this format has.
@@ -384,8 +428,7 @@ class HarnessJsonResultFormat:
     handle_kind_by_name: Mapping[str, ExecutionHandleKind] = field(default_factory=dict)
     # Builds text from the matched values.
     text_from_matched_values: Callable[[MatchedValues], str | None] | None = None
-    # The trajectory holds no text of what the tool returned, such as a file kept
-    # only as a blob id. `tool_output_text` is then None, not "".
+    # As for a text format, e.g. for a file kept only as a blob id.
     no_tool_output_text: bool = False
 
     def match(self, annotated_output: JsonObject) -> MatchedValues | None:
@@ -405,7 +448,7 @@ class HarnessJsonResultFormat:
                     values[name] = value
             else:  # the parts of one tool output in order, or one handle each
                 found = (_json_value(annotated_output, path) for path in paths)
-                parts = [value for present, value in found if value is not None]
+                parts = [value for _, value in found if value is not None]
                 values[name] = (
                     join_text_parts(map(_json_text, parts))
                     if name == "tool_output"
@@ -431,8 +474,7 @@ class HarnessJsonResultFormat:
             return None
         if self.text_from_matched_values is not None:
             return self.text_from_matched_values(values)
-        text = values.get("tool_output")
-        return _NO_OUTPUT_TEXT if text is None else _json_text(text)
+        return json_tool_output_text(values)
 
 
 @dataclass(frozen=True, slots=True)
@@ -477,9 +519,9 @@ class HarnessResultFormatList[AnnotatedOutputT]:
 def _handles(
     kind: ExecutionHandleKind, values: MatchedValues
 ) -> tuple[ExecutionHandle, ...]:
-    listed = values.get("handles")  # a list, but one id if a template names it
-    ids = listed if isinstance(listed, list) else [listed]
-    return handles_from_ids(kind, [values.get("handle"), *ids])
+    return handles_from_ids(kind, values.get("handle")) + handles_from_ids(
+        kind, values.get("handles")
+    )
 
 
 def _exit_code(values: MatchedValues) -> int | None:
@@ -514,6 +556,23 @@ def _unparsed_output(
     )
 
 
+def annotated_output_of(
+    tool_result_raw_text: str | None,
+    tool_result_json: JsonObject | None,
+    selected_formats: HarnessResultFormatList[Any],
+) -> tuple[str | JsonObject, list[str]] | None:
+    """The annotated output and the names of the notices cut from it.
+
+    It is the JSON object, or the raw text without its notices. None when the
+    trajectory has neither.
+    """
+    if tool_result_json is not None:
+        return tool_result_json, []
+    if tool_result_raw_text is None:
+        return None
+    return selected_formats.strip_notices(tool_result_raw_text)
+
+
 def parse_output_with_formats(
     tool_result_raw_text: str | None,
     tool_result_json: JsonObject | None,
@@ -524,18 +583,15 @@ def parse_output_with_formats(
     if selected_formats is None:
         return _unparsed_output(tool_result_raw_text, UnmatchedFormat.SKIPPED)
 
-    # The annotated output is the JSON object, or the raw text without its notices.
-    annotated_output: str | JsonObject
-    if tool_result_json is not None:
-        annotated_output = tool_result_json
-    elif tool_result_raw_text is not None:
-        annotated_output, _ = selected_formats.strip_notices(tool_result_raw_text)
-    else:
+    annotated = annotated_output_of(
+        tool_result_raw_text, tool_result_json, selected_formats
+    )
+    if annotated is None:
         # The tool has formats, but the trajectory has nothing to match.
         return _unparsed_output(tool_result_raw_text, UnmatchedFormat.UNKNOWN)
 
     # The first format that matches wins.
-    found = selected_formats.match(annotated_output)
+    found = selected_formats.match(annotated[0])
     if found is None:
         return _unparsed_output(tool_result_raw_text, UnmatchedFormat.UNKNOWN)
 

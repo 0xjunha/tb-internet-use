@@ -276,3 +276,14 @@ def test_truncated_bash_output_loses_the_reminder_and_names_the_saved_file():
         "/tmp/out.log",
         True,
     )
+
+
+def test_bash_output_that_is_not_a_string_is_json_and_a_later_note_stays():
+    def output_of(value: Any) -> str | None:
+        result = {"terminal_status": "completed", "exit_code": 0, "output": value}
+        output = convert_call(_raw("bash", {"command": "x"}, result), CONVERTER).output
+        return None if output is None else output.tool_output_text
+
+    assert output_of([1, "a"]) == '[1, "a"]'
+    note = "[unified exec output: 2 invalid UTF-8 bytes replaced with U+FFFD]"
+    assert output_of("ok\n" + note) == "ok\n" + note

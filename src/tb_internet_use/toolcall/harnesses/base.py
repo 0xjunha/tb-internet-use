@@ -33,23 +33,6 @@ def _decode_json(raw_text: str | None) -> dict[str, Any] | None:
     return decoded if isinstance(decoded, dict) else None
 
 
-def string_tuple(value: Any) -> tuple[str, ...]:
-    """An argument as the strings of an Action field, empty when it is missing or empty."""
-    return () if value in (None, "") else (str(value),)
-
-
-def join_content_items(items: Any) -> str | None:
-    """The text of a list of content items (`{"type": "text", "text": ...}`). Images give nothing."""
-    if not isinstance(items, list):
-        return None
-    texts = [
-        str(item.get("text") or "")
-        for item in items
-        if isinstance(item, dict) and item.get("type") == "text"
-    ]
-    return "\n\n".join(text.strip() for text in texts if text.strip()) or None
-
-
 class HarnessToolCallConverter:
     """The parts of tool call conversion that differ by harness.
 
@@ -79,7 +62,7 @@ class HarnessToolCallConverter:
     def extract_tool_result_raw_text(
         self, raw: RawToolCall, result: dict[str, Any]
     ) -> str | None:
-        """Extract the tool result text exactly as it is in the trajectory.
+        """Extract the tool result text from the trajectory.
 
         By default, it is the result's `content` if that is a string, else None.
         """
@@ -96,7 +79,8 @@ class HarnessToolCallConverter:
         """
         if raw.tool.name not in self.json_formats:
             return None
-        return _decode_json(self.extract_tool_result_raw_text(raw, result)) or None
+        raw_text = self.extract_tool_result_raw_text(raw, result)
+        return _decode_json(raw_text) or None  # {} has nothing to match
 
     def select_formats(
         self,

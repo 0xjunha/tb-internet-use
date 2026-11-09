@@ -8,14 +8,14 @@ import pytest
 
 from tb_internet_use.toolcall.atif_reader import (
     TrajectoryStatus,
-    _drop_agent_loop_notices,
+    _drop_agent_loop_messages,
     _pair_calls_with_results,
     _walk_trajectory,
     read_trial_tool_calls,
 )
 from tb_internet_use.toolcall.model import ToolCallKey
 
-NOTICE = {"content": "Tool call error:\n\n<error>No tool calls found</error>"}
+LOOP_MESSAGE = {"content": "Tool call error:\n\n<error>No tool calls found</error>"}
 
 
 def _call(tool_call_id: str = "a") -> dict[str, Any]:
@@ -29,13 +29,15 @@ def _write_trial(tmp_path: Path, content: str) -> Path:
     return trial_dir
 
 
-def test_drops_notice_for_mini_swe_agent():
+def test_drops_loop_message_for_mini_swe_agent():
     result = {"content": '{"returncode": 0, "output": "ok"}'}
-    assert _drop_agent_loop_notices("mini-swe-agent", [result, NOTICE]) == [result]
+    assert _drop_agent_loop_messages("mini-swe-agent", [result, LOOP_MESSAGE]) == [
+        result
+    ]
 
 
-def test_keeps_notice_text_for_other_harness():
-    assert _drop_agent_loop_notices("codex", [NOTICE]) == [NOTICE]
+def test_keeps_loop_message_text_for_other_harness():
+    assert _drop_agent_loop_messages("codex", [LOOP_MESSAGE]) == [LOOP_MESSAGE]
 
 
 def test_pairs_by_id_in_call_order():
@@ -120,6 +122,56 @@ def test_reads_trial(tmp_path):
     assert call.tool.harness == "codex"
     assert call.args == {}
     assert call.result == {"source_call_id": "a", "content": "ok"}
+
+
+def test_reads_every_call_key_and_pairing_of_a_v1_8_trial(tmp_path):
+    def step(step_id, calls, results):
+        return {
+            "step_id": step_id,
+            "tool_calls": calls,
+            "observation": {"results": results},
+        }
+
+    main_steps = [
+        step(
+            1,
+            [_call("a"), _call("b"), _call("c")],
+            # b pairs by id, and the unknown id and the result without one fill a and c
+            [{"source_call_id": "b"}, {"source_call_id": "zz"}, {"content": "3"}],
+        ),
+        step(2, [], [LOOP_MESSAGE]),  # a loop message in a step without calls
+    ]
+    trajectory = {
+        "schema_version": "ATIF-v1.8",
+        "agent": {"name": "mini-swe-agent"},
+        "steps": main_steps,
+        "subagent_trajectories": [
+            {
+                "steps": [step(1, [_call("s")], [])],
+                "subagent_trajectories": [{"steps": [step(1, [_call("t")], [])]}],
+            },
+            {"steps": [step(1, [_call("u")], [])]},
+        ],
+    }
+    trial = read_trial_tool_calls(_write_trial(tmp_path, json.dumps(trajectory)))
+
+    assert [
+        (c.key.trajectory_id, c.key.step_id, c.key.call_index, c.tool_call_id)
+        for c in trial.calls
+    ] == [
+        ("main", 1, 0, "a"),
+        ("main", 1, 1, "b"),
+        ("main", 1, 2, "c"),
+        ("main/sub0", 1, 0, "s"),
+        ("main/sub0/sub0", 1, 0, "t"),
+        ("main/sub1", 1, 0, "u"),
+    ]
+    assert [c.result for c in trial.calls[:3]] == [
+        {"source_call_id": "zz"},
+        {"source_call_id": "b"},
+        {"content": "3"},
+    ]
+    assert [c.is_subagent for c in trial.calls] == [False] * 3 + [True] * 3
 
 
 def test_missing_trajectory(tmp_path):

@@ -115,6 +115,23 @@ def test_ctrl_c_through_write_stdin_is_a_terminate_and_exit_130_is_killed():
     )
     assert call.output is not None
     assert (call.output.execution_status, call.output.exit_code) == (S.FINISHED, 0)
+    call = convert_call(
+        _raw("write_stdin", {"session_id": 7, "chars": "y"}, exited), CONVERTER
+    )
+    assert call.output is not None
+    assert (call.output.execution_status, call.output.exit_code) == (S.FINISHED, 130)
+    assert isinstance(call.action, PollAction) and not call.action.terminate
+
+
+def test_web_search_call_with_content_keeps_it_as_text():
+    output = convert_call(
+        _raw("web_search_call", {"action_type": "search"}, "some text"), CONVERTER
+    ).output
+    assert output is not None
+    assert (output.harness_result_format, output.tool_output_text) == (
+        UnmatchedFormat.SKIPPED,
+        "some text",
+    )
 
 
 def test_web_search_keeps_every_query():

@@ -3,10 +3,7 @@
 from dataclasses import replace
 from typing import Any, ClassVar
 
-from tb_internet_use.toolcall.harnesses.base import (
-    HarnessToolCallConverter,
-    string_tuple,
-)
+from tb_internet_use.toolcall.harnesses.base import HarnessToolCallConverter
 from tb_internet_use.toolcall.model import (
     Action,
     ExecutionHandleKind,
@@ -19,6 +16,7 @@ from tb_internet_use.toolcall.model import (
     WebFetchAction,
     WebFindAction,
     WebSearchAction,
+    string_tuple,
 )
 from tb_internet_use.toolcall.result_formats import (
     HarnessResultFormatList,
@@ -45,20 +43,20 @@ _SHELL = HarnessResultFormatList[str](
             "exited_truncated",
             _HEAD + _EXITED + _TOKENS + _TRUNCATED + "{tool_output:text}",
             S.FINISHED,
-            True,
+            is_truncated=True,
         ),
         Text(
             "exited_truncated_no_line_count",
             _HEAD + _EXITED + _TOKENS + _TRUNCATED_NO_LINE_COUNT + "{tool_output:text}",
             S.FINISHED,
-            True,
+            is_truncated=True,
         ),
         Text("exited", _HEAD + _EXITED + _TOKENS + "{tool_output:text}", S.FINISHED),
         Text(
             "running_truncated",
             _HEAD + _RUNNING + _TOKENS + _TRUNCATED + "{tool_output:text}",
             S.RUNNING,
-            True,
+            is_truncated=True,
         ),
         Text("running", _HEAD + _RUNNING + _TOKENS + "{tool_output:text}", S.RUNNING),
         Text(
@@ -130,7 +128,7 @@ class CodexConverter(HarnessToolCallConverter):
         self, raw: RawToolCall, output: ToolCallOutput | None
     ) -> Action:
         if raw.tool.name != _WEB_SEARCH_CALL:
-            return UnknownAction()
+            return UnknownAction()  # exec, whose script steps are not converted yet
         url = raw.args.get("url")
         match raw.args.get("action_type"):
             case "search":

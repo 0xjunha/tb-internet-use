@@ -11,10 +11,7 @@ from tb_internet_use.toolcall.catalog_loader import (
     load_catalog,
 )
 from tb_internet_use.toolcall.harnesses import converter_for
-from tb_internet_use.toolcall.harnesses.base import (
-    HarnessToolCallConverter,
-    string_tuple,
-)
+from tb_internet_use.toolcall.harnesses.base import HarnessToolCallConverter
 from tb_internet_use.toolcall.model import (
     Action,
     ExecutionHandleKind,
@@ -22,6 +19,7 @@ from tb_internet_use.toolcall.model import (
     ToolCall,
     UnknownAction,
     handles_from_ids,
+    string_tuple,
 )
 
 _CATALOG = load_catalog()
@@ -33,8 +31,7 @@ def _field_value(field_name: str, value: Any) -> Any:
         case "queries" | "urls":
             return string_tuple(value)
         case "handles":
-            ids = value if isinstance(value, list) else [value]
-            return handles_from_ids(ExecutionHandleKind.UNKNOWN, ids)
+            return handles_from_ids(ExecutionHandleKind.UNKNOWN, value)
         case "input":
             return value or None
         case "offset" | "limit":

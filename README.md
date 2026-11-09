@@ -36,7 +36,7 @@ Further analysis builds on this data.
 | 2 | Collect | Record facts for every trial (e.g. task, leaderboard entry, reward, whether the trajectory is readable) | Planned |
 | 3 | Parse | Define common types for tool calls and their outputs | Done |
 | 4 | Parse | Catalog and manually label every tool call in the trajectories | Done |
-| 5 | Parse | Convert each harness's `trajectory.json` to common types | In progress: converters for all seven harnesses, Codex `exec` pending |
+| 5 | Parse | Convert each harness's `trajectory.json` to common types | Partly done, pending Codex `exec` and `wait` and the result format catalog review |
 | 6 | Parse | Parse shell text into a command tree (e.g. operators, control flow, heredocs) | Planned |
 | 7 | Interpret | Resolve what each call runs (e.g. written files, variables) | Planned |
 | 8 | Interpret | Extract candidate requests with their types and targets | Planned |

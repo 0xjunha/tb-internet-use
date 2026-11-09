@@ -47,7 +47,7 @@ _EXIT = "\nExit code: {exit_code:int}"
 # Devin writes -1 here, never another negative code, for a command it stopped, e.g.
 # one that killed its own shell. It is no real exit code or signal number, so
 # `parse_output` reads any negative code as killed, whatever the format.
-_SIGNALED = "\nExit code: -{signal:uint}"
+_SIGNALED = "\nExit code: -{sentinel:uint}"
 # Devin cuts a long line and ends it with this.
 _CUT_LINE_MARKER = "… ({count:int} chars truncated)"
 
@@ -55,17 +55,21 @@ _LIVE_HEAD = (
     "Output from command in shell {handle:id}. The full terminal output is being written live to "
     "{output_path:word}; read or grep it for anything omitted below. Preview:\n"
 )
-_FILE_VIEW = '<file-view path="{path%s:line}" start_line="{start%s:int}" end_line="{end%s:int}" total_lines="{total%s:int}">\n'
+
+
+def _file_view(suffix: str = "") -> str:
+    """A file view's opening tag. A second view in one template takes a suffix, since placeholder names must differ."""
+    return (
+        f'<file-view path="{{path{suffix}:line}}" start_line="{{start{suffix}:int}}" '
+        f'end_line="{{end{suffix}:int}}" total_lines="{{total{suffix}:int}}">\n'
+    )
+
+
 _OMITTED = "… {omitted:int} lines omitted …\n"
 _LIVE_HEAD_VIEW = (
-    _LIVE_HEAD
-    + _FILE_VIEW % ("", "", "", "")
-    + "{head:numbered_pipe}\n</file-view>\n"
-    + _OMITTED
+    _LIVE_HEAD + _file_view() + "{head:numbered_pipe}\n</file-view>\n" + _OMITTED
 )
-_LIVE_TAIL_VIEW = (
-    _FILE_VIEW % ("2", "2", "2", "2") + "{tail:numbered_pipe}\n</file-view>\n"
-)
+_LIVE_TAIL_VIEW = _file_view("2") + "{tail:numbered_pipe}\n</file-view>\n"
 
 
 def _preview_text(values: MatchedValues) -> str:
@@ -86,7 +90,7 @@ _EXEC = HarnessResultFormatList[str](
             + "\n\n{note:line}\n"
             + _TRUNCATED,
             S.FINISHED,
-            True,
+            is_truncated=True,
         ),
         Text(
             "exited_after_warning",
@@ -101,7 +105,7 @@ _EXEC = HarnessResultFormatList[str](
             + "\n\n{note:line}\n"
             + _TRUNCATED,
             S.FINISHED,
-            True,
+            is_truncated=True,
         ),
         Text(
             "exited",
@@ -113,14 +117,14 @@ _EXEC = HarnessResultFormatList[str](
             "exited_live_file",
             _LIVE_HEAD_VIEW + _LIVE_TAIL_VIEW + _EXIT,
             S.FINISHED,
-            True,
+            is_truncated=True,
             text_from_matched_values=_preview_text,
         ),
         Text(
             "exited_live_file_head",
             _LIVE_HEAD_VIEW + _EXIT,
             S.FINISHED,
-            True,
+            is_truncated=True,
             text_from_matched_values=_preview_text,
         ),
         Text(
@@ -133,7 +137,7 @@ _EXEC = HarnessResultFormatList[str](
             "background_after_output_truncated",
             _STOPPED + "\n" + _TRUNCATED,
             S.RUNNING,
-            True,
+            is_truncated=True,
         ),
         Text("background_after_output", _STOPPED, S.RUNNING),
         Text(
@@ -238,7 +242,7 @@ _READ = HarnessResultFormatList[str](
     (
         Text(
             "listing",
-            _FILE_VIEW % ("", "", "", "") + "{tool_output:numbered_pipe}\n</file-view>",
+            _file_view() + "{tool_output:numbered_pipe}\n</file-view>",
             S.FINISHED,
         ),
         Text(
@@ -258,28 +262,33 @@ _UPDATED = (
 _CUT_LINES = "\n… ({cut:int} lines truncated)\n"
 _UPDATED_TRUNCATED_NOTE = _UPDATED + _CUT_LINES + _TRUNCATED
 _UPDATED_TRUNCATED_CUT_LINE = _UPDATED + "\n{cut_line:line}" + _CUT_LINES + _TRUNCATED
+# What write and edit return after they changed a file.
+_UPDATED_FORMATS = (
+    Text(
+        "updated_truncated_note", _UPDATED_TRUNCATED_NOTE, S.FINISHED, is_truncated=True
+    ),
+    Text(
+        "updated_truncated_cut_line",
+        _UPDATED_TRUNCATED_CUT_LINE,
+        S.FINISHED,
+        is_truncated=True,
+    ),
+    Text("updated", _UPDATED, S.FINISHED),
+)
 
 _WRITE = HarnessResultFormatList[str](
     (
         Text(
             "created", "File created successfully at: {path:rest_of_line}", S.FINISHED
         ),
-        Text("updated_truncated_note", _UPDATED_TRUNCATED_NOTE, S.FINISHED, True),
-        Text(
-            "updated_truncated_cut_line", _UPDATED_TRUNCATED_CUT_LINE, S.FINISHED, True
-        ),
-        Text("updated", _UPDATED, S.FINISHED),
+        *_UPDATED_FORMATS,
         Text("rejected", "Tool 'write' validation failed: {reason:text}", S.NOT_RUN),
     )
 )
 
 _EDIT = HarnessResultFormatList[str](
     (
-        Text("updated_truncated_note", _UPDATED_TRUNCATED_NOTE, S.FINISHED, True),
-        Text(
-            "updated_truncated_cut_line", _UPDATED_TRUNCATED_CUT_LINE, S.FINISHED, True
-        ),
-        Text("updated", _UPDATED, S.FINISHED),
+        *_UPDATED_FORMATS,
         Text("rejected", "Tool 'edit' validation failed: {reason:text}", S.NOT_RUN),
     )
 )
@@ -290,7 +299,7 @@ _WEBFETCH = HarnessResultFormatList[str](
             "page_truncated",
             "# Web Content from {url:rest_of_line}\n{tool_output:text}\n" + _TRUNCATED,
             S.FINISHED,
-            True,
+            is_truncated=True,
         ),
         Text(
             "page",
@@ -309,13 +318,13 @@ _WEB_SEARCH = HarnessResultFormatList[str](
             "results_truncated",
             _SEARCH_HEAD + "\n{tool_output:text}\n" + _TRUNCATED,
             S.FINISHED,
-            True,
+            is_truncated=True,
         ),
         Text(
             "results_crlf_truncated",
             _SEARCH_HEAD + "\r\n{tool_output:text}\n" + _TRUNCATED,
             S.FINISHED,
-            True,
+            is_truncated=True,
         ),
         Text("results", _SEARCH_HEAD + "\n{tool_output:text}", S.FINISHED),
     )
@@ -334,8 +343,8 @@ _BROWSER_PREVIEW = HarnessResultFormatList[str](
 
 
 class DevinConverter(HarnessToolCallConverter):
-    stop_tools: ClassVar[frozenset[str]] = frozenset({"kill_shell"})
-    # A shell poll's result rarely names the shell; the argument does.
+    stop_tools: ClassVar = frozenset({"kill_shell"})
+    # A shell poll's result rarely names the shell, but its argument does.
     argument_handle_kinds: ClassVar = dict.fromkeys(
         ("get_output", "kill_shell", "write_to_process"), ExecutionHandleKind.COMMAND
     )

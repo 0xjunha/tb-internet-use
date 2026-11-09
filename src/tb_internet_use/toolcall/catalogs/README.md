@@ -27,6 +27,11 @@ by hand, and it is kept as long as `template`, `status`, `is_truncated`,
 `no_tool_output_text` and `handle_kind` stay the same. A test checks that the committed
 file matches the code.
 
+A row is what the format declares. A converter's `parse_output` may still change
+`status` or `is_truncated` after the match, e.g. the status of a Grok multi-wait, a Codex
+Ctrl-C or a negative Devin exit code, and `is_truncated` from Claude Code's structured
+result.
+
 - **`kind`:** `text` or `json`.
 - **`template`:** the template of a text format, or the present paths, absent paths and
   condition of a JSON format.
@@ -56,8 +61,8 @@ not committed.
 - **`harness_text_hits`:** results whose `tool_output_text` still holds harness text of
   the tool's templates, i.e. a template part between the tool output and multiline
   placeholders, searched with its placeholders as regexes.
-- **`multi_match`:** results that also matched a later format of the list; expected
-  where a general form follows a specific one.
+- **`multi_match`:** results that matched this format and another format of the list,
+  in either order; expected where a general form follows a specific one.
 
 ## Deferred tools
 

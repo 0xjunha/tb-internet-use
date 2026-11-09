@@ -35,7 +35,7 @@ Defined in [model.py](model.py).
 | `ReadFileAction` | Output sent to a log file instead of stdout |
 | `PollAction` | Background output arrives in a later call; stopping shows whether it finished |
 | `OtherAction` | Not needed for the above, such as grep tools, to-do lists, subagent management |
-| `UnknownAction` | Tool the harness does not have (broken or disabled names) |
+| `UnknownAction` | Tool the harness does not have (broken or disabled names), and Codex `exec` until its steps are converted |
 
 ## Tool call labeling
 
@@ -90,6 +90,8 @@ annotated output = annotation + tool output
 | Annotation | What the harness wrote about the call, e.g. an exit code line | Execution status, exit code, handles, output path, truncation |
 | Notice | A message the harness may add at the start or end of any result, e.g. Grok's completion notifications | Cut before matching, fills no field. Still in `raw.result` for stage 10 |
 
+A truncation marker, which a harness leaves inside a tool output it cut, stays in the tool output and sets `is_truncated`.
+
 ### Two kinds of result format
 
 A result format describes one shape of a tool's annotated output.
@@ -140,7 +142,7 @@ Both give `tool_output_text="hello"`, `exit_code=0`, status `finished`.
 
 [`HarnessToolCallConverter.parse_output`](harnesses/base.py) runs the hooks in this order. A harness overrides a hook when its trajectory differs.
 
-1. `extract_tool_result_raw_text`: the result text exactly as in the trajectory.
+1. `extract_tool_result_raw_text`: the result text in the trajectory.
 2. `extract_tool_result_json`: the JSON object, for a tool with JSON formats.
 3. `select_formats`: the tool's JSON list when there is a JSON object, else its text list.
 4. [`parse_output_with_formats`](result_formats.py): cut the notices, try the formats in order, build `ToolCallOutput` from the first that matches.

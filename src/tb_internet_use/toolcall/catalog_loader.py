@@ -8,7 +8,8 @@ from typing import get_args
 from tb_internet_use.toolcall.model import Action, HarnessTool
 
 ACTION_CLASSES = {cls.__name__: cls for cls in get_args(Action.__value__)}
-CATALOG_CSV = Path(__file__).parent / "catalogs" / "harness_tool_catalog.csv"
+CATALOGS_DIR = Path(__file__).parent / "catalogs"
+CATALOG_CSV = CATALOGS_DIR / "harness_tool_catalog.csv"
 DEFERRED = "Deferred"  # the converter decides the Action type per call
 
 

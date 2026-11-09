@@ -3,6 +3,8 @@
 import json
 from typing import Any
 
+import pytest
+
 from tb_internet_use.toolcall.convert import convert_call
 from tb_internet_use.toolcall.harnesses.mini_swe_agent import MiniSweAgentConverter
 from tb_internet_use.toolcall.model import (
@@ -39,10 +41,11 @@ def test_exited():
     ) == (S.FINISHED, 0, "ok\n", None)
 
 
-def test_long_output_is_joined_from_head_and_tail_and_flagged():
+@pytest.mark.parametrize("head", ["a\n", "a"])  # a new line is added only when missing
+def test_long_output_is_joined_from_head_and_tail_and_flagged(head: str):
     output = _bash(
         {
-            "output_head": "a\n",
+            "output_head": head,
             "output_tail": "z",
             "elided_chars": 5000,
             "returncode": 1,
@@ -57,7 +60,7 @@ def test_long_output_is_joined_from_head_and_tail_and_flagged():
     )
 
 
-def test_timeout_and_signal_and_refusal():
+def test_timeout_and_signal_and_refusal_have_no_exit_code():
     output = _bash(
         {
             "output": "",
@@ -65,17 +68,25 @@ def test_timeout_and_signal_and_refusal():
             "exception_info": "An error occurred while executing the command: Command 'x' timed out after 60 seconds",
         }
     )
-    assert output is not None and output.execution_status is S.TIMED_OUT
+    assert output is not None and (output.execution_status, output.exit_code) == (
+        S.TIMED_OUT,
+        None,
+    )
     output = _bash({"output": "", "returncode": -9})
-    assert output is not None and output.execution_status is S.KILLED
+    assert output is not None and (output.execution_status, output.exit_code) == (
+        S.KILLED,
+        None,
+    )
     output = _bash(
         {"output": "", "returncode": -1, "exception_info": "action was not executed"}
     )
     assert output is not None and (
         output.execution_status,
+        output.exit_code,
         output.tool_output_text,
     ) == (
         S.NOT_RUN,
+        None,
         "",
     )
 
@@ -95,36 +106,7 @@ def test_plain_text_result_of_a_json_tool_is_unknown_format():
     ) == (UnmatchedFormat.UNKNOWN, S.UNKNOWN)
 
 
-def test_sentinel_return_codes_are_not_exit_codes():
-    output = _bash(
-        {
-            "output": "",
-            "returncode": -1,
-            "exception_info": "An error occurred while executing the command: Command 'x' timed out after 60 seconds",
-        }
-    )
-    assert output is not None and (output.execution_status, output.exit_code) == (
-        S.TIMED_OUT,
-        None,
-    )
-    output = _bash({"output": "", "returncode": -15})
-    assert output is not None and (output.execution_status, output.exit_code) == (
-        S.KILLED,
-        None,
-    )
-
-
-def test_head_and_tail_are_joined_on_a_new_line():
-    output = _bash(
-        {
-            "output_head": "a",
-            "output_tail": "z",
-            "elided_chars": 5,
-            "returncode": 0,
-            "warning": "Output too long.",
-        }
-    )
-    assert output is not None and (output.tool_output_text, output.is_truncated) == (
-        "a\nz",
-        True,
-    )
+def test_unexpected_shape_is_unknown_format_not_a_guess():
+    output = _bash({"output": "", "returncode": 0, "exception_info": "other"})
+    assert output is not None
+    assert output.harness_result_format == UnmatchedFormat.UNKNOWN

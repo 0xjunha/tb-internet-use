@@ -1,12 +1,8 @@
 """Cursor CLI tool call converter."""
 
-from typing import Any, ClassVar
+from typing import ClassVar
 
-from tb_internet_use.toolcall.harnesses.base import (
-    HarnessToolCallConverter,
-    join_content_items,
-    string_tuple,
-)
+from tb_internet_use.toolcall.harnesses.base import HarnessToolCallConverter
 from tb_internet_use.toolcall.model import (
     Action,
     ExecutionHandleKind,
@@ -15,6 +11,7 @@ from tb_internet_use.toolcall.model import (
     RawToolCall,
     ToolCallOutput,
     WebFetchAction,
+    string_tuple,
 )
 from tb_internet_use.toolcall.result_formats import (
     HarnessJsonResultFormat,
@@ -22,6 +19,7 @@ from tb_internet_use.toolcall.result_formats import (
     JsonCondition,
     JsonObject,
     MatchedValues,
+    join_texts,
 )
 
 S = ExecutionStatus
@@ -151,6 +149,7 @@ _EDIT_TOOL_CALL = HarnessResultFormatList[JsonObject](
     )
 )
 
+_LOCALHOST_REFUSAL = "Cannot fetch from localhost"
 _WEB_FETCH_TOOL_CALL = HarnessResultFormatList[JsonObject](
     (
         Json(
@@ -174,17 +173,13 @@ _WEB_FETCH_TOOL_CALL = HarnessResultFormatList[JsonObject](
             "refused_localhost",
             S.NOT_RUN,
             present_paths=("error.error",),
-            condition=JsonCondition(
-                "error.error", "startswith", "Cannot fetch from localhost"
-            ),
+            condition=JsonCondition("error.error", "startswith", _LOCALHOST_REFUSAL),
         ),
         Json(
             "error",
             S.FINISHED,
             present_paths=("error.error",),
-            condition=JsonCondition(
-                "error.error", "!startswith", "Cannot fetch from localhost"
-            ),
+            condition=JsonCondition("error.error", "!startswith", _LOCALHOST_REFUSAL),
         ),
     )
 )
@@ -206,14 +201,14 @@ def _content_text(values: MatchedValues) -> str | None:
     items = values.get("tool_output")
     if not isinstance(items, list):
         return None
-    flat: list[dict[str, Any]] = []
+    texts: list[str] = []
     for item in items:
         text = item.get("text") if isinstance(item, dict) else None
         if isinstance(text, dict):
             text = text.get("text")
         if isinstance(text, str):
-            flat.append({"type": "text", "text": text})
-    return join_content_items(flat)
+            texts.append(text)
+    return join_texts(texts)
 
 
 _MCP_TOOL_CALL = HarnessResultFormatList[JsonObject](
@@ -247,11 +242,13 @@ class CursorCliConverter(HarnessToolCallConverter):
     def deferred_action(
         self, raw: RawToolCall, output: ToolCallOutput | None
     ) -> Action:
-        args = raw.args.get("args")
-        url = args.get("url") if isinstance(args, dict) else None
         if (
             raw.tool.name == "mcpToolCall"
             and raw.args.get("toolName") == "browser_navigate"
         ):
-            return WebFetchAction(string_tuple(url))
+            args = raw.args.get("args")
+            return WebFetchAction(
+                string_tuple(args.get("url") if isinstance(args, dict) else None)
+            )
+        # another wrapped MCP tool, labeled OtherAction like Claude Code's MCP tools
         return OtherAction()

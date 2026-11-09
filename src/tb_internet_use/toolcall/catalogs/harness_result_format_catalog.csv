@@ -277,7 +277,7 @@ cursor-cli,mcpToolCall,content,json,present=success.content success.isError != T
 cursor-cli,mcpToolCall,error,json,present=error,not_run,,,command,
 devin,exec,killed,text,"Output from command in shell {handle:id}:
 {tool_output:text}
-Exit code: -{signal:uint}",killed,,,command,
+Exit code: -{sentinel:uint}",killed,,,command,
 devin,exec,exited_truncated_after_warning,text,"Output from command in shell {handle:id}:
 Warning: requested timeout {asked:line_without_brackets} exceeds maximum of {max:line_without_brackets}; clamping to {clamped:line_without_brackets}.
 {tool_output:text}
@@ -337,7 +337,7 @@ devin,exec,rejected_env,text,`env` can only be set when starting a new shell; {r
 devin,exec,rejected_busy,text,Shell {handle:id} still has a running command. {reason:text},not_run,,,command,
 devin,get_output,killed_silent_twice,text,"Exited with code {code:int} and no output
 
-Exit code: -{signal:uint}",killed,,,command,
+Exit code: -{sentinel:uint}",killed,,,command,
 devin,get_output,exited_silent_twice,text,"Exited with code {code:int} and no output
 
 Exit code: {exit_code:int}",finished,,,command,

@@ -14,7 +14,7 @@ from typing import Any
 from tb_internet_use.toolcall.model import HarnessTool, RawToolCall, ToolCallKey
 
 _SUPPORTED_SCHEMA_VERSIONS = {"ATIF-v1.7", "ATIF-v1.8"}
-_AGENT_LOOP_NOTICE_PREFIX = "Tool call error"
+_AGENT_LOOP_MESSAGE_PREFIX = "Tool call error"
 _MINI_SWE_AGENT = "mini-swe-agent"
 
 
@@ -35,7 +35,7 @@ class TrialToolCalls:
     calls: tuple[RawToolCall, ...] = ()  # empty if the trajectory cannot be read
 
 
-def _drop_agent_loop_notices(
+def _drop_agent_loop_messages(
     harness: str, results: list[dict[str, Any]]
 ) -> list[dict[str, Any]]:
     """Remove mini-swe-agent's loop messages, which are not results of any tool call."""
@@ -44,7 +44,7 @@ def _drop_agent_loop_notices(
     return [
         r
         for r in results
-        if not str(r.get("content")).startswith(_AGENT_LOOP_NOTICE_PREFIX)
+        if not str(r.get("content")).startswith(_AGENT_LOOP_MESSAGE_PREFIX)
     ]
 
 
@@ -97,7 +97,7 @@ def _walk_trajectory(
     for step in trajectory["steps"]:
         calls = step.get("tool_calls") or []
         results = (step.get("observation") or {}).get("results") or []
-        results = _drop_agent_loop_notices(harness, results)
+        results = _drop_agent_loop_messages(harness, results)
         is_sidechain = bool((step.get("extra") or {}).get("is_sidechain"))
 
         pairs = _pair_calls_with_results(calls, results)

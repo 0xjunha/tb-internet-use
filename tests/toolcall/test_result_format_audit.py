@@ -1,12 +1,16 @@
 """Tests for the audit checks and catalog labels of result formats, with made-up annotations."""
 
+import pytest
+
 from tb_internet_use.toolcall.model import ExecutionHandleKind, ExecutionStatus
 from tb_internet_use.toolcall.result_format_audit import (
+    REVIEWED_LABELS,
+    all_matches,
     describe_format,
     handle_kind_label,
     harness_text_patterns,
-    matching_format_names,
     render_text_format,
+    with_kept_reviews,
 )
 from tb_internet_use.toolcall.result_formats import (
     HarnessJsonResultFormat,
@@ -39,11 +43,15 @@ def test_render_text_format_puts_the_values_back():
     assert render_text_format(EXITED, values) == raw_text
 
 
-def test_matching_format_names_lists_every_format_that_matches():
+def test_all_matches_lists_every_format_that_matches_with_its_values():
     ambiguous = HarnessResultFormatList[str](
         (EXITED, Text("any", "{tool_output:text}", S.UNKNOWN))
     )
-    assert matching_format_names(ambiguous, "exit 1\nx") == ["exited", "any"]
+    matches = all_matches(ambiguous, "exit 1\nx")
+    assert [(fmt.name, values["tool_output"]) for fmt, values in matches] == [
+        ("exited", "x"),
+        ("any", "exit 1\nx"),
+    ]
 
 
 def test_harness_text_patterns_cut_templates_at_the_tool_output_and_multiline_placeholders():
@@ -64,10 +72,11 @@ def test_harness_text_patterns_skip_parts_without_letters_and_optional_edges():
         (
             Text("x", "{code:int}:\n{tool_output:text}", S.FINISHED),
             Text("y", "{tool_output:text}{note:line} saved", S.FINISHED),
+            Text("z", "{tool_output:text}done {rest:line}", S.FINISHED),
         )
     )
-    # `{code:int}:\n` has no letter, and the lazy `{note:line}` at the edge is dropped.
-    assert [part for part, _ in harness_text_patterns(formats)] == [" saved"]
+    # `{code:int}:\n` has no letter, and lazy placeholders at either edge are dropped.
+    assert [part for part, _ in harness_text_patterns(formats)] == [" saved", "done "]
 
 
 def test_describe_format_gives_the_template_or_the_json_rules():
@@ -91,3 +100,23 @@ def test_handle_kind_label_names_the_path_when_the_result_names_the_kind():
         handle_kind_by_name={"shell": ExecutionHandleKind.COMMAND},
     )
     assert handle_kind_label(by_name) == "by kind"
+
+
+@pytest.mark.parametrize("label", REVIEWED_LABELS)
+def test_a_review_stays_only_while_the_row_labels_stay(label: str):
+    row = {
+        "harness": "h",
+        "tool": "t",
+        "format": "f",
+        "template": "x",
+        "status": "finished",
+        "is_truncated": "",
+        "no_tool_output_text": "",
+        "handle_kind": "command",
+        "reviewed": "",
+    }
+    reviewed = {**row, "reviewed": "ok"}
+    assert with_kept_reviews([row], [reviewed])[0]["reviewed"] == "ok"
+    changed = {**row, label: "changed"}
+    assert with_kept_reviews([changed], [reviewed])[0]["reviewed"] == ""
+    assert with_kept_reviews([row], [])[0]["reviewed"] == ""

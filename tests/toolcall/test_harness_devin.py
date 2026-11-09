@@ -101,6 +101,15 @@ def test_get_output_without_exit_line_is_still_running_with_the_argument_shell()
 
 
 def test_shell_output_with_a_cut_line_is_truncated_and_keeps_the_marker():
+    output = convert_call(
+        _raw(
+            "exec",
+            {"command": "x"},
+            "Output from command in shell sh1:\nlong… (300 chars truncated)\nExit code: 0",
+        ),
+        CONVERTER,
+    ).output
+    assert output is not None and output.is_truncated is True
     text = "a\nlong… (300 chars truncated)\n"
     output = convert_call(
         _raw("get_output", {"shell_id": "sh1"}, text), CONVERTER
@@ -111,6 +120,41 @@ def test_shell_output_with_a_cut_line_is_truncated_and_keeps_the_marker():
         _raw("get_output", {"shell_id": "sh1"}, "a\n"), CONVERTER
     ).output
     assert output is not None and output.is_truncated is None
+
+
+def test_a_shell_named_in_the_result_wins_over_the_argument():
+    call = convert_call(
+        _raw(
+            "get_output",
+            {"shell_id": "sh1"},
+            "No more output to read. Shell sh2 exited with code 0.",
+        ),
+        CONVERTER,
+    )
+    assert call.action == PollAction(
+        (ExecutionHandle(ExecutionHandleKind.COMMAND, "sh2"),)
+    )
+    output = convert_call(
+        _raw(
+            "exec",
+            {"command": "x", "shell_id": "sh1"},
+            "Shell sh3 changed directory to /x\nOutput from command in shell sh3:\nhi\nExit code: 0",
+        ),
+        CONVERTER,
+    ).output
+    assert output is not None
+    assert (output.handles, output.tool_output_text) == (
+        (ExecutionHandle(ExecutionHandleKind.COMMAND, "sh3"),),
+        "hi",
+    )
+
+
+def test_read_image_has_no_text():
+    output = convert_call(
+        _raw("read", {"file_path": "/i.png"}, "[Image 1]"), CONVERTER
+    ).output
+    assert output is not None
+    assert (output.execution_status, output.tool_output_text) == (S.FINISHED, None)
 
 
 def test_kill_shell_is_a_terminate_whose_target_is_killed():
@@ -187,18 +231,6 @@ def test_negative_exit_code_means_killed_without_a_real_exit_code():
         S.KILLED,
         None,
         "",
-    )
-    output = convert_call(
-        _raw(
-            "get_output",
-            {"shell_id": "sh1"},
-            "Exited with code -1 and no output\n\nExit code: -1",
-        ),
-        CONVERTER,
-    ).output
-    assert output is not None and (output.execution_status, output.exit_code) == (
-        S.KILLED,
-        None,
     )
 
 

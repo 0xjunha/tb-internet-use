@@ -140,6 +140,16 @@ def test_unknown_task_id_has_unknown_kind():
     assert call.action == PollAction(
         (ExecutionHandle(ExecutionHandleKind.UNKNOWN, "x9"),), None, True
     )
+    output = convert_call(
+        _raw(
+            "get_command_or_subagent_output",
+            {"task_ids": ["x9"]},
+            "Task x9 not found. Known task IDs: a1",
+        ),
+        CONVERTER,
+    ).output
+    assert output is not None
+    assert output.handles == (ExecutionHandle(ExecutionHandleKind.UNKNOWN, "x9"),)
 
 
 def test_read_file_errors_are_not_run_not_listings():
@@ -166,6 +176,12 @@ def test_multi_wait_takes_the_shared_state_and_every_task_id():
     assert output is not None
     assert output.execution_status is S.FINISHED
     assert [h.id for h in output.handles] == ["a1", "b2"]
+    failed = raw_text.replace("[completed]", "[failed]")
+    output = convert_call(
+        _raw("get_command_or_subagent_output", {"task_ids": ["a1", "b2"]}, failed),
+        CONVERTER,
+    ).output
+    assert output is not None and output.execution_status is S.FINISHED
     mixed = raw_text.replace("Task b2 [completed]", "Task b2 [running]")
     output = convert_call(
         _raw("get_command_or_subagent_output", {"task_ids": ["a1", "b2"]}, mixed),
@@ -174,7 +190,7 @@ def test_multi_wait_takes_the_shared_state_and_every_task_id():
     assert output is not None and output.execution_status is S.UNKNOWN
 
 
-def test_kill_and_file_tools():
+def test_kill_is_a_terminate_whose_target_is_killed():
     call = convert_call(
         _raw(
             "kill_command_or_subagent",
@@ -185,10 +201,16 @@ def test_kill_and_file_tools():
     )
     assert call.output is not None and call.output.execution_status is S.KILLED
     assert isinstance(call.action, PollAction) and call.action.terminate
+
+
+def test_read_file_listing_loses_line_numbers():
     output = convert_call(
         _raw("read_file", {"path": "/f"}, "1→a\n2→b\n"), CONVERTER
     ).output
     assert output is not None and output.tool_output_text == "a\nb\n"
+
+
+def test_search_replace_with_the_same_strings_is_not_run():
     output = convert_call(
         _raw(
             "search_replace", {"path": "/f"}, "Old string and new string are the same"
@@ -199,15 +221,16 @@ def test_kill_and_file_tools():
 
 
 def test_notification_at_the_very_end_is_cut_whatever_its_spacing():
-    content = 'exit: 0\nok\n<system-reminder>\nBackground task "call9" completed (exit code: 0).</system-reminder>'
-    output = _run(content)
-    assert output is not None and (
-        output.tool_output_text,
-        output.harness_result_format,
-    ) == (
-        "ok",
-        MatchedFormat("exited"),
-    )
+    notice = '<system-reminder>\nBackground task "call9" completed (exit code: 0).</system-reminder>'
+    for content in ("exit: 0\nok\n" + notice, "exit: 0\nok" + notice):
+        output = _run(content)
+        assert output is not None and (
+            output.tool_output_text,
+            output.harness_result_format,
+        ) == (
+            "ok",
+            MatchedFormat("exited"),
+        )
 
 
 def test_empty_output_placeholder_with_truncation_tail():

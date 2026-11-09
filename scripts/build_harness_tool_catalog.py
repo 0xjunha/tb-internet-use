@@ -12,9 +12,9 @@ from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 from tb_internet_use.toolcall.atif_reader import TrajectoryStatus, read_trial_tool_calls
+from tb_internet_use.toolcall.catalog_loader import CATALOG_CSV
 
-PACKAGE_DIR = Path(__file__).parents[1] / "src/tb_internet_use"
-DEFAULT_OUTPUT_CSV = PACKAGE_DIR / "toolcall/catalogs/harness_tool_catalog.csv"
+DEFAULT_OUTPUT_CSV = CATALOG_CSV
 
 CSV_COLUMNS = [
     "harness",  # ATIF agent.name
@@ -40,12 +40,18 @@ JSON_TYPES = {
 }
 
 
-def count_trial(trial_dir: Path) -> tuple[TrajectoryStatus, Counter, Counter]:
+type ToolKey = tuple[str, str]  # (harness, tool)
+type ArgKey = tuple[ToolKey, str, str]  # (harness, tool), arg name, arg type
+
+
+def count_trial(
+    trial_dir: Path,
+) -> tuple[TrajectoryStatus, Counter[ToolKey], Counter[ArgKey]]:
     """Return the trial's status, calls per tool, and calls per (tool, arg, type)."""
     trial = read_trial_tool_calls(trial_dir)
 
-    tool_counter = Counter()  # (harness, tool) -> number of calls
-    arg_counter = Counter()  # ((harness, tool), arg name, arg type) -> number of calls
+    tool_counter: Counter[ToolKey] = Counter()  # number of calls
+    arg_counter: Counter[ArgKey] = Counter()  # number of calls
     for call in trial.calls:
         harness_tool = (call.tool.harness, call.tool.name)
         tool_counter[harness_tool] += 1
@@ -61,12 +67,14 @@ def main() -> None:
     paths = parser.parse_args()
 
     # Totals across all trials
-    status_counts = Counter()  # trajectory status -> number of trials
-    tool_call_counts = Counter()  # (harness, tool) -> number of calls
-    tool_trial_counts = Counter()  # (harness, tool) -> number of trials that called it
+    status_counts: Counter[str] = Counter()  # trials by trajectory status
+    tool_call_counts: Counter[ToolKey] = Counter()  # number of calls
+    tool_trial_counts: Counter[ToolKey] = Counter()  # number of trials that called it
 
     # (harness, tool) -> arg name -> arg type -> number of calls
-    arg_type_counts = defaultdict(lambda: defaultdict(Counter))
+    arg_type_counts: defaultdict[ToolKey, defaultdict[str, Counter[str]]] = defaultdict(
+        lambda: defaultdict(Counter)
+    )
 
     # Keep folders only
     trial_dirs = [p for p in paths.raw_trials_dir.iterdir() if p.is_dir()]

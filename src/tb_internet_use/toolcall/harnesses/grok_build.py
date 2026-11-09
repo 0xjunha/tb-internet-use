@@ -6,12 +6,12 @@ from typing import Any, ClassVar
 
 from tb_internet_use.toolcall.harnesses.base import HarnessToolCallConverter
 from tb_internet_use.toolcall.model import (
-    ExecutionHandle,
     ExecutionHandleKind,
     ExecutionStatus,
     MatchedFormat,
     RawToolCall,
     ToolCallOutput,
+    handles_from_ids,
 )
 from tb_internet_use.toolcall.result_formats import (
     HarnessNotice,
@@ -53,7 +53,7 @@ _RUN_TERMINAL_COMMAND = HarnessResultFormatList[str](
             "exited_truncated",
             "exit: {exit_code:int}" + _TRUNCATED_HEAD + "\n{tool_output:text}",
             S.FINISHED,
-            True,
+            is_truncated=True,
         ),
         Text("exited", "exit: {exit_code:int}\n{tool_output:text}", S.FINISHED),
         Text(
@@ -62,7 +62,7 @@ _RUN_TERMINAL_COMMAND = HarnessResultFormatList[str](
             + _TRUNCATED_HEAD
             + "\n{tool_output:text}",
             S.KILLED,
-            True,
+            is_truncated=True,
         ),
         Text(
             "killed", "exit: killed (signal {signal:int})\n{tool_output:text}", S.KILLED
@@ -86,74 +86,84 @@ _OUTPUT = "Output File: {output_path:line}\n\n=== Output ===\n"
 _TRUNCATED_TAIL = "\n[truncated - use read_file on output_file for full content]"
 # A line some truncated results have before `_TRUNCATED_TAIL`.
 _TRUNCATED_BYTES = "\n[Output truncated - {bytes:int} bytes total. Use read_file on {saved_to:line_without_brackets} for full content]"
-_DONE = (
-    _TASK
-    + "Status: completed\nDuration: {duration:line}\nExit Code: {exit_code:int}\n"
-    + _OUTPUT
+_MISSING = Text("missing", "Error: {path:line} does not exist.", S.NOT_RUN)
+# What Grok writes in place of an empty task output.
+_EMPTY = "(no output)"
+
+
+def _task_head(status: str, *, with_exit_code: bool = False) -> str:
+    """A task's poll result up to its output."""
+    exit_line = "Exit Code: {exit_code:int}\n" if with_exit_code else ""
+    return (
+        _TASK
+        + f"Status: {status}\n"
+        + "Duration: {duration:line}\n"
+        + exit_line
+        + _OUTPUT
+    )
+
+
+_DONE = _task_head("completed", with_exit_code=True)
+_FAILED = _task_head("failed", with_exit_code=True)
+_FAILED_SIGNALED = _task_head("failed")
+_RUNNING = _task_head("running")
+_CANCELLED = _task_head("cancelled")
+_TIMED_OUT = _task_head("timed_out")
+_MULTI_WAIT = Text(
+    "multi_wait",
+    "=== Multi-wait ({mode:line_without_brackets}) ===\n{tool_output:text}",
+    S.UNKNOWN,
 )
-_FAILED = (
-    _TASK
-    + "Status: failed\nDuration: {duration:line}\nExit Code: {exit_code:int}\n"
-    + _OUTPUT
-)
-_RUNNING = _TASK + "Status: running\nDuration: {duration:line}\n" + _OUTPUT
-_FAILED_SIGNALED = _TASK + "Status: failed\nDuration: {duration:line}\n" + _OUTPUT
-_CANCELLED = _TASK + "Status: cancelled\nDuration: {duration:line}\n" + _OUTPUT
-_TIMED_OUT = _TASK + "Status: timed_out\nDuration: {duration:line}\n" + _OUTPUT
 
 _GET_OUTPUT = HarnessResultFormatList[str](
     (
-        Text("done_empty", _DONE + "(no output)", S.FINISHED),
+        Text("done_empty", _DONE + _EMPTY, S.FINISHED),
         Text(
             "done_empty_truncated",
-            _DONE + "(no output)" + _TRUNCATED_TAIL,
+            _DONE + _EMPTY + _TRUNCATED_TAIL,
             S.FINISHED,
-            True,
+            is_truncated=True,
         ),
         Text(
             "done_truncated_bytes",
             _DONE + "{tool_output:text}" + _TRUNCATED_BYTES + _TRUNCATED_TAIL,
             S.FINISHED,
-            True,
+            is_truncated=True,
         ),
         Text(
             "done_truncated",
             _DONE + "{tool_output:text}" + _TRUNCATED_TAIL,
             S.FINISHED,
-            True,
+            is_truncated=True,
         ),
         Text("done", _DONE + "{tool_output:text}", S.FINISHED),
         Text(
             "failed_empty_truncated",
-            _FAILED + "(no output)" + _TRUNCATED_TAIL,
+            _FAILED + _EMPTY + _TRUNCATED_TAIL,
             S.FINISHED,
-            True,
+            is_truncated=True,
         ),
         Text(
             "failed_truncated",
             _FAILED + "{tool_output:text}" + _TRUNCATED_TAIL,
             S.FINISHED,
-            True,
+            is_truncated=True,
         ),
         Text("failed", _FAILED + "{tool_output:text}", S.FINISHED),
-        Text("failed_signaled_empty", _FAILED_SIGNALED + "(no output)", S.KILLED),
+        Text("failed_signaled_empty", _FAILED_SIGNALED + _EMPTY, S.KILLED),
         Text("failed_signaled", _FAILED_SIGNALED + "{tool_output:text}", S.KILLED),
         Text(
             "running_truncated",
             _RUNNING + "{tool_output:text}\n\n{note:rest_of_line}" + _TRUNCATED_TAIL,
             S.RUNNING,
-            True,
+            is_truncated=True,
         ),
         Text(
             "running", _RUNNING + "{tool_output:text}\n\n{note:rest_of_line}", S.RUNNING
         ),
-        Text("cancelled_empty", _CANCELLED + "(no output)", S.KILLED),
+        Text("cancelled_empty", _CANCELLED + _EMPTY, S.KILLED),
         Text("timed_out", _TIMED_OUT + "{tool_output:text}", S.TIMED_OUT),
-        Text(
-            "multi_wait",
-            "=== Multi-wait ({mode:line_without_brackets}) ===\n{tool_output:text}",
-            S.UNKNOWN,
-        ),
+        _MULTI_WAIT,
         Text(
             "rejected",
             "Tool `get_command_or_subagent_output` failed: {reason:text}",
@@ -216,7 +226,7 @@ _READ_FILE = HarnessResultFormatList[str](
             "(no lines returned: the requested window is past the end of the file; the file has {total:int} lines)",
             S.FINISHED,
         ),
-        Text("missing", "Error: {path:line} does not exist.", S.NOT_RUN),
+        _MISSING,
         Text("directory", "Error: {path:line} is a directory, not a file.", S.NOT_RUN),
         Text("binary", "Cannot read binary file: {path:rest_of_line}", S.NOT_RUN),
         Text(
@@ -266,7 +276,7 @@ _SEARCH_REPLACE = HarnessResultFormatList[str](
             S.NOT_RUN,
         ),
         Text("same_strings", "Old string and new string are the same", S.NOT_RUN),
-        Text("missing", "Error: {path:line} does not exist.", S.NOT_RUN),
+        _MISSING,
         Text(
             "rejected_arguments",
             "Failed to parse arguments for tool `search_replace`: {reason:text}",
@@ -293,14 +303,12 @@ def _multi_wait(output: ToolCallOutput) -> ToolCallOutput:
         if len(states) == 1
         else S.UNKNOWN
     )
-    handles = tuple(
-        ExecutionHandle(ExecutionHandleKind.COMMAND, task_id) for task_id, _ in tasks
-    )
+    handles = handles_from_ids(ExecutionHandleKind.COMMAND, [i for i, _ in tasks])
     return replace(output, execution_status=status, handles=handles)
 
 
 class GrokBuildConverter(HarnessToolCallConverter):
-    stop_tools: ClassVar[frozenset[str]] = frozenset({"kill_command_or_subagent"})
+    stop_tools: ClassVar = frozenset({"kill_command_or_subagent"})
     text_formats: ClassVar = {
         "run_terminal_command": _RUN_TERMINAL_COMMAND,
         "get_command_or_subagent_output": _GET_OUTPUT,
@@ -315,6 +323,6 @@ class GrokBuildConverter(HarnessToolCallConverter):
         output = super().parse_output(raw, result)
         return (
             _multi_wait(output)
-            if output.harness_result_format == MatchedFormat("multi_wait")
+            if output.harness_result_format == MatchedFormat(_MULTI_WAIT.name)
             else output
         )

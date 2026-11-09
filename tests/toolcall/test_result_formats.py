@@ -16,6 +16,7 @@ from tb_internet_use.toolcall.result_formats import (
     HarnessTextResultFormat,
     JsonCondition,
     JsonObject,
+    join_content_items,
     join_text_parts,
     parse_output_with_formats,
     strip_line_numbers,
@@ -68,12 +69,31 @@ def test_id_placeholder_leaves_the_sentence_period_out():
     output = parse_output_with_formats(raw_text, None, FORMATS)
     assert output.handles == (ExecutionHandle(ExecutionHandleKind.COMMAND, "task.1"),)
     assert output.output_path == "/tmp/task.1.out"
+    # Nothing after the id disambiguates here, so only the type keeps the dot out.
+    assert Text("id", "ID: {handle:id}", S.FINISHED).match("ID: a.b.") is None
 
 
 def test_notices_are_cut_before_matching():
     raw_text = "exit 0\nout\n\n<note>\ntask done\n</note>"
     assert FORMATS.strip_notices(raw_text) == ("exit 0\nout", ["notice"])
     assert parse_output_with_formats(raw_text, None, FORMATS).tool_output_text == "out"
+
+
+def test_unmatched_result_keeps_the_whole_raw_text_with_its_notices():
+    raw_text = "no format\n\n<note>\nx\n</note>"
+    output = parse_output_with_formats(raw_text, None, FORMATS)
+    assert (output.harness_result_format, output.tool_output_text) == (
+        UnmatchedFormat.UNKNOWN,
+        raw_text,
+    )
+
+
+def test_tool_with_formats_but_no_text_is_unknown_not_skipped():
+    output = parse_output_with_formats(None, None, FORMATS)
+    assert (output.harness_result_format, output.execution_status) == (
+        UnmatchedFormat.UNKNOWN,
+        S.UNKNOWN,
+    )
 
 
 def test_skipped_format_keeps_the_content_with_unknown_status():
@@ -197,6 +217,19 @@ def test_json_format_is_chosen_by_keys_and_condition():
         ).harness_result_format
         == UnmatchedFormat.UNKNOWN
     )
+    # Only the absent path `error` keeps this from being exited.
+    assert (
+        parse_output_with_formats(
+            "{}", {"output": "x", "code": 0, "error": "boom"}, JSON_FORMATS
+        ).harness_result_format
+        == UnmatchedFormat.UNKNOWN
+    )
+
+
+def test_a_json_null_counts_as_present():
+    fmt = Json("done", S.FINISHED, present_paths=("a",), absent_paths=("b.c",))
+    assert fmt.match({"a": None, "b": {}}) is not None
+    assert fmt.match({"a": 1, "b": {"c": None}}) is None
 
 
 def test_json_fields_follow_paths_and_join_text_parts():
@@ -218,7 +251,9 @@ def test_json_condition_ops():
     assert JsonCondition("a", "startswith", "ab").holds({"a": "abc"})
     assert JsonCondition("a", "!startswith", "ab").holds({"a": "xbc"})
     assert not JsonCondition("a", "==", 1).holds({"b": 1})  # missing path never holds
+    assert not JsonCondition("a", "!=", 1).holds({"b": 1})
     assert JsonCondition("a.b", ">", 1).holds({"a": {"b": 2}})
+    assert not JsonCondition("a", ">", 1).holds({"a": 1})
 
 
 def test_output_names_the_format_and_handles():
@@ -265,6 +300,17 @@ def test_join_text_parts_starts_a_new_line_only_when_needed():
     assert join_text_parts(["a\n", "b"]) == "a\nb"
     assert join_text_parts(["a", "b"]) == "a\nb"
     assert join_text_parts(["", "b"]) == "b"
+    assert join_text_parts(["a", ""]) == "a"
+
+
+def test_empty_or_wrongly_typed_values_fill_no_field():
+    fmt = Json(
+        "done",
+        S.FINISHED,
+        {"handle": "id", "exit_code": "code", "output_path": "path"},
+    )
+    output = _parse_json_output(fmt, {"id": "", "code": True, "path": ""})
+    assert (output.handles, output.exit_code, output.output_path) == ((), None, None)
 
 
 def test_text_from_matched_values_builds_the_text_from_the_placeholders():
@@ -327,3 +373,13 @@ def test_json_nulls_give_no_handle_and_no_text_part():
     output = _parse_json_output(fmt, result)
     assert output.tool_output_text == '{"k": 1}'
     assert [h.id for h in output.handles] == ["w1"]
+
+
+def test_content_items_join_their_texts_with_a_blank_line():
+    items = [
+        {"type": "text", "text": "a\n"},
+        {"type": "image", "source": {}},
+        {"type": "text", "text": "b"},
+    ]
+    assert join_content_items(items) == "a\n\nb"
+    assert join_content_items([{"type": "image"}]) is None

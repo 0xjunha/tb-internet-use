@@ -2,10 +2,13 @@
 
 import functools
 import re
+from collections.abc import Iterator
 from typing import Any
 
+from tb_internet_use.toolcall.catalog_loader import CATALOGS_DIR
 from tb_internet_use.toolcall.harnesses import CONVERTERS
 from tb_internet_use.toolcall.result_formats import (
+    MULTILINE_PLACEHOLDER_TYPES,
     PLACEHOLDER_REGEX,
     PLACEHOLDER_TYPE_PATTERNS,
     HarnessJsonResultFormat,
@@ -16,17 +19,15 @@ from tb_internet_use.toolcall.result_formats import (
     template_regex,
 )
 
-# The placeholder types that can take several lines. What they take is not harness
-# text, so a harness text pattern never spans one of them.
-_MULTILINE_TYPES = ("text", "numbered_tab", "numbered_pipe", "partly_numbered_arrow")
-
 # Where a template is cut into harness text, at the tool output and at every
-# placeholder of a multiline type.
+# multiline placeholder. What these take is not harness text, so a harness text
+# pattern never spans one of them.
 _HARNESS_TEXT_CUT = re.compile(
-    rf"\{{tool_output:\w+\}}|\{{\w+:(?:{'|'.join(_MULTILINE_TYPES)})\}}"
+    rf"\{{tool_output:\w+\}}|\{{\w+:(?:{'|'.join(MULTILINE_PLACEHOLDER_TYPES)})\}}"
 )
 
 
+RESULT_FORMAT_CATALOG_CSV = CATALOGS_DIR / "harness_result_format_catalog.csv"
 # The columns of the result format catalog. Only `reviewed` is filled by hand.
 CATALOG_COLUMNS = [
     "harness",
@@ -50,29 +51,50 @@ REVIEWED_LABELS = (
 )
 
 
-def catalog_rows() -> list[dict[str, str]]:
-    """One catalog row per declared format, in the order the formats are tried, with `reviewed` empty."""
-    rows: list[dict[str, str]] = []
+def iter_declared_formats() -> Iterator[tuple[str, str, HarnessResultFormat[Any]]]:
+    """Every declared format with its harness and tool, in the order the formats are tried."""
     for harness, converter in CONVERTERS.items():
         for tool, formats in converter.declared_formats():
             for fmt in formats.formats:
-                rows.append(
-                    {
-                        "harness": harness,
-                        "tool": tool,
-                        "format": fmt.name,
-                        "kind": format_kind(fmt),
-                        "template": describe_format(fmt),
-                        "status": fmt.status.value,
-                        "is_truncated": is_truncated_label(fmt),
-                        "no_tool_output_text": "True"
-                        if fmt.no_tool_output_text
-                        else "",
-                        "handle_kind": handle_kind_label(fmt),
-                        "reviewed": "",
-                    }
-                )
-    return rows
+                yield harness, tool, fmt
+
+
+def catalog_rows() -> list[dict[str, str]]:
+    """One catalog row per declared format, in the order the formats are tried, with `reviewed` empty."""
+    return [
+        {
+            "harness": harness,
+            "tool": tool,
+            "format": fmt.name,
+            "kind": format_kind(fmt),
+            "template": describe_format(fmt),
+            "status": fmt.status.value,
+            "is_truncated": is_truncated_label(fmt),
+            "no_tool_output_text": "True" if fmt.no_tool_output_text else "",
+            "handle_kind": handle_kind_label(fmt),
+            "reviewed": "",
+        }
+        for harness, tool, fmt in iter_declared_formats()
+    ]
+
+
+def with_kept_reviews(
+    rows: list[dict[str, str]], previous_rows: list[dict[str, str]]
+) -> list[dict[str, str]]:
+    """The rows with the `reviewed` value of the previous catalog, where a row's labels are unchanged.
+
+    A review covers the declaration it saw, so a changed declaration drops it.
+    """
+    previous = {(r["harness"], r["tool"], r["format"]): r for r in previous_rows}
+    kept: list[dict[str, str]] = []
+    for row in rows:
+        old = previous.get((row["harness"], row["tool"], row["format"]))
+        unchanged = old is not None and all(
+            old.get(column, "") == row[column] for column in REVIEWED_LABELS
+        )
+        review = old.get("reviewed", "") if old and unchanged else ""
+        kept.append({**row, "reviewed": review})
+    return kept
 
 
 def format_kind(fmt: HarnessResultFormat[Any]) -> str:
@@ -121,13 +143,13 @@ def handle_kind_label(fmt: HarnessResultFormat[Any]) -> str:
     return fmt.fixed_handle_kind.value
 
 
-def matching_format_names(
+def all_matches(
     formats: HarnessResultFormatList[Any], annotated_output: Any
-) -> list[str]:
-    """Every format of the list that matches, in order. More than one means the list is ambiguous."""
-    return [
-        fmt.name for fmt in formats.formats if fmt.match(annotated_output) is not None
-    ]
+) -> list[tuple[HarnessResultFormat[Any], MatchedValues]]:
+    """Every format of the list that matches, in order, with its values. The first is the
+    result's format, and more than one means the list is ambiguous."""
+    matches = ((fmt, fmt.match(annotated_output)) for fmt in formats.formats)
+    return [(fmt, values) for fmt, values in matches if values is not None]
 
 
 def render_text_format(fmt: HarnessTextResultFormat, values: MatchedValues) -> str:

@@ -3,10 +3,12 @@
 from collections import defaultdict
 from typing import Any
 
-from tb_internet_use.toolcall.harnesses import CONVERTERS
 from tb_internet_use.toolcall.model import UnmatchedFormat
+from tb_internet_use.toolcall.result_format_audit import iter_declared_formats
 
 # Formats built by converter code instead of a declared list, by (harness, tool).
+# Copied by hand from claude_code.py and codex.py. A new one also shows up as a
+# `special` row of the audit CSV.
 SPECIAL_FORMATS = {
     ("claude-code", "Read"): {"image"},
     ("codex", "web_search_call"): {"no_content"},
@@ -18,12 +20,10 @@ def _declared() -> dict[tuple[str, str], dict[str, list[Any]]]:
     names: dict[tuple[str, str], dict[str, list[Any]]] = defaultdict(
         lambda: defaultdict(list)
     )
-    for harness, converter in CONVERTERS.items():
-        for tool, formats in converter.declared_formats():
-            for fmt in formats.formats:
-                same_name = names[(harness, tool)][fmt.name]
-                if fmt not in same_name:  # a format shared by two lists is one format
-                    same_name.append(fmt)
+    for harness, tool, fmt in iter_declared_formats():
+        same_name = names[(harness, tool)][fmt.name]
+        if fmt not in same_name:  # a format shared by two lists is one format
+            same_name.append(fmt)
     return names
 
 
