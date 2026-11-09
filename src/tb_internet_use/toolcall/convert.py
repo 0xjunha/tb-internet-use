@@ -1,53 +1,16 @@
 """Convert tool calls in trajectories to common types."""
 
 from pathlib import Path
-from typing import Any
 
 from tb_internet_use.toolcall.atif_reader import read_trial_tool_calls
 from tb_internet_use.toolcall.catalog_loader import (
-    ACTION_CLASSES,
     DEFERRED,
-    ToolLabel,
-    load_catalog,
+    action_from_label,
+    tool_catalog,
 )
 from tb_internet_use.toolcall.harnesses import converter_for
 from tb_internet_use.toolcall.harnesses.base import HarnessToolCallConverter
-from tb_internet_use.toolcall.model import (
-    Action,
-    ExecutionHandleKind,
-    RawToolCall,
-    ToolCall,
-    UnknownAction,
-    handles_from_ids,
-    string_tuple,
-)
-
-_CATALOG = load_catalog()
-
-
-def _field_value(field_name: str, value: Any) -> Any:
-    """Turn an argument in the trajectory into the type of its Action field."""
-    match field_name:
-        case "queries" | "urls":
-            return string_tuple(value)
-        case "handles":
-            return handles_from_ids(ExecutionHandleKind.UNKNOWN, value)
-        case "input":
-            return value or None
-        case "offset" | "limit":
-            return value if isinstance(value, int) else None
-        case _:
-            return value
-
-
-def _action_from_label(label: ToolLabel, args: dict[str, Any]) -> Action:
-    """Build a tool's Action from the arguments that the catalog maps."""
-    fields = {
-        label.arg_fields[arg_name]: _field_value(label.arg_fields[arg_name], value)
-        for arg_name, value in args.items()
-        if arg_name in label.arg_fields
-    }
-    return ACTION_CLASSES[label.action_type](**fields)
+from tb_internet_use.toolcall.model import RawToolCall, ToolCall, UnknownAction
 
 
 def convert_call(raw: RawToolCall, converter: HarnessToolCallConverter) -> ToolCall:
@@ -57,13 +20,13 @@ def convert_call(raw: RawToolCall, converter: HarnessToolCallConverter) -> ToolC
     output = None if raw.result is None else converter.parse_output(raw, raw.result)
 
     # Convert tool call action
-    label = _CATALOG.get(raw.tool)
+    label = tool_catalog().get(raw.tool)
     if label is None:
         action = UnknownAction()
     elif label.action_type == DEFERRED:
         action = converter.deferred_action(raw, output)
     else:
-        action = _action_from_label(label, raw.args)
+        action = action_from_label(label, raw.args)
         action = converter.refine_action(raw, action, output)
     return ToolCall(raw, action, output)
 

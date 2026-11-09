@@ -28,9 +28,9 @@ by hand, and it is kept as long as `template`, `status`, `is_truncated`,
 file matches the code.
 
 A row is what the format declares. A converter's `parse_output` may still change
-`status` or `is_truncated` after the match, e.g. the status of a Grok multi-wait, a Codex
-Ctrl-C or a negative Devin exit code, and `is_truncated` from Claude Code's structured
-result.
+`status`, `is_truncated` or `no_tool_output_text` after the match, e.g. the status of a
+Grok multi-wait, a Codex Ctrl-C or a negative Devin exit code, `is_truncated` from Claude
+Code's structured result, and no tool output text for a Codex script that printed only images.
 
 - **`kind`:** `text` or `json`.
 - **`template`:** the template of a text format, or the present paths, absent paths and
@@ -71,6 +71,6 @@ decides it per call in a later stage.
 
 | Harness | Tool | Why | Decided by |
 |---|---|---|---|
-| codex | `exec` | Runs JS that can call several tools, so the steps of its `RunToolScriptAction` vary by call | The `tools.*` calls in the JS code of the `input` argument |
+| codex | `exec` | Runs JS that can call several tools, so the steps of its `RunToolScriptAction` vary by call | The `tools.*` calls in the JS code of the `input` argument, read by [codex_exec.py](../harnesses/codex_exec.py). Tools only scripts call, such as `apply_patch` and `web__run`, are mapped in code, not in this catalog |
 | codex | `web_search_call` | One tool searches, opens a page or finds text in a page, so the `Action` type varies by call | The `action_type` argument: `search`, `open_page` or `find_in_page` |
 | cursor-cli | `mcpToolCall` | Wraps any MCP tool, such as Playwright `browser_navigate`, so the `Action` type depends on the wrapped tool | The `toolName` argument, which names the wrapped tool |

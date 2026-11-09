@@ -2,6 +2,8 @@
 
 from typing import Any
 
+import pytest
+
 from tb_internet_use.toolcall.convert import convert_call
 from tb_internet_use.toolcall.harnesses.codex import CodexConverter
 from tb_internet_use.toolcall.model import (
@@ -10,14 +12,18 @@ from tb_internet_use.toolcall.model import (
     ExecutionStatus,
     HarnessTool,
     MatchedFormat,
+    OtherAction,
     PollAction,
     RawToolCall,
+    RunCommandAction,
+    RunToolScriptAction,
     ToolCallKey,
     UnknownAction,
     UnmatchedFormat,
     WebFetchAction,
     WebFindAction,
     WebSearchAction,
+    WriteFileAction,
 )
 
 S = ExecutionStatus
@@ -171,16 +177,190 @@ def test_web_search_call_without_content_is_finished_and_typed_by_action_type():
     )
 
 
-def test_exec_is_left_unconverted_for_now():
-    call = convert_call(
-        _raw("exec", {"input": "tools.exec_command('ls')"}, "Script completed"),
-        CONVERTER,
+SCRIPT_HEAD = "\nWall time 0.1 seconds\nOutput:\n"
+
+
+def _script_result(state: str, *printed: dict[str, str]) -> str:
+    """An exec or wait result as Codex writes it, a Python list of content items."""
+    return repr([{"type": "input_text", "text": state + SCRIPT_HEAD}, *printed])
+
+
+def _printed(text: str) -> dict[str, str]:
+    return {"type": "input_text", "text": text}
+
+
+def _script_output(tool: str, content: str):
+    return convert_call(_raw(tool, {"input": "x"}, content), CONVERTER).output
+
+
+def test_exec_result_is_what_the_script_printed():
+    output = _script_output(
+        "exec", _script_result("Script completed", _printed("a"), _printed("b"))
     )
-    assert call.action == UnknownAction()
+    assert output is not None
     assert (
-        call.output is not None
-        and call.output.harness_result_format == UnmatchedFormat.SKIPPED
+        output.execution_status,
+        output.tool_output_text,
+        output.harness_result_format,
+    ) == (S.FINISHED, "a\nb", MatchedFormat("completed"))
+
+
+WARNING = "Warning: truncated output (original token count: 9)\n"
+LINES = "Total output lines: 3\n\n"
+
+
+@pytest.mark.parametrize(
+    ("tool", "content", "name", "status", "truncated", "handle_kind"),
+    [
+        (
+            "exec",
+            "Script completed" + SCRIPT_HEAD + WARNING + LINES + "x",
+            "completed_truncated",
+            S.FINISHED,
+            True,
+            None,
+        ),
+        (
+            "wait",
+            "Script completed" + SCRIPT_HEAD + WARNING + LINES + "x",
+            "completed_truncated",
+            S.FINISHED,
+            True,
+            None,
+        ),
+        (
+            "exec",
+            "Script completed" + SCRIPT_HEAD + WARNING + "... 5 bytes omitted ...\n\nx",
+            "completed_truncated_bytes",
+            S.FINISHED,
+            True,
+            None,
+        ),
+        (
+            "wait",
+            "Script completed" + SCRIPT_HEAD + "x",
+            "completed",
+            S.FINISHED,
+            None,
+            None,
+        ),
+        (
+            "wait",
+            "Script failed" + SCRIPT_HEAD + "Script error:\nboom",
+            "failed",
+            S.FINISHED,
+            None,
+            None,
+        ),
+        (
+            "wait",
+            "Script failed" + SCRIPT_HEAD + "Script error:\nexec cell 9 not found",
+            "cell_not_found",
+            S.NOT_RUN,
+            None,
+            None,
+        ),
+        (
+            "exec",
+            "Script running with cell ID c1" + SCRIPT_HEAD + WARNING + LINES + "x",
+            "running_truncated",
+            S.RUNNING,
+            True,
+            ExecutionHandleKind.SCRIPT,
+        ),
+        (
+            "wait",
+            "Script running with cell ID c1" + SCRIPT_HEAD + WARNING + LINES + "x",
+            "running_truncated",
+            S.RUNNING,
+            True,
+            ExecutionHandleKind.SCRIPT,
+        ),
+        (
+            "wait",
+            "Script running with cell ID c1" + SCRIPT_HEAD,
+            "running",
+            S.RUNNING,
+            None,
+            ExecutionHandleKind.SCRIPT,
+        ),
+        ("wait", "Script terminated" + SCRIPT_HEAD, "terminated", S.KILLED, None, None),
+        (
+            "wait",
+            "failed to parse function arguments: invalid type",
+            "rejected_arguments",
+            S.NOT_RUN,
+            None,
+            None,
+        ),
+        (
+            "exec",
+            "code-mode host exited with status signal: 9 (SIGKILL)",
+            "host_killed",
+            S.KILLED,
+            None,
+            None,
+        ),
+        (
+            "exec",
+            "code-mode host exited with status exit status: 1",
+            "host_exited",
+            S.UNKNOWN,
+            None,
+            None,
+        ),
+    ],
+)
+def test_script_result_formats(
+    tool: str,
+    content: str,
+    name: str,
+    status: ExecutionStatus,
+    truncated: bool | None,
+    handle_kind: ExecutionHandleKind | None,
+):
+    output = _script_output(tool, content)
+    assert output is not None
+    assert (
+        output.harness_result_format,
+        output.execution_status,
+        output.is_truncated,
+        [h.kind for h in output.handles],
+    ) == (MatchedFormat(name), status, truncated, [handle_kind] if handle_kind else [])
+
+
+def test_running_script_names_its_cell_as_a_script_handle():
+    output = _script_output("exec", "Script running with cell ID g1:2" + SCRIPT_HEAD)
+    assert output is not None
+    assert (output.execution_status, output.handles) == (
+        S.RUNNING,
+        (ExecutionHandle(ExecutionHandleKind.SCRIPT, "g1:2"),),
     )
+
+
+def test_failed_script_keeps_its_error_unless_it_never_ran():
+    error = "Script error:\nexec_command failed for `x`: boom"
+    output = _script_output("exec", _script_result("Script failed", _printed(error)))
+    assert output is not None
+    assert (output.execution_status, output.tool_output_text) == (S.FINISHED, error)
+    syntax = "Script error:\nSyntaxError: Unexpected token"
+    output = _script_output("exec", _script_result("Script failed", _printed(syntax)))
+    assert output is not None
+    assert (output.execution_status, output.tool_output_text) == (S.NOT_RUN, "")
+
+
+def test_script_that_printed_only_an_image_has_no_text():
+    image = {"type": "input_image", "image_url": "data:image/png;base64,AAAA"}
+    for printed in ((image,), (image, _printed(""))):
+        output = _script_output("exec", _script_result("Script completed", *printed))
+        assert output is not None
+        assert (output.execution_status, output.tool_output_text) == (S.FINISHED, None)
+    for content in (
+        _script_result("Script completed"),
+        "Script completed" + SCRIPT_HEAD,
+    ):
+        output = _script_output("exec", content)
+        assert output is not None and output.tool_output_text == ""
 
 
 def test_exec_command_truncation_warning_without_a_line_count_is_cut_from_the_text():
@@ -196,3 +376,61 @@ def test_exec_command_truncation_warning_without_a_line_count_is_cut_from_the_te
         output.is_truncated,
         output.tool_output_text,
     ) == (MatchedFormat("exited_truncated_no_line_count"), True, "body\n")
+
+
+def _script_action(code: str | None):
+    args = {} if code is None else {"input": code}
+    return convert_call(
+        _raw("exec", args, "Script completed" + SCRIPT_HEAD), CONVERTER
+    ).action
+
+
+def test_exec_steps_are_the_actions_of_the_tool_calls_in_its_script():
+    code = (
+        'await tools.exec_command({cmd: "curl -O https://a.org/f"});\n'
+        'await tools.write_stdin({session_id: 7, chars: "\\u0003"});\n'
+        'await tools.apply_patch("*** Begin Patch\\n*** Add File: a.sh\\n+curl x\\n*** End Patch");\n'
+        'await tools.web__run({search_query: [{q: "x"}]});\n'
+        "await tools.view_image({path: '/i.png'}); await tools.clock__curr_time({});\n"
+        "await tools.exec({}); await tools.no_such_tool({});"
+    )
+    assert _script_action(code) == RunToolScriptAction(
+        code,
+        (
+            RunCommandAction("curl -O https://a.org/f"),
+            PollAction(
+                (ExecutionHandle(ExecutionHandleKind.COMMAND, "7"),), "\x03", True
+            ),
+            WriteFileAction("a.sh", "curl x\n"),
+            WebSearchAction(("x",)),
+            OtherAction(),
+            OtherAction(),
+            UnknownAction(),  # code mode has no exec
+            UnknownAction(),
+        ),
+    )
+
+
+def test_exec_steps_left_unread_are_empty_or_unknown():
+    code = (
+        "await tools.exec_command({cmd: c}); await tools.exec_command(o);"
+        " await tools.apply_patch(p); await tools.web__run(q);"
+        ' await tools.wait({cell_id: "1"}); await tools.request_user_input_async({});'
+        " await tools.web_search_call({})"
+    )
+    assert _script_action(code) == RunToolScriptAction(
+        code, (RunCommandAction(), RunCommandAction(), *[UnknownAction()] * 5)
+    )
+    assert _script_action('tools.exec_command({cmd: "x})') == RunToolScriptAction(
+        'tools.exec_command({cmd: "x})'
+    )
+    assert _script_action(None) == RunToolScriptAction()
+
+
+def test_result_that_only_looks_like_a_python_list_stays_text():
+    for content in (
+        "[{'type': 'input_text'",
+        "[{'type': 'input_text', 'text': 'x'}, 1]",
+    ):
+        output = _script_output("exec", content)
+        assert output is not None and output.tool_output_text == content

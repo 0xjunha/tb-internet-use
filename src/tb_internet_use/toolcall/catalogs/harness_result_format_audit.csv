@@ -100,6 +100,23 @@ codex,write_stdin,rejected,text,0,0,,0,0,0
 codex,write_stdin,rejected_command,text,0,0,,0,0,0
 codex,write_stdin,rejected_patch,text,0,0,,0,0,0
 codex,write_stdin,rejected_stdin,text,7,7,141f3e96-a366-504d-b5d8-5dd24bf92b65/main#103.0 2628a870-2f54-4b81-8b84-6560187e5ffa/main#111.0 420012a0-db17-513b-8b74-dcc0cdf528eb/main#212.0,0,0,0
+codex,exec,completed_truncated,text,4720,1195,0024a359-cd18-4822-aa03-c398cd818423/main#7.0 0024a359-cd18-4822-aa03-c398cd818423/main#8.0 0024a359-cd18-4822-aa03-c398cd818423/main#9.0,0,3,4720
+codex,exec,completed_truncated_bytes,text,32,22,104bb0cd-f811-43c2-8da0-8d4163681879/main#273.0 104bb0cd-f811-43c2-8da0-8d4163681879/main#329.0 104bb0cd-f811-43c2-8da0-8d4163681879/main#463.0,0,0,32
+codex,exec,completed,text,346399,2749,000fb758-b9a6-5262-a269-6afb3093730b/main#6.0 000fb758-b9a6-5262-a269-6afb3093730b/main#7.0 000fb758-b9a6-5262-a269-6afb3093730b/main#8.0,0,2,4752
+codex,exec,failed_syntax,text,1821,492,00178095-2a4f-5b1b-937a-c63dd51ec202/main#6.0 00178095-2a4f-5b1b-937a-c63dd51ec202/main#11.0 00178095-2a4f-5b1b-937a-c63dd51ec202/main#96.0,0,0,1821
+codex,exec,failed,text,3061,1149,00178095-2a4f-5b1b-937a-c63dd51ec202/main#10.0 00178095-2a4f-5b1b-937a-c63dd51ec202/main#24.0 0024a359-cd18-4822-aa03-c398cd818423/main#80.0,0,0,1821
+codex,exec,running_truncated,text,2,2,777503fd-49d9-5c62-b8de-19a3f208c4da/main#10.0 8be1778a-04dd-5eb3-9623-3f6565539626/main#19.0,0,0,2
+codex,exec,running,text,27993,832,000fb758-b9a6-5262-a269-6afb3093730b/main#12.0 000fb758-b9a6-5262-a269-6afb3093730b/main#16.0 000fb758-b9a6-5262-a269-6afb3093730b/main#33.0,0,0,2
+codex,exec,host_killed,text,2,2,0ac244a9-eed7-5b3d-a229-7c0a3cb8f4f1/main#484.0 2e341b59-baf4-5b2a-9478-8ebfa8c21529/main#977.0,0,0,0
+codex,exec,host_exited,text,1,1,e0070b54-9888-4bc2-9b40-904c1da868c8/main#12.0,0,0,0
+codex,wait,completed_truncated,text,335,65,00396b8d-27d3-564a-becf-9871a6592f9a/main#41.0 00f62f26-fc70-585f-9a29-b9a4e41edab4/main#217.0 00f62f26-fc70-585f-9a29-b9a4e41edab4/main#392.0,0,0,335
+codex,wait,completed,text,26865,821,000fb758-b9a6-5262-a269-6afb3093730b/main#13.0 000fb758-b9a6-5262-a269-6afb3093730b/main#17.0 000fb758-b9a6-5262-a269-6afb3093730b/main#34.0,0,0,335
+codex,wait,cell_not_found,text,316,176,00396b8d-27d3-564a-becf-9871a6592f9a/main#20.0 0073c91c-c401-583d-89d3-e946e4e1525e/main#51.0 0073c91c-c401-583d-89d3-e946e4e1525e/main#60.0,0,0,316
+codex,wait,failed,text,20,14,0128f813-396a-5f77-8c91-d99241d8a740/main#65.0 166478da-88ee-5a69-9cad-5b180619c4e3/main#296.0 166478da-88ee-5a69-9cad-5b180619c4e3/main#311.0,0,0,316
+codex,wait,running_truncated,text,4,3,185347aa-2d58-507f-8163-171a0a02b29e/main#14.0 4f6a9aec-3a34-55da-848a-b8dd86e6bacb/main#131.0 e86cebcb-4a48-55b3-87de-f24203108f97/main#143.0,0,0,4
+codex,wait,running,text,3180,139,0243d7ff-9300-56b6-a7a7-3a164eef4f9a/main#14.0 0243d7ff-9300-56b6-a7a7-3a164eef4f9a/main#147.0 05d92bd7-e536-57fc-bd42-67352ad679d5/main#25.0,0,0,4
+codex,wait,terminated,text,64,35,02506f17-18bb-581d-aa54-1b266645e68e/main#8.0 0d8daae2-0fdd-4580-9da6-70944d982cb4/main#200.0 23e8448e-1fda-51d1-9f36-e6e3eb002d22/main#42.0,0,0,0
+codex,wait,rejected_arguments,text,51,11,0707f0d3-8746-5406-9c45-382d429377ec/main#222.0 2e341b59-baf4-5b2a-9478-8ebfa8c21529/main#1592.0 348ca143-4527-563c-a682-9be54c30a50a/main#1158.0,0,0,0
 cursor-cli,shellToolCall,not_spawned,json,1,1,6afa7882-29fc-5857-bb9c-5551055acec2/main#38.0,0,0,0
 cursor-cli,shellToolCall,background,json,1326,160,0130f753-b3af-50e6-b8f6-3871665f69b7/main#46.0 0130f753-b3af-50e6-b8f6-3871665f69b7/main#51.0 0130f753-b3af-50e6-b8f6-3871665f69b7/main#56.0,0,0,0
 cursor-cli,shellToolCall,background_requested,json,148,33,034d6ae3-4358-5fa7-bca9-e231276a4cd0/main#20.0 036c6e91-03a5-5eb6-ba94-f5b601762c72/main#17.0 036c6e91-03a5-5eb6-ba94-f5b601762c72/main#36.0,0,0,0
@@ -288,7 +305,7 @@ claude-code,mcp__playwright__browser_take_screenshot,skipped_format,,1,1,5e7044e
 claude-code,"{""name"":...}",skipped_format,,1,1,cd4d390b-d207-5d3f-a593-da3b6221b789/main#25.0,0,0,0
 claude-code,"{\""name\"":\""foo\"",\""arguments\"":{\""x\"":1}}",skipped_format,,2,1,ac73a2f8-c9b6-5ef3-9096-476942d4a15d/main#33.1 ac73a2f8-c9b6-5ef3-9096-476942d4a15d/main#33.2,0,0,0
 codex,create_goal,skipped_format,,30,30,0589fe66-211b-4ca0-9584-eb773564b228/main#4.0 1369eac8-3ece-54c4-b32d-c8ce59b3b82c/main#4.0 141f3e96-a366-504d-b5d8-5dd24bf92b65/main#5.0,0,0,0
-codex,exec,skipped_format,,384669,2749,000fb758-b9a6-5262-a269-6afb3093730b/main#6.0 000fb758-b9a6-5262-a269-6afb3093730b/main#7.0 000fb758-b9a6-5262-a269-6afb3093730b/main#8.0,0,0,0
+codex,exec,unknown_format,,638,7,0d8daae2-0fdd-4580-9da6-70944d982cb4/main#89.0 0d8daae2-0fdd-4580-9da6-70944d982cb4/main#124.0 0d8daae2-0fdd-4580-9da6-70944d982cb4/main#158.0,0,0,0
 codex,get_goal,skipped_format,,20,15,1369eac8-3ece-54c4-b32d-c8ce59b3b82c/main#105.0 141f3e96-a366-504d-b5d8-5dd24bf92b65/main#44.0 174579d5-c127-4bf9-9964-a936c5de7b88/main#59.0,0,0,0
 codex,interrupt_agent,skipped_format,,3,3,2c08687a-ccf7-4110-ab33-98b1bf4aee53/main#124.0 39a50185-9886-41c1-a121-eec4644cfc2c/main#330.0 eca370ec-2974-5449-8312-eb7bd293c2cc/main#331.0,0,0,0
 codex,list_agents,skipped_format,,1,1,f6c1a971-0bce-5e74-9b51-344251671d2c/main#91.0,0,0,0
@@ -298,7 +315,6 @@ codex,sleep,skipped_format,,2972,46,064e0927-1ac1-5562-95ca-13eab615ff09/main#22
 codex,update_goal,skipped_format,,12,12,1369eac8-3ece-54c4-b32d-c8ce59b3b82c/main#114.0 141f3e96-a366-504d-b5d8-5dd24bf92b65/main#106.0 1c7ca041-5603-402f-9e89-3181d99cabaf/main#131.0,0,0,0
 codex,update_plan,skipped_format,,7474,1622,001e393b-5e36-436a-8db5-f18dda0fb4a5/main#4.0 001e393b-5e36-436a-8db5-f18dda0fb4a5/main#20.0 001e393b-5e36-436a-8db5-f18dda0fb4a5/main#29.0,0,0,0
 codex,view_image,skipped_format,,4176,518,00d73ea4-6b90-45ea-8d9d-b36d381fd3eb/main#67.0 011de7e9-b08d-4212-ba78-5945ad40e091/main#15.0 012441aa-9d84-498d-b0f1-eb280fa8cd46/main#17.0,0,0,0
-codex,wait,skipped_format,,30835,869,000fb758-b9a6-5262-a269-6afb3093730b/main#13.0 000fb758-b9a6-5262-a269-6afb3093730b/main#17.0 000fb758-b9a6-5262-a269-6afb3093730b/main#34.0,0,0,0
 codex,wait_agent,skipped_format,,20,3,613e1f64-a754-5705-983e-fa71cb2ade68/main#76.0 613e1f64-a754-5705-983e-fa71cb2ade68/main#78.0 613e1f64-a754-5705-983e-fa71cb2ade68/main#80.0,0,0,0
 codex,web_search_call,no_content,special,1610,485,006e610a-6528-4db2-926e-da32526cbdd8/main#8.0 00d67dbe-78be-4b5b-80b8-0bbcfd95021d/main#7.0 00d67dbe-78be-4b5b-80b8-0bbcfd95021d/main#9.0,0,0,0
 cursor-cli,deleteToolCall,skipped_format,,66,26,101093fe-0bf4-515e-9a53-0aeb20843f62/main#24.1 101093fe-0bf4-515e-9a53-0aeb20843f62/main#39.1 1dcb43a4-af0d-5f7d-ac06-f5e68a63fa14/main#48.0,0,0,0

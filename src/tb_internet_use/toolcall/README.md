@@ -35,7 +35,7 @@ Defined in [model.py](model.py).
 | `ReadFileAction` | Output sent to a log file instead of stdout |
 | `PollAction` | Background output arrives in a later call; stopping shows whether it finished |
 | `OtherAction` | Not needed for the above, such as grep tools, to-do lists, subagent management |
-| `UnknownAction` | Tool the harness does not have (broken or disabled names), and Codex `exec` until its steps are converted |
+| `UnknownAction` | Tool the harness does not have (broken or disabled names), or a call that could not be converted |
 
 ## Tool call labeling
 

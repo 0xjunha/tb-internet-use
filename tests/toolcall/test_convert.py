@@ -24,6 +24,7 @@ from tb_internet_use.toolcall.model import (
     ToolCallOutput,
     UnknownAction,
     WebSearchAction,
+    string_tuple,
 )
 
 
@@ -92,6 +93,7 @@ def test_single_value_becomes_a_tuple_and_an_empty_one_none():
     assert convert_call(raw, _Converter()).action == WebSearchAction(("a",))
     raw = _raw("claude-code", "WebSearch", {"query": ""})
     assert convert_call(raw, _Converter()).action == WebSearchAction(())
+    assert string_tuple(["a", "", None, 1, "a"]) == ("a", "1")
 
 
 def test_handle_id_becomes_a_string_of_unknown_kind():

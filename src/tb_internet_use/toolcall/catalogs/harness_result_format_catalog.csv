@@ -250,6 +250,82 @@ codex,write_stdin,rejected,text,exec_command failed: {reason:text},not_run,,,com
 codex,write_stdin,rejected_command,text,exec_command failed for `{command:text}`: {reason:text},not_run,,,command,
 codex,write_stdin,rejected_patch,text,apply_patch verification failed: {reason:text},not_run,,,command,
 codex,write_stdin,rejected_stdin,text,write_stdin failed: {reason:text},not_run,,,command,
+codex,exec,completed_truncated,text,"Script completed
+Wall time {seconds:line_without_brackets} seconds
+Output:
+Warning: truncated output (original token count: {original:int})
+Total output lines: {lines:int}
+
+{tool_output:text}",finished,True,,command,
+codex,exec,completed_truncated_bytes,text,"Script completed
+Wall time {seconds:line_without_brackets} seconds
+Output:
+Warning: truncated output (original token count: {original:int})
+... {omitted:int} bytes omitted ...
+
+{tool_output:text}",finished,True,,command,
+codex,exec,completed,text,"Script completed
+Wall time {seconds:line_without_brackets} seconds
+Output:
+{tool_output:text}",finished,,,command,
+codex,exec,failed_syntax,text,"Script failed
+Wall time {seconds:line_without_brackets} seconds
+Output:
+Script error:
+SyntaxError: {error:rest_of_line}",not_run,,,command,
+codex,exec,failed,text,"Script failed
+Wall time {seconds:line_without_brackets} seconds
+Output:
+{tool_output:text}",finished,,,command,
+codex,exec,running_truncated,text,"Script running with cell ID {handle:word}
+Wall time {seconds:line_without_brackets} seconds
+Output:
+Warning: truncated output (original token count: {original:int})
+Total output lines: {lines:int}
+
+{tool_output:text}",running,True,,script,
+codex,exec,running,text,"Script running with cell ID {handle:word}
+Wall time {seconds:line_without_brackets} seconds
+Output:
+{tool_output:text}",running,,,script,
+codex,exec,host_killed,text,code-mode host exited with status signal: {signal:int} ({signal_name:id}),killed,,,command,
+codex,exec,host_exited,text,code-mode host exited with status exit status: {host_status:int},unknown,,,command,
+codex,wait,completed_truncated,text,"Script completed
+Wall time {seconds:line_without_brackets} seconds
+Output:
+Warning: truncated output (original token count: {original:int})
+Total output lines: {lines:int}
+
+{tool_output:text}",finished,True,,command,
+codex,wait,completed,text,"Script completed
+Wall time {seconds:line_without_brackets} seconds
+Output:
+{tool_output:text}",finished,,,command,
+codex,wait,cell_not_found,text,"Script failed
+Wall time {seconds:line_without_brackets} seconds
+Output:
+Script error:
+exec cell {cell:word} not found",not_run,,,command,
+codex,wait,failed,text,"Script failed
+Wall time {seconds:line_without_brackets} seconds
+Output:
+{tool_output:text}",finished,,,command,
+codex,wait,running_truncated,text,"Script running with cell ID {handle:word}
+Wall time {seconds:line_without_brackets} seconds
+Output:
+Warning: truncated output (original token count: {original:int})
+Total output lines: {lines:int}
+
+{tool_output:text}",running,True,,script,
+codex,wait,running,text,"Script running with cell ID {handle:word}
+Wall time {seconds:line_without_brackets} seconds
+Output:
+{tool_output:text}",running,,,script,
+codex,wait,terminated,text,"Script terminated
+Wall time {seconds:line_without_brackets} seconds
+Output:
+{tool_output:text}",killed,,,command,
+codex,wait,rejected_arguments,text,failed to parse function arguments: {reason:text},not_run,,,command,
 cursor-cli,shellToolCall,not_spawned,json,present=spawnError,not_run,,,command,
 cursor-cli,shellToolCall,background,json,"present=success.shellId,success.interleavedOutput",running,,,command,
 cursor-cli,shellToolCall,background_requested,json,present=success.shellId absent=success.interleavedOutput,running,,,command,

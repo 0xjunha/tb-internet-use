@@ -45,17 +45,18 @@ def handles_from_ids(
     return tuple(ExecutionHandle(kind, str(i)) for i in listed if i not in (None, ""))
 
 
-def string_tuple(value: Any) -> tuple[str, ...]:
-    """An argument as the strings of an Action field, empty when it is missing or empty."""
-    return () if value in (None, "") else (str(value),)
+def string_tuple(values: Any) -> tuple[str, ...]:
+    """A list of values or one value as the strings of an Action field, in order and
+    without missing, empty or repeated ones."""
+    listed = values if isinstance(values, list) else [values]
+    return tuple(dict.fromkeys(str(v) for v in listed if v not in (None, "")))
 
 
 @dataclass(frozen=True, slots=True)
 class RunCommandAction:
     """Run a string in a shell in one go; it can chain several commands."""
 
-    # None when the trajectory has none or JS builds it later
-    command_str: str | None = None
+    command_str: str | None = None  # None when the trajectory has none
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,7 +64,14 @@ class RunToolScriptAction:
     """Run code that calls harness tools, e.g. Codex `exec`. The trajectory has one result for all of it."""
 
     code: str | None = None  # None when the trajectory has none
-    steps: tuple[Action, ...] = ()  # tool calls found in the code, in order
+    # The Actions of the tool calls found in the code, in order.
+    # One call can have several steps, e.g. a patch that changes several files.
+    #
+    # A step field is empty when the script builds the argument at run time,
+    # e.g.
+    # tools.exec_command({cmd: "ls /app"}) gives RunCommandAction("ls /app"), but
+    # tools.exec_command({cmd: "ls " + dir}) gives RunCommandAction(None).
+    steps: tuple[Action, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
