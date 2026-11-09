@@ -5,9 +5,11 @@ from typing import Any, ClassVar
 from tb_internet_use.toolcall.harnesses.base import (
     HarnessToolCallConverter,
     join_content_items,
+    string_tuple,
 )
 from tb_internet_use.toolcall.model import (
     Action,
+    ExecutionHandleKind,
     ExecutionStatus,
     OtherAction,
     RawToolCall,
@@ -92,6 +94,7 @@ _AWAIT_TOOL_CALL = HarnessResultFormatList[JsonObject](
             "complete",
             S.FINISHED,
             {
+                "tool_output": "success.complete.regexMatch",
                 "exit_code": "success.complete.exitCode",
                 "handle": "success.complete.taskId",
                 "output_path": "success.complete.outputFilePath",
@@ -103,6 +106,7 @@ _AWAIT_TOOL_CALL = HarnessResultFormatList[JsonObject](
             "still_running",
             S.RUNNING,
             {
+                "tool_output": "success.stillRunning.regexMatch",
                 "handle": "success.stillRunning.taskId",
                 "output_path": "success.stillRunning.outputFilePath",
             },
@@ -121,13 +125,12 @@ _READ_TOOL_CALL = HarnessResultFormatList[JsonObject](
             present_paths=("success.content",),
             condition=JsonCondition("success.exceededLimit", "!=", True),
         ),
+        # The file is over the size limit, so the tool read nothing.
         Json(
-            "content_truncated",
-            S.FINISHED,
-            {"tool_output": "success.content"},
+            "too_large",
+            S.NOT_RUN,
             present_paths=("success.content",),
             condition=JsonCondition("success.exceededLimit", "==", True),
-            is_truncated=True,
         ),
         # The file was read, but the trajectory keeps only its contentBlobId, not the content.
         Json(
@@ -135,7 +138,7 @@ _READ_TOOL_CALL = HarnessResultFormatList[JsonObject](
             S.FINISHED,
             present_paths=("success",),
             absent_paths=("success.content",),
-            tool_output_not_in_trajectory=True,
+            no_tool_output_text=True,
         ),
         Json("error", S.NOT_RUN, present_paths=("error",)),
     )
@@ -223,20 +226,14 @@ _MCP_TOOL_CALL = HarnessResultFormatList[JsonObject](
             condition=JsonCondition("success.isError", "!=", True),
             text_from_matched_values=_content_text,
         ),
-        Json(
-            "tool_error",
-            S.FINISHED,
-            {"tool_output": "success.content"},
-            present_paths=("success.content",),
-            condition=JsonCondition("success.isError", "==", True),
-            text_from_matched_values=_content_text,
-        ),
         Json("error", S.NOT_RUN, present_paths=("error",)),
     )
 )
 
 
 class CursorCliConverter(HarnessToolCallConverter):
+    # a background shell
+    argument_handle_kinds: ClassVar = {"awaitToolCall": ExecutionHandleKind.COMMAND}
     json_formats: ClassVar = {
         "shellToolCall": _SHELL_TOOL_CALL,
         "awaitToolCall": _AWAIT_TOOL_CALL,
@@ -256,5 +253,5 @@ class CursorCliConverter(HarnessToolCallConverter):
             raw.tool.name == "mcpToolCall"
             and raw.args.get("toolName") == "browser_navigate"
         ):
-            return WebFetchAction((str(url),) if url else ())
+            return WebFetchAction(string_tuple(url))
         return OtherAction()

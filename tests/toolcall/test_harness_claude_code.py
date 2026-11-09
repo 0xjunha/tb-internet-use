@@ -98,7 +98,7 @@ def test_bash_background_notice_fields_leave_the_sentence_period_out():
 def test_bash_background_notice_after_partial_output_is_recognized():
     block = (
         "early line\n"
-        "Command did not complete within its 120s timeout and was moved to the background (ID: abc123xyz)."
+        "Command running in background with ID: abc123xyz."
         " Output is being written to: /tmp/abc123xyz.output."
         " You will be notified when it completes. To check interim output, use Read on that file path."
     )
@@ -107,6 +107,15 @@ def test_bash_background_notice_after_partial_output_is_recognized():
     assert output.execution_status is S.RUNNING
     assert output.handles[0].id == "abc123xyz"
     assert output.tool_output_text == "early line"
+
+
+def test_bash_error_output_cut_by_claude_code_is_truncated_and_keeps_the_marker():
+    text = "head\n... [120 characters truncated] ...\ntail"
+    output = _bash("Exit code 1\n" + text, is_error=True)
+    assert output is not None
+    assert (output.is_truncated, output.tool_output_text) == (True, text)
+    output = _bash("Exit code 1\nwhole", is_error=True)
+    assert output is not None and output.is_truncated is None
 
 
 def test_bash_exit_header_and_timeout():
@@ -121,7 +130,7 @@ def test_bash_exit_header_and_timeout():
     assert output is not None
     assert (output.execution_status, output.exit_code, output.tool_output_text) == (
         S.TIMED_OUT,
-        143,
+        None,
         "",
     )
 
@@ -180,6 +189,18 @@ def test_read_structured_file_content_is_the_text():
         CONVERTER,
     ).output
     assert output is not None and output.tool_output_text == "a\nb\n"
+
+
+def test_read_cut_at_the_token_cap_is_truncated():
+    structured = {
+        "type": "text",
+        "file": {"filePath": "/a", "content": "a\n", "truncatedByTokenCap": True},
+    }
+    output = convert_call(
+        _raw("Read", {"file_path": "/a"}, _result("1\ta\n", structured)),
+        CONVERTER,
+    ).output
+    assert output is not None and output.is_truncated is True
 
 
 def test_read_image_items_give_no_text_and_finished():

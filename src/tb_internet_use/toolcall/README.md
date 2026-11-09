@@ -114,7 +114,7 @@ Text format (Devin exec)
 template
   Output from command in shell {handle:id}:
   {tool_output:text}
-  Exit code: {exit_code:uint}
+  Exit code: {exit_code:int}
 
 annotated output
   Output from command in shell 3:

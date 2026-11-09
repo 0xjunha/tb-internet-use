@@ -123,11 +123,12 @@ def test_await_links_to_the_task_and_its_output_file():
         _raw(
             "awaitToolCall",
             {"taskId": "9"},
-            {"success": {"stillRunning": {"taskId": "9"}}},
+            {"success": {"stillRunning": {"taskId": "9", "regexMatch": "ready"}}},
         ),
         CONVERTER,
     ).output
-    assert output is not None and output.execution_status is S.RUNNING
+    assert output is not None
+    assert (output.execution_status, output.tool_output_text) == (S.RUNNING, "ready")
 
 
 def test_read_content_and_errors():
@@ -135,13 +136,15 @@ def test_read_content_and_errors():
         _raw(
             "readToolCall",
             {"path": "/f"},
-            {"success": {"content": "x", "exceededLimit": True}},
+            {"success": {"content": "", "exceededLimit": True}},
         ),
         CONVERTER,
     ).output
-    assert output is not None and (output.tool_output_text, output.is_truncated) == (
-        "x",
-        True,
+    assert output is not None
+    assert (output.execution_status, output.tool_output_text, output.is_truncated) == (
+        S.NOT_RUN,
+        "",
+        None,
     )
     output = convert_call(
         _raw(

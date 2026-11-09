@@ -90,6 +90,7 @@ def test_get_output_without_exit_line_is_still_running_with_the_argument_shell()
     assert call.action == PollAction(
         (ExecutionHandle(ExecutionHandleKind.COMMAND, "sh1"),)
     )
+    assert call.output.handles == ()  # the result named no shell
     output = convert_call(
         _raw("get_output", {"shell_id": "sh1"}, "tail\nExit code: 3"), CONVERTER
     ).output
@@ -97,6 +98,19 @@ def test_get_output_without_exit_line_is_still_running_with_the_argument_shell()
         S.FINISHED,
         3,
     )
+
+
+def test_shell_output_with_a_cut_line_is_truncated_and_keeps_the_marker():
+    text = "a\nlong… (300 chars truncated)\n"
+    output = convert_call(
+        _raw("get_output", {"shell_id": "sh1"}, text), CONVERTER
+    ).output
+    assert output is not None
+    assert (output.is_truncated, output.tool_output_text) == (True, text)
+    output = convert_call(
+        _raw("get_output", {"shell_id": "sh1"}, "a\n"), CONVERTER
+    ).output
+    assert output is not None and output.is_truncated is None
 
 
 def test_kill_shell_is_a_terminate_whose_target_is_killed():
@@ -175,12 +189,33 @@ def test_negative_exit_code_means_killed_without_a_real_exit_code():
         "",
     )
     output = convert_call(
-        _raw("get_output", {"shell_id": "sh1"}, "Exit code: -1"), CONVERTER
+        _raw(
+            "get_output",
+            {"shell_id": "sh1"},
+            "Exited with code -1 and no output\n\nExit code: -1",
+        ),
+        CONVERTER,
     ).output
     assert output is not None and (output.execution_status, output.exit_code) == (
         S.KILLED,
         None,
     )
+
+
+def test_any_negative_exit_code_is_killed_whatever_the_format():
+    for tool, content in (
+        ("get_output", "foo\nExit code: -1"),
+        ("get_output", "No more output to read. Shell s1 exited with code -1."),
+        (
+            "exec",
+            "Output from command in shell sh1:\nfoo\nExit code: -1\n\nnote\n<truncation_notice>\nFull output written to: /o\n</truncation_notice>",
+        ),
+    ):
+        output = convert_call(
+            _raw(tool, {"shell_id": "sh1"}, content), CONVERTER
+        ).output
+        assert output is not None
+        assert (output.execution_status, output.exit_code) == (S.KILLED, None), content
 
 
 def test_live_file_preview_keeps_only_the_listed_lines():

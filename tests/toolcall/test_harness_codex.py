@@ -10,6 +10,7 @@ from tb_internet_use.toolcall.model import (
     ExecutionStatus,
     HarnessTool,
     MatchedFormat,
+    PollAction,
     RawToolCall,
     ToolCallKey,
     UnknownAction,
@@ -81,6 +82,49 @@ def test_rejected_commands_are_not_run():
         CONVERTER,
     ).output
     assert output is not None and output.execution_status is S.NOT_RUN
+
+
+def test_poll_handles_from_arguments_get_the_tool_kind():
+    exited = HEAD + "Process exited with code 0\nOriginal token count: 0\nOutput:\n"
+    call = convert_call(
+        _raw("write_stdin", {"session_id": 7, "chars": ""}, exited), CONVERTER
+    )
+    assert call.output is not None and call.output.handles == ()
+    assert call.action == PollAction(
+        (ExecutionHandle(ExecutionHandleKind.COMMAND, "7"),)
+    )
+    call = convert_call(_raw("wait", {"cell_id": "3"}, "Script completed"), CONVERTER)
+    assert call.action == PollAction(
+        (ExecutionHandle(ExecutionHandleKind.SCRIPT, "3"),)
+    )
+
+
+def test_ctrl_c_through_write_stdin_is_a_terminate_and_exit_130_is_killed():
+    exited = HEAD + "Process exited with code 130\nOriginal token count: 0\nOutput:\n"
+    call = convert_call(
+        _raw("write_stdin", {"session_id": 7, "chars": "\x03"}, exited), CONVERTER
+    )
+    assert call.output is not None
+    assert (call.output.execution_status, call.output.exit_code) == (S.KILLED, None)
+    assert call.action == PollAction(
+        (ExecutionHandle(ExecutionHandleKind.COMMAND, "7"),), "\x03", True
+    )
+    other = exited.replace("code 130", "code 0")
+    call = convert_call(
+        _raw("write_stdin", {"session_id": 7, "chars": "\x03"}, other), CONVERTER
+    )
+    assert call.output is not None
+    assert (call.output.execution_status, call.output.exit_code) == (S.FINISHED, 0)
+
+
+def test_web_search_keeps_every_query():
+    args = {"action_type": "search", "query": "a", "queries": ["a", "b", "a"]}
+    call = convert_call(_raw("web_search_call", args, None), CONVERTER)
+    assert call.action == WebSearchAction(("a", "b"))
+    call = convert_call(
+        _raw("web_search_call", {"action_type": "search"}, None), CONVERTER
+    )
+    assert call.action == WebSearchAction(())
 
 
 def test_web_search_call_without_content_is_finished_and_typed_by_action_type():

@@ -124,18 +124,6 @@ _BASH_OK = HarnessResultFormatList[str](
         ),
         Text("background_timeout", _BACKGROUND_TIMEOUT + _NOTIFY, S.RUNNING),
         Text("background_timeout_v2", _BACKGROUND_TIMEOUT + _NOTIFY_V2, S.RUNNING),
-        Text(
-            "background_timeout_after_output",
-            "{tool_output:text}\n" + _BACKGROUND_TIMEOUT + _NOTIFY,
-            S.RUNNING,
-        ),
-        Text(
-            "background_timeout_after_output_v2",
-            "{tool_output:text}\n" + _BACKGROUND_TIMEOUT + _NOTIFY_V2,
-            S.RUNNING,
-        ),
-        Text("background_short", _BACKGROUND, S.RUNNING),
-        Text("background_timeout_short", _BACKGROUND_TIMEOUT, S.RUNNING),
         _PERSISTED,
         _PERSISTED_PARTIAL,
         # Not judged an error, so no header: exit 0, or 1 for grep, find, diff and the like.
@@ -143,20 +131,29 @@ _BASH_OK = HarnessResultFormatList[str](
     ),
     notices=_NOTICES,
 )
+# Claude Code cuts the middle of a long error output and leaves this in its place.
+_CUT_MARKER = "... [{count:int} characters truncated] ..."
 _BASH_ERROR = HarnessResultFormatList[str](
     (
         _TOOL_USE_ERROR,
+        # The code is always 143 from the kill, so it fills no exit_code.
         Text(
             "timed_out",
-            "Exit code {exit_code:int}\nCommand timed out after {after:rest_of_line}\n{tool_output:text}",
+            "Exit code {code:int}\nCommand timed out after {after:rest_of_line}\n{tool_output:text}",
             S.TIMED_OUT,
+            truncation_marker=_CUT_MARKER,
         ),
         Text(
             "timed_out_silent",
-            "Exit code {exit_code:int}\nCommand timed out after {after:rest_of_line}",
+            "Exit code {code:int}\nCommand timed out after {after:rest_of_line}",
             S.TIMED_OUT,
         ),
-        Text("exited", "Exit code {exit_code:int}\n{tool_output:text}", S.FINISHED),
+        Text(
+            "exited",
+            "Exit code {exit_code:int}\n{tool_output:text}",
+            S.FINISHED,
+            truncation_marker=_CUT_MARKER,
+        ),
         Text("exited_silent", "Exit code {exit_code:int}", S.FINISHED),
         Text("refused_permission", "Permission to use Bash {reason:text}", S.NOT_RUN),
         Text(
@@ -197,13 +194,13 @@ _READ = HarnessResultFormatList[str](
             "pdf",
             "PDF file read: {path:line} ({size:line_without_brackets})",
             S.FINISHED,
-            tool_output_not_in_trajectory=True,
+            no_tool_output_text=True,
         ),
         Text(
             "pdf_pages",
             "PDF pages extracted: {pages:int} page(s) from {path:line} ({size:line_without_brackets})",
             S.FINISHED,
-            tool_output_not_in_trajectory=True,
+            no_tool_output_text=True,
         ),
         Text("pdf_tool_missing", "pdftoppm is not installed. {hint:text}", S.NOT_RUN),
         Text(
@@ -304,11 +301,6 @@ _WEB_FETCH = HarnessResultFormatList[str](
         _INTERRUPTED_CLASSIFIER,
         _PERSISTED,
         _PERSISTED_PARTIAL,
-        Text(
-            "binary_saved",
-            "[Binary content ({detail:line_without_brackets}) also saved to {output_path:line_without_brackets}]",
-            S.FINISHED,
-        ),
         Text("no_model_response", "No response from model", S.FINISHED),
         Text(
             "no_model_response_binary_saved",
@@ -320,18 +312,8 @@ _WEB_FETCH = HarnessResultFormatList[str](
             "The server returned HTTP {code:int} {reason:rest_of_line}\n\nThe response body was not retrieved. {detail:text}",
             S.FINISHED,
         ),
-        Text(
-            "http_error",
-            "The server returned HTTP {code:int} {reason:rest_of_line}",
-            S.FINISHED,
-        ),
         Text("api_error", "API Error: {detail:text}", S.FINISHED),
         Text("connection_error", "connect {error:rest_of_line}", S.FINISHED),
-        Text(
-            "body_not_retrieved",
-            "{tool_output:text}\n\nThe response body was not retrieved. {detail:text}",
-            S.FINISHED,
-        ),
         Text(
             "page_binary_saved",
             "{tool_output:text}\n\n[Binary content ({detail:line_without_brackets}) also saved to {output_path:line_without_brackets}]",
@@ -419,7 +401,6 @@ _TASK_OUTPUT = HarnessResultFormatList[JsonObject](
             ("running", S.RUNNING),
             ("completed", S.FINISHED),
             ("failed", S.FINISHED),
-            ("killed", S.KILLED),
         )
     )
 )
@@ -500,6 +481,18 @@ def _with_structured_bash(
     )
 
 
+def _with_structured_read(
+    output: ToolCallOutput, file: Mapping[str, Any]
+) -> ToolCallOutput:
+    """Prefer the structured file content, and mark a read Claude Code cut at its token cap."""
+    content = file.get("content")
+    if isinstance(content, str):
+        output = replace(output, tool_output_text=content)
+    if file.get("truncatedByTokenCap") is True:
+        output = replace(output, is_truncated=True)
+    return output
+
+
 class ClaudeCodeConverter(HarnessToolCallConverter):
     stop_tools: ClassVar[frozenset[str]] = frozenset({"TaskStop"})
     text_formats: ClassVar = {
@@ -558,8 +551,6 @@ class ClaudeCodeConverter(HarnessToolCallConverter):
             return output
         if name == "Bash" and structured:
             return _with_structured_bash(output, structured)
-        if name == "Read" and isinstance(
-            (structured.get("file") or {}).get("content"), str
-        ):
-            return replace(output, tool_output_text=structured["file"]["content"])
+        if name == "Read":
+            return _with_structured_read(output, structured.get("file") or {})
         return output

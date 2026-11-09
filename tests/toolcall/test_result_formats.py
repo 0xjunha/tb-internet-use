@@ -100,10 +100,8 @@ def test_format_without_text_placeholder_gives_no_text():
     assert (output.tool_output_text, output.exit_code) == ("", 7)
 
 
-def test_format_with_tool_output_not_in_trajectory_gives_none_not_empty():
-    image = Text(
-        "image", "[Image {index:int}]", S.FINISHED, tool_output_not_in_trajectory=True
-    )
+def test_format_with_no_tool_output_text_gives_none_not_empty():
+    image = Text("image", "[Image {index:int}]", S.FINISHED, no_tool_output_text=True)
     output = parse_output_with_formats(
         "[Image 1]", None, HarnessResultFormatList[str]((image,))
     )
@@ -112,7 +110,7 @@ def test_format_with_tool_output_not_in_trajectory_gives_none_not_empty():
         "blob",
         S.FINISHED,
         {"tool_output": "content"},
-        tool_output_not_in_trajectory=True,
+        no_tool_output_text=True,
     )
     tool_result_json = {"content": "x"}
     output = parse_output_with_formats(
@@ -133,6 +131,15 @@ def test_numbered_listing_placeholder_strips_line_numbers_and_a_bare_final_numbe
 def test_strip_line_numbers_handles_padding_and_other_separators():
     assert strip_line_numbers("  1|a\n 10|b", "|") == "a\nb"
     assert strip_line_numbers("1→x\n2→", "→") == "x\n"
+
+
+def test_partly_numbered_listing_keeps_content_lines_that_are_only_digits():
+    assert strip_line_numbers("1→a\n42\n3→c", "→", every_line=False) == "a\n42\nc"
+    fmt = Text("listing", "{tool_output:partly_numbered_arrow}", S.FINISHED)
+    output = parse_output_with_formats(
+        "1→a\n42", None, HarnessResultFormatList[str]((fmt,))
+    )
+    assert output.tool_output_text == "a\n42"
 
 
 JSON_FORMATS = HarnessResultFormatList[dict](
@@ -229,6 +236,14 @@ def test_output_names_the_format_and_handles():
     ]
 
 
+def test_a_text_placeholder_named_handles_gives_one_handle():
+    fmt = Text("running", "IDs {handles:id}", S.RUNNING)
+    output = parse_output_with_formats(
+        "IDs ab", None, HarnessResultFormatList[str]((fmt,))
+    )
+    assert [h.id for h in output.handles] == ["ab"]
+
+
 def test_json_handles_may_come_from_several_paths():
     fmt = Json(
         "running",
@@ -241,9 +256,9 @@ def test_json_handles_may_come_from_several_paths():
 
 
 def test_uint_placeholder_rejects_a_negative_number():
-    fmt = Text("exited", "code {exit_code:uint}", S.FINISHED)
-    assert fmt.match("code 3") == {"exit_code": "3"}
-    assert fmt.match("code -3") is None
+    fmt = Text("killed", "code -{signal:uint}", S.KILLED)
+    assert fmt.match("code -3") == {"signal": "3"}
+    assert fmt.match("code --3") is None
 
 
 def test_join_text_parts_starts_a_new_line_only_when_needed():
@@ -300,3 +315,15 @@ def test_a_notice_shaped_block_inside_the_tool_output_is_kept():
 def test_several_notices_at_the_end_are_all_cut():
     raw_text = "exit 0\nout\n\n<note>\nfirst\n</note>\n\n<note>\nsecond\n</note>"
     assert FORMATS.strip_notices(raw_text) == ("exit 0\nout", ["notice", "notice"])
+
+
+def test_json_nulls_give_no_handle_and_no_text_part():
+    fmt = Json(
+        "background",
+        S.RUNNING,
+        {"tool_output": ("head", "tail"), "handles": ("session_id", "work_id")},
+    )
+    result = {"head": None, "tail": {"k": 1}, "session_id": None, "work_id": "w1"}
+    output = _parse_json_output(fmt, result)
+    assert output.tool_output_text == '{"k": 1}'
+    assert [h.id for h in output.handles] == ["w1"]

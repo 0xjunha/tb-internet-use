@@ -5,7 +5,6 @@ from typing import Any, ClassVar
 
 from tb_internet_use.toolcall.harnesses.base import HarnessToolCallConverter
 from tb_internet_use.toolcall.model import (
-    ExecutionHandle,
     ExecutionHandleKind,
     ExecutionStatus,
     RawToolCall,
@@ -44,8 +43,13 @@ _STOPPED = (
     + _BACKGROUND
 )
 _OUTPUT_HEAD = "Output from command in shell {handle:id}:\n"
-_EXIT = "\nExit code: {exit_code:uint}"
+_EXIT = "\nExit code: {exit_code:int}"
+# Devin writes -1 here, never another negative code, for a command it stopped, e.g.
+# one that killed its own shell. It is no real exit code or signal number, so
+# `parse_output` reads any negative code as killed, whatever the format.
 _SIGNALED = "\nExit code: -{signal:uint}"
+# Devin cuts a long line and ends it with this.
+_CUT_LINE_MARKER = "… ({count:int} chars truncated)"
 
 _LIVE_HEAD = (
     "Output from command in shell {handle:id}. The full terminal output is being written live to "
@@ -71,6 +75,8 @@ def _preview_text(values: MatchedValues) -> str:
 
 _EXEC = HarnessResultFormatList[str](
     (
+        # Before the exited formats, whose exit code would take the "-" too.
+        Text("killed", _OUTPUT_HEAD + "{tool_output:text}" + _SIGNALED, S.KILLED),
         Text(
             "exited_truncated_after_warning",
             _OUTPUT_HEAD
@@ -97,8 +103,12 @@ _EXEC = HarnessResultFormatList[str](
             S.FINISHED,
             True,
         ),
-        Text("exited", _OUTPUT_HEAD + "{tool_output:text}" + _EXIT, S.FINISHED),
-        Text("killed", _OUTPUT_HEAD + "{tool_output:text}" + _SIGNALED, S.KILLED),
+        Text(
+            "exited",
+            _OUTPUT_HEAD + "{tool_output:text}" + _EXIT,
+            S.FINISHED,
+            truncation_marker=_CUT_LINE_MARKER,
+        ),
         Text(
             "exited_live_file",
             _LIVE_HEAD_VIEW + _LIVE_TAIL_VIEW + _EXIT,
@@ -165,14 +175,14 @@ def _diff_output(values: MatchedValues) -> str:
 _GET_OUTPUT = HarnessResultFormatList[str](
     (
         Text(
-            "exited_silent_twice",
-            "Exited with code {code:int} and no output\n" + _EXIT,
-            S.FINISHED,
-        ),
-        Text(
             "killed_silent_twice",
             "Exited with code {code:int} and no output\n" + _SIGNALED,
             S.KILLED,
+        ),
+        Text(
+            "exited_silent_twice",
+            "Exited with code {code:int} and no output\n" + _EXIT,
+            S.FINISHED,
         ),
         Text(
             "exited_incremental",
@@ -186,25 +196,27 @@ _GET_OUTPUT = HarnessResultFormatList[str](
             S.RUNNING,
             text_from_matched_values=_diff_output,
         ),
-        Text("exited", "{tool_output:text}" + _EXIT, S.FINISHED),
-        Text("exited_bare", "Exit code: {exit_code:uint}", S.FINISHED),
-        Text("killed", "{tool_output:text}" + _SIGNALED, S.KILLED),
-        Text("killed_bare", "Exit code: -{signal:uint}", S.KILLED),
         Text(
-            "exited_silent",
-            "Exited with code {exit_code:uint} and no output",
+            "exited",
+            "{tool_output:text}" + _EXIT,
             S.FINISHED,
+            truncation_marker=_CUT_LINE_MARKER,
         ),
         Text(
             "exited_no_more",
-            "No more output to read. Shell {handle:id} exited with code {exit_code:uint}.",
+            "No more output to read. Shell {handle:id} exited with code {exit_code:int}.",
             S.FINISHED,
         ),
         Text("running_silent", "No output yet (still running)", S.RUNNING),
         Text(
             "rejected", "Tool 'get_output' validation failed: {reason:text}", S.NOT_RUN
         ),
-        Text("running", "{tool_output:text}", S.RUNNING),
+        Text(
+            "running",
+            "{tool_output:text}",
+            S.RUNNING,
+            truncation_marker=_CUT_LINE_MARKER,
+        ),
     ),
     notices=_NOTICES,
 )
@@ -233,7 +245,7 @@ _READ = HarnessResultFormatList[str](
             "image",
             "[Image {index:int}]",
             S.FINISHED,
-            tool_output_not_in_trajectory=True,
+            no_tool_output_text=True,
         ),
         Text("rejected", "Tool 'read' validation failed: {reason:text}", S.NOT_RUN),
     )
@@ -244,7 +256,6 @@ _UPDATED = (
     "{snippet:numbered_pipe}"
 )
 _CUT_LINES = "\n… ({cut:int} lines truncated)\n"
-_UPDATED_TRUNCATED = _UPDATED + "\n" + _TRUNCATED
 _UPDATED_TRUNCATED_NOTE = _UPDATED + _CUT_LINES + _TRUNCATED
 _UPDATED_TRUNCATED_CUT_LINE = _UPDATED + "\n{cut_line:line}" + _CUT_LINES + _TRUNCATED
 
@@ -257,7 +268,6 @@ _WRITE = HarnessResultFormatList[str](
         Text(
             "updated_truncated_cut_line", _UPDATED_TRUNCATED_CUT_LINE, S.FINISHED, True
         ),
-        Text("updated_truncated", _UPDATED_TRUNCATED, S.FINISHED, True),
         Text("updated", _UPDATED, S.FINISHED),
         Text("rejected", "Tool 'write' validation failed: {reason:text}", S.NOT_RUN),
     )
@@ -269,7 +279,6 @@ _EDIT = HarnessResultFormatList[str](
         Text(
             "updated_truncated_cut_line", _UPDATED_TRUNCATED_CUT_LINE, S.FINISHED, True
         ),
-        Text("updated_truncated", _UPDATED_TRUNCATED, S.FINISHED, True),
         Text("updated", _UPDATED, S.FINISHED),
         Text("rejected", "Tool 'edit' validation failed: {reason:text}", S.NOT_RUN),
     )
@@ -309,7 +318,6 @@ _WEB_SEARCH = HarnessResultFormatList[str](
             True,
         ),
         Text("results", _SEARCH_HEAD + "\n{tool_output:text}", S.FINISHED),
-        Text("results_crlf", _SEARCH_HEAD + "\r\n{tool_output:text}", S.FINISHED),
     )
 )
 
@@ -324,12 +332,13 @@ _BROWSER_PREVIEW = HarnessResultFormatList[str](
     )
 )
 
-_SHELL_TOOLS = frozenset({"get_output", "kill_shell", "write_to_process"})
-_RAN = frozenset({S.FINISHED, S.RUNNING, S.KILLED, S.TIMED_OUT})
-
 
 class DevinConverter(HarnessToolCallConverter):
     stop_tools: ClassVar[frozenset[str]] = frozenset({"kill_shell"})
+    # A shell poll's result rarely names the shell; the argument does.
+    argument_handle_kinds: ClassVar = dict.fromkeys(
+        ("get_output", "kill_shell", "write_to_process"), ExecutionHandleKind.COMMAND
+    )
     text_formats: ClassVar = {
         "exec": _EXEC,
         "get_output": _GET_OUTPUT,
@@ -345,14 +354,6 @@ class DevinConverter(HarnessToolCallConverter):
 
     def parse_output(self, raw: RawToolCall, result: dict[str, Any]) -> ToolCallOutput:
         output = super().parse_output(raw, result)
-        # A shell poll's result rarely names the shell; the argument does.
-        shell_id = raw.args.get("shell_id")
-        if (
-            raw.tool.name in _SHELL_TOOLS
-            and not output.handles
-            and shell_id
-            and output.execution_status in _RAN
-        ):
-            handles = (ExecutionHandle(ExecutionHandleKind.COMMAND, str(shell_id)),)
-            output = replace(output, handles=handles)
+        if output.exit_code is not None and output.exit_code < 0:
+            return replace(output, execution_status=S.KILLED, exit_code=None)
         return output

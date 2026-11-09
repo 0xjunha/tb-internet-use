@@ -17,10 +17,11 @@ from tb_internet_use.toolcall.model import (
     MatchedFormat,
     ToolCallOutput,
     UnmatchedFormat,
+    handles_from_ids,
 )
 
 # The `tool_output_text` of a result whose tool showed no output, such as one whose
-# format has no tool output placeholder. It is None only with `tool_output_not_in_trajectory`.
+# format has no tool output placeholder. It is None only with `no_tool_output_text`.
 _NO_OUTPUT_TEXT = ""
 
 # values of the placeholders or JSON paths that matched
@@ -41,6 +42,9 @@ class HarnessResultFormat[AnnotatedOutputT](Protocol):
     @property
     def is_truncated(self) -> bool | None: ...
 
+    @property
+    def no_tool_output_text(self) -> bool: ...
+
     def match(self, annotated_output: AnnotatedOutputT) -> MatchedValues | None:
         """Return the values of its placeholders or JSON paths if the annotated output has this format, else None."""
         ...
@@ -49,12 +53,16 @@ class HarnessResultFormat[AnnotatedOutputT](Protocol):
         """The kind of the handles, taken from the matched values."""
         ...
 
+    def is_truncated_of(self, values: MatchedValues) -> bool | None:
+        """Whether the tool output is truncated, None when the result does not tell."""
+        ...
+
     def tool_output_text_of(self, values: MatchedValues) -> str | None:
         """Return `ToolCallOutput.tool_output_text`, built from the matched values.
 
         It is the value named `tool_output`, or what `text_from_matched_values` builds.
         It is `_NO_OUTPUT_TEXT` when the tool showed no output, and None when the format
-        has `tool_output_not_in_trajectory`.
+        has `no_tool_output_text`.
         """
         ...
 
@@ -66,8 +74,7 @@ class HarnessResultFormat[AnnotatedOutputT](Protocol):
 PLACEHOLDER_TYPE_PATTERNS = {
     # a whole number, with or without a minus sign
     "int": r"-?\d+",
-    # A whole number without a sign, e.g. an exit code. A negative exit code is a
-    # signal or sentinel, so it must not match.
+    # a whole number without a sign, e.g. after a fixed minus sign
     "uint": r"\d+",
     # Letters, digits, `_` and `-`, with dots inside but not at the end, e.g. a handle.
     "id": r"[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*",
@@ -84,8 +91,9 @@ PLACEHOLDER_TYPE_PATTERNS = {
     # A file listing with a line number before every line, e.g. "12\tcode" or " 12|code".
     "numbered_tab": r"(?:[ ]*\d+\t[^\n]*\n)*(?:[ ]*\d+(?:\t[^\n]*)?)?\n?",
     "numbered_pipe": r"(?:[ ]*\d+\|[^\n]*\n)*(?:[ ]*\d+(?:\|[^\n]*)?)?\n?",
-    # Like `text`, but some lines start with a line number and "→", e.g. every tenth line.
-    "partly_numbered_arrow": r"[\s\S]*?",
+    # Lines of which some start with a line number and "→", e.g. every tenth line,
+    # always with the first.
+    "partly_numbered_arrow": r"[ ]*\d+→[\s\S]*?",
 }
 
 # For the placeholder types that carry line numbers, the text after each number.
@@ -121,10 +129,18 @@ def template_regex(template: str) -> re.Pattern[str]:
 # Text helpers, shared with the harness converters.
 
 
-def strip_line_numbers(listing: str, separator: str) -> str:
-    """Remove the line numbers of a numbered file listing, including a bare final number."""
+def strip_line_numbers(listing: str, separator: str, *, every_line: bool = True) -> str:
+    """Remove the line numbers of a numbered file listing.
+
+    In a listing numbered on every line, a line that is only a number is an empty line
+    and loses the number too. In a partly numbered listing, such a line is content.
+    """
+    bare_number = "|$" if every_line else ""
     return re.sub(
-        rf"^[ ]*\d+(?:{re.escape(separator)}|$)", "", listing, flags=re.MULTILINE
+        rf"^[ ]*\d+(?:{re.escape(separator)}{bare_number})",
+        "",
+        listing,
+        flags=re.MULTILINE,
     )
 
 
@@ -159,7 +175,7 @@ class HarnessTextResultFormat:
 
         template          Output from command in shell {handle:id}:
                           {tool_output:text}
-                          Exit code: {exit_code:uint}
+                          Exit code: {exit_code:int}
 
         annotated output  Output from command in shell 3:
                           hello
@@ -186,9 +202,12 @@ class HarnessTextResultFormat:
     fixed_handle_kind: ExecutionHandleKind = ExecutionHandleKind.COMMAND
     # Builds text from the placeholders.
     text_from_matched_values: Callable[[MatchedValues], str | None] | None = None
-    # The tool returned content whose text is not in the trajectory, such as an
-    # image. `tool_output_text` is then None.
-    tool_output_not_in_trajectory: bool = False
+    # The trajectory holds no text of what the tool returned, such as an image.
+    # `tool_output_text` is then None, not "".
+    no_tool_output_text: bool = False
+    # Harness text left inside a tool output that the harness cut, as a template
+    # part. When `is_truncated` is None, a tool output holding it is truncated.
+    truncation_marker: str | None = None
 
     def match(self, annotated_output: str) -> MatchedValues | None:
         # The fixed text must be exactly as in the trajectory,
@@ -200,18 +219,26 @@ class HarnessTextResultFormat:
     def handle_kind_of(self, values: MatchedValues) -> ExecutionHandleKind:
         return self.fixed_handle_kind
 
+    def is_truncated_of(self, values: MatchedValues) -> bool | None:
+        if self.is_truncated is not None or self.truncation_marker is None:
+            return self.is_truncated
+        marker = template_regex(self.truncation_marker)
+        return True if marker.search(str(values.get("tool_output", ""))) else None
+
     def tool_output_text_of(self, values: MatchedValues) -> str | None:
-        if self.tool_output_not_in_trajectory:
+        if self.no_tool_output_text:
             return None
         if self.text_from_matched_values is not None:
             return self.text_from_matched_values(values)
         if "tool_output" not in values:
             return _NO_OUTPUT_TEXT
         text = str(values["tool_output"])
-        separator = _LINE_NUMBER_SEPARATOR_BY_TYPE.get(
-            self._placeholder_types().get("tool_output", "")
-        )
-        return strip_line_numbers(text, separator) if separator else text
+        placeholder_type = self._placeholder_types().get("tool_output", "")
+        separator = _LINE_NUMBER_SEPARATOR_BY_TYPE.get(placeholder_type)
+        if separator is None:
+            return text
+        every_line = placeholder_type != "partly_numbered_arrow"
+        return strip_line_numbers(text, separator, every_line=every_line)
 
     def _placeholder_types(self) -> dict[str, str]:
         return {
@@ -264,6 +291,11 @@ def _json_value(annotated_output: JsonObject, path: str) -> tuple[bool, Any]:
             return False, None
         value = value[key]
     return True, value
+
+
+def _json_text(value: Any) -> str:
+    """A JSON value as text. A string stays as it is, and any other value becomes JSON."""
+    return value if isinstance(value, str) else json.dumps(value, ensure_ascii=False)
 
 
 def _has_path(annotated_output: JsonObject, path: str) -> bool:
@@ -352,9 +384,9 @@ class HarnessJsonResultFormat:
     handle_kind_by_name: Mapping[str, ExecutionHandleKind] = field(default_factory=dict)
     # Builds text from the matched values.
     text_from_matched_values: Callable[[MatchedValues], str | None] | None = None
-    # The tool returned content whose text is not in the trajectory, such as a blob
-    # id. `tool_output_text` is then None.
-    tool_output_not_in_trajectory: bool = False
+    # The trajectory holds no text of what the tool returned, such as a file kept
+    # only as a blob id. `tool_output_text` is then None, not "".
+    no_tool_output_text: bool = False
 
     def match(self, annotated_output: JsonObject) -> MatchedValues | None:
         # The paths and the condition decide whether the result has this format.
@@ -373,9 +405,11 @@ class HarnessJsonResultFormat:
                     values[name] = value
             else:  # the parts of one tool output in order, or one handle each
                 found = (_json_value(annotated_output, path) for path in paths)
-                parts = [value for present, value in found if present]
+                parts = [value for present, value in found if value is not None]
                 values[name] = (
-                    join_text_parts(map(str, parts)) if name == "tool_output" else parts
+                    join_text_parts(map(_json_text, parts))
+                    if name == "tool_output"
+                    else parts
                 )
         return values
 
@@ -386,15 +420,19 @@ class HarnessJsonResultFormat:
             str(values.get("handle_kind_name")), ExecutionHandleKind.UNKNOWN
         )
 
+    def is_truncated_of(self, values: MatchedValues) -> bool | None:
+        if self.is_truncated is not None:
+            return self.is_truncated
+        truncated = values.get("is_truncated")
+        return truncated if isinstance(truncated, bool) else None
+
     def tool_output_text_of(self, values: MatchedValues) -> str | None:
-        if self.tool_output_not_in_trajectory:
+        if self.no_tool_output_text:
             return None
         if self.text_from_matched_values is not None:
             return self.text_from_matched_values(values)
         text = values.get("tool_output")
-        if text is None:
-            return _NO_OUTPUT_TEXT
-        return text if isinstance(text, str) else json.dumps(text, ensure_ascii=False)
+        return _NO_OUTPUT_TEXT if text is None else _json_text(text)
 
 
 @dataclass(frozen=True, slots=True)
@@ -439,13 +477,9 @@ class HarnessResultFormatList[AnnotatedOutputT]:
 def _handles(
     kind: ExecutionHandleKind, values: MatchedValues
 ) -> tuple[ExecutionHandle, ...]:
-    ids: list[Any] = []
-    if values.get("handle") not in (None, ""):
-        ids.append(values["handle"])
-    ids.extend(values.get("handles") or ())
-    return tuple(
-        ExecutionHandle(kind, str(handle_id)) for handle_id in ids if handle_id != ""
-    )
+    listed = values.get("handles")  # a list, but one id if a template names it
+    ids = listed if isinstance(listed, list) else [listed]
+    return handles_from_ids(kind, [values.get("handle"), *ids])
 
 
 def _exit_code(values: MatchedValues) -> int | None:
@@ -459,16 +493,13 @@ def _build_output(
     fmt: HarnessResultFormat[Any], values: MatchedValues
 ) -> ToolCallOutput:
     """Turn a matched format and its matched values into common types."""
-    truncated = values.get("is_truncated")
     return ToolCallOutput(
         tool_output_text=fmt.tool_output_text_of(values),
         execution_status=fmt.status,
         exit_code=_exit_code(values),
         handles=_handles(fmt.handle_kind_of(values), values),
         output_path=str(values["output_path"]) if values.get("output_path") else None,
-        is_truncated=fmt.is_truncated
-        if fmt.is_truncated is not None
-        else (truncated if isinstance(truncated, bool) else None),
+        is_truncated=fmt.is_truncated_of(values),
         harness_result_format=MatchedFormat(fmt.name),
     )
 

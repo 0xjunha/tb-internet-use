@@ -2,10 +2,16 @@
 
 import json
 import re
-from typing import ClassVar
+from dataclasses import replace
+from typing import Any, ClassVar
 
 from tb_internet_use.toolcall.harnesses.base import HarnessToolCallConverter
-from tb_internet_use.toolcall.model import ExecutionStatus
+from tb_internet_use.toolcall.model import (
+    ExecutionHandleKind,
+    ExecutionStatus,
+    RawToolCall,
+    ToolCallOutput,
+)
 from tb_internet_use.toolcall.result_formats import (
     HarnessJsonResultFormat,
     HarnessResultFormatList,
@@ -13,6 +19,7 @@ from tb_internet_use.toolcall.result_formats import (
     JsonCondition,
     JsonObject,
     MatchedValues,
+    template_regex,
 )
 
 S = ExecutionStatus
@@ -26,7 +33,14 @@ _SHELL_FIELDS = {
 }
 # Muse starts the output with this note when it replaced bytes that are not UTF-8.
 _REPLACED_BYTES_NOTE = re.compile(
-    r"\[unified exec output: \d+ invalid UTF-8 bytes replaced with U\+FFFD\]\n?"
+    r"\[unified exec output: \d+ invalid UTF-8 bytes? replaced with U\+FFFD\]\n?"
+)
+# Muse ends a truncated shell output with this reminder, which names the full output's file.
+_SAVED_OUTPUT_REMINDER = template_regex(
+    "{tool_output:text}\n<system-reminder>\nFull output saved to: {output_path:line}\n"
+    "Full output is longer than the visible window.\n"
+    "Use bash tools like head, tail, cat, sed, or grep to inspect and search the full output.\n"
+    "</system-reminder>"
 )
 
 
@@ -152,7 +166,7 @@ _READ_FILE = HarnessResultFormatList[str](
             "image",
             "Read image file `{path:line}` as model-visible image output.\nmedia_type: {media:rest_of_line}\nsource_bytes: {bytes:int}",
             S.FINISHED,
-            tool_output_not_in_trajectory=True,
+            no_tool_output_text=True,
         ),
         Text("rejected", "tool failed: {reason:text}", S.NOT_RUN),
     )
@@ -171,25 +185,39 @@ _WRITE_FILE = HarnessResultFormatList[str](
 _EDIT_FILE = HarnessResultFormatList[str](
     (
         Text("edited", "edited\n{detail:text}", S.FINISHED),
-        Text("edited_bare", "edited", S.FINISHED),
         Text("rejected", "tool failed: {reason:text}", S.NOT_RUN),
     )
 )
 
 
+_SHELL_TOOLS = ("bash", "bash_input")
+
+
 class MuseCodeConverter(HarnessToolCallConverter):
     stop_tools: ClassVar[frozenset[str]] = frozenset({"work_stop"})
+    # a background bash session
+    argument_handle_kinds: ClassVar = {"bash_input": ExecutionHandleKind.COMMAND}
     json_formats: ClassVar = {
-        "bash": _SHELL,
-        "bash_input": _SHELL,
+        **dict.fromkeys(_SHELL_TOOLS, _SHELL),
         "work_stop": _WORK_STOP,
         "web_search": _WEB_SEARCH,
         "monitor": _MONITOR,
     }
     text_formats: ClassVar = {
-        "bash": _SHELL_TEXT,
-        "bash_input": _SHELL_TEXT,
+        **dict.fromkeys(_SHELL_TOOLS, _SHELL_TEXT),
         "read_file": _READ_FILE,
         "write_file": _WRITE_FILE,
         "edit_file": _EDIT_FILE,
     }
+
+    def parse_output(self, raw: RawToolCall, result: dict[str, Any]) -> ToolCallOutput:
+        output = super().parse_output(raw, result)
+        text = output.tool_output_text
+        found = _SAVED_OUTPUT_REMINDER.fullmatch(text) if text else None
+        if raw.tool.name not in _SHELL_TOOLS or found is None:
+            return output
+        return replace(
+            output,
+            tool_output_text=found["tool_output"],
+            output_path=found["output_path"],
+        )

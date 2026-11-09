@@ -56,7 +56,6 @@ _RUN_TERMINAL_COMMAND = HarnessResultFormatList[str](
             True,
         ),
         Text("exited", "exit: {exit_code:int}\n{tool_output:text}", S.FINISHED),
-        Text("exited_silent", "exit: {exit_code:int}", S.FINISHED),
         Text(
             "killed_truncated",
             "exit: killed (signal {signal:int})"
@@ -124,7 +123,6 @@ _GET_OUTPUT = HarnessResultFormatList[str](
             True,
         ),
         Text("done", _DONE + "{tool_output:text}", S.FINISHED),
-        Text("failed_empty", _FAILED + "(no output)", S.FINISHED),
         Text(
             "failed_empty_truncated",
             _FAILED + "(no output)" + _TRUNCATED_TAIL,
@@ -141,15 +139,6 @@ _GET_OUTPUT = HarnessResultFormatList[str](
         Text("failed_signaled_empty", _FAILED_SIGNALED + "(no output)", S.KILLED),
         Text("failed_signaled", _FAILED_SIGNALED + "{tool_output:text}", S.KILLED),
         Text(
-            "running_empty", _RUNNING + "(no output)\n\n{note:rest_of_line}", S.RUNNING
-        ),
-        Text(
-            "running_empty_truncated",
-            _RUNNING + "(no output)\n\n{note:rest_of_line}" + _TRUNCATED_TAIL,
-            S.RUNNING,
-            True,
-        ),
-        Text(
             "running_truncated",
             _RUNNING + "{tool_output:text}\n\n{note:rest_of_line}" + _TRUNCATED_TAIL,
             S.RUNNING,
@@ -158,10 +147,7 @@ _GET_OUTPUT = HarnessResultFormatList[str](
         Text(
             "running", _RUNNING + "{tool_output:text}\n\n{note:rest_of_line}", S.RUNNING
         ),
-        Text("running_no_note", _RUNNING + "{tool_output:text}", S.RUNNING),
         Text("cancelled_empty", _CANCELLED + "(no output)", S.KILLED),
-        Text("cancelled", _CANCELLED + "{tool_output:text}", S.KILLED),
-        Text("timed_out_empty", _TIMED_OUT + "(no output)", S.TIMED_OUT),
         Text("timed_out", _TIMED_OUT + "{tool_output:text}", S.TIMED_OUT),
         Text(
             "multi_wait",
@@ -177,6 +163,7 @@ _GET_OUTPUT = HarnessResultFormatList[str](
             "unknown_task",
             "Task {handle:id} not found. Known task IDs: {known:rest_of_line}",
             S.NOT_RUN,
+            fixed_handle_kind=ExecutionHandleKind.UNKNOWN,  # nothing confirms the id
         ),
     ),
     notices=_NOTICES,
@@ -192,6 +179,7 @@ _KILL = HarnessResultFormatList[str](
             "unknown_task",
             "Task or subagent {handle:id} not found. {reason:text}",
             S.NOT_RUN,
+            fixed_handle_kind=ExecutionHandleKind.UNKNOWN,
         ),
     ),
     notices=_NOTICES,
@@ -214,13 +202,13 @@ _READ_FILE = HarnessResultFormatList[str](
             "image",
             "Read image file: {path:rest_of_line}",
             S.FINISHED,
-            tool_output_not_in_trajectory=True,
+            no_tool_output_text=True,
         ),
         Text(
             "pdf",
             "Read PDF file: {path:line} ({pages:line_without_brackets} pages rendered, {total:int} total)",
             S.FINISHED,
-            tool_output_not_in_trajectory=True,
+            no_tool_output_text=True,
         ),
         Text("empty", "File is empty.", S.FINISHED),
         Text(
@@ -229,6 +217,8 @@ _READ_FILE = HarnessResultFormatList[str](
             S.FINISHED,
         ),
         Text("missing", "Error: {path:line} does not exist.", S.NOT_RUN),
+        Text("directory", "Error: {path:line} is a directory, not a file.", S.NOT_RUN),
+        Text("binary", "Cannot read binary file: {path:rest_of_line}", S.NOT_RUN),
         Text(
             "too_large",
             "File content ({size:line_without_brackets}) exceeds maximum allowed tokens ({limit:line_without_brackets}).{rest:text}",

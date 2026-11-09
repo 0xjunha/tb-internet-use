@@ -36,11 +36,18 @@ CATALOG_COLUMNS = [
     "template",
     "status",
     "is_truncated",
+    "no_tool_output_text",
     "handle_kind",
     "reviewed",
 ]
 # A hand review stays only while these columns of its row stay the same.
-REVIEWED_LABELS = ("template", "status", "is_truncated", "handle_kind")
+REVIEWED_LABELS = (
+    "template",
+    "status",
+    "is_truncated",
+    "no_tool_output_text",
+    "handle_kind",
+)
 
 
 def catalog_rows() -> list[dict[str, str]]:
@@ -57,9 +64,10 @@ def catalog_rows() -> list[dict[str, str]]:
                         "kind": format_kind(fmt),
                         "template": describe_format(fmt),
                         "status": fmt.status.value,
-                        "is_truncated": ""
-                        if fmt.is_truncated is None
-                        else str(fmt.is_truncated),
+                        "is_truncated": is_truncated_label(fmt),
+                        "no_tool_output_text": "True"
+                        if fmt.no_tool_output_text
+                        else "",
                         "handle_kind": handle_kind_label(fmt),
                         "reviewed": "",
                     }
@@ -91,6 +99,17 @@ def describe_format(fmt: HarnessResultFormat[Any]) -> str:
         condition = fmt.condition
         rules.append(f"{condition.path} {condition.op} {condition.value!r}")
     return " ".join(rules)
+
+
+def is_truncated_label(fmt: HarnessResultFormat[Any]) -> str:
+    """`True`, `False`, empty when the format does not tell, or what in the result tells, for the catalog."""
+    if fmt.is_truncated is not None:
+        return str(fmt.is_truncated)
+    if isinstance(fmt, HarnessTextResultFormat) and fmt.truncation_marker:
+        return f"when {fmt.truncation_marker}"
+    if isinstance(fmt, HarnessJsonResultFormat) and "is_truncated" in fmt.value_paths:
+        return f"by {fmt.value_paths['is_truncated']}"
+    return ""
 
 
 def handle_kind_label(fmt: HarnessResultFormat[Any]) -> str:

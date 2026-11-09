@@ -1,12 +1,18 @@
 """Codex tool call converter."""
 
+from dataclasses import replace
 from typing import Any, ClassVar
 
-from tb_internet_use.toolcall.harnesses.base import HarnessToolCallConverter
+from tb_internet_use.toolcall.harnesses.base import (
+    HarnessToolCallConverter,
+    string_tuple,
+)
 from tb_internet_use.toolcall.model import (
     Action,
+    ExecutionHandleKind,
     ExecutionStatus,
     MatchedFormat,
+    PollAction,
     RawToolCall,
     ToolCallOutput,
     UnknownAction,
@@ -61,12 +67,6 @@ _SHELL = HarnessResultFormatList[str](
             + "Exit code: {exit_code:int}\nWall time: {seconds2:line_without_brackets} seconds\nOutput:\n{tool_output:text}",
             S.FINISHED,
         ),
-        Text(
-            "v2_running",
-            _V2
-            + "Process running with session ID {handle:int}\nWall time: {seconds2:line_without_brackets} seconds\nOutput:\n{tool_output:text}",
-            S.RUNNING,
-        ),
         Text("rejected", "exec_command failed: {reason:text}", S.NOT_RUN),
         Text(
             "rejected_command",
@@ -83,32 +83,61 @@ _SHELL = HarnessResultFormatList[str](
 )
 
 _WEB_SEARCH_CALL = "web_search_call"
+# Ctrl-C sent through write_stdin stops the process, which then exits with 130.
+_CTRL_C = "\x03"
+_SIGINT_EXIT_CODE = 130
 _NO_CONTENT = ToolCallOutput(
     execution_status=S.FINISHED, harness_result_format=MatchedFormat("no_content")
 )
 
 
+def _search_queries(args: dict[str, Any]) -> tuple[str, ...]:
+    """Every query of a search, in order and without repeats. `query` holds only the first."""
+    queries = args.get("queries")
+    if not isinstance(queries, list) or not queries:
+        queries = [args.get("query")]
+    return tuple(dict.fromkeys(str(query) for query in queries if query))
+
+
+def _sends_ctrl_c(raw: RawToolCall) -> bool:
+    return raw.tool.name == "write_stdin" and _CTRL_C in str(raw.args.get("chars", ""))
+
+
 class CodexConverter(HarnessToolCallConverter):
     text_formats: ClassVar = {"exec_command": _SHELL, "write_stdin": _SHELL}
+    argument_handle_kinds: ClassVar = {
+        "write_stdin": ExecutionHandleKind.COMMAND,  # an exec_command session
+        "wait": ExecutionHandleKind.SCRIPT,  # an exec cell
+    }
 
     def parse_output(self, raw: RawToolCall, result: dict[str, Any]) -> ToolCallOutput:
         if raw.tool.name == _WEB_SEARCH_CALL and result.get("content") is None:
             return _NO_CONTENT
-        return super().parse_output(raw, result)
+        output = super().parse_output(raw, result)
+        if _sends_ctrl_c(raw) and output.exit_code == _SIGINT_EXIT_CODE:
+            output = replace(output, execution_status=S.KILLED, exit_code=None)
+        return output
+
+    def refine_action(
+        self, raw: RawToolCall, action: Action, output: ToolCallOutput | None
+    ) -> Action:
+        action = super().refine_action(raw, action, output)
+        if isinstance(action, PollAction) and _sends_ctrl_c(raw):
+            action = replace(action, terminate=True)
+        return action
 
     def deferred_action(
         self, raw: RawToolCall, output: ToolCallOutput | None
     ) -> Action:
         if raw.tool.name != _WEB_SEARCH_CALL:
             return UnknownAction()
-        query = raw.args.get("query")
         url = raw.args.get("url")
         match raw.args.get("action_type"):
             case "search":
-                return WebSearchAction((str(query),) if query else ())
+                return WebSearchAction(_search_queries(raw.args))
             case "open_page":
-                return WebFetchAction((str(url),) if url else ())
+                return WebFetchAction(string_tuple(url))
             case "find_in_page":
-                return WebFindAction((str(url),) if url else ())
+                return WebFindAction(string_tuple(url))
             case _:
                 return UnknownAction()

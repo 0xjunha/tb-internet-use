@@ -11,14 +11,17 @@ from tb_internet_use.toolcall.catalog_loader import (
     load_catalog,
 )
 from tb_internet_use.toolcall.harnesses import converter_for
-from tb_internet_use.toolcall.harnesses.base import HarnessToolCallConverter
+from tb_internet_use.toolcall.harnesses.base import (
+    HarnessToolCallConverter,
+    string_tuple,
+)
 from tb_internet_use.toolcall.model import (
     Action,
-    ExecutionHandle,
     ExecutionHandleKind,
     RawToolCall,
     ToolCall,
     UnknownAction,
+    handles_from_ids,
 )
 
 _CATALOG = load_catalog()
@@ -28,14 +31,10 @@ def _field_value(field_name: str, value: Any) -> Any:
     """Turn an argument in the trajectory into the type of its Action field."""
     match field_name:
         case "queries" | "urls":
-            return (value,)
+            return string_tuple(value)
         case "handles":
             ids = value if isinstance(value, list) else [value]
-            return tuple(
-                ExecutionHandle(ExecutionHandleKind.UNKNOWN, str(handle_id))
-                for handle_id in ids
-                if handle_id != ""
-            )
+            return handles_from_ids(ExecutionHandleKind.UNKNOWN, ids)
         case "input":
             return value or None
         case "offset" | "limit":

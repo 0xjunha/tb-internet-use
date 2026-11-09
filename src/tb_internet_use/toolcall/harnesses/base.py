@@ -7,6 +7,7 @@ from typing import Any, ClassVar
 
 from tb_internet_use.toolcall.model import (
     Action,
+    ExecutionHandleKind,
     PollAction,
     RawToolCall,
     ToolCallOutput,
@@ -32,6 +33,11 @@ def _decode_json(raw_text: str | None) -> dict[str, Any] | None:
     return decoded if isinstance(decoded, dict) else None
 
 
+def string_tuple(value: Any) -> tuple[str, ...]:
+    """An argument as the strings of an Action field, empty when it is missing or empty."""
+    return () if value in (None, "") else (str(value),)
+
+
 def join_content_items(items: Any) -> str | None:
     """The text of a list of content items (`{"type": "text", "text": ...}`). Images give nothing."""
     if not isinstance(items, list):
@@ -50,6 +56,7 @@ class HarnessToolCallConverter:
     Each harness declares
     - `text_formats` and `json_formats`, its result formats per tool
     - `stop_tools`, its tools that stop something started earlier
+    - `argument_handle_kinds`, the handle kind of its poll tools' arguments
 
     The shared flow in convert.py calls
     - `parse_output`, which builds a ToolCallOutput from the declared formats through
@@ -62,6 +69,9 @@ class HarnessToolCallConverter:
 
     # Tools that stop something started earlier. Their PollAction gets terminate=True.
     stop_tools: ClassVar[frozenset[str]] = frozenset()
+    # The kind of the handles a poll tool takes as arguments, for tools whose
+    # arguments always name one kind of target.
+    argument_handle_kinds: ClassVar[Mapping[str, ExecutionHandleKind]] = {}
     # Result formats per tool name. Tools absent from both get no formats.
     text_formats: ClassVar[Mapping[str, HarnessResultFormatList[str]]] = {}
     json_formats: ClassVar[Mapping[str, HarnessResultFormatList[JsonObject]]] = {}
@@ -131,12 +141,17 @@ class HarnessToolCallConverter:
         """Fill fields of an Action that the tool call catalog cannot express.
 
         By default, a PollAction takes the handles the result named, which carry the
-        kind the catalog does not know, and a stop tool's PollAction is a terminate.
+        kind the catalog does not know. When the result names none, its argument
+        handles take the kind in `argument_handle_kinds`, if the tool has one. A stop
+        tool's PollAction is a terminate.
         """
         if not isinstance(action, PollAction):
             return action
         if output is not None and output.handles:
             action = replace(action, handles=output.handles)
+        elif kind := self.argument_handle_kinds.get(raw.tool.name):
+            handles = tuple(replace(handle, kind=kind) for handle in action.handles)
+            action = replace(action, handles=handles)
         if raw.tool.name in self.stop_tools:
             action = replace(action, terminate=True)
         return action

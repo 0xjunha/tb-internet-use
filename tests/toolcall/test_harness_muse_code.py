@@ -113,7 +113,7 @@ def test_bash_input_cancelled_is_killed_and_polls_the_session():
     )
     assert call.output is not None and call.output.execution_status is S.KILLED
     assert call.action == PollAction(
-        (ExecutionHandle(ExecutionHandleKind.UNKNOWN, "4"),), None, True
+        (ExecutionHandle(ExecutionHandleKind.COMMAND, "4"),), None, True
     )
 
 
@@ -233,3 +233,46 @@ def test_bash_output_loses_the_note_about_replaced_bytes():
     ).output
     assert output is not None
     assert (output.tool_output_text, output.exit_code) == ("ok\n", 0)
+    single = "[unified exec output: 1 invalid UTF-8 byte replaced with U+FFFD]\nok"
+    output = convert_call(
+        _raw(
+            "bash",
+            {"command": "x"},
+            {
+                "terminal_status": "completed",
+                "exit_code": 0,
+                "output": single,
+                "truncated": False,
+            },
+        ),
+        CONVERTER,
+    ).output
+    assert output is not None and output.tool_output_text == "ok"
+
+
+def test_truncated_bash_output_loses_the_reminder_and_names_the_saved_file():
+    reminder = (
+        "\n<system-reminder>\nFull output saved to: /tmp/out.log\n"
+        "Full output is longer than the visible window.\n"
+        "Use bash tools like head, tail, cat, sed, or grep to inspect and search the full output.\n"
+        "</system-reminder>"
+    )
+    output = convert_call(
+        _raw(
+            "bash",
+            {"command": "x"},
+            {
+                "terminal_status": "completed",
+                "exit_code": 0,
+                "output": "first lines" + reminder,
+                "truncated": True,
+            },
+        ),
+        CONVERTER,
+    ).output
+    assert output is not None
+    assert (output.tool_output_text, output.output_path, output.is_truncated) == (
+        "first lines",
+        "/tmp/out.log",
+        True,
+    )

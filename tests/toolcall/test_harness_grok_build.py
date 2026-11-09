@@ -13,6 +13,7 @@ from tb_internet_use.toolcall.model import (
     PollAction,
     RawToolCall,
     ToolCallKey,
+    UnmatchedFormat,
 )
 
 S = ExecutionStatus
@@ -111,7 +112,7 @@ def test_poll_single_task_states():
     )
     running = (
         TASK
-        + "Status: running\nDuration: 1.0s\nOutput File: /t.log\n\n=== Output ===\n(no output)\n\nWaited the requested 5s; the task is still running."
+        + "Status: running\nDuration: 1.0s\nOutput File: /t.log\n\n=== Output ===\npartial\n\nWaited the requested 5s; the task is still running."
     )
     output = convert_call(
         _raw("get_command_or_subagent_output", {"task_ids": ["call1"]}, running),
@@ -122,8 +123,38 @@ def test_poll_single_task_states():
         output.tool_output_text,
     ) == (
         S.RUNNING,
-        "",
+        "partial",
     )
+
+
+def test_unknown_task_id_has_unknown_kind():
+    call = convert_call(
+        _raw(
+            "kill_command_or_subagent",
+            {"task_id": "x9"},
+            "Task or subagent x9 not found. It may have finished.",
+        ),
+        CONVERTER,
+    )
+    assert call.output is not None and call.output.execution_status is S.NOT_RUN
+    assert call.action == PollAction(
+        (ExecutionHandle(ExecutionHandleKind.UNKNOWN, "x9"),), None, True
+    )
+
+
+def test_read_file_errors_are_not_run_not_listings():
+    for text in (
+        "Error: /d is a directory, not a file.",
+        "Cannot read binary file: /b",
+    ):
+        output = convert_call(_raw("read_file", {"path": "/f"}, text), CONVERTER).output
+        assert output is not None and output.execution_status is S.NOT_RUN
+    # A listing starts with a numbered line, so another error is no listing.
+    output = convert_call(
+        _raw("read_file", {"path": "/f"}, "Error: new"), CONVERTER
+    ).output
+    assert output is not None
+    assert output.harness_result_format == UnmatchedFormat.UNKNOWN
 
 
 def test_multi_wait_takes_the_shared_state_and_every_task_id():

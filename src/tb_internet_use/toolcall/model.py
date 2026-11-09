@@ -1,5 +1,6 @@
 """Harness-agnostic common types for tool calls in ATIF trajectories"""
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from enum import Enum, StrEnum
 from typing import Any, final
@@ -35,6 +36,13 @@ class ExecutionHandle:
 
     kind: ExecutionHandleKind
     id: str
+
+
+def handles_from_ids(
+    kind: ExecutionHandleKind, ids: Iterable[Any]
+) -> tuple[ExecutionHandle, ...]:
+    """Handles of one kind for the ids, skipping missing and empty ones."""
+    return tuple(ExecutionHandle(kind, str(i)) for i in ids if i not in (None, ""))
 
 
 @dataclass(frozen=True, slots=True)
@@ -164,7 +172,7 @@ class ToolCallOutput:
     """What a tool call returned, in common types."""
 
     # The tool output as plain text, e.g. without line numbers. "" when the tool
-    # showed no output, None when the format has `tool_output_not_in_trajectory`.
+    # showed no output, None when the format has `no_tool_output_text`.
     # When no format matched, the raw text as is.
     tool_output_text: str | None = None
     execution_status: ExecutionStatus = ExecutionStatus.UNKNOWN

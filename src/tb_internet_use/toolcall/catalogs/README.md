@@ -23,12 +23,18 @@ an existing file, so it cannot erase them.
 in the order the formats are tried.
 [build_harness_result_format_catalog.py](../../../../scripts/build_harness_result_format_catalog.py)
 writes it from the code alone, without reading any trajectory. Only `reviewed` is filled
-by hand, and it is kept as long as `template`, `status`, `is_truncated` and
-`handle_kind` stay the same. A test checks that the committed file matches the code.
+by hand, and it is kept as long as `template`, `status`, `is_truncated`,
+`no_tool_output_text` and `handle_kind` stay the same. A test checks that the committed
+file matches the code.
 
 - **`kind`:** `text` or `json`.
 - **`template`:** the template of a text format, or the present paths, absent paths and
   condition of a JSON format.
+- **`is_truncated`:** `True` or `False` for every result of the format, empty when the
+  format does not tell, `when <marker>` when a marker in the tool output tells, or
+  `by <path>` when the value at that path of the result tells.
+- **`no_tool_output_text`:** `True` when the trajectory holds no text of what the tool
+  returned, e.g. an image, so `tool_output_text` is None.
 - **`handle_kind`:** kind of the handles the format gives; `by <path>`, e.g.
   `by task.task_type`, means the value at that path of the result names the kind.
 
