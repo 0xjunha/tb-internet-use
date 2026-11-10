@@ -95,6 +95,7 @@ def test_describe_format_gives_the_template_or_the_json_rules():
 
 def test_handle_kind_label_names_the_path_when_the_result_names_the_kind():
     assert handle_kind_label(BACKGROUND) == "command"
+    assert handle_kind_label(EXITED) == ""  # it reads no handle
     by_name = Json(
         "task",
         S.RUNNING,

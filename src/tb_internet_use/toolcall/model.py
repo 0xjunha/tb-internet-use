@@ -195,6 +195,7 @@ class ToolCallOutput:
     exit_code: int | None = None  # real exit codes only
     # The HTTP status a web fetch reports. A fetch has no exit code to hold it.
     http_status: int | None = None
+    # For a PollAction, the target the result named. Otherwise what this call started.
     handles: tuple[ExecutionHandle, ...] = ()
     output_path: str | None = None  # file holding the full output
     is_truncated: bool | None = None  # None when the trajectory says nothing

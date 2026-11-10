@@ -140,12 +140,28 @@ def is_truncated_label(fmt: HarnessResultFormat[Any]) -> str:
 
 
 def handle_kind_label(fmt: HarnessResultFormat[Any]) -> str:
-    """The handle kind a format gives, or the JSON path whose value names it, for the catalog."""
+    """The handle kind a format gives, or the JSON path whose value names it, for the catalog.
+
+    Empty when the format reads no handle from the result.
+    """
+    if not _gives_handles(fmt):
+        return ""
     if isinstance(fmt, HarnessJsonResultFormat) and fmt.handle_kind_by_name:
         return f"by {fmt.value_paths['handle_kind_name']}"
     if not isinstance(fmt, HarnessTextResultFormat | HarnessJsonResultFormat):
         raise TypeError(f"unknown result format kind {type(fmt).__name__}")
     return fmt.fixed_handle_kind.value
+
+
+def _gives_handles(fmt: HarnessResultFormat[Any]) -> bool:
+    """Whether the format reads a handle from the result."""
+    if isinstance(fmt, HarnessTextResultFormat):
+        names = {p[1] for p in PLACEHOLDER_REGEX.finditer(fmt.template)}
+    elif isinstance(fmt, HarnessJsonResultFormat):
+        names = set(fmt.value_paths)
+    else:
+        raise TypeError(f"unknown result format kind {type(fmt).__name__}")
+    return bool(names & {"handle", "handles"})
 
 
 def all_matches(

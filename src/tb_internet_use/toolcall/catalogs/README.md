@@ -28,9 +28,10 @@ are filled by hand. `reviewed` is kept as long as `template`, `status`, `is_trun
 checks that the committed file matches the code.
 
 A row is what the format declares. A converter's `parse_output` may still change
-`status`, `is_truncated` or `no_tool_output_text` after the match, e.g. the status of a
-Grok multi-wait, a Codex Ctrl-C or a negative Devin exit code, `is_truncated` from Claude
-Code's structured result, and no tool output text for a Codex script that printed only images.
+`status`, `is_truncated`, `no_tool_output_text` or the handles after the match, e.g. the
+status and handles of a Grok multi-wait, the status of a Codex Ctrl-C or a negative Devin
+exit code, `is_truncated` from Claude Code's structured result, and no tool output text for
+a Codex script that printed only images.
 
 - **`kind`:** `text` or `json`.
 - **`template`:** the template of a text format, or the present paths, absent paths and
@@ -41,7 +42,7 @@ Code's structured result, and no tool output text for a Codex script that printe
   `by <path>` when the value at that path of the result tells.
 - **`no_tool_output_text`:** `True` when the trajectory holds no text of what the tool
   returned, e.g. an image, so `tool_output_text` is None.
-- **`handle_kind`:** kind of the handles the format gives; `by <path>`, e.g.
+- **`handle_kind`:** kind of the handles the format gives, empty when it gives none; `by <path>`, e.g.
   `by task.task_type`, means the value at that path of the result names the kind.
 
 ## Result format audit
