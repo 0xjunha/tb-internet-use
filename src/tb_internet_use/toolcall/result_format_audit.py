@@ -52,14 +52,6 @@ REVIEWED_LABELS = (
 )
 
 
-def iter_declared_formats() -> Iterator[tuple[str, str, HarnessResultFormat[Any]]]:
-    """Every declared format with its harness and tool, in the order the formats are tried."""
-    for harness, converter in CONVERTERS.items():
-        for tool, formats in converter.declared_formats():
-            for fmt in formats.formats:
-                yield harness, tool, fmt
-
-
 def catalog_rows() -> list[dict[str, str]]:
     """One catalog row per declared format, in the order the formats are tried, with `reviewed` and `note` empty."""
     return [
@@ -78,27 +70,6 @@ def catalog_rows() -> list[dict[str, str]]:
         }
         for harness, tool, fmt in iter_declared_formats()
     ]
-
-
-def with_kept_reviews(
-    rows: list[dict[str, str]], previous_rows: list[dict[str, str]]
-) -> list[dict[str, str]]:
-    """The rows with the hand-filled values of the previous catalog.
-
-    A review covers the declaration it saw, so `reviewed` stays only while the row's labels
-    are unchanged. A `note` always stays, until it is removed by hand.
-    """
-    previous = {(r["harness"], r["tool"], r["format"]): r for r in previous_rows}
-    kept: list[dict[str, str]] = []
-    for row in rows:
-        old = previous.get((row["harness"], row["tool"], row["format"]))
-        unchanged = old is not None and all(
-            old.get(column, "") == row[column] for column in REVIEWED_LABELS
-        )
-        review = old.get("reviewed", "") if old and unchanged else ""
-        note = old.get("note", "") if old else ""
-        kept.append({**row, "reviewed": review, "note": note})
-    return kept
 
 
 def format_kind(fmt: HarnessResultFormat[Any]) -> str:
@@ -162,6 +133,35 @@ def _gives_handles(fmt: HarnessResultFormat[Any]) -> bool:
     else:
         raise TypeError(f"unknown result format kind {type(fmt).__name__}")
     return bool(names & {"handle", "handles"})
+
+
+def iter_declared_formats() -> Iterator[tuple[str, str, HarnessResultFormat[Any]]]:
+    """Every declared format with its harness and tool, in the order the formats are tried."""
+    for harness, converter in CONVERTERS.items():
+        for tool, formats in converter.declared_formats():
+            for fmt in formats.formats:
+                yield harness, tool, fmt
+
+
+def with_kept_reviews(
+    rows: list[dict[str, str]], previous_rows: list[dict[str, str]]
+) -> list[dict[str, str]]:
+    """The rows with the hand-filled values of the previous catalog.
+
+    A review covers the declaration it saw, so `reviewed` stays only while the row's labels
+    are unchanged. A `note` always stays, until it is removed by hand.
+    """
+    previous = {(r["harness"], r["tool"], r["format"]): r for r in previous_rows}
+    kept: list[dict[str, str]] = []
+    for row in rows:
+        old = previous.get((row["harness"], row["tool"], row["format"]))
+        unchanged = old is not None and all(
+            old.get(column, "") == row[column] for column in REVIEWED_LABELS
+        )
+        review = old.get("reviewed", "") if old and unchanged else ""
+        note = old.get("note", "") if old else ""
+        kept.append({**row, "reviewed": review, "note": note})
+    return kept
 
 
 def all_matches(

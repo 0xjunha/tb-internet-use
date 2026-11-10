@@ -18,12 +18,22 @@ _AGENT_LOOP_MESSAGE_PREFIX = "Tool call error"
 _MINI_SWE_AGENT = "mini-swe-agent"
 
 
-class TrajectoryStatus(StrEnum):
-    """Whether a trial's trajectory could be read."""
+def read_trial_tool_calls(trial_dir: Path) -> TrialToolCalls:
+    """Read one trial's tool calls."""
+    trial_id = trial_dir.name
+    try:
+        trajectory = json.loads((trial_dir / "trajectory.json").read_bytes())
+    except FileNotFoundError:
+        return TrialToolCalls(trial_id, TrajectoryStatus.MISSING)
+    except ValueError:  # broken JSON or UTF-8
+        return TrialToolCalls(trial_id, TrajectoryStatus.INVALID_JSON)
 
-    OK = "ok"
-    MISSING = "missing"
-    INVALID_JSON = "invalid_json"
+    try:
+        calls = tuple(iter_tool_calls(trajectory, trial_id))
+    except Exception as error:
+        error.add_note(f"trial_id: {trial_id}")
+        raise
+    return TrialToolCalls(trial_id, TrajectoryStatus.OK, calls)
 
 
 @dataclass(frozen=True, slots=True)
@@ -33,6 +43,55 @@ class TrialToolCalls:
     trial_id: str
     trajectory_status: TrajectoryStatus
     calls: tuple[RawToolCall, ...] = ()  # empty if the trajectory cannot be read
+
+
+class TrajectoryStatus(StrEnum):
+    """Whether a trial's trajectory could be read."""
+
+    OK = "ok"
+    MISSING = "missing"
+    INVALID_JSON = "invalid_json"
+
+
+def iter_tool_calls(trajectory: dict[str, Any], trial_id: str) -> Iterator[RawToolCall]:
+    """Yield every tool call in a trajectory, including its subagents' calls."""
+    version = trajectory["schema_version"]
+    if version not in _SUPPORTED_SCHEMA_VERSIONS:
+        raise ValueError(f"unsupported ATIF schema version: {version}")
+
+    harness = trajectory["agent"]["name"]
+    yield from _walk_trajectory(trajectory, trial_id, harness, "main", False)
+
+
+def _walk_trajectory(
+    trajectory: dict[str, Any],
+    trial_id: str,
+    harness: str,
+    trajectory_id: str,
+    is_subagent: bool,
+) -> Iterator[RawToolCall]:
+    """Yield the tool calls of a trajectory, then those of its subagents."""
+    for step in trajectory["steps"]:
+        calls = step.get("tool_calls") or []
+        results = (step.get("observation") or {}).get("results") or []
+        results = _drop_agent_loop_messages(harness, results)
+        is_sidechain = bool((step.get("extra") or {}).get("is_sidechain"))
+
+        pairs = _pair_calls_with_results(calls, results)
+        for call_index, (call, result) in enumerate(pairs):
+            yield RawToolCall(
+                key=ToolCallKey(trial_id, trajectory_id, step["step_id"], call_index),
+                tool=HarnessTool(harness, call["function_name"]),
+                tool_call_id=call["tool_call_id"],
+                args=call["arguments"],
+                result=result,
+                is_subagent=is_subagent or is_sidechain,
+            )
+
+    for index, subagent in enumerate(trajectory.get("subagent_trajectories") or []):
+        yield from _walk_trajectory(
+            subagent, trial_id, harness, f"{trajectory_id}/sub{index}", True
+        )
 
 
 def _drop_agent_loop_messages(
@@ -84,62 +143,3 @@ def _pair_calls_with_results(
             paired[idx] = result
 
     return list(zip(calls, paired, strict=True))
-
-
-def _walk_trajectory(
-    trajectory: dict[str, Any],
-    trial_id: str,
-    harness: str,
-    trajectory_id: str,
-    is_subagent: bool,
-) -> Iterator[RawToolCall]:
-    """Yield the tool calls of a trajectory, then those of its subagents."""
-    for step in trajectory["steps"]:
-        calls = step.get("tool_calls") or []
-        results = (step.get("observation") or {}).get("results") or []
-        results = _drop_agent_loop_messages(harness, results)
-        is_sidechain = bool((step.get("extra") or {}).get("is_sidechain"))
-
-        pairs = _pair_calls_with_results(calls, results)
-        for call_index, (call, result) in enumerate(pairs):
-            yield RawToolCall(
-                key=ToolCallKey(trial_id, trajectory_id, step["step_id"], call_index),
-                tool=HarnessTool(harness, call["function_name"]),
-                tool_call_id=call["tool_call_id"],
-                args=call["arguments"],
-                result=result,
-                is_subagent=is_subagent or is_sidechain,
-            )
-
-    for index, subagent in enumerate(trajectory.get("subagent_trajectories") or []):
-        yield from _walk_trajectory(
-            subagent, trial_id, harness, f"{trajectory_id}/sub{index}", True
-        )
-
-
-def iter_tool_calls(trajectory: dict[str, Any], trial_id: str) -> Iterator[RawToolCall]:
-    """Yield every tool call in a trajectory, including its subagents' calls."""
-    version = trajectory["schema_version"]
-    if version not in _SUPPORTED_SCHEMA_VERSIONS:
-        raise ValueError(f"unsupported ATIF schema version: {version}")
-
-    harness = trajectory["agent"]["name"]
-    yield from _walk_trajectory(trajectory, trial_id, harness, "main", False)
-
-
-def read_trial_tool_calls(trial_dir: Path) -> TrialToolCalls:
-    """Read one trial's tool calls."""
-    trial_id = trial_dir.name
-    try:
-        trajectory = json.loads((trial_dir / "trajectory.json").read_bytes())
-    except FileNotFoundError:
-        return TrialToolCalls(trial_id, TrajectoryStatus.MISSING)
-    except ValueError:  # broken JSON or UTF-8
-        return TrialToolCalls(trial_id, TrajectoryStatus.INVALID_JSON)
-
-    try:
-        calls = tuple(iter_tool_calls(trajectory, trial_id))
-    except Exception as error:
-        error.add_note(f"trial_id: {trial_id}")
-        raise
-    return TrialToolCalls(trial_id, TrajectoryStatus.OK, calls)

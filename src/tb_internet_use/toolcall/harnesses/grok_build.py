@@ -294,19 +294,6 @@ _MULTI_WAIT_STATES = {
 }
 
 
-def _multi_wait(output: ToolCallOutput) -> ToolCallOutput:
-    """Status and handles of a multi-wait: one state shared by every task, else unknown."""
-    tasks = _MULTI_WAIT_TASK.findall(output.tool_output_text or "")
-    states = {state for _, state in tasks}
-    status = (
-        _MULTI_WAIT_STATES.get(states.pop(), S.UNKNOWN)
-        if len(states) == 1
-        else S.UNKNOWN
-    )
-    handles = handles_from_ids(ExecutionHandleKind.COMMAND, [i for i, _ in tasks])
-    return replace(output, execution_status=status, handles=handles)
-
-
 class GrokBuildConverter(HarnessToolCallConverter):
     stop_tools: ClassVar = frozenset({"kill_command_or_subagent"})
     text_formats: ClassVar = {
@@ -326,3 +313,16 @@ class GrokBuildConverter(HarnessToolCallConverter):
             if output.harness_result_format == MatchedFormat(_MULTI_WAIT.name)
             else output
         )
+
+
+def _multi_wait(output: ToolCallOutput) -> ToolCallOutput:
+    """Status and handles of a multi-wait: one state shared by every task, else unknown."""
+    tasks = _MULTI_WAIT_TASK.findall(output.tool_output_text or "")
+    states = {state for _, state in tasks}
+    status = (
+        _MULTI_WAIT_STATES.get(states.pop(), S.UNKNOWN)
+        if len(states) == 1
+        else S.UNKNOWN
+    )
+    handles = handles_from_ids(ExecutionHandleKind.COMMAND, [i for i, _ in tasks])
+    return replace(output, execution_status=status, handles=handles)

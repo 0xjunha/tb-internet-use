@@ -20,12 +20,10 @@ CATALOG_CSV = CATALOGS_DIR / "harness_tool_catalog.csv"
 DEFERRED = "Deferred"  # the converter decides the Action type per call
 
 
-@dataclass(frozen=True, slots=True)
-class ToolLabel:
-    """Maps one harness tool to common types."""
-
-    action_type: str  # Action class name, or DEFERRED
-    arg_fields: dict[str, str]  # argument name -> Action field
+@functools.cache
+def tool_catalog() -> dict[HarnessTool, ToolLabel]:
+    """The committed catalog, read once."""
+    return load_catalog()
 
 
 def load_catalog(path: Path = CATALOG_CSV) -> dict[HarnessTool, ToolLabel]:
@@ -50,10 +48,22 @@ def load_catalog(path: Path = CATALOG_CSV) -> dict[HarnessTool, ToolLabel]:
     return catalog
 
 
-@functools.cache
-def tool_catalog() -> dict[HarnessTool, ToolLabel]:
-    """The committed catalog, read once."""
-    return load_catalog()
+def action_from_label(label: ToolLabel, args: dict[str, Any]) -> Action:
+    """Build a tool's Action from the arguments that the catalog maps."""
+    fields = {
+        label.arg_fields[arg_name]: _field_value(label.arg_fields[arg_name], value)
+        for arg_name, value in args.items()
+        if arg_name in label.arg_fields
+    }
+    return ACTION_CLASSES[label.action_type](**fields)
+
+
+@dataclass(frozen=True, slots=True)
+class ToolLabel:
+    """Maps one harness tool to common types."""
+
+    action_type: str  # Action class name, or DEFERRED
+    arg_fields: dict[str, str]  # argument name -> Action field
 
 
 def _field_value(field_name: str, value: Any) -> Any:
@@ -69,13 +79,3 @@ def _field_value(field_name: str, value: Any) -> Any:
             return value if isinstance(value, int) else None
         case _:
             return value
-
-
-def action_from_label(label: ToolLabel, args: dict[str, Any]) -> Action:
-    """Build a tool's Action from the arguments that the catalog maps."""
-    fields = {
-        label.arg_fields[arg_name]: _field_value(label.arg_fields[arg_name], value)
-        for arg_name, value in args.items()
-        if arg_name in label.arg_fields
-    }
-    return ACTION_CLASSES[label.action_type](**fields)

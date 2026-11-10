@@ -401,112 +401,6 @@ _TASK_OUTPUT = HarnessResultFormatList[JsonObject](
 )
 
 
-def _extra(result: Mapping[str, Any]) -> Mapping[str, Any]:
-    return result.get("extra") or {}
-
-
-def _metadata(result: Mapping[str, Any]) -> Mapping[str, Any]:
-    """What Harbor keeps of Claude Code's own result."""
-    return _extra(result).get("tool_result_metadata") or {}
-
-
-def structured_result(result: Mapping[str, Any]) -> dict[str, Any]:
-    """Claude Code's structured result (`tool_use_result`), which most calls carry, or {} without one."""
-    structured = _metadata(result).get("tool_use_result")
-    return structured if isinstance(structured, dict) else {}
-
-
-def _harbor_items(content: str) -> list[dict[str, Any]] | None:
-    """Content items Harbor wrote as JSON, one per paragraph, or None when the content is plain text."""
-    items: list[dict[str, Any]] = []
-    for part in content.split("\n\n"):
-        try:
-            item = json.loads(part)
-        except ValueError:
-            return None
-        if not (isinstance(item, dict) and item.get("type") in _ITEM_TYPES):
-            return None
-        items.append(item)
-    return items
-
-
-def _original_text(result: Mapping[str, Any]) -> tuple[str | None, set[str]]:
-    """Claude Code's own result text and the kinds of content items it had (e.g. {"image"})."""
-    block = _metadata(result).get("raw_tool_result")
-    if isinstance(block, dict):
-        content = block.get("content")
-        if isinstance(content, list):
-            kinds = {
-                str(item.get("type")) for item in content if isinstance(item, dict)
-            }
-            return join_content_items(content), kinds
-        if not isinstance(content, str):
-            return None, set()
-        return content.strip() or None, set()
-    content = result.get("content")
-    if not isinstance(content, str):
-        return None, set()
-    items = _harbor_items(content)
-    if items:
-        return join_content_items(items), {str(item.get("type")) for item in items}
-    return content, set()
-
-
-def _code_without_header(structured: Mapping[str, Any]) -> int | None:
-    """The exit code of a finished command Claude Code did not judge an error.
-
-    Grep, find, diff and the like exit 1 without an error; Claude Code then names
-    that meaning in returnCodeInterpretation, and writes it only for code 1.
-    """
-    if structured.get("interrupted"):
-        return None
-    return 1 if structured.get("returnCodeInterpretation") else 0
-
-
-def _with_structured_web_fetch(
-    output: ToolCallOutput, structured: Mapping[str, Any]
-) -> ToolCallOutput:
-    """Take the HTTP status from the structured result, which has it even when the text does not."""
-    code = structured.get("code")
-    if isinstance(code, int) and not isinstance(code, bool):
-        return replace(output, http_status=code)
-    return output
-
-
-def _with_structured_bash(
-    output: ToolCallOutput, structured: Mapping[str, Any]
-) -> ToolCallOutput:
-    """Prefer the structured stdout, task id and saved-output path over what the text showed."""
-    saved_to = structured.get("persistedOutputPath")
-    task_id = structured.get("backgroundTaskId")
-    exit_code = output.exit_code
-    if exit_code is None and output.execution_status is S.FINISHED:
-        exit_code = _code_without_header(structured)
-    # stdout is the whole tool output, since its stderr only holds the cwd notice.
-    stdout = structured.get("stdout") or ""
-    return replace(
-        output,
-        tool_output_text=stdout,
-        exit_code=exit_code,
-        handles=handles_from_ids(ExecutionHandleKind.COMMAND, task_id)
-        or output.handles,
-        output_path=saved_to or output.output_path,
-        is_truncated=True if saved_to else output.is_truncated,
-    )
-
-
-def _with_structured_read(
-    output: ToolCallOutput, file: Mapping[str, Any]
-) -> ToolCallOutput:
-    """Prefer the structured file content, and mark a read Claude Code cut at its token cap."""
-    content = file.get("content")
-    if isinstance(content, str):
-        output = replace(output, tool_output_text=content)
-    if file.get("truncatedByTokenCap") is True:
-        output = replace(output, is_truncated=True)
-    return output
-
-
 class ClaudeCodeConverter(HarnessToolCallConverter):
     stop_tools: ClassVar = frozenset({"TaskStop"})
     text_formats: ClassVar = {
@@ -571,3 +465,109 @@ class ClaudeCodeConverter(HarnessToolCallConverter):
         if name == "WebFetch":
             return _with_structured_web_fetch(output, structured)
         return output
+
+
+def _original_text(result: Mapping[str, Any]) -> tuple[str | None, set[str]]:
+    """Claude Code's own result text and the kinds of content items it had (e.g. {"image"})."""
+    block = _metadata(result).get("raw_tool_result")
+    if isinstance(block, dict):
+        content = block.get("content")
+        if isinstance(content, list):
+            kinds = {
+                str(item.get("type")) for item in content if isinstance(item, dict)
+            }
+            return join_content_items(content), kinds
+        if not isinstance(content, str):
+            return None, set()
+        return content.strip() or None, set()
+    content = result.get("content")
+    if not isinstance(content, str):
+        return None, set()
+    items = _harbor_items(content)
+    if items:
+        return join_content_items(items), {str(item.get("type")) for item in items}
+    return content, set()
+
+
+def _harbor_items(content: str) -> list[dict[str, Any]] | None:
+    """Content items Harbor wrote as JSON, one per paragraph, or None when the content is plain text."""
+    items: list[dict[str, Any]] = []
+    for part in content.split("\n\n"):
+        try:
+            item = json.loads(part)
+        except ValueError:
+            return None
+        if not (isinstance(item, dict) and item.get("type") in _ITEM_TYPES):
+            return None
+        items.append(item)
+    return items
+
+
+def structured_result(result: Mapping[str, Any]) -> dict[str, Any]:
+    """Claude Code's structured result (`tool_use_result`), which most calls carry, or {} without one."""
+    structured = _metadata(result).get("tool_use_result")
+    return structured if isinstance(structured, dict) else {}
+
+
+def _metadata(result: Mapping[str, Any]) -> Mapping[str, Any]:
+    """What Harbor keeps of Claude Code's own result."""
+    return _extra(result).get("tool_result_metadata") or {}
+
+
+def _extra(result: Mapping[str, Any]) -> Mapping[str, Any]:
+    return result.get("extra") or {}
+
+
+def _with_structured_bash(
+    output: ToolCallOutput, structured: Mapping[str, Any]
+) -> ToolCallOutput:
+    """Prefer the structured stdout, task id and saved-output path over what the text showed."""
+    saved_to = structured.get("persistedOutputPath")
+    task_id = structured.get("backgroundTaskId")
+    exit_code = output.exit_code
+    if exit_code is None and output.execution_status is S.FINISHED:
+        exit_code = _code_without_header(structured)
+    # stdout is the whole tool output, since its stderr only holds the cwd notice.
+    stdout = structured.get("stdout") or ""
+    return replace(
+        output,
+        tool_output_text=stdout,
+        exit_code=exit_code,
+        handles=handles_from_ids(ExecutionHandleKind.COMMAND, task_id)
+        or output.handles,
+        output_path=saved_to or output.output_path,
+        is_truncated=True if saved_to else output.is_truncated,
+    )
+
+
+def _code_without_header(structured: Mapping[str, Any]) -> int | None:
+    """The exit code of a finished command Claude Code did not judge an error.
+
+    Grep, find, diff and the like exit 1 without an error; Claude Code then names
+    that meaning in returnCodeInterpretation, and writes it only for code 1.
+    """
+    if structured.get("interrupted"):
+        return None
+    return 1 if structured.get("returnCodeInterpretation") else 0
+
+
+def _with_structured_read(
+    output: ToolCallOutput, file: Mapping[str, Any]
+) -> ToolCallOutput:
+    """Prefer the structured file content, and mark a read Claude Code cut at its token cap."""
+    content = file.get("content")
+    if isinstance(content, str):
+        output = replace(output, tool_output_text=content)
+    if file.get("truncatedByTokenCap") is True:
+        output = replace(output, is_truncated=True)
+    return output
+
+
+def _with_structured_web_fetch(
+    output: ToolCallOutput, structured: Mapping[str, Any]
+) -> ToolCallOutput:
+    """Take the HTTP status from the structured result, which has it even when the text does not."""
+    code = structured.get("code")
+    if isinstance(code, int) and not isinstance(code, bool):
+        return replace(output, http_status=code)
+    return output

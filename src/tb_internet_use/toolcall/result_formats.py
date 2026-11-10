@@ -42,45 +42,7 @@ type MatchedValues = Mapping[str, Any]
 type JsonObject = Mapping[str, Any]
 
 
-class HarnessResultFormat[AnnotatedOutputT](Protocol):
-    """Shared protocol for different harness result formats (text, JSON)."""
-
-    @property
-    def name(self) -> str: ...
-
-    @property
-    def status(self) -> ExecutionStatus: ...
-
-    @property
-    def is_truncated(self) -> bool | None: ...
-
-    @property
-    def no_tool_output_text(self) -> bool: ...
-
-    def match(self, annotated_output: AnnotatedOutputT) -> MatchedValues | None:
-        """Return the values of its placeholders or JSON paths if the annotated output has this format, else None."""
-        ...
-
-    def handle_kind_of(self, values: MatchedValues) -> ExecutionHandleKind:
-        """The kind of the handles this result gives."""
-        ...
-
-    def is_truncated_of(self, values: MatchedValues) -> bool | None:
-        """Whether the tool output is truncated, None when the result does not tell."""
-        ...
-
-    def tool_output_text_of(self, values: MatchedValues) -> str | None:
-        """Return `ToolCallOutput.tool_output_text`, built from the matched values.
-
-        It is the value named `tool_output`, or what `text_from_matched_values` builds.
-        It is `_NO_OUTPUT_TEXT` when the tool showed no output, and None in the cases
-        that `ToolCallOutput.tool_output_text` names.
-        """
-        ...
-
-
 # Template regexes
-
 # The regex of each placeholder type. A lazy type takes as little as it can, so it
 # ends where the next fixed text of the template starts.
 PLACEHOLDER_TYPE_PATTERNS = {
@@ -127,53 +89,6 @@ _LINE_NUMBER_SEPARATOR_BY_TYPE = {
 PLACEHOLDER_REGEX = re.compile(r"\{(\w+):(\w+)\}")
 
 
-@functools.cache
-def template_regex(template: str) -> re.Pattern[str]:
-    """The regex of a template or a part of one, with a named group per placeholder.
-
-    It is not anchored, so a caller picks fullmatch, match or search.
-    """
-    parts: list[str] = []
-    pos = 0
-    for placeholder in PLACEHOLDER_REGEX.finditer(template):
-        parts.append(re.escape(template[pos : placeholder.start()]))
-        parts.append(
-            f"(?P<{placeholder[1]}>{PLACEHOLDER_TYPE_PATTERNS[placeholder[2]]})"
-        )
-        pos = placeholder.end()
-    parts.append(re.escape(template[pos:]))
-    return re.compile("".join(parts))
-
-
-@functools.cache
-def _placeholder_types(template: str) -> dict[str, str]:
-    """The type of each placeholder of a template, by name."""
-    return {p[1]: p[2] for p in PLACEHOLDER_REGEX.finditer(template)}
-
-
-# Text helpers, shared with the harness converters.
-
-
-def strip_line_numbers(listing: str, separator: str, *, every_line: bool = True) -> str:
-    """Remove the line numbers of a numbered file listing.
-
-    In a listing numbered on every line, a line that is only a number is an empty line
-    and loses the number too. In a partly numbered listing, such a line is content.
-    """
-    bare_number = "|$" if every_line else ""
-    return re.sub(
-        rf"^[ ]*\d+(?:{re.escape(separator)}{bare_number})",
-        "",
-        listing,
-        flags=re.MULTILINE,
-    )
-
-
-def join_texts(texts: Iterable[str]) -> str | None:
-    """Join separate texts with a blank line, each without its edge whitespace. None when all are empty."""
-    return "\n\n".join(text.strip() for text in texts if text.strip()) or None
-
-
 def join_content_items(items: Any) -> str | None:
     """The text of a list of content items (`{"type": "text", "text": ...}`). Images give nothing."""
     if not isinstance(items, list):
@@ -185,14 +100,9 @@ def join_content_items(items: Any) -> str | None:
     )
 
 
-def join_text_parts(parts: Iterable[str]) -> str:
-    """Join pieces of one output in order, starting a new line between them when needed."""
-    joined = ""
-    for part in parts:
-        if joined and not joined.endswith("\n") and part:
-            joined += "\n"
-        joined += part
-    return joined
+def join_texts(texts: Iterable[str]) -> str | None:
+    """Join separate texts with a blank line, each without its edge whitespace. None when all are empty."""
+    return "\n\n".join(text.strip() for text in texts if text.strip()) or None
 
 
 @dataclass(frozen=True, slots=True)
@@ -284,95 +194,26 @@ class HarnessTextResultFormat:
         return strip_line_numbers(text, separator, every_line=every_line)
 
 
-@dataclass(frozen=True, slots=True)
-class HarnessNotice:
-    """A notice and the edge of the result the harness inserts it at. Its template is
-    matched like a text format's.
+@functools.cache
+def _placeholder_types(template: str) -> dict[str, str]:
+    """The type of each placeholder of a template, by name."""
+    return {p[1]: p[2] for p in PLACEHOLDER_REGEX.finditer(template)}
 
-    It is cut only at that edge. The same text inside a tool output, such as file
-    contents, must stay.
 
-    Example: Grok Build adds this completion notice at the end of a result, in
-    harnesses/grok_build.py.
+# Text helpers, shared with the harness converters.
+def strip_line_numbers(listing: str, separator: str, *, every_line: bool = True) -> str:
+    """Remove the line numbers of a numbered file listing.
 
-        HarnessNotice(
-            "notification_bare",
-            "<system-reminder>{notice:text}</system-reminder>",
-            at="end",
-        )
+    In a listing numbered on every line, a line that is only a number is an empty line
+    and loses the number too. In a partly numbered listing, such a line is content.
     """
-
-    name: str
-    template: str
-    # In the trajectories, the harness inserts this notice at this edge of the result.
-    at: Literal["start", "end"]
-
-
-def _notice_at_edge(notice: HarnessNotice, text: str) -> re.Match[str] | None:
-    """The notice at the start of the text, or the last notice that ends exactly at its end."""
-    pattern = template_regex(notice.template)
-    if notice.at == "start":
-        return pattern.match(text)
-    last = None
-    for found in pattern.finditer(text):
-        if found.end() == len(text):
-            last = found
-    return last
-
-
-def _json_value(annotated_output: JsonObject, path: str) -> tuple[bool, Any]:
-    """Follow a dotted path and return (present, value)."""
-    value: Any = annotated_output
-    for key in path.split("."):
-        if not isinstance(value, Mapping) or key not in value:
-            return False, None
-        value = value[key]
-    return True, value
-
-
-def json_tool_output_text(values: MatchedValues) -> str:
-    """The value named `tool_output` as text, the default of a JSON format. "" when there is none."""
-    text = values.get("tool_output")
-    return _NO_OUTPUT_TEXT if text is None else _json_text(text)
-
-
-def _json_text(value: Any) -> str:
-    """A JSON value as text. A string stays as it is, and any other value becomes JSON."""
-    return value if isinstance(value, str) else json.dumps(value, ensure_ascii=False)
-
-
-def _has_path(annotated_output: JsonObject, path: str) -> bool:
-    """Whether the dotted path leads to a value."""
-    return _json_value(annotated_output, path)[0]
-
-
-@dataclass(frozen=True, slots=True)
-class JsonCondition:
-    """A test on one JSON value, e.g. `returncode < 0`."""
-
-    path: str
-    op: Literal["==", "!=", "<", ">", "startswith", "!startswith", "contains"]
-    value: Any
-
-    def holds(self, annotated_output: JsonObject) -> bool:
-        present, actual = _json_value(annotated_output, self.path)
-        if not present:
-            return False
-        match self.op:
-            case "==":
-                return actual == self.value
-            case "!=":
-                return actual != self.value
-            case "<":
-                return isinstance(actual, (int, float)) and actual < self.value
-            case ">":
-                return isinstance(actual, (int, float)) and actual > self.value
-            case "startswith":
-                return isinstance(actual, str) and actual.startswith(self.value)
-            case "!startswith":
-                return isinstance(actual, str) and not actual.startswith(self.value)
-            case "contains":
-                return isinstance(actual, str) and self.value in actual
+    bare_number = "|$" if every_line else ""
+    return re.sub(
+        rf"^[ ]*\d+(?:{re.escape(separator)}{bare_number})",
+        "",
+        listing,
+        flags=re.MULTILINE,
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -479,6 +320,124 @@ class HarnessJsonResultFormat:
 
 
 @dataclass(frozen=True, slots=True)
+class JsonCondition:
+    """A test on one JSON value, e.g. `returncode < 0`."""
+
+    path: str
+    op: Literal["==", "!=", "<", ">", "startswith", "!startswith", "contains"]
+    value: Any
+
+    def holds(self, annotated_output: JsonObject) -> bool:
+        present, actual = _json_value(annotated_output, self.path)
+        if not present:
+            return False
+        match self.op:
+            case "==":
+                return actual == self.value
+            case "!=":
+                return actual != self.value
+            case "<":
+                return isinstance(actual, (int, float)) and actual < self.value
+            case ">":
+                return isinstance(actual, (int, float)) and actual > self.value
+            case "startswith":
+                return isinstance(actual, str) and actual.startswith(self.value)
+            case "!startswith":
+                return isinstance(actual, str) and not actual.startswith(self.value)
+            case "contains":
+                return isinstance(actual, str) and self.value in actual
+
+
+def _has_path(annotated_output: JsonObject, path: str) -> bool:
+    """Whether the dotted path leads to a value."""
+    return _json_value(annotated_output, path)[0]
+
+
+def _json_value(annotated_output: JsonObject, path: str) -> tuple[bool, Any]:
+    """Follow a dotted path and return (present, value)."""
+    value: Any = annotated_output
+    for key in path.split("."):
+        if not isinstance(value, Mapping) or key not in value:
+            return False, None
+        value = value[key]
+    return True, value
+
+
+def join_text_parts(parts: Iterable[str]) -> str:
+    """Join pieces of one output in order, starting a new line between them when needed."""
+    joined = ""
+    for part in parts:
+        if joined and not joined.endswith("\n") and part:
+            joined += "\n"
+        joined += part
+    return joined
+
+
+def json_tool_output_text(values: MatchedValues) -> str:
+    """The value named `tool_output` as text, the default of a JSON format. "" when there is none."""
+    text = values.get("tool_output")
+    return _NO_OUTPUT_TEXT if text is None else _json_text(text)
+
+
+def _json_text(value: Any) -> str:
+    """A JSON value as text. A string stays as it is, and any other value becomes JSON."""
+    return value if isinstance(value, str) else json.dumps(value, ensure_ascii=False)
+
+
+def parse_output_with_formats(
+    tool_result_raw_text: str | None,
+    tool_result_json: JsonObject | None,
+    selected_formats: HarnessResultFormatList[Any] | None,
+) -> ToolCallOutput:
+    """Parse a tool result into a ToolCallOutput by matching its annotated output against the selected formats."""
+
+    if selected_formats is None:
+        return _unparsed_output(tool_result_raw_text, UnmatchedFormat.SKIPPED)
+
+    annotated = annotated_output_of(
+        tool_result_raw_text, tool_result_json, selected_formats
+    )
+    if annotated is None:
+        # The tool has formats, but the trajectory has nothing to match.
+        return _unparsed_output(tool_result_raw_text, UnmatchedFormat.UNKNOWN)
+
+    # The first format that matches wins.
+    found = selected_formats.match(annotated[0])
+    if found is None:
+        return _unparsed_output(tool_result_raw_text, UnmatchedFormat.UNKNOWN)
+
+    fmt, values = found
+    return _build_output(fmt, values)
+
+
+def _unparsed_output(
+    tool_result_raw_text: str | None, harness_result_format: UnmatchedFormat
+) -> ToolCallOutput:
+    """A ToolCallOutput that keeps the raw text as `tool_output_text`, for a result no format parsed."""
+    return ToolCallOutput(
+        tool_output_text=tool_result_raw_text,
+        harness_result_format=harness_result_format,
+    )
+
+
+def annotated_output_of(
+    tool_result_raw_text: str | None,
+    tool_result_json: JsonObject | None,
+    selected_formats: HarnessResultFormatList[Any],
+) -> tuple[str | JsonObject, list[str]] | None:
+    """The annotated output and the names of the notices cut from it.
+
+    It is the JSON object, or the raw text without its notices. None when the
+    trajectory has neither.
+    """
+    if tool_result_json is not None:
+        return tool_result_json, []
+    if tool_result_raw_text is None:
+        return None
+    return selected_formats.strip_notices(tool_result_raw_text)
+
+
+@dataclass(frozen=True, slots=True)
 class HarnessResultFormatList[AnnotatedOutputT]:
     """One tool's result formats and the notices its results may carry. A converter
     declares one per tool in `text_formats` or `json_formats`.
@@ -517,19 +476,58 @@ class HarnessResultFormatList[AnnotatedOutputT]:
                 return text, cut_names
 
 
-def _handles(
-    kind: ExecutionHandleKind, values: MatchedValues
-) -> tuple[ExecutionHandle, ...]:
-    return handles_from_ids(kind, values.get("handle")) + handles_from_ids(
-        kind, values.get("handles")
-    )
+def _notice_at_edge(notice: HarnessNotice, text: str) -> re.Match[str] | None:
+    """The notice at the start of the text, or the last notice that ends exactly at its end."""
+    pattern = template_regex(notice.template)
+    if notice.at == "start":
+        return pattern.match(text)
+    last = None
+    for found in pattern.finditer(text):
+        if found.end() == len(text):
+            last = found
+    return last
 
 
-def _int_value(values: MatchedValues, name: str) -> int | None:
-    value = values.get(name)
-    if value is None or isinstance(value, bool):
-        return None
-    return int(value) if isinstance(value, (int, str)) else None
+@functools.cache
+def template_regex(template: str) -> re.Pattern[str]:
+    """The regex of a template or a part of one, with a named group per placeholder.
+
+    It is not anchored, so a caller picks fullmatch, match or search.
+    """
+    parts: list[str] = []
+    pos = 0
+    for placeholder in PLACEHOLDER_REGEX.finditer(template):
+        parts.append(re.escape(template[pos : placeholder.start()]))
+        parts.append(
+            f"(?P<{placeholder[1]}>{PLACEHOLDER_TYPE_PATTERNS[placeholder[2]]})"
+        )
+        pos = placeholder.end()
+    parts.append(re.escape(template[pos:]))
+    return re.compile("".join(parts))
+
+
+@dataclass(frozen=True, slots=True)
+class HarnessNotice:
+    """A notice and the edge of the result the harness inserts it at. Its template is
+    matched like a text format's.
+
+    It is cut only at that edge. The same text inside a tool output, such as file
+    contents, must stay.
+
+    Example: Grok Build adds this completion notice at the end of a result, in
+    harnesses/grok_build.py.
+
+        HarnessNotice(
+            "notification_bare",
+            "<system-reminder>{notice:text}</system-reminder>",
+            at="end",
+        )
+    """
+
+    name: str
+    template: str
+    # In the trajectories, the harness inserts this notice at this edge of the result.
+    at: Literal["start", "end"]
 
 
 def _build_output(
@@ -548,54 +546,53 @@ def _build_output(
     )
 
 
-def _unparsed_output(
-    tool_result_raw_text: str | None, harness_result_format: UnmatchedFormat
-) -> ToolCallOutput:
-    """A ToolCallOutput that keeps the raw text as `tool_output_text`, for a result no format parsed."""
-    return ToolCallOutput(
-        tool_output_text=tool_result_raw_text,
-        harness_result_format=harness_result_format,
-    )
+class HarnessResultFormat[AnnotatedOutputT](Protocol):
+    """Shared protocol for different harness result formats (text, JSON)."""
+
+    @property
+    def name(self) -> str: ...
+
+    @property
+    def status(self) -> ExecutionStatus: ...
+
+    @property
+    def is_truncated(self) -> bool | None: ...
+
+    @property
+    def no_tool_output_text(self) -> bool: ...
+
+    def match(self, annotated_output: AnnotatedOutputT) -> MatchedValues | None:
+        """Return the values of its placeholders or JSON paths if the annotated output has this format, else None."""
+        ...
+
+    def handle_kind_of(self, values: MatchedValues) -> ExecutionHandleKind:
+        """The kind of the handles this result gives."""
+        ...
+
+    def is_truncated_of(self, values: MatchedValues) -> bool | None:
+        """Whether the tool output is truncated, None when the result does not tell."""
+        ...
+
+    def tool_output_text_of(self, values: MatchedValues) -> str | None:
+        """Return `ToolCallOutput.tool_output_text`, built from the matched values.
+
+        It is the value named `tool_output`, or what `text_from_matched_values` builds.
+        It is `_NO_OUTPUT_TEXT` when the tool showed no output, and None in the cases
+        that `ToolCallOutput.tool_output_text` names.
+        """
+        ...
 
 
-def annotated_output_of(
-    tool_result_raw_text: str | None,
-    tool_result_json: JsonObject | None,
-    selected_formats: HarnessResultFormatList[Any],
-) -> tuple[str | JsonObject, list[str]] | None:
-    """The annotated output and the names of the notices cut from it.
-
-    It is the JSON object, or the raw text without its notices. None when the
-    trajectory has neither.
-    """
-    if tool_result_json is not None:
-        return tool_result_json, []
-    if tool_result_raw_text is None:
+def _int_value(values: MatchedValues, name: str) -> int | None:
+    value = values.get(name)
+    if value is None or isinstance(value, bool):
         return None
-    return selected_formats.strip_notices(tool_result_raw_text)
+    return int(value) if isinstance(value, (int, str)) else None
 
 
-def parse_output_with_formats(
-    tool_result_raw_text: str | None,
-    tool_result_json: JsonObject | None,
-    selected_formats: HarnessResultFormatList[Any] | None,
-) -> ToolCallOutput:
-    """Parse a tool result into a ToolCallOutput by matching its annotated output against the selected formats."""
-
-    if selected_formats is None:
-        return _unparsed_output(tool_result_raw_text, UnmatchedFormat.SKIPPED)
-
-    annotated = annotated_output_of(
-        tool_result_raw_text, tool_result_json, selected_formats
+def _handles(
+    kind: ExecutionHandleKind, values: MatchedValues
+) -> tuple[ExecutionHandle, ...]:
+    return handles_from_ids(kind, values.get("handle")) + handles_from_ids(
+        kind, values.get("handles")
     )
-    if annotated is None:
-        # The tool has formats, but the trajectory has nothing to match.
-        return _unparsed_output(tool_result_raw_text, UnmatchedFormat.UNKNOWN)
-
-    # The first format that matches wins.
-    found = selected_formats.match(annotated[0])
-    if found is None:
-        return _unparsed_output(tool_result_raw_text, UnmatchedFormat.UNKNOWN)
-
-    fmt, values = found
-    return _build_output(fmt, values)

@@ -4,6 +4,13 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 # Where a command's stdout or stderr goes.
+type OutputDestination = (
+    ResultDestination
+    | FileDestination
+    | PipeDestination
+    | CaptureDestination
+    | DiscardDestination
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,34 +42,12 @@ class DiscardDestination:
     """Output is redirected to /dev/null."""
 
 
-type OutputDestination = (
-    ResultDestination
-    | FileDestination
-    | PipeDestination
-    | CaptureDestination
-    | DiscardDestination
-)
-
-
-class ExitOutcome(StrEnum):
-    """Whether a command exited with code 0."""
-
-    SUCCESS = "success"  # exit code 0
-    FAILURE = "failure"  # any other exit code
-
-
 @dataclass(frozen=True, slots=True)
-class RunCondition:
-    """A command runs only if the deciding commands ended with the required outcome.
+class ParsedShellText:
+    """Every simple command in one shell text, in order, and its literal assignments."""
 
-    The deciding commands are the earlier commands whose exit code decides it.
-    For example in `a; b && c`, c depends on b only.
-    In `a || b`, b has RunCondition((id of a,), ExitOutcome.FAILURE).
-    """
-
-    # Empty when unknown, e.g. after `!`.
-    deciding_command_ids: tuple[int, ...]
-    required_outcome_of_deciding_commands: ExitOutcome
+    commands: tuple[ShellCommand, ...]
+    assignments: tuple[VariableAssignment, ...] = ()  # in order, to resolve $VAR
 
 
 @dataclass(frozen=True, slots=True)
@@ -110,16 +95,29 @@ class ShellCommand:
 
 
 @dataclass(frozen=True, slots=True)
+class RunCondition:
+    """A command runs only if the deciding commands ended with the required outcome.
+
+    The deciding commands are the earlier commands whose exit code decides it.
+    For example in `a; b && c`, c depends on b only.
+    In `a || b`, b has RunCondition((id of a,), ExitOutcome.FAILURE).
+    """
+
+    # Empty when unknown, e.g. after `!`.
+    deciding_command_ids: tuple[int, ...]
+    required_outcome_of_deciding_commands: ExitOutcome
+
+
+class ExitOutcome(StrEnum):
+    """Whether a command exited with code 0."""
+
+    SUCCESS = "success"  # exit code 0
+    FAILURE = "failure"  # any other exit code
+
+
+@dataclass(frozen=True, slots=True)
 class VariableAssignment:
     """A literal value given to a variable by `NAME=value`, or one value of a for loop."""
 
     name: str
     value: str
-
-
-@dataclass(frozen=True, slots=True)
-class ParsedShellText:
-    """Every simple command in one shell text, in order, and its literal assignments."""
-
-    commands: tuple[ShellCommand, ...]
-    assignments: tuple[VariableAssignment, ...] = ()  # in order, to resolve $VAR

@@ -211,59 +211,8 @@ _NO_CONTENT = ToolCallOutput(
 )
 
 
-def _script_items(content: str) -> tuple[dict[str, Any], ...] | None:
-    """The content items of an exec or wait result, which Codex writes as a Python list.
-
-    The first item holds the script's state and wall time, and the rest is what the
-    script printed. None for a result that is plain text.
-    """
-    if not content.startswith("[{"):
-        return None
-    try:
-        items = ast.literal_eval(content)
-    except ValueError, SyntaxError:
-        return None
-    if not isinstance(items, list) or not all(isinstance(i, dict) for i in items):
-        return None
-    return tuple(items)
-
-
-def _is_text(item: dict[str, Any]) -> bool:
-    return item.get("type") == "input_text"
-
-
-def _printed_only_media(raw: RawToolCall, result: dict[str, Any]) -> bool:
-    """Whether an exec or wait script printed images or audio. When it printed no text,
-    as when parse_output asks, that is all it printed."""
-    content = result.get("content")
-    if raw.tool.name not in _SCRIPT_TOOLS or not isinstance(content, str):
-        return False
-    printed = (_script_items(content) or ())[1:]
-    return any(not _is_text(item) for item in printed)
-
-
 # A step result a script printed as JSON, e.g. `text(JSON.stringify(await tools.exec_command(...)))`.
 _STEP_RESULT_LINE = re.compile(r'^\{"chunk_id".*\}$', re.MULTILINE)
-
-
-def _running_session_ids(text: str | None) -> list[Any]:
-    """The sessions of commands still running, from step results a script printed as JSON.
-
-    A step result with a session_id and no exit_code is a command the script left running.
-    """
-    ids = []
-    for line in _STEP_RESULT_LINE.findall(text or ""):
-        try:
-            step = json.loads(line)
-        except ValueError:
-            continue
-        if isinstance(step, dict) and "session_id" in step and "exit_code" not in step:
-            ids.append(step["session_id"])
-    return ids
-
-
-def _sends_ctrl_c(raw: RawToolCall) -> bool:
-    return raw.tool.name == "write_stdin" and _CTRL_C in str(raw.args.get("chars", ""))
 
 
 class CodexConverter(HarnessToolCallConverter):
@@ -301,20 +250,6 @@ class CodexConverter(HarnessToolCallConverter):
             sessions = handles_from_ids(ExecutionHandleKind.COMMAND, running)
             output = replace(output, handles=output.handles + sessions)
         return output
-
-    def refine_action(
-        self, raw: RawToolCall, action: Action, output: ToolCallOutput | None
-    ) -> Action:
-        if raw.tool.name == "wait" and output is not None:
-            # A wait polls its cell, not the sessions the script left running.
-            cells = tuple(
-                h for h in output.handles if h.kind is ExecutionHandleKind.SCRIPT
-            )
-            output = replace(output, handles=cells)
-        action = super().refine_action(raw, action, output)
-        if isinstance(action, PollAction) and _sends_ctrl_c(raw):
-            action = replace(action, terminate=True)
-        return action
 
     def deferred_action(
         self, raw: RawToolCall, output: ToolCallOutput | None
@@ -372,3 +307,68 @@ class CodexConverter(HarnessToolCallConverter):
             step = replace(raw, tool=tool, args=args, result=None)
             actions = [self.refine_action(step, action_from_label(label, args), None)]
         return actions or [UnknownAction()]
+
+    def refine_action(
+        self, raw: RawToolCall, action: Action, output: ToolCallOutput | None
+    ) -> Action:
+        if raw.tool.name == "wait" and output is not None:
+            # A wait polls its cell, not the sessions the script left running.
+            cells = tuple(
+                h for h in output.handles if h.kind is ExecutionHandleKind.SCRIPT
+            )
+            output = replace(output, handles=cells)
+        action = super().refine_action(raw, action, output)
+        if isinstance(action, PollAction) and _sends_ctrl_c(raw):
+            action = replace(action, terminate=True)
+        return action
+
+
+def _sends_ctrl_c(raw: RawToolCall) -> bool:
+    return raw.tool.name == "write_stdin" and _CTRL_C in str(raw.args.get("chars", ""))
+
+
+def _printed_only_media(raw: RawToolCall, result: dict[str, Any]) -> bool:
+    """Whether an exec or wait script printed images or audio. When it printed no text,
+    as when parse_output asks, that is all it printed."""
+    content = result.get("content")
+    if raw.tool.name not in _SCRIPT_TOOLS or not isinstance(content, str):
+        return False
+    printed = (_script_items(content) or ())[1:]
+    return any(not _is_text(item) for item in printed)
+
+
+def _script_items(content: str) -> tuple[dict[str, Any], ...] | None:
+    """The content items of an exec or wait result, which Codex writes as a Python list.
+
+    The first item holds the script's state and wall time, and the rest is what the
+    script printed. None for a result that is plain text.
+    """
+    if not content.startswith("[{"):
+        return None
+    try:
+        items = ast.literal_eval(content)
+    except ValueError, SyntaxError:
+        return None
+    if not isinstance(items, list) or not all(isinstance(i, dict) for i in items):
+        return None
+    return tuple(items)
+
+
+def _is_text(item: dict[str, Any]) -> bool:
+    return item.get("type") == "input_text"
+
+
+def _running_session_ids(text: str | None) -> list[Any]:
+    """The sessions of commands still running, from step results a script printed as JSON.
+
+    A step result with a session_id and no exit_code is a command the script left running.
+    """
+    ids = []
+    for line in _STEP_RESULT_LINE.findall(text or ""):
+        try:
+            step = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(step, dict) and "session_id" in step and "exit_code" not in step:
+            ids.append(step["session_id"])
+    return ids

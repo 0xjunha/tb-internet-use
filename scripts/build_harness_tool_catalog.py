@@ -44,22 +44,6 @@ type ToolKey = tuple[str, str]  # (harness, tool)
 type ArgKey = tuple[ToolKey, str, str]  # (harness, tool), arg name, arg type
 
 
-def count_trial(
-    trial_dir: Path,
-) -> tuple[TrajectoryStatus, Counter[ToolKey], Counter[ArgKey]]:
-    """Return the trial's status, calls per tool, and calls per (tool, arg, type)."""
-    trial = read_trial_tool_calls(trial_dir)
-
-    tool_counter: Counter[ToolKey] = Counter()  # number of calls
-    arg_counter: Counter[ArgKey] = Counter()  # number of calls
-    for call in trial.calls:
-        harness_tool = (call.tool.harness, call.tool.name)
-        tool_counter[harness_tool] += 1
-        for arg_name, value in call.args.items():
-            arg_counter[(harness_tool, arg_name, JSON_TYPES[type(value)])] += 1
-    return trial.trajectory_status, tool_counter, arg_counter
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("raw_trials_dir", type=Path)
@@ -108,6 +92,22 @@ def main() -> None:
 
     total_calls = sum(tool_call_counts.values())
     print(f"{status_counts}, {total_calls} calls, {len(tool_call_counts)} tools")
+
+
+def count_trial(
+    trial_dir: Path,
+) -> tuple[TrajectoryStatus, Counter[ToolKey], Counter[ArgKey]]:
+    """Return the trial's status, calls per tool, and calls per (tool, arg, type)."""
+    trial = read_trial_tool_calls(trial_dir)
+
+    tool_counter: Counter[ToolKey] = Counter()  # number of calls
+    arg_counter: Counter[ArgKey] = Counter()  # number of calls
+    for call in trial.calls:
+        harness_tool = (call.tool.harness, call.tool.name)
+        tool_counter[harness_tool] += 1
+        for arg_name, value in call.args.items():
+            arg_counter[(harness_tool, arg_name, JSON_TYPES[type(value)])] += 1
+    return trial.trajectory_status, tool_counter, arg_counter
 
 
 if __name__ == "__main__":

@@ -71,92 +71,60 @@ type Key = tuple[str, str, str]  # harness, tool, format
 type Shape = tuple[str, str, str]  # harness, tool, masked shape of an unknown format
 
 
-@dataclass
-class Tally:
-    """Counts of one or more trials, keyed by names, never by result text."""
-
-    calls: Counter[Key] = field(default_factory=Counter)
-    trials: Counter[Key] = field(default_factory=Counter)
-    examples: dict[Key, list[str]] = field(default_factory=dict)
-    status: Counter[tuple[str, str, str, str]] = field(default_factory=Counter)
-    unknown_format: Counter[Shape] = field(default_factory=Counter)
-    unknown_format_trials: Counter[Shape] = field(default_factory=Counter)
-    multi: Counter[tuple[str, str, str]] = field(default_factory=Counter)
-    harness_text_hits: Counter[tuple[str, str, str, str]] = field(
-        default_factory=Counter
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    roundtrip: Counter[Key] = field(default_factory=Counter)
-    notices: Counter[tuple[str, str, str]] = field(default_factory=Counter)
-    cross: Counter[tuple[str, str, str, str]] = field(default_factory=Counter)
-
-    def merge(self, other: Tally) -> None:
-        for name in (f.name for f in fields(self)):
-            counts = getattr(self, name)
-            if isinstance(counts, Counter):
-                counts.update(getattr(other, name))
-        for key, examples in other.examples.items():
-            kept = self.examples.setdefault(key, [])
-            kept.extend(examples[: MAX_EXAMPLES - len(kept)])
-
-
-@dataclass
-class TrialSeen:
-    """What one trial had at least once, for the trial counts."""
-
-    formats: set[Key] = field(default_factory=set)
-    unknown_shapes: set[Shape] = field(default_factory=set)
-
-
-def mask(text: str, limit: int = 70) -> str:
-    """Replace paths, ids and numbers so a line shows only its shape."""
-    text = re.sub(r"[^\x20-\x7e]", "?", text)
-    text = re.sub(r"(?:[A-Za-z]:)?/[^\s'\",)\]}>]+", "<p>", text)
-    text = re.sub(r"\b[0-9a-fA-F-]{12,}\b", "<hex>", text)
-    text = re.sub(r"\b[A-Za-z0-9_]{20,}\b", "<tok>", text)
-    text = re.sub(r"\d+", "9", text)
-    return text[:limit]
-
-
-def edges(text: str) -> str:
-    lines = text.split("\n")
-    return (
-        f"first={mask(lines[0])!r} last={mask(lines[-1])!r} lines={min(len(lines), 50)}"
+    parser.add_argument("raw_trials_dir", type=Path)
+    parser.add_argument("output_csv", type=Path, nargs="?", default=DEFAULT_OUTPUT_CSV)
+    parser.add_argument(
+        "--harness",
+        action="append",
+        default=[],
+        help="only trials of this harness (repeatable)",
     )
+    parser.add_argument(
+        "--report", type=Path, default=None, help="also write the report here"
+    )
+    parser.add_argument(
+        "--limit", type=int, default=None, help="only the first N trial folders"
+    )
+    args = parser.parse_args()
+
+    trial_dirs = sorted(
+        entry.path for entry in os.scandir(args.raw_trials_dir) if entry.is_dir()
+    )[: args.limit]
+    harnesses = frozenset(args.harness)
+    tally = Tally()
+    with ProcessPoolExecutor(max_workers=max(2, (os.cpu_count() or 2) - 2)) as pool:
+        for part in pool.map(
+            audit_trial, ((d, harnesses) for d in trial_dirs), chunksize=16
+        ):
+            tally.merge(part)
+
+    text = report(tally)
+    print(text, end="")
+    if args.report:
+        args.report.write_text(text)
+    write_audit_csv(audit_rows(tally), args.output_csv)
+    print(f"audit written: {args.output_csv}")
 
 
-def call_key(raw: RawToolCall) -> str:
-    key = raw.key
-    return f"{key.trial_id}/{key.trajectory_id}#{key.step_id}.{key.call_index}"
-
-
-def check_claude_code(
-    tally: Tally, raw: RawToolCall, fmt: HarnessResultFormat[Any], values: MatchedValues
-) -> None:
-    """Compare what the format gave with Claude Code's structured result, an independent source."""
-    structured = structured_result(raw.result or {})
-    if not structured:
-        return
-    harness, tool = raw.tool.harness, raw.tool.name
-    text = fmt.tool_output_text_of(values)
-
-    def record(check: str, same: bool) -> None:
-        tally.cross[
-            (harness, tool, check, f"{'same' if same else 'differs'} ({fmt.name})")
-        ] += 1
-
-    if tool == "Bash" and text is not None:
-        record(
-            "format_text_vs_stdout",
-            text.strip() == (structured.get("stdout") or "").strip(),
-        )
-    if tool == "Bash" and structured.get("backgroundTaskId"):
-        record(
-            "format_handle_vs_backgroundTaskId",
-            values.get("handle") == structured["backgroundTaskId"],
-        )
-    content = (structured.get("file") or {}).get("content")
-    if tool == "Read" and text is not None and isinstance(content, str):
-        record("format_text_vs_file_content", text.strip() == content.strip())
+def audit_trial(args: tuple[str, frozenset[str]]) -> Tally:
+    trial_dir, harnesses = args
+    tally = Tally()
+    trial = read_trial_tool_calls(Path(trial_dir))
+    if not trial.calls or (harnesses and trial.calls[0].tool.harness not in harnesses):
+        return tally
+    seen = TrialSeen()
+    calls = [convert_call(raw, converter_for(raw.tool.harness)) for raw in trial.calls]
+    for call in calls:
+        if call.output is not None:
+            audit_result(tally, call, seen)
+    audit_links(tally, calls)
+    tally.trials.update(seen.formats)
+    tally.unknown_format_trials.update(seen.unknown_shapes)
+    return tally
 
 
 def audit_result(tally: Tally, call: ToolCall, seen: TrialSeen) -> None:
@@ -213,6 +181,66 @@ def audit_result(tally: Tally, call: ToolCall, seen: TrialSeen) -> None:
                 break
 
 
+@dataclass
+class TrialSeen:
+    """What one trial had at least once, for the trial counts."""
+
+    formats: set[Key] = field(default_factory=set)
+    unknown_shapes: set[Shape] = field(default_factory=set)
+
+
+def call_key(raw: RawToolCall) -> str:
+    key = raw.key
+    return f"{key.trial_id}/{key.trajectory_id}#{key.step_id}.{key.call_index}"
+
+
+def edges(text: str) -> str:
+    lines = text.split("\n")
+    return (
+        f"first={mask(lines[0])!r} last={mask(lines[-1])!r} lines={min(len(lines), 50)}"
+    )
+
+
+def mask(text: str, limit: int = 70) -> str:
+    """Replace paths, ids and numbers so a line shows only its shape."""
+    text = re.sub(r"[^\x20-\x7e]", "?", text)
+    text = re.sub(r"(?:[A-Za-z]:)?/[^\s'\",)\]}>]+", "<p>", text)
+    text = re.sub(r"\b[0-9a-fA-F-]{12,}\b", "<hex>", text)
+    text = re.sub(r"\b[A-Za-z0-9_]{20,}\b", "<tok>", text)
+    text = re.sub(r"\d+", "9", text)
+    return text[:limit]
+
+
+def check_claude_code(
+    tally: Tally, raw: RawToolCall, fmt: HarnessResultFormat[Any], values: MatchedValues
+) -> None:
+    """Compare what the format gave with Claude Code's structured result, an independent source."""
+    structured = structured_result(raw.result or {})
+    if not structured:
+        return
+    harness, tool = raw.tool.harness, raw.tool.name
+    text = fmt.tool_output_text_of(values)
+
+    def record(check: str, same: bool) -> None:
+        tally.cross[
+            (harness, tool, check, f"{'same' if same else 'differs'} ({fmt.name})")
+        ] += 1
+
+    if tool == "Bash" and text is not None:
+        record(
+            "format_text_vs_stdout",
+            text.strip() == (structured.get("stdout") or "").strip(),
+        )
+    if tool == "Bash" and structured.get("backgroundTaskId"):
+        record(
+            "format_handle_vs_backgroundTaskId",
+            values.get("handle") == structured["backgroundTaskId"],
+        )
+    content = (structured.get("file") or {}).get("content")
+    if tool == "Read" and text is not None and isinstance(content, str):
+        record("format_text_vs_file_content", text.strip() == content.strip())
+
+
 def audit_links(tally: Tally, calls: list[ToolCall]) -> None:
     issued: set[str] = set()
     pending_paths: dict[str, tuple[str, str]] = {}
@@ -240,76 +268,6 @@ def audit_links(tally: Tally, calls: list[ToolCall]) -> None:
             pending_paths.setdefault(output.output_path, (harness, tool))
     for owner in pending_paths.values():
         tally.cross[(*owner, "output_path", "not_read_later")] += 1
-
-
-def audit_trial(args: tuple[str, frozenset[str]]) -> Tally:
-    trial_dir, harnesses = args
-    tally = Tally()
-    trial = read_trial_tool_calls(Path(trial_dir))
-    if not trial.calls or (harnesses and trial.calls[0].tool.harness not in harnesses):
-        return tally
-    seen = TrialSeen()
-    calls = [convert_call(raw, converter_for(raw.tool.harness)) for raw in trial.calls]
-    for call in calls:
-        if call.output is not None:
-            audit_result(tally, call, seen)
-    audit_links(tally, calls)
-    tally.trials.update(seen.formats)
-    tally.unknown_format_trials.update(seen.unknown_shapes)
-    return tally
-
-
-def audit_rows(tally: Tally) -> list[dict[str, str]]:
-    """Declared formats in the catalog's order, then the other formats seen, sorted."""
-    rows: list[dict[str, str]] = []
-    declared: set[Key] = set()
-    for harness, tool, fmt in iter_declared_formats():
-        key = (harness, tool, fmt.name)
-        declared.add(key)
-        rows.append(_row(tally, key, format_kind(fmt)))
-    for key in sorted(tally.calls):
-        if key not in declared:
-            kind = "" if key[2] in UNMATCHED_NAMES else "special"
-            rows.append(_row(tally, key, kind))
-    return rows
-
-
-def _row(tally: Tally, key: Key, kind: str) -> dict[str, str]:
-    harness, tool, name = key
-    return {
-        "harness": harness,
-        "tool": tool,
-        "format": name,
-        "kind": kind,
-        "call_count": str(tally.calls.get(key, 0)),
-        "trial_count": str(tally.trials.get(key, 0)),
-        "example_calls": " ".join(tally.examples.get(key, [])),
-        "roundtrip_mismatches": str(tally.roundtrip.get(key, 0)),
-        "harness_text_hits": str(
-            sum(v for k, v in tally.harness_text_hits.items() if k[:3] == key)
-        ),
-        "multi_match": str(
-            sum(
-                v
-                for k, v in tally.multi.items()
-                if k[:2] == key[:2] and name in k[2].split(" > ")
-            )
-        ),
-    }
-
-
-def write_audit_csv(rows: list[dict[str, str]], path: Path) -> None:
-    with path.open("w", newline="") as f:
-        writer = csv.DictWriter(f, CSV_COLUMNS, lineterminator="\n")
-        writer.writeheader()
-        writer.writerows(rows)
-
-
-def _section(title: str, rows: Iterable[tuple[int, str]], limit: int = 40) -> list[str]:
-    lines = [f"== {title}"]
-    for count, label in sorted(rows, reverse=True)[:limit]:
-        lines.append(f"{count:>8}  {label}")
-    return lines
 
 
 def report(tally: Tally) -> str:
@@ -365,43 +323,85 @@ def report(tally: Tally) -> str:
     return "\n".join(lines) + "\n"
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
-    )
-    parser.add_argument("raw_trials_dir", type=Path)
-    parser.add_argument("output_csv", type=Path, nargs="?", default=DEFAULT_OUTPUT_CSV)
-    parser.add_argument(
-        "--harness",
-        action="append",
-        default=[],
-        help="only trials of this harness (repeatable)",
-    )
-    parser.add_argument(
-        "--report", type=Path, default=None, help="also write the report here"
-    )
-    parser.add_argument(
-        "--limit", type=int, default=None, help="only the first N trial folders"
-    )
-    args = parser.parse_args()
+def _section(title: str, rows: Iterable[tuple[int, str]], limit: int = 40) -> list[str]:
+    lines = [f"== {title}"]
+    for count, label in sorted(rows, reverse=True)[:limit]:
+        lines.append(f"{count:>8}  {label}")
+    return lines
 
-    trial_dirs = sorted(
-        entry.path for entry in os.scandir(args.raw_trials_dir) if entry.is_dir()
-    )[: args.limit]
-    harnesses = frozenset(args.harness)
-    tally = Tally()
-    with ProcessPoolExecutor(max_workers=max(2, (os.cpu_count() or 2) - 2)) as pool:
-        for part in pool.map(
-            audit_trial, ((d, harnesses) for d in trial_dirs), chunksize=16
-        ):
-            tally.merge(part)
 
-    text = report(tally)
-    print(text, end="")
-    if args.report:
-        args.report.write_text(text)
-    write_audit_csv(audit_rows(tally), args.output_csv)
-    print(f"audit written: {args.output_csv}")
+def write_audit_csv(rows: list[dict[str, str]], path: Path) -> None:
+    with path.open("w", newline="") as f:
+        writer = csv.DictWriter(f, CSV_COLUMNS, lineterminator="\n")
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def audit_rows(tally: Tally) -> list[dict[str, str]]:
+    """Declared formats in the catalog's order, then the other formats seen, sorted."""
+    rows: list[dict[str, str]] = []
+    declared: set[Key] = set()
+    for harness, tool, fmt in iter_declared_formats():
+        key = (harness, tool, fmt.name)
+        declared.add(key)
+        rows.append(_row(tally, key, format_kind(fmt)))
+    for key in sorted(tally.calls):
+        if key not in declared:
+            kind = "" if key[2] in UNMATCHED_NAMES else "special"
+            rows.append(_row(tally, key, kind))
+    return rows
+
+
+def _row(tally: Tally, key: Key, kind: str) -> dict[str, str]:
+    harness, tool, name = key
+    return {
+        "harness": harness,
+        "tool": tool,
+        "format": name,
+        "kind": kind,
+        "call_count": str(tally.calls.get(key, 0)),
+        "trial_count": str(tally.trials.get(key, 0)),
+        "example_calls": " ".join(tally.examples.get(key, [])),
+        "roundtrip_mismatches": str(tally.roundtrip.get(key, 0)),
+        "harness_text_hits": str(
+            sum(v for k, v in tally.harness_text_hits.items() if k[:3] == key)
+        ),
+        "multi_match": str(
+            sum(
+                v
+                for k, v in tally.multi.items()
+                if k[:2] == key[:2] and name in k[2].split(" > ")
+            )
+        ),
+    }
+
+
+@dataclass
+class Tally:
+    """Counts of one or more trials, keyed by names, never by result text."""
+
+    calls: Counter[Key] = field(default_factory=Counter)
+    trials: Counter[Key] = field(default_factory=Counter)
+    examples: dict[Key, list[str]] = field(default_factory=dict)
+    status: Counter[tuple[str, str, str, str]] = field(default_factory=Counter)
+    unknown_format: Counter[Shape] = field(default_factory=Counter)
+    unknown_format_trials: Counter[Shape] = field(default_factory=Counter)
+    multi: Counter[tuple[str, str, str]] = field(default_factory=Counter)
+    harness_text_hits: Counter[tuple[str, str, str, str]] = field(
+        default_factory=Counter
+    )
+    roundtrip: Counter[Key] = field(default_factory=Counter)
+    notices: Counter[tuple[str, str, str]] = field(default_factory=Counter)
+    cross: Counter[tuple[str, str, str, str]] = field(default_factory=Counter)
+
+    def merge(self, other: Tally) -> None:
+        for name in (f.name for f in fields(self)):
+            counts = getattr(self, name)
+            if isinstance(counts, Counter):
+                counts.update(getattr(other, name))
+        for key, examples in other.examples.items():
+            kept = self.examples.setdefault(key, [])
+            kept.extend(examples[: MAX_EXAMPLES - len(kept)])
 
 
 if __name__ == "__main__":

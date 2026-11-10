@@ -57,6 +57,9 @@ _LIVE_HEAD = (
 )
 
 
+_OMITTED = "… {omitted:int} lines omitted …\n"
+
+
 def _file_view(suffix: str = "") -> str:
     """A file view's opening tag. A second view in one template takes a suffix, since placeholder names must differ."""
     return (
@@ -65,7 +68,6 @@ def _file_view(suffix: str = "") -> str:
     )
 
 
-_OMITTED = "… {omitted:int} lines omitted …\n"
 _LIVE_HEAD_VIEW = (
     _LIVE_HEAD + _file_view() + "{head:numbered_pipe}\n</file-view>\n" + _OMITTED
 )

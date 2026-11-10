@@ -13,6 +13,12 @@ from tb_internet_use.toolcall.harnesses.base import HarnessToolCallConverter
 from tb_internet_use.toolcall.model import RawToolCall, ToolCall, UnknownAction
 
 
+def convert_trial(trial_dir: Path) -> list[ToolCall]:
+    """Convert every tool call of one trial. Empty when its trajectory cannot be read."""
+    trial = read_trial_tool_calls(trial_dir)
+    return [convert_call(raw, converter_for(raw.tool.harness)) for raw in trial.calls]
+
+
 def convert_call(raw: RawToolCall, converter: HarnessToolCallConverter) -> ToolCall:
     """Convert one tool call in the trajectory to common ToolCall type."""
 
@@ -29,9 +35,3 @@ def convert_call(raw: RawToolCall, converter: HarnessToolCallConverter) -> ToolC
         action = action_from_label(label, raw.args)
         action = converter.refine_action(raw, action, output)
     return ToolCall(raw, action, output)
-
-
-def convert_trial(trial_dir: Path) -> list[ToolCall]:
-    """Convert every tool call of one trial. Empty when its trajectory cannot be read."""
-    trial = read_trial_tool_calls(trial_dir)
-    return [convert_call(raw, converter_for(raw.tool.harness)) for raw in trial.calls]

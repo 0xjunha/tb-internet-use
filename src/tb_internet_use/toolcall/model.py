@@ -4,14 +4,23 @@ from dataclasses import dataclass
 from enum import Enum, StrEnum
 from typing import Any, final
 
+type Action = (
+    RunCommandAction
+    | RunToolScriptAction
+    | WriteFileAction
+    | EditFileAction
+    | ReadFileAction
+    | WebSearchAction
+    | WebFetchAction
+    | WebFindAction
+    | PollAction
+    | OtherAction
+    | UnknownAction
+)
 
-class ExecutionHandleKind(StrEnum):
-    """What a handle points at."""
 
-    COMMAND = "command"  # one shell command string
-    SCRIPT = "script"  # a tool script, the code of a RunToolScriptAction
-    SUBAGENT = "subagent"  # a subagent started earlier
-    UNKNOWN = "unknown"  # cannot confirm from the trajectory
+# Which format produced a ToolCallOutput; str() gives the name the catalog and audit CSVs use.
+type FormatMatch = MatchedFormat | UnmatchedFormat
 
 
 class ExecutionStatus(StrEnum):
@@ -30,14 +39,6 @@ class ExecutionStatus(StrEnum):
     KILLED = "killed"  # stopped by a signal or a stop request
     NOT_RUN = "not_run"  # the tool did no work
     UNKNOWN = "unknown"  # the trajectory does not say
-
-
-@dataclass(frozen=True, slots=True)
-class ExecutionHandle:
-    """Id that a later call uses to read or stop what an earlier call started."""
-
-    kind: ExecutionHandleKind
-    id: str
 
 
 def handles_from_ids(
@@ -143,21 +144,6 @@ class UnknownAction:
     """Use an unknown tool, or make a call that could not be converted."""
 
 
-type Action = (
-    RunCommandAction
-    | RunToolScriptAction
-    | WriteFileAction
-    | EditFileAction
-    | ReadFileAction
-    | WebSearchAction
-    | WebFetchAction
-    | WebFindAction
-    | PollAction
-    | OtherAction
-    | UnknownAction
-)
-
-
 @final
 @dataclass(frozen=True, slots=True)
 class MatchedFormat:
@@ -179,8 +165,45 @@ class UnmatchedFormat(Enum):
         return self.value
 
 
-# Which format produced a ToolCallOutput; str() gives the name the catalog and audit CSVs use.
-type FormatMatch = MatchedFormat | UnmatchedFormat
+@dataclass(frozen=True, slots=True)
+class ToolCall:
+    """One tool call in common types."""
+
+    raw: RawToolCall
+    action: Action
+    output: ToolCallOutput | None  # None when the trajectory has no result
+
+
+@dataclass(frozen=True, slots=True)
+class RawToolCall:
+    """One tool call from the trajectory, paired with its result."""
+
+    key: ToolCallKey
+    tool: HarnessTool
+    # From the trajectory. It can be empty or repeated, so it is not a key.
+    tool_call_id: str
+    args: dict[str, Any]  # the arguments in the trajectory
+    # The result object in the trajectory, or None when the call has none.
+    result: dict[str, Any] | None
+    is_subagent: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class ToolCallKey:
+    """Unique position of a tool call in the trajectories."""
+
+    trial_id: str  # Harbor Hub trial id
+    trajectory_id: str  # "main", or "main/sub0" for the first subagent (0-based)
+    step_id: int  # the step's step_id in the trajectory, 1-based
+    call_index: int  # 0-based position in the step's tool_calls
+
+
+@dataclass(frozen=True, slots=True)
+class HarnessTool:
+    """A tool as named by its harness."""
+
+    harness: str
+    name: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -208,41 +231,17 @@ class ToolCallOutput:
 
 
 @dataclass(frozen=True, slots=True)
-class ToolCallKey:
-    """Unique position of a tool call in the trajectories."""
+class ExecutionHandle:
+    """Id that a later call uses to read or stop what an earlier call started."""
 
-    trial_id: str  # Harbor Hub trial id
-    trajectory_id: str  # "main", or "main/sub0" for the first subagent (0-based)
-    step_id: int  # the step's step_id in the trajectory, 1-based
-    call_index: int  # 0-based position in the step's tool_calls
+    kind: ExecutionHandleKind
+    id: str
 
 
-@dataclass(frozen=True, slots=True)
-class HarnessTool:
-    """A tool as named by its harness."""
+class ExecutionHandleKind(StrEnum):
+    """What a handle points at."""
 
-    harness: str
-    name: str
-
-
-@dataclass(frozen=True, slots=True)
-class RawToolCall:
-    """One tool call from the trajectory, paired with its result."""
-
-    key: ToolCallKey
-    tool: HarnessTool
-    # From the trajectory. It can be empty or repeated, so it is not a key.
-    tool_call_id: str
-    args: dict[str, Any]  # the arguments in the trajectory
-    # The result object in the trajectory, or None when the call has none.
-    result: dict[str, Any] | None
-    is_subagent: bool = False
-
-
-@dataclass(frozen=True, slots=True)
-class ToolCall:
-    """One tool call in common types."""
-
-    raw: RawToolCall
-    action: Action
-    output: ToolCallOutput | None  # None when the trajectory has no result
+    COMMAND = "command"  # one shell command string
+    SCRIPT = "script"  # a tool script, the code of a RunToolScriptAction
+    SUBAGENT = "subagent"  # a subagent started earlier
+    UNKNOWN = "unknown"  # cannot confirm from the trajectory

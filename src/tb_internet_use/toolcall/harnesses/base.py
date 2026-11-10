@@ -22,17 +22,6 @@ from tb_internet_use.toolcall.result_formats import (
 _NOTHING_MATCHES = HarnessResultFormatList[str](formats=())
 
 
-def _decode_json(raw_text: str | None) -> dict[str, Any] | None:
-    """Decode the raw text as a JSON object. None when it is missing or not a JSON object."""
-    if raw_text is None or not raw_text.lstrip().startswith("{"):
-        return None
-    try:
-        decoded = json.loads(raw_text)
-    except ValueError:
-        return None
-    return decoded if isinstance(decoded, dict) else None
-
-
 class HarnessToolCallConverter:
     """The parts of tool call conversion that differ by harness.
 
@@ -59,15 +48,21 @@ class HarnessToolCallConverter:
     text_formats: ClassVar[Mapping[str, HarnessResultFormatList[str]]] = {}
     json_formats: ClassVar[Mapping[str, HarnessResultFormatList[JsonObject]]] = {}
 
-    def extract_tool_result_raw_text(
-        self, raw: RawToolCall, result: dict[str, Any]
-    ) -> str | None:
-        """Extract the tool result text from the trajectory.
+    def parse_output(self, raw: RawToolCall, result: dict[str, Any]) -> ToolCallOutput:
+        """Parse a tool call result in the trajectory into a ToolCallOutput.
 
-        By default, it is the result's `content` if that is a string, else None.
+        By default, it runs `parse_output_with_formats` on what the hooks
+        `extract_tool_result_raw_text`, `extract_tool_result_json` and `select_formats`
+        return. A harness overrides those hooks when its trajectory differs, and this
+        method to add what formats cannot express.
         """
-        content = result.get("content")
-        return content if isinstance(content, str) else None
+        tool_result_json = self.extract_tool_result_json(raw, result)
+        selected_formats = self.select_formats(raw, result, tool_result_json)
+        return parse_output_with_formats(
+            self.extract_tool_result_raw_text(raw, result),
+            tool_result_json,
+            selected_formats,
+        )
 
     def extract_tool_result_json(
         self, raw: RawToolCall, result: dict[str, Any]
@@ -81,6 +76,16 @@ class HarnessToolCallConverter:
             return None
         raw_text = self.extract_tool_result_raw_text(raw, result)
         return _decode_json(raw_text) or None  # {} has nothing to match
+
+    def extract_tool_result_raw_text(
+        self, raw: RawToolCall, result: dict[str, Any]
+    ) -> str | None:
+        """Extract the tool result text from the trajectory.
+
+        By default, it is the result's `content` if that is a string, else None.
+        """
+        content = result.get("content")
+        return content if isinstance(content, str) else None
 
     def select_formats(
         self,
@@ -102,22 +107,6 @@ class HarnessToolCallConverter:
         if formats is None and name in self.json_formats:
             return _NOTHING_MATCHES
         return formats
-
-    def parse_output(self, raw: RawToolCall, result: dict[str, Any]) -> ToolCallOutput:
-        """Parse a tool call result in the trajectory into a ToolCallOutput.
-
-        By default, it runs `parse_output_with_formats` on what the hooks
-        `extract_tool_result_raw_text`, `extract_tool_result_json` and `select_formats`
-        return. A harness overrides those hooks when its trajectory differs, and this
-        method to add what formats cannot express.
-        """
-        tool_result_json = self.extract_tool_result_json(raw, result)
-        selected_formats = self.select_formats(raw, result, tool_result_json)
-        return parse_output_with_formats(
-            self.extract_tool_result_raw_text(raw, result),
-            tool_result_json,
-            selected_formats,
-        )
 
     def refine_action(
         self, raw: RawToolCall, action: Action, output: ToolCallOutput | None
@@ -152,3 +141,14 @@ class HarnessToolCallConverter:
     def declared_formats(self) -> list[tuple[str, HarnessResultFormatList[Any]]]:
         """Every format list with the tool it belongs to, for the catalog."""
         return [*self.text_formats.items(), *self.json_formats.items()]
+
+
+def _decode_json(raw_text: str | None) -> dict[str, Any] | None:
+    """Decode the raw text as a JSON object. None when it is missing or not a JSON object."""
+    if raw_text is None or not raw_text.lstrip().startswith("{"):
+        return None
+    try:
+        decoded = json.loads(raw_text)
+    except ValueError:
+        return None
+    return decoded if isinstance(decoded, dict) else None

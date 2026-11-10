@@ -25,25 +25,6 @@ from tb_internet_use.toolcall.model import (
     string_tuple,
 )
 
-# Tokens
-
-
-class _Unreadable(Exception):
-    """The script cannot be split into tokens."""
-
-
-class _Token(NamedTuple):
-    kind: str  # name, number, string, template, regex or punct
-    value: Any
-
-
-@dataclass(frozen=True, slots=True)
-class _Template:
-    cooked: tuple[str, ...]  # the text parts with escapes applied
-    raw: tuple[str, ...]  # the text parts as written, for String.raw
-    exprs: tuple[tuple[_Token, ...], ...]  # the tokens of each ${...}
-
-
 _SKIP = re.compile(r"(?:\s+|//[^\n]*|/\*[\s\S]*?\*/)+")
 _NAME = re.compile(r"[A-Za-z_$\u0080-\uffff][\w$\u0080-\uffff]*")
 _NUMBER = re.compile(
@@ -75,6 +56,98 @@ _BEFORE_REGEX = frozenset(
         "await",
     ]
 )
+
+
+_UNREAD = object()  # a value that is not a literal
+_CLOSERS = frozenset({",", ")", "]", "}", ";"})
+_OPENERS = {"(": ")", "[": "]", "{": "}"}
+_KEYWORD_VALUES = {"true": True, "false": False, "null": None}
+
+
+_PATCH_FILE = re.compile(r"^\*\*\* (Add|Update|Delete) File: (.+)$", re.MULTILINE)
+_MOVE_TO = "*** Move to: "
+_URL = re.compile(r"https?://", re.IGNORECASE)
+
+
+def script_tool_calls(code: str) -> list[tuple[str, Any]]:
+    """Each `tools.NAME(argument)` call in the script, in order, as the name and the
+    argument's literal value. The value is None when it is not a literal.
+
+    A call inside a loop or a branch is listed once, whether it ran or not.
+    """
+    try:
+        tokens, _ = _tokens(code)
+    except _Unreadable, ValueError:  # ValueError from a bad escape
+        return []
+    return _calls(tokens, _consts(tokens))
+
+
+def _tokens(
+    code: str, i: int = 0, in_template: bool = False
+) -> tuple[list[_Token], int]:
+    """The tokens from code[i] to the end, or to the brace that closes a `${`."""
+    tokens: list[_Token] = []
+    depth = 0
+    while True:
+        if skipped := _SKIP.match(code, i):
+            i = skipped.end()
+        if i >= len(code):
+            if in_template:
+                raise _Unreadable
+            return tokens, i
+        char = code[i]
+        previous = tokens[-1] if tokens else None
+        if char in "'\"":
+            if not (found := _QUOTED.match(code, i)):
+                raise _Unreadable
+            tokens.append(_Token("string", _unescape(found[0][1:-1])))
+            i = found.end()
+        elif char == "`":
+            template, i = _template(code, i + 1)
+            tokens.append(_Token("template", template))
+        elif found := _NAME.match(code, i):
+            tokens.append(_Token("name", found[0]))
+            i = found.end()
+        elif char.isdigit() or (char == "." and code[i + 1 : i + 2].isdigit()):
+            found = _NUMBER.match(code, i)
+            assert found is not None
+            tokens.append(_Token("number", found[0]))
+            i = found.end()
+        elif char == "/" and _starts_regex(previous):
+            end = _regex_end(code, i)
+            tokens.append(_Token("regex", code[i:end]))
+            i = end
+        elif in_template and char == "}" and depth == 0:
+            return tokens, i + 1
+        elif found := _PUNCT.match(code, i):
+            depth += {"{": 1, "}": -1}.get(found[0], 0)
+            tokens.append(_Token("punct", found[0]))
+            i = found.end()
+        else:
+            raise _Unreadable
+
+
+def _template(code: str, i: int) -> tuple[_Template, int]:
+    """The template whose text starts at code[i], after its backtick."""
+    raw: list[str] = []
+    exprs: list[tuple[_Token, ...]] = []
+    start = i
+    while i < len(code):
+        if code[i] == "\\":
+            i += 2
+        elif code[i] == "`":
+            raw.append(code[start:i])
+            return _Template(
+                tuple(map(_unescape, raw)), tuple(raw), tuple(exprs)
+            ), i + 1
+        elif code.startswith("${", i):
+            raw.append(code[start:i])
+            tokens, i = _tokens(code, i + 2, in_template=True)
+            exprs.append(tuple(tokens))
+            start = i
+        else:
+            i += 1
+    raise _Unreadable
 
 
 def _unescape(text: str) -> str:
@@ -123,99 +196,51 @@ def _regex_end(code: str, i: int) -> int:
     raise _Unreadable
 
 
-def _template(code: str, i: int) -> tuple[_Template, int]:
-    """The template whose text starts at code[i], after its backtick."""
-    raw: list[str] = []
-    exprs: list[tuple[_Token, ...]] = []
-    start = i
-    while i < len(code):
-        if code[i] == "\\":
-            i += 2
-        elif code[i] == "`":
-            raw.append(code[start:i])
-            return _Template(
-                tuple(map(_unescape, raw)), tuple(raw), tuple(exprs)
-            ), i + 1
-        elif code.startswith("${", i):
-            raw.append(code[start:i])
-            tokens, i = _tokens(code, i + 2, in_template=True)
-            exprs.append(tuple(tokens))
-            start = i
-        else:
-            i += 1
-    raise _Unreadable
+class _Unreadable(Exception):
+    """The script cannot be split into tokens."""
 
 
-def _tokens(
-    code: str, i: int = 0, in_template: bool = False
-) -> tuple[list[_Token], int]:
-    """The tokens from code[i] to the end, or to the brace that closes a `${`."""
-    tokens: list[_Token] = []
-    depth = 0
-    while True:
-        if skipped := _SKIP.match(code, i):
-            i = skipped.end()
-        if i >= len(code):
-            if in_template:
-                raise _Unreadable
-            return tokens, i
-        char = code[i]
-        previous = tokens[-1] if tokens else None
-        if char in "'\"":
-            if not (found := _QUOTED.match(code, i)):
-                raise _Unreadable
-            tokens.append(_Token("string", _unescape(found[0][1:-1])))
-            i = found.end()
-        elif char == "`":
-            template, i = _template(code, i + 1)
-            tokens.append(_Token("template", template))
-        elif found := _NAME.match(code, i):
-            tokens.append(_Token("name", found[0]))
-            i = found.end()
-        elif char.isdigit() or (char == "." and code[i + 1 : i + 2].isdigit()):
-            found = _NUMBER.match(code, i)
-            assert found is not None
-            tokens.append(_Token("number", found[0]))
-            i = found.end()
-        elif char == "/" and _starts_regex(previous):
-            end = _regex_end(code, i)
-            tokens.append(_Token("regex", code[i:end]))
-            i = end
-        elif in_template and char == "}" and depth == 0:
-            return tokens, i + 1
-        elif found := _PUNCT.match(code, i):
-            depth += {"{": 1, "}": -1}.get(found[0], 0)
-            tokens.append(_Token("punct", found[0]))
-            i = found.end()
-        else:
-            raise _Unreadable
+def _calls(tokens: list[_Token], consts: dict[str, Any]) -> list[tuple[str, Any]]:
+    calls: list[tuple[str, Any]] = []
+    for i, token in enumerate(tokens):
+        if token.kind == "template":
+            for expr in token.value.exprs:
+                calls.extend(_calls(list(expr), consts))
+        elif (
+            token == ("name", "tools")
+            and _is(tokens, i + 1, ".")
+            and i + 2 < len(tokens)
+            and tokens[i + 2].kind == "name"
+            and _is(tokens, i + 3, "(")
+        ):
+            argument, end = _value(tokens, i + 4, consts)
+            if argument is _UNREAD or not (
+                _is(tokens, end, ",") or _is(tokens, end, ")")
+            ):
+                argument = None
+            calls.append((tokens[i + 2].value, argument))
+    return calls
 
 
-# Literal values
-
-_UNREAD = object()  # a value that is not a literal
-_CLOSERS = frozenset({",", ")", "]", "}", ";"})
-_OPENERS = {"(": ")", "[": "]", "{": "}"}
-_KEYWORD_VALUES = {"true": True, "false": False, "null": None}
-
-
-def _is(tokens: list[_Token], i: int, value: str) -> bool:
-    return i < len(tokens) and tokens[i] == ("punct", value)
-
-
-def _expression_end(tokens: list[_Token], i: int) -> int:
-    """The index of the separator or closer that ends the expression at tokens[i]."""
-    closers: list[str] = []
-    while i < len(tokens):
-        kind, value = tokens[i]
-        if kind == "punct" and value in _OPENERS:
-            closers.append(_OPENERS[value])
-        elif kind == "punct" and closers and value == closers[-1]:
-            closers.pop()
-        elif kind == "punct" and not closers and value in _CLOSERS:
-            return i
-        i += 1
-    return i
+def _consts(tokens: list[_Token]) -> dict[str, Any]:
+    """The names that `const` binds to a literal, when the script declares them once."""
+    declared: dict[str, int] = {}
+    for i, token in enumerate(tokens[:-1]):
+        if token.kind == "name" and token.value in ("const", "let", "var"):
+            name = tokens[i + 1]
+            declared[name.value] = declared.get(name.value, 0) + (name.kind == "name")
+    consts: dict[str, Any] = {}
+    for i, token in enumerate(tokens[:-3]):
+        name = tokens[i + 1].value
+        if (
+            token == ("name", "const")
+            and declared.get(name) == 1
+            and _is(tokens, i + 2, "=")
+        ):
+            value, _ = _value(tokens, i + 3, consts)
+            if value is not _UNREAD:
+                consts[name] = value
+    return consts
 
 
 def _value(tokens: list[_Token], i: int, consts: dict[str, Any]) -> tuple[Any, int]:
@@ -256,16 +281,6 @@ def _literal(tokens: list[_Token], i: int, consts: dict[str, Any]) -> tuple[Any,
     return _UNREAD, i + 1
 
 
-def _number(text: str) -> Any:
-    text = text.replace("_", "").rstrip("n")
-    try:
-        if text[:2].lower() in ("0x", "0b", "0o"):
-            return int(text, 0)
-        return float(text) if any(c in text for c in ".eE") else int(text)
-    except ValueError:
-        return _UNREAD
-
-
 def _template_value(
     template: _Template, parts: tuple[str, ...], consts: dict[str, Any]
 ) -> Any:
@@ -276,15 +291,6 @@ def _template_value(
             return _UNREAD
         text += _js_text(value) + part
     return text
-
-
-def _js_text(value: str | bool | float | None) -> str:
-    """A literal as JavaScript writes it into a string."""
-    if isinstance(value, bool) or value is None:
-        return {True: "true", False: "false", None: "null"}[value]
-    if isinstance(value, float) and value.is_integer():
-        return str(int(value))
-    return str(value)
 
 
 def _array(tokens: list[_Token], i: int, consts: dict[str, Any]) -> tuple[Any, int]:
@@ -323,67 +329,54 @@ def _object(tokens: list[_Token], i: int, consts: dict[str, Any]) -> tuple[Any, 
     return found, i + 1
 
 
-def _consts(tokens: list[_Token]) -> dict[str, Any]:
-    """The names that `const` binds to a literal, when the script declares them once."""
-    declared: dict[str, int] = {}
-    for i, token in enumerate(tokens[:-1]):
-        if token.kind == "name" and token.value in ("const", "let", "var"):
-            name = tokens[i + 1]
-            declared[name.value] = declared.get(name.value, 0) + (name.kind == "name")
-    consts: dict[str, Any] = {}
-    for i, token in enumerate(tokens[:-3]):
-        name = tokens[i + 1].value
-        if (
-            token == ("name", "const")
-            and declared.get(name) == 1
-            and _is(tokens, i + 2, "=")
-        ):
-            value, _ = _value(tokens, i + 3, consts)
-            if value is not _UNREAD:
-                consts[name] = value
-    return consts
+@dataclass(frozen=True, slots=True)
+class _Template:
+    cooked: tuple[str, ...]  # the text parts with escapes applied
+    raw: tuple[str, ...]  # the text parts as written, for String.raw
+    exprs: tuple[tuple[_Token, ...], ...]  # the tokens of each ${...}
 
 
-def _calls(tokens: list[_Token], consts: dict[str, Any]) -> list[tuple[str, Any]]:
-    calls: list[tuple[str, Any]] = []
-    for i, token in enumerate(tokens):
-        if token.kind == "template":
-            for expr in token.value.exprs:
-                calls.extend(_calls(list(expr), consts))
-        elif (
-            token == ("name", "tools")
-            and _is(tokens, i + 1, ".")
-            and i + 2 < len(tokens)
-            and tokens[i + 2].kind == "name"
-            and _is(tokens, i + 3, "(")
-        ):
-            argument, end = _value(tokens, i + 4, consts)
-            if argument is _UNREAD or not (
-                _is(tokens, end, ",") or _is(tokens, end, ")")
-            ):
-                argument = None
-            calls.append((tokens[i + 2].value, argument))
-    return calls
+def _is(tokens: list[_Token], i: int, value: str) -> bool:
+    return i < len(tokens) and tokens[i] == ("punct", value)
 
 
-def script_tool_calls(code: str) -> list[tuple[str, Any]]:
-    """Each `tools.NAME(argument)` call in the script, in order, as the name and the
-    argument's literal value. The value is None when it is not a literal.
-
-    A call inside a loop or a branch is listed once, whether it ran or not.
-    """
+def _number(text: str) -> Any:
+    text = text.replace("_", "").rstrip("n")
     try:
-        tokens, _ = _tokens(code)
-    except _Unreadable, ValueError:  # ValueError from a bad escape
-        return []
-    return _calls(tokens, _consts(tokens))
+        if text[:2].lower() in ("0x", "0b", "0o"):
+            return int(text, 0)
+        return float(text) if any(c in text for c in ".eE") else int(text)
+    except ValueError:
+        return _UNREAD
 
 
-# Actions of apply_patch and web__run
+def _js_text(value: str | bool | float | None) -> str:
+    """A literal as JavaScript writes it into a string."""
+    if isinstance(value, bool) or value is None:
+        return {True: "true", False: "false", None: "null"}[value]
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return str(value)
 
-_PATCH_FILE = re.compile(r"^\*\*\* (Add|Update|Delete) File: (.+)$", re.MULTILINE)
-_MOVE_TO = "*** Move to: "
-_URL = re.compile(r"https?://", re.IGNORECASE)
+
+def _expression_end(tokens: list[_Token], i: int) -> int:
+    """The index of the separator or closer that ends the expression at tokens[i]."""
+    closers: list[str] = []
+    while i < len(tokens):
+        kind, value = tokens[i]
+        if kind == "punct" and value in _OPENERS:
+            closers.append(_OPENERS[value])
+        elif kind == "punct" and closers and value == closers[-1]:
+            closers.pop()
+        elif kind == "punct" and not closers and value in _CLOSERS:
+            return i
+        i += 1
+    return i
+
+
+class _Token(NamedTuple):
+    kind: str  # name, number, string, template, regex or punct
+    value: Any
 
 
 def patch_actions(patch: str) -> list[Action]:
