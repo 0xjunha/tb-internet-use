@@ -1,111 +1,112 @@
 harness,tool,format,kind,template,status,is_truncated,no_tool_output_text,handle_kind,reviewed,note
-claude-code,Bash,tool_use_error,text,<tool_use_error>{reason:text}</tool_use_error>,not_run,,,,,
+claude-code,Bash,tool_use_error,text,<tool_use_error>{reason:text}</tool_use_error>,not_run,,,,yes,
 claude-code,Bash,timed_out,text,"Exit code {code:int}
 Command timed out after {after:rest_of_line}
-{tool_output:text}",timed_out,when ... [{count:int} characters truncated] ...,,,,
+{tool_output:text}",timed_out,when ... [{count:int} characters truncated] ...,,,yes,"rename ""after"" to ""timeout_limit"" / ""code"" to ""exit_code"""
 claude-code,Bash,timed_out_silent,text,"Exit code {code:int}
-Command timed out after {after:rest_of_line}",timed_out,,,,,
+Command timed out after {after:rest_of_line}",timed_out,,,,yes,"rename ""after"" to ""timeout_limit"" / ""code"" to ""exit_code"""
 claude-code,Bash,exited,text,"Exit code {exit_code:int}
-{tool_output:text}",finished,when ... [{count:int} characters truncated] ...,,,,
-claude-code,Bash,exited_silent,text,Exit code {exit_code:int},finished,,,,,
-claude-code,Bash,refused_permission,text,Permission to use Bash {reason:text},not_run,,,,,
-claude-code,Bash,refused_dangerous,text,Dangerous {operation:line_without_brackets} operation detected{reason:text},not_run,,,,,
-claude-code,Bash,refused_multiple,text,This Bash command contains multiple operations{reason:text},not_run,,,,,
-claude-code,Bash,interrupted_classifier,text,Interrupted: the response that made this tool call was stopped by a safety classifier{reason:text},unknown,,,,,
-claude-code,Bash,refused_user,text,The user doesn't want to proceed with this tool use{reason:text},not_run,,,,,
-claude-code,Bash,no_output,text,(Bash completed with no output),finished,,,,,
-claude-code,Bash,background,text,"Command running in background with ID: {handle:id}. Output is being written to: {output_path:word}. You will be notified when it completes. To check interim output, use Read on that file path.",running,,,command,,
-claude-code,Bash,background_v3,text,"Command running in background with ID: {handle:id}. Output is being written to: {output_path:word}. If it exits while you are still working you will be notified, {rest:rest_of_line}",running,,,command,,
+{tool_output:text}",finished,when ... [{count:int} characters truncated] ...,,,yes,looks like Exit code 0 never prints
+claude-code,Bash,exited_silent,text,Exit code {exit_code:int},finished,,,,yes,
+claude-code,Bash,refused_permission,text,Permission to use Bash {reason:text},not_run,,,,yes,"no need to add ""has been denied."" in the template?"
+claude-code,Bash,refused_dangerous,text,Dangerous {operation:line_without_brackets} operation detected{reason:text},not_run,,,,yes,
+claude-code,Bash,refused_multiple,text,This Bash command contains multiple operations{reason:text},not_run,,,,yes,
+claude-code,Bash,interrupted_classifier,text,Interrupted: the response that made this tool call was stopped by a safety classifier{reason:text},unknown,,,,yes,
+claude-code,Bash,refused_user,text,The user doesn't want to proceed with this tool use{reason:text},not_run,,,,yes,
+claude-code,Bash,no_output,text,(Bash completed with no output),finished,,,,yes,
+claude-code,Bash,background,text,"Command running in background with ID: {handle:id}. Output is being written to: {output_path:word}. You will be notified when it completes. To check interim output, use Read on that file path.",running,,,command,yes,
+claude-code,Bash,background_v3,text,"Command running in background with ID: {handle:id}. Output is being written to: {output_path:word}. If it exits while you are still working you will be notified, {rest:rest_of_line}",running,,,command,yes,why not share `background` format?
 claude-code,Bash,background_after_output,text,"{tool_output:text}
-Command running in background with ID: {handle:id}. Output is being written to: {output_path:word}. You will be notified when it completes. To check interim output, use Read on that file path.",running,,,command,,
-claude-code,Bash,background_timeout,text,"Command did not complete within its {seconds:int}s timeout and was moved to the background (ID: {handle:id}). Output is being written to: {output_path:word}. You will be notified when it completes. To check interim output, use Read on that file path.",running,,,command,,
-claude-code,Bash,background_timeout_v2,text,Command did not complete within its {seconds:int}s timeout and was moved to the background (ID: {handle:id}). Output is being written to: {output_path:word}. You will be notified when it completes. If it is still running after {rest:rest_of_line},running,,,command,,
+Command running in background with ID: {handle:id}. Output is being written to: {output_path:word}. You will be notified when it completes. To check interim output, use Read on that file path.",running,,,command,yes,
+claude-code,Bash,background_timeout,text,"Command did not complete within its {seconds:int}s timeout and was moved to the background (ID: {handle:id}). Output is being written to: {output_path:word}. You will be notified when it completes. To check interim output, use Read on that file path.",running,,,command,yes,
+claude-code,Bash,background_timeout_v2,text,Command did not complete within its {seconds:int}s timeout and was moved to the background (ID: {handle:id}). Output is being written to: {output_path:word}. You will be notified when it completes. If it is still running after {rest:rest_of_line},running,,,command,yes,why not share `background_timeout` format?
 claude-code,Bash,persisted_output,text,"<persisted-output>
 Output too large ({size:line_without_brackets}). Full output saved to: {output_path:word}
 
 Preview (first {preview:line_without_brackets}):
 {tool_output:text}
-</persisted-output>",finished,True,,,,
+</persisted-output>",finished,True,,,yes,
 claude-code,Bash,persisted_output_partial,text,"<persisted-output>
 Output exceeded the {limit:line_without_brackets} persist limit; only the first {kept:line_without_brackets} were saved to: {output_path:word}
 
 Preview (first {preview:line_without_brackets}):
 {tool_output:text}
-</persisted-output>",finished,True,,,,
-claude-code,Bash,bare_output,text,{tool_output:text},finished,,,,,
-claude-code,Read,tool_use_error,text,<tool_use_error>{reason:text}</tool_use_error>,not_run,,,,,
-claude-code,Read,interrupted_classifier,text,Interrupted: the response that made this tool call was stopped by a safety classifier{reason:text},unknown,,,,,
-claude-code,Read,warning,text,<system-reminder>Warning: {warning:text}</system-reminder>,finished,,,,,
-claude-code,Read,unchanged,text,Wasted call — file unchanged since your last Read. Refer to that earlier tool_result instead.,not_run,,,,,
-claude-code,Read,pdf,text,PDF file read: {path:line} ({size:line_without_brackets}),finished,,True,,,
-claude-code,Read,pdf_pages,text,PDF pages extracted: {pages:int} page(s) from {path:line} ({size:line_without_brackets}),finished,,True,,,
-claude-code,Read,pdf_tool_missing,text,pdftoppm is not installed. {hint:text},not_run,,,,,
-claude-code,Read,pdf_too_many_pages,text,"This PDF has {pages:int} pages, which is too many to read at once. {hint:text}",not_run,,,,,
-claude-code,Read,pdf_too_large,text,PDF file exceeds maximum allowed size of {limit:rest_of_line},not_run,,,,,
-claude-code,Read,image_too_large,text,Unable to resize image {detail:text},not_run,,,,,
-claude-code,Read,directory,text,"EISDIR: illegal operation on a directory, {detail:text}",not_run,,,,,
-claude-code,Read,missing,text,File does not exist. {note:text},not_run,,,,,
-claude-code,Read,too_large,text,File content ({size:line_without_brackets}) exceeds maximum allowed {limit:text},not_run,,,,,
+</persisted-output>",finished,True,,,yes,
+claude-code,Bash,bare_output,text,{tool_output:text},finished,,,,yes,"recheck whether all cases should be counted as ""finished"""
+claude-code,Read,tool_use_error,text,<tool_use_error>{reason:text}</tool_use_error>,not_run,,,,yes,
+claude-code,Read,interrupted_classifier,text,Interrupted: the response that made this tool call was stopped by a safety classifier{reason:text},unknown,,,,yes,check this pattern as well: !!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+claude-code,Read,warning,text,<system-reminder>Warning: {warning:text}</system-reminder>,finished,,,,yes,
+claude-code,Read,unchanged,text,Wasted call — file unchanged since your last Read. Refer to that earlier tool_result instead.,not_run,,,,yes,
+claude-code,Read,pdf,text,PDF file read: {path:line} ({size:line_without_brackets}),finished,,True,,yes,
+claude-code,Read,pdf_pages,text,PDF pages extracted: {pages:int} page(s) from {path:line} ({size:line_without_brackets}),finished,,True,,yes,
+claude-code,Read,pdf_tool_missing,text,pdftoppm is not installed. {hint:text},not_run,,,,yes,
+claude-code,Read,pdf_too_many_pages,text,"This PDF has {pages:int} pages, which is too many to read at once. {hint:text}",not_run,,,,yes,
+claude-code,Read,pdf_too_large,text,PDF file exceeds maximum allowed size of {limit:rest_of_line},not_run,,,,yes,
+claude-code,Read,image_too_large,text,Unable to resize image {detail:text},not_run,,,,yes,
+claude-code,Read,directory,text,"EISDIR: illegal operation on a directory, {detail:text}",not_run,,,,yes,
+claude-code,Read,missing,text,File does not exist. {note:text},not_run,,,,yes,
+claude-code,Read,too_large,text,File content ({size:line_without_brackets}) exceeds maximum allowed {limit:text},not_run,,,,yes,
 claude-code,Read,persisted_output,text,"<persisted-output>
 Output too large ({size:line_without_brackets}). Full output saved to: {output_path:word}
 
 Preview (first {preview:line_without_brackets}):
 {tool_output:text}
-</persisted-output>",finished,True,,,,
+</persisted-output>",finished,True,,,yes,
 claude-code,Read,persisted_output_partial,text,"<persisted-output>
 Output exceeded the {limit:line_without_brackets} persist limit; only the first {kept:line_without_brackets} were saved to: {output_path:word}
 
 Preview (first {preview:line_without_brackets}):
 {tool_output:text}
-</persisted-output>",finished,True,,,,
-claude-code,Read,listing,text,{tool_output:numbered_tab},finished,,,,,
-claude-code,Write,tool_use_error,text,<tool_use_error>{reason:text}</tool_use_error>,not_run,,,,,
-claude-code,Write,interrupted_classifier,text,Interrupted: the response that made this tool call was stopped by a safety classifier{reason:text},unknown,,,,,
-claude-code,Write,not_run_classifier,text,Not run: the response that made this tool call was stopped by a safety classifier{reason:text},not_run,,,,,
-claude-code,Write,refused_symlink,text,Refusing to write through symlink: {path:word} {hint:text},not_run,,,,,
-claude-code,Write,created_fresh,text,File created successfully at: {path:word} (file state is current in your context — no need to Read it back),finished,,,,,
-claude-code,Write,created,text,File created successfully at: {path:rest_of_line},finished,,,,,
-claude-code,Write,updated_fresh,text,The file {path:line} has been updated successfully. (file state is current in your context — no need to Read it back),finished,,,,,
-claude-code,Write,updated,text,The file {path:line} has been updated successfully.,finished,,,,,
-claude-code,Edit,tool_use_error,text,<tool_use_error>{reason:text}</tool_use_error>,not_run,,,,,
-claude-code,Edit,interrupted_classifier,text,Interrupted: the response that made this tool call was stopped by a safety classifier{reason:text},unknown,,,,,
-claude-code,Edit,not_run_classifier,text,Not run: the response that made this tool call was stopped by a safety classifier{reason:text},not_run,,,,,
-claude-code,Edit,refused_symlink,text,Refusing to write through symlink: {path:word} {hint:text},not_run,,,,,
-claude-code,Edit,updated_fresh,text,The file {path:line} has been updated successfully. (file state is current in your context — no need to Read it back),finished,,,,,
-claude-code,Edit,updated,text,The file {path:line} has been updated successfully.,finished,,,,,
-claude-code,Edit,updated_note,text,The file {path:line} has been updated successfully. (note: {note:text},finished,,,,,
-claude-code,Edit,replaced_all_fresh,text,The file {path:line} has been updated. All occurrences were successfully replaced. (file state is current in your context — no need to Read it back),finished,,,,,
-claude-code,Edit,replaced_all,text,The file {path:line} has been updated. All occurrences were successfully replaced.,finished,,,,,
-claude-code,Edit,replaced_all_note,text,The file {path:line} has been updated. All occurrences were successfully replaced. (note: {note:text},finished,,,,,
-claude-code,WebFetch,tool_use_error,text,<tool_use_error>{reason:text}</tool_use_error>,not_run,,,,,
-claude-code,WebFetch,interrupted_classifier,text,Interrupted: the response that made this tool call was stopped by a safety classifier{reason:text},unknown,,,,,
+</persisted-output>",finished,True,,,yes,
+claude-code,Read,listing,text,{tool_output:numbered_tab},finished,,,,yes,"recheck whether all cases should be counted as ""finished"""
+claude-code,Write,tool_use_error,text,<tool_use_error>{reason:text}</tool_use_error>,not_run,,,,yes,
+claude-code,Write,interrupted_classifier,text,Interrupted: the response that made this tool call was stopped by a safety classifier{reason:text},unknown,,,,yes,
+claude-code,Write,not_run_classifier,text,Not run: the response that made this tool call was stopped by a safety classifier{reason:text},not_run,,,,yes,
+claude-code,Write,refused_symlink,text,Refusing to write through symlink: {path:word} {hint:text},not_run,,,,yes,
+claude-code,Write,created_fresh,text,File created successfully at: {path:word} (file state is current in your context — no need to Read it back),finished,,,,yes,
+claude-code,Write,created,text,File created successfully at: {path:rest_of_line},finished,,,,yes,
+claude-code,Write,updated_fresh,text,The file {path:line} has been updated successfully. (file state is current in your context — no need to Read it back),finished,,,,yes,
+claude-code,Write,updated,text,The file {path:line} has been updated successfully.,finished,,,,yes,
+claude-code,Edit,tool_use_error,text,<tool_use_error>{reason:text}</tool_use_error>,not_run,,,,yes,
+claude-code,Edit,interrupted_classifier,text,Interrupted: the response that made this tool call was stopped by a safety classifier{reason:text},unknown,,,,yes,
+claude-code,Edit,not_run_classifier,text,Not run: the response that made this tool call was stopped by a safety classifier{reason:text},not_run,,,,yes,
+claude-code,Edit,refused_symlink,text,Refusing to write through symlink: {path:word} {hint:text},not_run,,,,yes,
+claude-code,Edit,updated_fresh,text,The file {path:line} has been updated successfully. (file state is current in your context — no need to Read it back),finished,,,,yes,
+claude-code,Edit,updated,text,The file {path:line} has been updated successfully.,finished,,,,yes,
+claude-code,Edit,updated_note,text,The file {path:line} has been updated successfully. (note: {note:text},finished,,,,yes,
+claude-code,Edit,replaced_all_fresh,text,The file {path:line} has been updated. All occurrences were successfully replaced. (file state is current in your context — no need to Read it back),finished,,,,yes,
+claude-code,Edit,replaced_all,text,The file {path:line} has been updated. All occurrences were successfully replaced.,finished,,,,yes,
+claude-code,Edit,replaced_all_note,text,The file {path:line} has been updated. All occurrences were successfully replaced. (note: {note:text},finished,,,,yes,
+claude-code,WebFetch,tool_use_error,text,<tool_use_error>{reason:text}</tool_use_error>,not_run,,,,yes,
+claude-code,WebFetch,interrupted_classifier,text,Interrupted: the response that made this tool call was stopped by a safety classifier{reason:text},unknown,,,,yes,
 claude-code,WebFetch,persisted_output,text,"<persisted-output>
 Output too large ({size:line_without_brackets}). Full output saved to: {output_path:word}
 
 Preview (first {preview:line_without_brackets}):
 {tool_output:text}
-</persisted-output>",finished,True,,,,
+</persisted-output>",finished,True,,,yes,
 claude-code,WebFetch,persisted_output_partial,text,"<persisted-output>
 Output exceeded the {limit:line_without_brackets} persist limit; only the first {kept:line_without_brackets} were saved to: {output_path:word}
 
 Preview (first {preview:line_without_brackets}):
 {tool_output:text}
-</persisted-output>",finished,True,,,,
-claude-code,WebFetch,no_model_response,text,No response from model,finished,,,,,
+</persisted-output>",finished,True,,,yes,
+claude-code,WebFetch,no_model_response,text,No response from model,finished,,,,yes,"status: ""finished"" or ""not_run""?"
 claude-code,WebFetch,no_model_response_binary_saved,text,"No response from model
 
-[Binary content ({detail:line_without_brackets}) also saved to {output_path:line_without_brackets}]",finished,,,,,
+[Binary content ({detail:line_without_brackets}) also saved to {output_path:line_without_brackets}]",finished,,,,yes,"status: ""finished"" or ""not_run""?"
 claude-code,WebFetch,http_error_body_not_retrieved,text,"The server returned HTTP {http_status:int} {reason:rest_of_line}
 
-The response body was not retrieved. {detail:text}",finished,,,,,
-claude-code,WebFetch,api_error,text,API Error: {detail:text},finished,,,,,
-claude-code,WebFetch,connection_error,text,connect {error:rest_of_line},finished,,,,,
+The response body was not retrieved. {detail:text}",finished,,,,yes,
+claude-code,WebFetch,api_error,text,API Error: {detail:text},finished,,,,yes,
+claude-code,WebFetch,connection_error,text,connect {error:rest_of_line},finished,,,,yes,"check patterns like: `connect 0x4b3d80 called by funcs: [` / `connect 0.0003941059112548828\nsent\nresp` / `connect        sub_4b3d80  callers(7): sub_438e70 sub_439650 sub_43a120
+`"
 claude-code,WebFetch,page_binary_saved,text,"{tool_output:text}
 
-[Binary content ({detail:line_without_brackets}) also saved to {output_path:line_without_brackets}]",finished,,,,,
-claude-code,WebFetch,page,text,{tool_output:text},finished,,,,,
-claude-code,WebSearch,tool_use_error,text,<tool_use_error>{reason:text}</tool_use_error>,not_run,,,,,
-claude-code,WebSearch,interrupted_classifier,text,Interrupted: the response that made this tool call was stopped by a safety classifier{reason:text},unknown,,,,,
+[Binary content ({detail:line_without_brackets}) also saved to {output_path:line_without_brackets}]",finished,,,,yes,
+claude-code,WebFetch,page,text,{tool_output:text},finished,,,,yes,"recheck whether all cases should be counted as ""finished"""
+claude-code,WebSearch,tool_use_error,text,<tool_use_error>{reason:text}</tool_use_error>,not_run,,,,yes,
+claude-code,WebSearch,interrupted_classifier,text,Interrupted: the response that made this tool call was stopped by a safety classifier{reason:text},unknown,,,,yes,
 claude-code,WebSearch,persisted_results,text,"<persisted-output>
 Output too large ({size:line_without_brackets}). Full output saved to: {output_path:word}
 
@@ -113,49 +114,49 @@ Preview (first {preview:line_without_brackets}):
 Web search results for query: ""{query:line}""
 
 {tool_output:text}
-</persisted-output>",finished,True,,,,
+</persisted-output>",finished,True,,,yes,
 claude-code,WebSearch,persisted_output,text,"<persisted-output>
 Output too large ({size:line_without_brackets}). Full output saved to: {output_path:word}
 
 Preview (first {preview:line_without_brackets}):
 {tool_output:text}
-</persisted-output>",finished,True,,,,
+</persisted-output>",finished,True,,,yes,
 claude-code,WebSearch,persisted_output_partial,text,"<persisted-output>
 Output exceeded the {limit:line_without_brackets} persist limit; only the first {kept:line_without_brackets} were saved to: {output_path:word}
 
 Preview (first {preview:line_without_brackets}):
 {tool_output:text}
-</persisted-output>",finished,True,,,,
-claude-code,WebSearch,cut_off,text,The search was cut off before any results arrived. Try again.,finished,,,,,
+</persisted-output>",finished,True,,,yes,
+claude-code,WebSearch,cut_off,text,The search was cut off before any results arrived. Try again.,finished,,,,yes,
 claude-code,WebSearch,results,text,"Web search results for query: ""{query:line}""
 
 {tool_output:text}
 
-REMINDER: You MUST include the sources above in your response to the user using markdown hyperlinks.",finished,,,,,
-claude-code,TaskStop,tool_use_error,text,<tool_use_error>{reason:text}</tool_use_error>,not_run,,,,,
-claude-code,TaskStop,interrupted_classifier,text,Interrupted: the response that made this tool call was stopped by a safety classifier{reason:text},unknown,,,,,
+REMINDER: You MUST include the sources above in your response to the user using markdown hyperlinks.",finished,,,,yes,
+claude-code,TaskStop,tool_use_error,text,<tool_use_error>{reason:text}</tool_use_error>,not_run,,,,yes,
+claude-code,TaskStop,interrupted_classifier,text,Interrupted: the response that made this tool call was stopped by a safety classifier{reason:text},unknown,,,,yes,
 claude-code,TaskStop,persisted_stopped,text,"<persisted-output>
 Output too large ({size:line_without_brackets}). Full output saved to: {output_path:word}
 
 Preview (first {preview:line_without_brackets}):
-{""message"":""Successfully stopped task: {handle:id} {rest:text}",killed,True,,command,,
+{""message"":""Successfully stopped task: {handle:id} {rest:text}",killed,True,,command,yes,"is ""Output too large"" related to TaskStop? / recheck whether ""killed"" should be status for this tool call. / recheck handle_kind=command"
 claude-code,TaskStop,persisted_output,text,"<persisted-output>
 Output too large ({size:line_without_brackets}). Full output saved to: {output_path:word}
 
 Preview (first {preview:line_without_brackets}):
 {tool_output:text}
-</persisted-output>",finished,True,,,,
+</persisted-output>",finished,True,,,yes,"is ""Output too large"" related to TaskStop? / recheck handle_kind=null"
 claude-code,TaskStop,persisted_output_partial,text,"<persisted-output>
 Output exceeded the {limit:line_without_brackets} persist limit; only the first {kept:line_without_brackets} were saved to: {output_path:word}
 
 Preview (first {preview:line_without_brackets}):
 {tool_output:text}
-</persisted-output>",finished,True,,,,
-claude-code,TaskStop,not_owner,text,Task {task:id} is owned by {owner:id}; agent {agent:id} cannot stop it.,not_run,,,,,
-claude-code,TaskOutput,task_running,json,task.status == 'running',running,,,by task.task_type,,
-claude-code,TaskOutput,task_completed,json,task.status == 'completed',finished,,,by task.task_type,,
-claude-code,TaskOutput,task_failed,json,task.status == 'failed',finished,,,by task.task_type,,
-claude-code,TaskStop,stopped,json,"present=task_id,message",killed,,,by task_type,,
+</persisted-output>",finished,True,,,yes,"is ""Output exceeded the"" related to TaskStop? / recheck handle_kind=null"
+claude-code,TaskStop,not_owner,text,Task {task:id} is owned by {owner:id}; agent {agent:id} cannot stop it.,not_run,,,,yes,
+claude-code,TaskOutput,task_running,json,task.status == 'running',running,,,by task.task_type,yes,recheck
+claude-code,TaskOutput,task_completed,json,task.status == 'completed',finished,,,by task.task_type,yes,recheck
+claude-code,TaskOutput,task_failed,json,task.status == 'failed',finished,,,by task.task_type,yes,recheck
+claude-code,TaskStop,stopped,json,"present=task_id,message",killed,,,by task_type,yes,recheck
 codex,exec_command,exited_truncated,text,"Chunk ID: {chunk:id}
 Wall time: {seconds:line_without_brackets} seconds
 Process exited with code {exit_code:int}
