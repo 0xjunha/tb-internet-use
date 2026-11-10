@@ -5,7 +5,8 @@ One made-up trial, to show how stages 3 to 11 of the [pipeline](../README.md#pip
 This is an example, not a specification. Where each part comes from:
 
 - **Stages 3 to 5:** what the current code gives, simplified like the trial.
-- **Stages 6 to 11:** sketches of the intent, following a trial implementation that is not part of the code. Each stage should choose a better form if the data calls for it.
+- **Stage 6:** the types in [shell/model.py](../src/tb_internet_use/shell/model.py).
+- **Stages 7 to 11:** sketches of the intent, following a trial implementation that is not part of the code. Each stage should choose a better form if the data calls for it.
 - **The trial and its trajectory:** made up and simplified. Real results are messier.
 
 ## Input
@@ -58,22 +59,30 @@ c4.output = ToolCallOutput(
 
 ## Stage 6: commands
 
-One call's text becomes a flat list of commands. Each command records when it runs, where its two output streams go, and whether the text's exit code 0 means that it exited 0. This stage records structure only and does not know what `fetch.sh` is.
+One call's shell text becomes a flat list of simple commands. Each command records when it runs, where its stdout and stderr go, and whether the text's exit code 0 means that it exited 0. This stage records structure only and does not know what `fetch.sh` is.
 
 ```python
-c2.commands = [
-    Command(id=0, words=["bash", "fetch.sh"], stdout=File("fetch.log"), stderr=File("fetch.log")),
-    Command(
-        id=1,
-        words=["pip", "install", "requests"],
-        runs_if=[RunCondition(commands=[0], succeeded=False)],  # only if command 0 failed
-    ),
-]
+c2_text = ParsedShellText(
+    commands=(
+        ShellCommand(
+            id=0,
+            words=("bash", "fetch.sh"),
+            stdout=FileDestination("fetch.log"),
+            stderr=FileDestination("fetch.log"),
+        ),
+        ShellCommand(
+            id=1,
+            words=("pip", "install", "requests"),
+            # only if command 0 failed
+            runs_if=(RunCondition((0,), ExitOutcome.FAILURE),),
+        ),
+    )
+)
 ```
 
-`2>&1` sends stderr where stdout goes, so none of `bash fetch.sh`'s output reaches the result. The exit code of an `a || b` list says nothing about `a` or `b` alone, so `succeeds_with_text` is False for both.
+`2>&1` sends stderr where stdout goes, so none of `bash fetch.sh`'s output reaches the result. The exit code of an `a || b` list says nothing about `a` or `b` alone, so `succeeded_if_text_exits_zero` is False for both. The harness runs the whole call in the background, not an `&` in the text, so `runs_in_background` is False for both.
 
-Other destinations of a stream are the result, a pipe with the command that reads it, a `$(...)` capture, `/dev/null` and the background.
+Other destinations are the call's result (`ResultDestination`, the default), a pipe with the command that reads it (`PipeDestination`), a `$(...)` capture (`CaptureDestination`) and `/dev/null` (`DiscardDestination`).
 
 ## Stage 7: what each call runs
 
@@ -81,20 +90,24 @@ The whole trial is used to connect calls. This stage parses the written file wit
 
 ```python
 files = {"fetch.sh": c1.action.content}
-c2.runs = [
-    Command(  # from fetch.sh
+c2.runs = (
+    ShellCommand(  # from fetch.sh
         id=2,
-        words=["curl", "-sS", "-O", "https://data.example.org/a.tgz"],
-        stdout=File("fetch.log"),
-        stderr=File("fetch.log"),
+        words=("curl", "-sS", "-O", "https://data.example.org/a.tgz"),
+        stdout=FileDestination("fetch.log"),
+        stderr=FileDestination("fetch.log"),
     ),
-    Command(id=1, words=["pip", "install", "requests"], runs_if=[RunCondition([0], succeeded=False)]),
-]
+    ShellCommand(
+        id=1,
+        words=("pip", "install", "requests"),
+        runs_if=(RunCondition((0,), ExitOutcome.FAILURE),),
+    ),
+)
 c2.result_readers = [c3]  # polls task-1
 c2.file_readers = {"fetch.log": [c4]}
 ```
 
-A command in a file runs when the command that ran the file runs, and its output goes where that command's output goes. So `curl` takes the streams of `bash fetch.sh`.
+A command in a file runs when the command that ran the file runs, and its output goes where that command's output goes. So `curl` takes the destinations of `bash fetch.sh`.
 
 ## Stage 8: candidate requests
 

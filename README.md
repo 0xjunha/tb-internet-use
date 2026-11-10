@@ -37,7 +37,7 @@ Further analysis builds on this data.
 | 3 | Parse | Define common types for tool calls and their outputs | Done |
 | 4 | Parse | Catalog and manually label every tool call in the trajectories | Done |
 | 5 | Parse | Convert each harness's `trajectory.json` to common types | Done (result format catalog review pending) |
-| 6 | Parse | Parse shell text into commands, with when each runs, where its output goes and what the text's exit code says about it (e.g. after `\|\|`, piped into `tail`, redirected to a log) | Planned |
+| 6 | Parse | Parse shell text into commands, with when each runs, where its output goes and what the text's exit code says about it (e.g. after `\|\|`, piped into `tail`, redirected to a log) | In progress |
 | 7 | Interpret | Resolve what each call runs and which calls show its output (e.g. written files, variables, polls and log reads) | Planned |
 | 8 | Interpret | Extract candidate requests with their kinds, targets, hosts and what their run can show (e.g. `curl -f` exits 0 only when the content arrived) | Planned |
 | 9 | Interpret | Extract observations of network results from output lines and result fields (e.g. a download line, an HTTP status) | Planned |
