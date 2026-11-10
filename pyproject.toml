@@ -30,3 +30,7 @@ venv = ".venv"
 typeCheckingMode = "standard"
 # A comparison that can never be true, e.g. a format type against a stale name string.
 reportUnnecessaryComparison = "error"
+
+[tool.ruff.format]
+# Code in docs
+exclude = ["*.md"]
