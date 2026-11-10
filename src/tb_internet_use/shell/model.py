@@ -15,36 +15,36 @@ type OutputDestination = (
 
 @dataclass(frozen=True, slots=True)
 class ResultDestination:
-    """Output reaches the call's own result."""
+    """Output destination for the call's own result."""
 
 
 @dataclass(frozen=True, slots=True)
 class FileDestination:
-    """Output is redirected to a file, e.g. `> fetch.log`."""
+    """Output destination for a file, e.g. `> fetch.log`."""
 
-    path: str
+    path: str  # without quotes, e.g. fetch.log or $LOG/out
 
 
 @dataclass(frozen=True, slots=True)
 class PipeDestination:
-    """Output feeds the next stage of a pipeline."""
+    """Output destination for another command's stdin, e.g. the next stage of a pipeline or `>(tee log)`."""
 
-    reader_id: int  # the first command of the next stage
+    reader_id: int  # the first command that reads it
 
 
 @dataclass(frozen=True, slots=True)
 class CaptureDestination:
-    """Output is captured by `$(...)` or `<(...)` for the enclosing command."""
+    """Output destination for a `$(...)` or `<(...)`, which hands it to the enclosing command."""
 
 
 @dataclass(frozen=True, slots=True)
 class DiscardDestination:
-    """Output is redirected to /dev/null."""
+    """Output destination that throws output away, e.g. `> /dev/null`."""
 
 
 @dataclass(frozen=True, slots=True)
 class ParsedShellText:
-    """Every simple command in one shell text, in order, and its literal assignments."""
+    """Parse result of one shell text, returned by `parse_shell`."""
 
     commands: tuple[ShellCommand, ...]
     assignments: tuple[VariableAssignment, ...] = ()  # in order, to resolve $VAR
@@ -57,7 +57,7 @@ class ShellCommand:
     # Unique within one call.
     id: int
     # The command name, then its arguments, without quotes.
-    # e.g. ("curl", "-sS", "https://a.org/x") for `curl -sS 'https://a.org/x'`
+    # e.g. `("curl", "-sS", "https://a.org/x")` for `curl -sS 'https://a.org/x'`
     words: tuple[str, ...]
     # A word holds $VAR, $(...) or similar, kept as written in `words`.
     # e.g. `pip install "$PKG"`
@@ -96,10 +96,12 @@ class ShellCommand:
 
 @dataclass(frozen=True, slots=True)
 class RunCondition:
-    """A command runs only if the deciding commands ended with the required outcome.
+    """Run condition of a command, met when its deciding commands ended with the required outcome.
 
-    The deciding commands are the earlier commands whose exit code decides it.
+    The deciding commands are the earlier commands whose exit code can decide it.
+    When there are several, the one of them that ran last decides.
     For example in `a; b && c`, c depends on b only.
+    In `(a || b) && c`, c runs if a succeeded, or if a failed and b succeeded.
     In `a || b`, b has RunCondition((id of a,), ExitOutcome.FAILURE).
     """
 
@@ -109,7 +111,7 @@ class RunCondition:
 
 
 class ExitOutcome(StrEnum):
-    """Whether a command exited with code 0."""
+    """Exit outcome of a command, by whether its exit code is 0."""
 
     SUCCESS = "success"  # exit code 0
     FAILURE = "failure"  # any other exit code
@@ -117,7 +119,13 @@ class ExitOutcome(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class VariableAssignment:
-    """A literal value given to a variable by `NAME=value`, or one value of a for loop."""
+    """Literal value that `NAME=value` or a for loop gives to a variable.
+
+    Assignments in text that a new shell runs, such as `bash -c 'A=1'`, are left out.
+    Those in `eval 'A=1'` count, since eval runs the text in this shell.
+    """
 
     name: str
     value: str
+    # The id the next command of the text gets, so commands from this id on come after it.
+    next_command_id: int
