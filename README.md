@@ -37,12 +37,12 @@ Further analysis builds on this data.
 | 3 | Parse | Define common types for tool calls and their outputs | Done |
 | 4 | Parse | Catalog and manually label every tool call in the trajectories | Done |
 | 5 | Parse | Convert each harness's `trajectory.json` to common types | Done (result format catalog review pending) |
-| 6 | Parse | Parse shell text into a command tree (e.g. operators, control flow, heredocs) | Planned |
-| 7 | Interpret | Resolve what each call runs (e.g. written files, variables) | Planned |
-| 8 | Interpret | Extract candidate requests with their types and targets | Planned |
-| 9 | Interpret | Extract observations of network results (e.g. download lines, exit status) | Planned |
-| 10 | Interpret | Link requests to their observations, including requests only the output reveals | Planned |
-| 11 | Interpret | Decide the furthest level shown and why it stopped, keeping the evidence | Planned |
+| 6 | Parse | Parse shell text into commands, with when each runs, where its output goes and what the text's exit code says about it (e.g. after `\|\|`, piped into `tail`, redirected to a log) | Planned |
+| 7 | Interpret | Resolve what each call runs and which calls show its output (e.g. written files, variables, polls and log reads) | Planned |
+| 8 | Interpret | Extract candidate requests with their kinds, targets, hosts and what their run can show (e.g. `curl -f` exits 0 only when the content arrived) | Planned |
+| 9 | Interpret | Extract observations of network results from output lines and result fields (e.g. a download line, an HTTP status) | Planned |
+| 10 | Interpret | Link each request to the lines and call facts that are about it (e.g. lines several requests share, whether it ran, how much of its output is visible), including requests only the output reveals | Planned |
+| 11 | Interpret | Decide the furthest level shown, how strong its evidence is, and what stopped it or hid the rest, keeping the evidence | Planned |
 | 12 | Output | Redact credentials and omit hidden task lines before rows are written | Planned |
 | 13 | Output | Aggregate the results for each research question | Planned |
 | 14 | Output | Build the spreadsheet (e.g. tabs, formulas, charts) and check it against the aggregates | Planned |
