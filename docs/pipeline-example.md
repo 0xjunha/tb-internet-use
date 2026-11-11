@@ -5,8 +5,8 @@ One made-up trial, to show how stages 3 to 11 of the [pipeline](../README.md#pip
 This is an example, not a specification. Where each part comes from:
 
 - **Stages 3 to 5:** what the current code gives, simplified like the trial.
-- **Stage 6:** the types in [shell/model.py](../src/tb_internet_use/shell/model.py).
-- **Stages 7 to 11:** sketches of the intent, following a trial implementation that is not part of the code. Each stage should choose a better form if the data calls for it.
+- **Stages 6 to 9:** the types in [shell/model.py](../src/tb_internet_use/shell/model.py), [callrun/model.py](../src/tb_internet_use/callrun/model.py), [request/model.py](../src/tb_internet_use/request/model.py) and [observation/model.py](../src/tb_internet_use/observation/model.py). Where stages 7 to 9 have no functions yet, values follow a trial implementation that is not part of the code, e.g. the printing programs of a line.
+- **Stages 10 and 11:** sketches of the intent, following the same trial implementation. Each stage should choose a better form if the data calls for it.
 - **The trial and its trajectory:** made up and simplified. Real results are messier.
 
 ## Input
@@ -67,8 +67,8 @@ c2_text = ParsedShellText(
         ShellCommand(
             id=0,
             words=("bash", "fetch.sh"),
-            stdout=FileDestination("fetch.log"),
-            stderr=FileDestination("fetch.log"),
+            stdout=FileDestination("fetch.log", appends=False),
+            stderr=FileDestination("fetch.log", appends=False),
         ),
         ShellCommand(
             id=1,
@@ -86,63 +86,124 @@ Other destinations are the call's result (`ResultDestination`, the default), a p
 
 ## Stage 7: what each call runs
 
-The whole trial is used to connect calls. This stage parses the written file with the stage 6 parser, and still does not ask about the network.
+This stage looks at the whole trial. It parses fetch.sh, which c1 wrote, with the stage 6 parser, and links c2 to the later calls that show its output. It still does not ask about the network. Here `k1` to `k4` stand for the calls' keys, `c1.raw.key` to `c4.raw.key`.
 
 ```python
-files = {"fetch.sh": c1.action.content}
-c2.runs = (
-    ShellCommand(  # from fetch.sh
-        id=2,
-        words=("curl", "-sS", "-O", "https://data.example.org/a.tgz"),
-        stdout=FileDestination("fetch.log"),
-        stderr=FileDestination("fetch.log"),
+c2_run = CallRun(
+    call=c2,
+    shell_texts=(
+        RanShellText(CallCommandText(), commands=(bash_fetch_sh, pip_install)),  # ids 0 and 1
+        RanShellText(
+            FileText(runner_command_id=0, path="fetch.sh", written_by=k1),
+            commands=(curl,),
+        ),
     ),
-    ShellCommand(
-        id=1,
-        words=("pip", "install", "requests"),
-        runs_if=(RunCondition((0,), ExitOutcome.FAILURE),),
+    code_texts=(),
+    command_text_status=CommandTextStatus(FINISHED, exit_code=None, reported_by=k3),
+    polls=(k3,),  # polls task-1
+    harness_output_file_reads=(),
+    redirected_output_reads=(
+        RedirectedOutputReads("fetch.log", readers=(FileReader(k4, command_id=None),)),
     ),
 )
-c2.result_readers = [c3]  # polls task-1
-c2.file_readers = {"fetch.log": [c4]}
+curl = RanCommand(
+    command=ShellCommand(
+        id=2,
+        words=("curl", "-sS", "-O", "https://data.example.org/a.tgz"),
+        stdout=FileDestination("fetch.log", appends=False),
+        stderr=FileDestination("fetch.log", appends=False),
+    ),
+    variable_values=(),
+    stdout_routes=(OutputRoute(pipe_reader_ids=(), end=FileDestination("fetch.log", appends=False)),),
+    stderr_routes=(OutputRoute(pipe_reader_ids=(), end=FileDestination("fetch.log", appends=False)),),
+)
 ```
 
-A command in a file runs when the command that ran the file runs, and its output goes where that command's output goes. So `curl` takes the destinations of `bash fetch.sh`.
+A command in a file runs when the command that ran the file runs, and its output goes where that command's output goes. So `curl` takes the destinations of `bash fetch.sh`, and its output can show up only in c4, which reads fetch.log. The output of `pip install requests` ends at `ResultDestination`, so it shows up in c3, which polls task-1.
+
+c2 is still running when its call returns. c3 reports that the command text finished but shows no exit code, so `command_text_status` has `exit_code=None` rather than a guess.
 
 ## Stage 8: candidate requests
 
-The first decision about the network. This stage looks at what ran, not at what came back. A request also carries what its run can show, read from a table of rules per program.
+The first decision about the network. This stage looks at what ran, not at what came back. A candidate request also carries facts about its run, read from a table of rules per program and from its options.
 
 ```python
-r1 = Request(
-    call=c2, origin=COMMAND, kind=URL, program="curl",
-    targets=["https://data.example.org/a.tgz"], hosts=[Host("data.example.org", PUBLIC)],
-    exit_zero_proves=RESPONSE,  # curl without -f exits 0 after any response
-    prints_response=False,  # -O writes the body to a file
+r1 = CandidateRequest(
+    call=k2,
+    source=FromCommand(command_id=2),
+    kind=URL,
+    program_name="curl",
+    targets=(RequestTarget(written="https://data.example.org/a.tgz", value="https://data.example.org/a.tgz", loop_variable=None),),
+    hosts=(Host("data.example.org", PUBLIC),),
+    asked_package_names=frozenset(),
+    printing_programs={CURL},
+    fetches_only_to_run_or_build=False,
+    has_offline_option=False,
+    exit_zero_means=SERVER_RESPONDED,  # curl without -f exits 0 after any response
+    asks_for_no_content=False,
+    prints_response_body=False,  # -O writes the body to a file
+    prints_status_code=False,
+    quiet_progress_lines=True,  # -s
+    quiet_error_lines=False,  # -S shows errors again
 )
-r2 = Request(
-    call=c2, origin=COMMAND, kind=PACKAGE, program="pip",
-    targets=["requests"], printers={PIP},  # whose output lines it can print
+r2 = CandidateRequest(
+    call=k2,
+    source=FromCommand(command_id=1),
+    kind=PACKAGE,
+    program_name="pip",
+    targets=(RequestTarget(written="requests", value="requests", loop_variable=None),),
+    hosts=(),  # no index option names a host
+    asked_package_names={"requests"},
+    printing_programs={PIP},
+    fetches_only_to_run_or_build=False,
+    has_offline_option=False,
+    exit_zero_means=NOTHING,  # pip also exits 0 when the package is cached
+    asks_for_no_content=False,
+    prints_response_body=False,
+    prints_status_code=False,
+    quiet_progress_lines=False,
+    quiet_error_lines=False,
 )
 ```
 
-This stage drops no request, so stage 10 can still link the output of a request to a local host. A real trial would tag `example.org` as reserved. Read it here as a public host.
+Requests to local hosts are candidates too, so that stage 10 links their output lines to them. The real `HostKind` of `data.example.org` is `RESERVED`. Read it here as `PUBLIC`, as if it were a real public host.
 
-Some requests need a trace. For example `npx tsc` may run a local tool, and `curl "$URL"` names no host. They become internet requests only if a network line is linked to them.
+For a request that may not use the network, this stage records why, and stages 10 and 11 decide whether it counts without a network line. For example `npx tsc` gets `fetches_only_to_run_or_build=True`, and in `curl "$URL"` with `URL` set outside the text the target has `value=None` and names no host.
 
 ## Stage 9: observations
 
-Network traces in output lines and in result fields such as the HTTP status of a web fetch. This stage does not know which request they belong to, and could run before stage 8.
+Network traces in output lines and in result fields such as the HTTP status of a web fetch. This stage does not know which request they belong to, and could run before stage 8. A table of line patterns gives each line its kind and its printing programs. Fields not shown are empty or None.
 
 ```python
-o1 = Observation(call=c4, line_index=0, kind=NAME_NOT_RESOLVED, host=Host("data.example.org", PUBLIC))
-o2 = Observation(call=c3, line_index=0, kind=DOWNLOAD_STARTED, subject="requests-2.32.3")
-o3 = Observation(call=c3, line_index=1, kind=INSTALLED, printer=PIP)
+o1 = Observation(
+    call=k4,
+    place=OutputLine(line_index=0, line_index_in_json_string=None),
+    kind=NAME_NOT_RESOLVED,
+    printing_programs=frozenset(),
+    is_printed_by_other_programs_too=True,  # many programs print this line
+    host=Host("data.example.org", PUBLIC),
+)
+o2 = Observation(
+    call=k3,
+    place=OutputLine(line_index=0, line_index_in_json_string=None),
+    kind=DOWNLOAD_STARTED,
+    printing_programs={PIP, UV, PLAYWRIGHT, GIT, CODE},
+    is_printed_by_other_programs_too=True,  # e.g. cargo
+    package_names={"requests"},
+)
+o3 = Observation(
+    call=k3,
+    place=OutputLine(line_index=1, line_index_in_json_string=None),
+    kind=INSTALLED,
+    printing_programs={PIP},
+    is_printed_by_other_programs_too=False,
+    package_names={"requests"},
+)
 ```
 
 ## Stage 10: links
 
-Requests meet observations, through the readers from stage 7, the printers and the host names. This is the only stage that decides what a call's result says about one of its requests.
+Candidate requests meet observations, through the polls and file readers from stage 7, the printing programs and the host names. This is the only stage that decides what a call's result says about one of its requests.
 
 ```python
 l1 = LinkedRequest(r1, observations=[o1], run_state=RAN, visibility=PLAIN)  # through fetch.log, same host
@@ -193,7 +254,7 @@ A request that needs a trace and has none, or that may not have run, keeps its o
 | 5 | One call | What did the trajectory record? |
 | 6 | One call's text | How is the shell text structured? |
 | 7 | The whole trial | What actually ran, and where did its output go? |
-| 8 | What ran | Which of it was an internet request, and what can its run show? |
+| 8 | What ran | Which of it may be an internet request, and what facts does its run give? |
 | 9 | The output | What network traces are there? |
 | 10 | Requests and observations | Which belong together, and what does each call say about each request? |
 | 11 | One linked request | How far did it get, how sure is that, and what stopped it or hid the rest? |

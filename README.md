@@ -30,21 +30,23 @@ Further analysis builds on this data.
 - `Interpret` applies rules to decide what happened, so rules can change without touching the parser.
 - `Output` makes the results safe to share and reports them.
 
+Each trial flows through the stages in one pass: tool calls (5), their commands (6), what each call ran and which calls show its output (7), candidate requests (8) and observations (9) side by side, requests linked to their evidence (10), and how far each got (11).
+
 | # | Part | Step | Status |
 |---|---|---|---|
 | 1 | Collect | Verify the trial list and file hashes against the leaderboard snapshot | Planned |
 | 2 | Collect | Record facts for every trial (e.g. task, leaderboard entry, reward, whether the trajectory is readable) | Planned |
-| 3 | Parse | Define common types for tool calls and their outputs | Done |
-| 4 | Parse | Catalog and manually label every tool call in the trajectories | Done |
-| 5 | Parse | Convert each harness's `trajectory.json` to common types | Done (result format catalog review pending) |
-| 6 | Parse | Parse shell text into commands, with when each runs, where its output goes and what the text's exit code says about it (e.g. after `\|\|`, piped into `tail`, redirected to a log) | Done |
-| 7 | Interpret | Resolve what each call runs and which calls show its output (e.g. written files, variables, polls and log reads) | Planned |
-| 8 | Interpret | Extract candidate requests with their kinds, targets, hosts and what their run can show (e.g. `curl -f` exits 0 only when the content arrived) | Planned |
-| 9 | Interpret | Extract observations of network results from output lines and result fields (e.g. a download line, an HTTP status) | Planned |
-| 10 | Interpret | Link each request to the lines and call facts that are about it (e.g. lines several requests share, whether it ran, how much of its output is visible), including requests only the output reveals | Planned |
-| 11 | Interpret | Decide the furthest level shown, how strong its evidence is, and what stopped it or hid the rest, keeping the evidence | Planned |
-| 12 | Output | Redact credentials and omit hidden task lines before rows are written | Planned |
-| 13 | Output | Aggregate the results for each research question | Planned |
+| 3 | Parse | Define common types for tool calls and their outputs, so later stages never need a harness's own names | Done |
+| 4 | Parse | Catalog every tool in the trajectories and label it with a common type by hand | Done |
+| 5 | Parse | Convert each harness's `trajectory.json` into these common types | Done (result format catalog review pending) |
+| 6 | Parse | Split each call's shell text into commands, with when each runs, where its output goes and what the text's exit code says about it (e.g. after `\|\|`, piped into `tail`, redirected to a log) | Done |
+| 7 | Interpret | Go through all calls of a trial to add what one call alone cannot show: the scripts and code it runs that were written earlier in the trial, variable values, and the later calls that show its output (e.g. written files, polls and log reads) | Planned |
+| 8 | Interpret | From what each call ran, extract candidate requests with their kinds, targets, hosts and what their run can show, before any output is read (e.g. `curl -f` exits 0 only when the content arrived) | Planned |
+| 9 | Interpret | Apart from requests, extract observations of network results from each call's output lines and result fields (e.g. a download line, an HTTP status) | Planned |
+| 10 | Interpret | Join 8 and 9: link each request to the lines and call facts about it through the calls from 7 that show its output (e.g. lines several requests share, whether it ran, how much of its output is visible), and add requests only the output reveals | Planned |
+| 11 | Interpret | For each linked request, decide the furthest level shown, how strong its evidence is, and what stopped it or hid the rest, keeping the evidence | Planned |
+| 12 | Output | Redact credentials and omit hidden task lines before result rows are written | Planned |
+| 13 | Output | Aggregate the rows for each research question | Planned |
 | 14 | Output | Build the spreadsheet (e.g. tabs, formulas, charts) and check it against the aggregates | Planned |
 
 Stages 3 to 5 are described in [Tool call parsing](src/tb_internet_use/toolcall/README.md).
