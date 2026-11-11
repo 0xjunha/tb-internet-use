@@ -1,4 +1,7 @@
-"""Harness-agnostic common types for tool calls in ATIF trajectories"""
+"""Harness-agnostic common types for tool calls in ATIF trajectories.
+
+Each harness names its tools and writes its results in its own way, e.g. a shell call is `Bash` in Claude Code and `exec_command` in Codex. Later stages read these types, so they work the same for every harness.
+"""
 
 from dataclasses import dataclass
 from enum import Enum, StrEnum
@@ -19,22 +22,20 @@ type Action = (
 )
 
 
-# Which format produced a ToolCallOutput; str() gives the name the catalog and audit CSVs use.
+# The format that produced a ToolCallOutput. str() gives the name the catalog and audit CSVs use.
 type FormatMatch = MatchedFormat | UnmatchedFormat
 
 
 class ExecutionStatus(StrEnum):
-    """How the requested work stood when the tool call returned.
+    """State of the requested work when the tool call returned.
 
-    For a poll, this is the polled target's state, except NOT_RUN, which means
-    the poll itself did nothing.
+    For a poll, this is the polled target's state, except NOT_RUN, which means the poll itself did nothing.
 
-    A FINISHED result can still have handles. A Codex script can end while a command
-    it started keeps running, and its exec or wait result names that command's session.
+    A FINISHED result can still have handles. A Codex script can end while a command it started keeps running, and its exec or wait result names that command's session.
     """
 
     FINISHED = "finished"  # ended on its own, whether it succeeded or not
-    RUNNING = "running"  # still going; the result comes in a later call
+    RUNNING = "running"  # still going, and the result comes in a later call
     TIMED_OUT = "timed_out"  # stopped by the harness's time limit
     KILLED = "killed"  # stopped by a signal or a stop request
     NOT_RUN = "not_run"  # the tool did no work
@@ -44,21 +45,19 @@ class ExecutionStatus(StrEnum):
 def handles_from_ids(
     kind: ExecutionHandleKind, ids: Any
 ) -> tuple[ExecutionHandle, ...]:
-    """Handles of one kind for a list of ids or one id, in order and without missing,
-    empty or repeated ones."""
+    """Make handles of one kind from a list of ids or one id, in order and without missing, empty or repeated ones."""
     return tuple(ExecutionHandle(kind, i) for i in string_tuple(ids))
 
 
 def string_tuple(values: Any) -> tuple[str, ...]:
-    """A list of values or one value as the strings of an Action field, in order and
-    without missing, empty or repeated ones."""
+    """Turn a list of values or one value into the strings of an Action field, in order and without missing, empty or repeated ones."""
     listed = values if isinstance(values, list) else [values]
     return tuple(dict.fromkeys(str(v) for v in listed if v not in (None, "")))
 
 
 @dataclass(frozen=True, slots=True)
 class RunCommandAction:
-    """Run a string in a shell in one go; it can chain several commands."""
+    """Run a string in a shell in one go. It can chain several commands."""
 
     command_str: str | None = None  # None when the trajectory has none
 
@@ -100,7 +99,7 @@ class ReadFileAction:
     """Read a file with a dedicated tool."""
 
     path: str | None = None  # None when the trajectory has none
-    offset: int | None = None  # 1-based line; negative counts from the end
+    offset: int | None = None  # 1-based line, and a negative one counts from the end
     limit: int | None = None  # number of lines
 
 
@@ -130,7 +129,7 @@ class PollAction:
     """Read from, write to or stop a command, script or subagent started earlier."""
 
     handles: tuple[ExecutionHandle, ...] = ()
-    input: str | None = None  # text sent to stdin; None if the poll only reads
+    input: str | None = None  # text sent to stdin, None if the poll only reads
     terminate: bool = False
 
 
@@ -158,7 +157,7 @@ class MatchedFormat:
 class UnmatchedFormat(Enum):
     """No declared format produced the output."""
 
-    UNKNOWN = "unknown_format"  # the tool has formats; this result matched none
+    UNKNOWN = "unknown_format"  # the tool has formats, but this result matched none
     SKIPPED = "skipped_format"  # the tool has no formats, so none were tried
 
     def __str__(self) -> str:
@@ -208,17 +207,17 @@ class HarnessTool:
 
 @dataclass(frozen=True, slots=True)
 class ToolCallOutput:
-    """What a tool call returned, in common types."""
+    """Result of a tool call, in common types."""
 
-    # The tool output as plain text, e.g. without line numbers. "" when the tool
-    # showed no output, None when the trajectory holds no text of what it returned.
+    # The tool output as plain text, e.g. without line numbers.
+    # "" when the tool showed no output, None when the trajectory holds no text of what it returned.
     # When no format matched, the raw text as is.
     tool_output_text: str | None = None
     execution_status: ExecutionStatus = ExecutionStatus.UNKNOWN
     exit_code: int | None = None  # real exit codes only
     # The HTTP status a web fetch reports. A fetch has no exit code to hold it.
     http_status: int | None = None
-    # For a PollAction, the target the result named. Otherwise what this call started.
+    # For a PollAction, the target the result named. Otherwise the commands, scripts or subagents this call started.
     handles: tuple[ExecutionHandle, ...] = ()
     output_path: str | None = None  # file holding the full output
     is_truncated: bool | None = None  # None when the trajectory says nothing
@@ -232,14 +231,14 @@ class ToolCallOutput:
 
 @dataclass(frozen=True, slots=True)
 class ExecutionHandle:
-    """Id that a later call uses to read or stop what an earlier call started."""
+    """Id of a command, script or subagent that an earlier call started, used by a later call to read or stop it."""
 
     kind: ExecutionHandleKind
     id: str
 
 
 class ExecutionHandleKind(StrEnum):
-    """What a handle points at."""
+    """Kind of a handle's target."""
 
     COMMAND = "command"  # one shell command string
     SCRIPT = "script"  # a tool script, the code of a RunToolScriptAction

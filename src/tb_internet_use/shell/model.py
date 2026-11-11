@@ -1,9 +1,12 @@
-"""Types for the simple commands in a shell text, with when each runs and where its output goes."""
+"""Types for the simple commands in a shell text, with when each runs and where its output goes.
+
+One call's text can chain several commands, e.g. `cd x && curl u | tail -1`, where curl runs only if cd succeeded and its output reaches the result only through tail.
+"""
 
 from dataclasses import dataclass
 from enum import StrEnum
 
-# Where a command's stdout or stderr goes.
+# Destination of a command's stdout or stderr.
 type OutputDestination = (
     ResultDestination
     | FileDestination
@@ -62,7 +65,7 @@ class ShellCommand:
     # A word holds $VAR, $(...) or similar, kept as written in `words`.
     # e.g. `pip install "$PKG"`
     has_expansion: bool = False
-    # What a heredoc or herestring gives to stdin.
+    # Text a heredoc or herestring gives to stdin.
     # e.g. the lines between `<<EOF` and `EOF`, or "x" in `cat <<< x`
     stdin_text: str | None = None
     stdout: OutputDestination = ResultDestination()
