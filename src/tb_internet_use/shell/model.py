@@ -23,9 +23,10 @@ class ResultDestination:
 
 @dataclass(frozen=True, slots=True)
 class FileDestination:
-    """Output destination for a file, e.g. `> fetch.log`."""
+    """Output destination for a file, e.g. `> fetch.log` or `>> fetch.log`."""
 
     path: str  # without quotes, e.g. fetch.log or $LOG/out
+    appends: bool  # True for `>>` and `&>>`, which keep what the file holds
 
 
 @dataclass(frozen=True, slots=True)

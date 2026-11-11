@@ -1012,7 +1012,8 @@ def _scope_after_file_redirect(
     elif operator == ">&" and target.isdigit():  # another descriptor, e.g. 1>&3
         return scope
     else:
-        destination = _destination_of_path(target, scope)
+        appends = operator in (">>", "&>>")
+        destination = _destination_of_path(target, scope, appends=appends)
     if operator in ("&>", "&>>") or (operator == ">&" and not target.isdigit()):
         return replace(scope, stdout=destination, stderr=destination)
     if descriptor == "1":
@@ -1022,7 +1023,9 @@ def _scope_after_file_redirect(
     return scope
 
 
-def _destination_of_path(path: str, scope: _Scope) -> OutputDestination:
+def _destination_of_path(
+    path: str, scope: _Scope, *, appends: bool
+) -> OutputDestination:
     """Map a redirect target to a destination, e.g. `/dev/null` to discard."""
     if path == "/dev/null":
         return DiscardDestination()
@@ -1030,7 +1033,7 @@ def _destination_of_path(path: str, scope: _Scope) -> OutputDestination:
         return scope.stdout
     if path == "/dev/stderr":
         return scope.stderr
-    return FileDestination(path)
+    return FileDestination(path, appends)
 
 
 @dataclass(frozen=True, slots=True)

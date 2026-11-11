@@ -217,7 +217,11 @@ STRUCTURE_CASES = [
     ("2>&1 curl u > f", "curl", "file f", "result", [], True),
     ("> out.txt curl u 2>&1", "curl", "file out.txt", "file out.txt", [], True),
     ("curl u &> out.txt", "curl", "file out.txt", "file out.txt", [], True),
-    ("curl u &>> f", "curl", "file f", "file f", [], True),
+    ("curl u &>> f", "curl", "append f", "append f", [], True),
+    ("curl u >> f", "curl", "append f", "result", [], True),
+    ("curl u 2>> f", "curl", "result", "append f", [], True),
+    ("curl u >> f 2>&1", "curl", "append f", "append f", [], True),
+    ("curl u >| f", "curl", "file f", "result", [], True),
     ("curl u >& f", "curl", "file f", "file f", [], True),
     ("curl u 2>/dev/null", "curl", "result", "discard", [], True),
     ("curl u 2>&-", "curl", "result", "discard", [], True),
@@ -400,8 +404,8 @@ def test_example_of_the_pipeline_doc():
             ShellCommand(
                 id=0,
                 words=("bash", "fetch.sh"),
-                stdout=FileDestination("fetch.log"),
-                stderr=FileDestination("fetch.log"),
+                stdout=FileDestination("fetch.log", appends=False),
+                stderr=FileDestination("fetch.log", appends=False),
             ),
             ShellCommand(
                 id=1,
@@ -510,8 +514,8 @@ def test_background_command_keeps_its_destinations():
     curl = _command(parse_shell("curl u > log 2>&1 &"), "curl")
     assert curl.runs_in_background
     assert (curl.stdout, curl.stderr) == (
-        FileDestination("log"),
-        FileDestination("log"),
+        FileDestination("log", appends=False),
+        FileDestination("log", appends=False),
     )
 
 
@@ -531,7 +535,10 @@ def test_stdin_text(text: str, first_word: str, stdin_text: str | None):
 
 def test_heredoc_with_output_file():
     cat = _command(parse_shell("cat <<EOF > fetch.sh\ncurl u\nEOF"), "cat")
-    assert (cat.stdout, cat.stdin_text) == (FileDestination("fetch.sh"), "curl u\n")
+    assert (cat.stdout, cat.stdin_text) == (
+        FileDestination("fetch.sh", appends=False),
+        "curl u\n",
+    )
 
 
 @pytest.mark.parametrize(
@@ -556,7 +563,7 @@ def test_nested_text_takes_the_place_of_its_runner():
     bash = _command(parsed, "sudo")
     pip = _command(parsed, "pip")
     assert pip.id > bash.id
-    assert pip.stdout == FileDestination("log")
+    assert pip.stdout == FileDestination("log", appends=False)
     assert pip.runs_if == bash.runs_if == (RunCondition((0,), S),)
     assert pip.runs_in_background
     assert not pip.succeeded_if_text_exits_zero  # it is left of ||
@@ -572,7 +579,7 @@ def test_runner_gives_its_scope():
     runner = ShellCommand(
         id=4,
         words=("bash", "-e", "fetch.sh"),
-        stdout=FileDestination("fetch.log"),
+        stdout=FileDestination("fetch.log", appends=False),
         stderr=DiscardDestination(),
         runs_if=(RunCondition((3,), S),),
         succeeded_if_text_exits_zero=True,
@@ -581,9 +588,11 @@ def test_runner_gives_its_scope():
     parsed = parse_shell("curl -sS u 2>&1\nwget v\nls", runner=runner, first_id=5)
     curl, wget, _ = parsed.commands
     assert curl.id == 5
-    assert (curl.stdout, curl.stderr) == (FileDestination("fetch.log"),) * 2
+    assert (curl.stdout, curl.stderr) == (
+        FileDestination("fetch.log", appends=False),
+    ) * 2
     assert (wget.stdout, wget.stderr) == (
-        FileDestination("fetch.log"),
+        FileDestination("fetch.log", appends=False),
         DiscardDestination(),
     )
     assert curl.runs_if == runner.runs_if
@@ -637,8 +646,8 @@ def _shown(destination: OutputDestination, parsed: ParsedShellText) -> str:
     match destination:
         case ResultDestination():
             return "result"
-        case FileDestination(path):
-            return f"file {path}"
+        case FileDestination(path, appends):
+            return f"{'append' if appends else 'file'} {path}"
         case PipeDestination(reader_id):
             (reader,) = [c for c in parsed.commands if c.id == reader_id]
             return f"pipe to {reader.words[0]}"
