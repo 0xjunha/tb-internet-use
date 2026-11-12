@@ -1,4 +1,4 @@
-"""Types for the simple commands in a shell text, with when each runs and where its output goes.
+"""Types for the simple commands of one shell text, with when each runs and where its output goes, as that text alone shows them.
 
 One call's text can chain several commands, e.g. `cd x && curl u | tail -1`, where curl runs only if cd succeeded and its output reaches the result only through tail.
 """
@@ -69,6 +69,9 @@ class ShellCommand:
     # Text a heredoc or herestring gives to stdin.
     # e.g. the lines between `<<EOF` and `EOF`, or "x" in `cat <<< x`
     stdin_text: str | None = None
+    # File a `<` redirect gives to stdin, as written.
+    # e.g. log in `grep x < log`
+    stdin_file_path: str | None = None
     stdout: OutputDestination = ResultDestination()
     stderr: OutputDestination = ResultDestination()
     # All must hold for it to run.
@@ -123,13 +126,17 @@ class ExitOutcome(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class VariableAssignment:
-    """Literal value that `NAME=value` or a for loop gives to a variable.
+    """Value that `NAME=value` or a for loop gives to a variable.
 
     Assignments in text that a new shell runs, such as `bash -c 'A=1'`, are left out.
     Those in `eval 'A=1'` count, since eval runs the text in this shell.
     """
 
     name: str
-    value: str
+    # None when the text computes the value as it runs, e.g. `A=$(date)`, `A=$B/x`, `A+=x` or `for f in *.txt`.
+    value: str | None
     # The id the next command of the text gets, so commands from this id on come after it.
     next_command_id: int
+    # For an item of a for loop, the id the first command after the loop gets, so the loop holds the commands from `next_command_id` up to it.
+    # None for `NAME=value`.
+    next_command_id_after_for_loop: int | None

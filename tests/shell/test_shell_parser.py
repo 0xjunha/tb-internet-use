@@ -533,6 +533,36 @@ def test_stdin_text(text: str, first_word: str, stdin_text: str | None):
     assert _command(parse_shell(text), first_word).stdin_text == stdin_text
 
 
+@pytest.mark.parametrize(
+    ("text", "first_word", "stdin_file_path", "stdin_text"),
+    [
+        ("grep x < log", "grep", "log", None),
+        ("{ cat; tail -1; } < f", "tail", "f", None),
+        # A later pipeline stage reads the pipe.
+        ("{ echo x | grep x; } < f", "grep", None, None),
+        ("{ echo x | grep x; } < f", "echo", "f", None),
+        ("a | grep x < f", "grep", "f", None),
+        # `< <(cmd)` gives stdin the output of cmd.
+        ("while read l; do echo $l; done < <(curl u)", "read", None, None),
+        # The later redirect of stdin wins, as in bash.
+        ("cat <<EOF < f\nx\nEOF", "cat", "f", None),
+        ("cat < f <<EOF\nx\nEOF", "cat", None, "x\n"),
+        ("cat 3< f", "cat", None, None),
+        ("cat <&3", "cat", None, None),
+        # A substitution runs before the redirect, so it does not read f.
+        ("X=$(cat) < f", "cat", None, None),
+    ],
+)
+def test_stdin_file_path(
+    text: str, first_word: str, stdin_file_path: str | None, stdin_text: str | None
+):
+    command = _command(parse_shell(text), first_word)
+    assert (command.stdin_file_path, command.stdin_text) == (
+        stdin_file_path,
+        stdin_text,
+    )
+
+
 def test_heredoc_with_output_file():
     cat = _command(parse_shell("cat <<EOF > fetch.sh\ncurl u\nEOF"), "cat")
     assert (cat.stdout, cat.stdin_text) == (
@@ -581,6 +611,7 @@ def test_runner_gives_its_scope():
         words=("bash", "-e", "fetch.sh"),
         stdout=FileDestination("fetch.log", appends=False),
         stderr=DiscardDestination(),
+        stdin_file_path="in",
         runs_if=(RunCondition((3,), S),),
         succeeded_if_text_exits_zero=True,
         structure_may_be_wrong=True,
@@ -596,6 +627,8 @@ def test_runner_gives_its_scope():
         DiscardDestination(),
     )
     assert curl.runs_if == runner.runs_if
+    # Text run by a command takes no stdin from it, a chosen limit noted at `_FIELDS_FROM_RUNNER`.
+    assert curl.stdin_file_path is None
     assert all(c.structure_may_be_wrong for c in parsed.commands)
     # bash -e makes every plain statement decide the exit code.
     assert [c.succeeded_if_text_exits_zero for c in parsed.commands] == [
@@ -614,23 +647,36 @@ def test_pipe_reader_is_an_id_from_first_id():
 @pytest.mark.parametrize(
     ("text", "assignments"),
     [
-        ('URL="https://a.org/x"; curl "$URL"', [("URL", "https://a.org/x", 0)]),
-        ("echo $U; U=x; echo $U", [("U", "x", 1)]),
-        ("export A=1; local B=2", [("A", "1", 0), ("B", "2", 0)]),
-        ("X=", [("X", "", 0)]),
-        ("X={a,b}", [("X", "{a,b}", 0)]),
-        ("for p in a b; do pip install $p; done", [("p", "a", 0), ("p", "b", 0)]),
-        ("for p in 'a b' c; do :; done", [("p", "a b", 0), ("p", "c", 0)]),
-        ("for p in $(ls); do :; done", []),
-        ("for i in {1..3}; do :; done", []),
-        ("X=$(date)", []),
-        ("X=(a b)", []),
+        ('URL="https://a.org/x"; curl "$URL"', [("URL", "https://a.org/x", 0, None)]),
+        ("echo $U; U=x; echo $U", [("U", "x", 1, None)]),
+        ("export A=1; local B=2", [("A", "1", 0, None), ("B", "2", 0, None)]),
+        ("X=", [("X", "", 0, None)]),
+        ("X={a,b}", [("X", "{a,b}", 0, None)]),
+        ("X=*.txt", [("X", "*.txt", 0, None)]),  # an assignment is not globbed
+        ("X=$(date)", [("X", None, 0, None)]),
+        ("X=$A/x", [("X", None, 0, None)]),
+        ("X=(a b)", [("X", None, 0, None)]),
+        ("X+=a", [("X", None, 0, None)]),
+        ("for p in a b; do pip install $p; done", [("p", "a", 0, 1), ("p", "b", 0, 1)]),
+        ("for p in 'a b' c; do :; done", [("p", "a b", 0, 1), ("p", "c", 0, 1)]),
+        ("for p in $(ls); do :; done", [("p", None, 0, 2)]),
+        ("for i in {1..3}; do :; done", [("i", None, 0, 1)]),
+        ("for f in *.txt; do :; done", [("f", None, 0, 1)]),
+        ("for f in 'a*'; do :; done", [("f", "a*", 0, 1)]),
+        ("for x; do :; done", [("x", None, 0, 1)]),  # loops over the arguments
+        (
+            "for i in 1 2; do for j in a; do x; done; y; done; z",
+            [("i", "1", 0, 2), ("i", "2", 0, 2), ("j", "a", 0, 1)],
+        ),
+        ("for ((i=0; i<3; i++)); do :; done", [("i", None, 0, None)]),
         ("A=1 curl u", []),  # A is given to curl only
         ("bash -c 'A=1'", []),  # assignments in text a new shell runs are left out
-        ("eval 'A=1'; echo $A", [("A", "1", 1)]),  # eval runs in this shell
+        ("eval 'A=1'; echo $A", [("A", "1", 1, None)]),  # eval runs in this shell
     ],
 )
-def test_assignments(text: str, assignments: list[tuple[str, str, int]]):
+def test_assignments(
+    text: str, assignments: list[tuple[str, str | None, int, int | None]]
+):
     expected = tuple(VariableAssignment(*a) for a in assignments)
     assert parse_shell(text).assignments == expected
 

@@ -37,7 +37,10 @@ _WRAPPERS = {
     "gtimeout": _TIMEOUT,
     "nohup": _Wrapper(),
     "nice": _Wrapper(frozenset({"-n", "--adjustment"})),
-    "time": _Wrapper(frozenset({"-f", "--format", "-o", "--output"})),
+    # bash's time keyword runs a command with its prefix assignments, e.g. `time A=1 curl u`.
+    "time": _Wrapper(
+        frozenset({"-f", "--format", "-o", "--output"}), takes_assignments=True
+    ),
     "stdbuf": _Wrapper(frozenset({"-i", "--input", "-o", "--output", "-e", "--error"})),
     "setsid": _Wrapper(),
     "unbuffer": _Wrapper(),
@@ -98,13 +101,51 @@ def shell_options_at_start(command: ShellCommand) -> frozenset[str]:
     return frozenset()
 
 
+def shell_file_path(command: ShellCommand) -> str | None:
+    """Find the file that a shell program or `source` runs, e.g. fetch.sh for `bash -e fetch.sh x` or `source fetch.sh`."""
+    words = program_words(command)
+    if words[:1] in (("source",), (".",)):
+        return words[1] if len(words) > 1 else None
+    if words[:1] and words[0] in _SHELL_PROGRAMS:
+        return _shell_invocation(words[1:]).file_path
+    return None
+
+
+def runs_stdin_as_shell_text(command: ShellCommand) -> bool:
+    """Check whether a shell program runs its heredoc or herestring as shell text, e.g. `bash <<EOF` or `bash -s x <<EOF`."""
+    words = program_words(command)
+    return (
+        command.stdin_text is not None
+        and words[:1] != ()
+        and words[0] in _SHELL_PROGRAMS
+        and _shell_invocation(words[1:]).runs_stdin
+    )
+
+
 def program_words(command: ShellCommand) -> tuple[str, ...]:
     """Find the program a command runs, named as `normalized_program_name` gives it, then its arguments.
 
     Wrappers and `python -m` are skipped, e.g. pip for `sudo python3 -m pip install x`.
     For `find -exec` and `xargs`, it is the program they run.
     """
-    return _unwrap_program(command.words).words
+    return program_words_from(command.words)
+
+
+def program_words_from(words: tuple[str, ...]) -> tuple[str, ...]:
+    """Find the program that a command's words run past wrappers and `python -m`, then its arguments, e.g. pip install x for `sudo python -m pip install x`."""
+    program_and_arguments = _unwrap_program(words).words
+    if not program_and_arguments:
+        return ()
+    return (
+        normalized_program_name(program_and_arguments[0]),
+        *program_and_arguments[1:],
+    )
+
+
+def program_word_as_written(command: ShellCommand) -> str | None:
+    """Find the word of the program a command runs past its wrappers, as written, e.g. `./fetch.sh` for `sudo ./fetch.sh x`."""
+    words = _unwrap_program(command.words).words
+    return words[0] if words else None
 
 
 def _unwrap_program(words: tuple[str, ...]) -> _UnwrappedProgram:
@@ -124,14 +165,14 @@ def _unwrap_program(words: tuple[str, ...]) -> _UnwrappedProgram:
         elif name == "python" and (module := _python_module_words(arguments)):
             words = module
         else:
-            return _UnwrappedProgram((name, *arguments), frozenset(skipped))
+            return _UnwrappedProgram(words, frozenset(skipped))
     return _UnwrappedProgram((), frozenset(skipped))
 
 
 class _UnwrappedProgram(NamedTuple):
     """Program found past a command's wrappers, used by `program_words` and `gets_arguments_at_run_time`."""
 
-    words: tuple[str, ...]  # the program, then its arguments
+    words: tuple[str, ...]  # the program as written, then its arguments
     skipped_wrappers: frozenset[str]  # e.g. sudo and xargs
 
 
@@ -201,12 +242,16 @@ def _python_module_words(arguments: tuple[str, ...]) -> tuple[str, ...]:
 
 
 def _shell_invocation(arguments: tuple[str, ...]) -> _ShellInvocation:
-    """Read a shell's options up to the first operand, which is the text when -c is given.
+    """Read a shell's options up to the first operand, which is the text when -c is given, or else the file it runs.
 
-    e.g. text a for `bash -c -e a`, and no text for `bash fetch.sh -c a`.
+    e.g. text a for `bash -c -e a`, and file fetch.sh for `bash fetch.sh -c a`.
+    With -s, the operand `-` or no operand, the shell reads its commands from stdin and runs no file.
+    With -n, it only checks the syntax and runs nothing, e.g. `bash -n fetch.sh`.
     """
     options: set[str] = set()
     reads_text = False
+    reads_stdin = False
+    runs_nothing = False
     index = 0
     while index < len(arguments):
         word = arguments[index]
@@ -220,6 +265,8 @@ def _shell_invocation(arguments: tuple[str, ...]) -> _ShellInvocation:
             if "e" in letters:
                 options.add("errexit")
             reads_text = reads_text or "c" in letters
+            reads_stdin = reads_stdin or "s" in letters
+            runs_nothing = runs_nothing or "n" in letters
             if "o" in letters:  # e.g. -euo pipefail
                 if following in _SHELL_OPTION_NAMES:
                     options.add(following)
@@ -232,12 +279,21 @@ def _shell_invocation(arguments: tuple[str, ...]) -> _ShellInvocation:
             index += 1
         else:
             break
-    text = arguments[index] if reads_text and index < len(arguments) else None
-    return _ShellInvocation(text, frozenset(options))
+    operand = arguments[index] if index < len(arguments) else None
+    if runs_nothing:
+        return _ShellInvocation(None, None, False, frozenset(options))
+    if reads_text:
+        return _ShellInvocation(operand, None, False, frozenset(options))
+    runs_file = not reads_stdin and operand not in (None, "-")
+    return _ShellInvocation(
+        None, operand if runs_file else None, not runs_file, frozenset(options)
+    )
 
 
 class _ShellInvocation(NamedTuple):
-    """Invocation of a shell such as `bash -e -c a`, read by `nested_shell_text` and `shell_options_at_start`."""
+    """Invocation of a shell such as `bash -e -c a`, read by `nested_shell_text`, `shell_file_path`, `runs_stdin_as_shell_text` and `shell_options_at_start`."""
 
     text: str | None  # the text after -c
+    file_path: str | None  # the file it runs, e.g. fetch.sh in `bash fetch.sh`
+    runs_stdin: bool  # it runs its stdin as shell text, e.g. `bash -s x`
     options: frozenset[str]  # errexit and pipefail, when its options turn them on

@@ -63,6 +63,7 @@ _ERREXIT_STATEMENT_TYPES = frozenset(
 # ShellCommand fields that a command takes from the scope it is in.
 _FIELDS_FROM_SCOPE = (
     "stdin_text",
+    "stdin_file_path",
     "stdout",
     "stderr",
     "runs_if",
@@ -74,10 +75,15 @@ _FIELDS_FROM_SCOPE = (
     "structure_may_be_wrong",
 )
 # Fields that text run by a command takes from that command.
-# The command's heredoc is not the text's.
-_FIELDS_FROM_RUNNER = tuple(name for name in _FIELDS_FROM_SCOPE if name != "stdin_text")
+# Stdin is left out. That is right for the heredoc of `bash <<EOF`, which is the text itself,
+# and misses a file that the text's commands read, e.g. log for grep in `bash -c 'grep x' < log`.
+_FIELDS_FROM_RUNNER = tuple(
+    name for name in _FIELDS_FROM_SCOPE if name not in ("stdin_text", "stdin_file_path")
+)
 # A word such as {a,b} or {1..3}, which bash turns into several words.
 _BRACE_LIST = re.compile(r"\{[^{}\s]*,[^{}\s]*\}|\{\w+\.\.\w+\}")
+# A glob character that a backslash does not escape, e.g. * in *.txt.
+_GLOB_CHARACTER = re.compile(r"(?<!\\)[*?[]")
 # A line break that ends a command, not one escaped by a backslash.
 _UNESCAPED_LINE_BREAK = re.compile(rb"(?<!\\)\n")
 # A comment, which starts with # after a space.
@@ -311,7 +317,7 @@ class _ShellTextWalker:
         """
         if node_text(node) in self._substitutions_run_by_outer_shell:
             return None
-        inner_scope = replace(scope, stdin_text=None)
+        inner_scope = scope.without_stdin()
         if not decides_exit:
             inner_scope = inner_scope.succeeded_if_text_exits_zero_only_if(False)
         if not _reads_output(node):
@@ -477,22 +483,37 @@ class _ShellTextWalker:
         return None
 
     def _walk_for(self, node: Node, scope: _Scope) -> _DecidingCommandIds:
-        """Walk a for loop, and record each value of `for x in a b` when all of them are literal.
+        """Walk a for loop, and record each item of `for x in a b` as a value of x, with where the loop ends.
 
-        A value with `$A` or a brace list such as `{1,2}` is not literal, and then no value is recorded.
+        A list with `$A`, a glob such as `*.txt` or a brace list such as `{1,2}` is computed as the loop runs,
+        and so is a missing list, which stands for the script's arguments as in `for x; do`. Then one assignment without a value is recorded.
+        A C-style loop such as `for ((i=0; i<3; i++))` changes what its header assigns, so i gets no value.
         """
         loop_scope = scope.succeeded_if_text_exits_zero_only_if(False)
         variable = node.child_by_field_name("variable")
-        values = node.children_by_field_name("value")
-        is_literal = not any(word_has_expansion(v) or _is_brace_list(v) for v in values)
-        if variable is not None and values and is_literal:
-            for value in values:
-                self._record_assignment(node_text(variable), word_value(value))
+        items = node.children_by_field_name("value")
+        assignments = self._parse_state.assignments
+        first_item_index = len(assignments)
+        if variable is not None:
+            if items and not any(map(_is_computed_word, items)):
+                for item in items:
+                    self._record_assignment(node_text(variable), word_value(item))
+            else:
+                self._record_assignment(node_text(variable), None)
+        item_indexes = range(first_item_index, len(assignments))
         for child in _named_children_without_comments(node, except_field="body"):
             self._walk_node(child, loop_scope)  # e.g. `$(ls)` in `for f in $(ls)`
+        if variable is None:
+            for index in range(item_indexes.stop, len(assignments)):
+                assignments[index] = replace(assignments[index], value=None)
         body = node.child_by_field_name("body")
         if body is not None:
             self._walk_node(body, replace(loop_scope, in_loop_body=True))
+        for index in item_indexes:
+            assignments[index] = replace(
+                assignments[index],
+                next_command_id_after_for_loop=self._parse_state.next_command_id,
+            )
         return None
 
     def _walk_case(self, node: Node, scope: _Scope) -> _DecidingCommandIds:
@@ -525,19 +546,20 @@ class _ShellTextWalker:
     def _walk_variable_assignment(
         self, node: Node, scope: _Scope
     ) -> _DecidingCommandIds:
-        """Record an assignment's literal value and walk its `$(...)`.
+        """Record an assignment, with its value when the value is literal, and walk its `$(...)`.
 
         The assignment exits as its last `$(...)` does.
         """
         name = node.child_by_field_name("name")
         value = node.child_by_field_name("value")
+        appends = any(child.type == "+=" for child in node.children)
         # Bash does not split an assigned word, so {a,b} stays literal here.
-        is_literal = value is None or not (
-            value.type == "array" or word_has_expansion(value)
+        is_literal = not appends and (
+            value is None or not (value.type == "array" or word_has_expansion(value))
         )
-        if name is not None and is_literal:
+        if name is not None:
             literal = word_value(value) if value is not None else ""
-            self._record_assignment(node_text(name), literal)
+            self._record_assignment(node_text(name), literal if is_literal else None)
         if value is None:
             return None
         substitutions = _command_substitutions(value)
@@ -655,6 +677,7 @@ class _ShellTextWalker:
         """Walk pipeline stages, each but the last sending stdout to the next, and with `|&` stderr.
 
         The last stage decides the exit code. With `set -o pipefail`, every stage does.
+        A stage after the first reads the pipe, so it takes no stdin from the scope, e.g. grep in `{ echo x | grep x; } < log`.
         """
         commands = self._parse_state.commands
         deciding_command_ids: _DecidingCommandIds = ()
@@ -664,6 +687,8 @@ class _ShellTextWalker:
             stage_scope = scope.succeeded_if_text_exits_zero_only_if(
                 is_last or self._options.pipefail
             )
+            if index > 0:
+                stage_scope = stage_scope.without_stdin()
             placeholder = None
             if not is_last:
                 placeholder = PipeDestination(next(self._parse_state.pipe_placeholders))
@@ -729,11 +754,11 @@ class _ShellTextWalker:
             left, _combined_deciding_command_ids(left, right)
         )
 
-    def _record_assignment(self, name: str, value: str) -> None:
+    def _record_assignment(self, name: str, value: str | None) -> None:
         """Record an assignment, unless a new shell runs this text."""
         if self._records_assignments:
             next_command_id = self._parse_state.next_command_id
-            assignment = VariableAssignment(name, value, next_command_id)
+            assignment = VariableAssignment(name, value, next_command_id, None)
             self._parse_state.assignments.append(assignment)
 
     def _conditions_for_later_statements(
@@ -902,6 +927,24 @@ def _redirects_in_text_order(
     return [*command_node.children_by_field_name("redirect"), *outer_redirects]
 
 
+def _is_computed_word(word_node: Node) -> bool:
+    """Check whether the shell computes a word's value as it runs, e.g. `$A`, `*.txt` or `{a,b}`."""
+    return (
+        word_has_expansion(word_node)
+        or _is_brace_list(word_node)
+        or _is_glob(word_node)
+    )
+
+
+def _is_glob(word_node: Node) -> bool:
+    """Check whether a word has a `*`, `?` or `[` outside quotes, which the shell turns into file names."""
+    parts = word_node.children if word_node.type == "concatenation" else [word_node]
+    return any(
+        part.type == "word" and _GLOB_CHARACTER.search(node_text(part))
+        for part in parts
+    )
+
+
 def _is_brace_list(word_node: Node) -> bool:
     """Check whether a word outside quotes is a brace list, e.g. `{a,b}` or `x{1..3}`."""
     if word_node.type == "brace_expression":
@@ -959,7 +1002,9 @@ def _scope_after_redirects(
                 (c for c in redirect.named_children if c.type == "heredoc_body"), None
             )
             scope = replace(
-                scope, stdin_text=node_text(body) if body is not None else ""
+                scope,
+                stdin_text=node_text(body) if body is not None else "",
+                stdin_file_path=None,
             )
             # e.g. `> f` in `cat <<EOF > f`
             inner = redirect.children_by_field_name("redirect")
@@ -967,7 +1012,11 @@ def _scope_after_redirects(
             scope = inner_redirected.scope
             output_readers.extend(inner_redirected.output_readers)
         elif redirect.type == "herestring_redirect" and redirect.named_children:
-            scope = replace(scope, stdin_text=word_value(redirect.named_children[-1]))
+            scope = replace(
+                scope,
+                stdin_text=word_value(redirect.named_children[-1]),
+                stdin_file_path=None,
+            )
     return _RedirectedScope(scope, tuple(output_readers))
 
 
@@ -991,17 +1040,31 @@ class _RedirectedScope(NamedTuple):
 def _scope_after_file_redirect(
     redirect: Node, scope: _Scope, output_reader: PipeDestination | None = None
 ) -> _Scope:
-    """Apply one redirect such as `> f`, `2>&1`, `&> f` or `2> /dev/null` to a scope.
+    """Apply one redirect such as `> f`, `2>&1`, `&> f`, `2> /dev/null` or `< f` to a scope.
 
     `output_reader` is the destination of a `>(...)` target.
+    A later redirect of stdin replaces an earlier one, as in bash, e.g. f for `cat <<EOF < f`.
     """
     operator = next((c.type for c in redirect.children if not c.is_named), "")
-    if operator.startswith("<"):  # input
-        return scope
+    is_input = operator.startswith("<")
     descriptor_node = redirect.child_by_field_name("descriptor")
-    descriptor = node_text(descriptor_node) if descriptor_node is not None else "1"
+    if descriptor_node is not None:
+        descriptor = node_text(descriptor_node)
+    else:
+        descriptor = "0" if is_input else "1"
     destination_node = redirect.child_by_field_name("destination")
     target = word_value(destination_node) if destination_node is not None else ""
+    if is_input:
+        # `<&3` copies a descriptor and names no file.
+        if operator != "<" or descriptor != "0":
+            return scope
+        # `< <(cmd)` gives stdin the output of cmd, not a file.
+        if (
+            destination_node is not None
+            and destination_node.type == "process_substitution"
+        ):
+            return scope.without_stdin()
+        return replace(scope, stdin_file_path=target, stdin_text=None)
     destination: OutputDestination
     if output_reader is not None:
         destination = output_reader
@@ -1044,6 +1107,7 @@ class _Scope:
     stdout: OutputDestination = field(default_factory=ResultDestination)
     stderr: OutputDestination = field(default_factory=ResultDestination)
     stdin_text: str | None = None
+    stdin_file_path: str | None = None
     runs_if: tuple[RunCondition, ...] = ()
     in_loop_body: bool = False
     in_function_body: bool = False
@@ -1075,9 +1139,11 @@ class _Scope:
 
     def inside_substitution(self) -> _Scope:
         """Make the scope of the commands in a `$(...)` of a statement in this scope."""
-        return replace(
-            self.succeeded_if_text_exits_zero_only_if(False), stdin_text=None
-        )
+        return self.succeeded_if_text_exits_zero_only_if(False).without_stdin()
+
+    def without_stdin(self) -> _Scope:
+        """Drop the heredoc, herestring or file that this scope gives to stdin, for commands that do not read it."""
+        return replace(self, stdin_text=None, stdin_file_path=None)
 
     def succeeded_if_text_exits_zero_only_if(self, condition: bool) -> _Scope:
         """Narrow `succeeded_if_text_exits_zero` to also need `condition`."""

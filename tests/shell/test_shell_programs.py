@@ -7,7 +7,9 @@ from tb_internet_use.shell.programs import (
     gets_arguments_at_run_time,
     nested_shell_text,
     normalized_program_name,
+    program_word_as_written,
     program_words,
+    shell_file_path,
     shell_options_at_start,
 )
 
@@ -55,6 +57,7 @@ def test_normalized_program_name(word: str, name: str):
         (("timeout", "-s", "KILL", "30", "curl", "u"), ("curl", "u")),
         (("nohup", "nice", "-n", "10", "pip", "install", "x"), ("pip", "install", "x")),
         (("time", "curl", "u"), ("curl", "u")),
+        (("time", "A=1", "curl", "u"), ("curl", "u")),
         (("exec", "curl", "u"), ("curl", "u")),
         (("stdbuf", "-oL", "curl", "u"), ("curl", "u")),
         (("command", "curl", "u"), ("curl", "u")),
@@ -129,3 +132,36 @@ def test_nested_shell_text(words: tuple[str, ...], text: str | None):
 )
 def test_shell_options_at_start(words: tuple[str, ...], options: set[str]):
     assert shell_options_at_start(_command(*words)) == options
+
+
+@pytest.mark.parametrize(
+    ("words", "word"),
+    [
+        (("sudo", "./fetch.sh", "x"), "./fetch.sh"),
+        (("/usr/bin/curl", "u"), "/usr/bin/curl"),
+        (("python3", "-m", "pip", "install", "x"), "pip"),
+        (("sudo",), None),
+    ],
+)
+def test_program_word_as_written(words: tuple[str, ...], word: str | None):
+    assert program_word_as_written(_command(*words)) == word
+
+
+@pytest.mark.parametrize(
+    ("words", "path"),
+    [
+        (("bash", "fetch.sh"), "fetch.sh"),
+        (("bash", "-e", "fetch.sh", "x"), "fetch.sh"),
+        (("bash", "-o", "pipefail", "fetch.sh"), "fetch.sh"),
+        (("sudo", "sh", "/tmp/install.sh"), "/tmp/install.sh"),
+        (("source", "env.sh"), "env.sh"),
+        ((".", "env.sh"), "env.sh"),
+        (("bash", "-c", "curl u"), None),
+        (("bash", "-s", "x"), None),  # reads its commands from stdin
+        (("bash", "-"), None),
+        (("bash",), None),
+        (("python", "get.py"), None),
+    ],
+)
+def test_shell_file_path(words: tuple[str, ...], path: str | None):
+    assert shell_file_path(_command(*words)) == path
