@@ -5,9 +5,9 @@ These facts come from the command alone, before any output is read.
 """
 
 from dataclasses import dataclass
-from enum import StrEnum
 
 from tb_internet_use.network.model import Host, PrintingProgram
+from tb_internet_use.program.model import ExitZeroMeans, RequestKind
 from tb_internet_use.toolcall.model import ToolCallKey
 
 # Source of a candidate request within its call, which is a shell command, code it ran or a web tool action.
@@ -36,7 +36,7 @@ class CandidateRequest:
     asked_package_names: frozenset[str] | None
     # Programs whose output lines its run can print, e.g. uv and pip for `uv pip install`.
     printing_programs: frozenset[PrintingProgram]
-    # Its program runs or builds something and fetches only what that needs, e.g. `npx tsc`, `uv run`, `cargo build` or `docker run`.
+    # Its program runs or builds something and fetches only what that needs, e.g. `npx tsc`, `uv run` or `lake build`.
     fetches_only_to_run_or_build: bool
     # An option makes it stay off the network or prefer local copies, e.g. `--offline`, `--no-index` or `--prefer-offline`.
     has_offline_option: bool
@@ -78,29 +78,6 @@ class FromWebTool:
     step_index: int | None
 
 
-class RequestKind(StrEnum):
-    """Kind of a candidate request, by the program or tool that makes it."""
-
-    # A language package manager, e.g. pip, npm or cargo.
-    PACKAGE = "package"
-    # A system package manager, e.g. apt, apk or brew.
-    SYSTEM_PACKAGE = "system_package"
-    # A git operation on a remote repository, e.g. git clone or gh repo clone.
-    GIT = "git"
-    # A download or HTTP client, e.g. curl or wget.
-    URL = "url"
-    # A container image pull, e.g. docker pull.
-    CONTAINER = "container"
-    # A direct connection to a named host, e.g. ssh, rsync, nc, ping or dig.
-    REMOTE_HOST = "remote_host"
-    # Network calls in Python or JavaScript code.
-    CODE = "code"
-    WEB_SEARCH = "web_search"
-    WEB_FETCH = "web_fetch"
-    # A search for text in a page.
-    WEB_FIND = "web_find"
-
-
 @dataclass(frozen=True, slots=True)
 class RequestTarget:
     """Target of a candidate request, such as a package, URL, repository or query, with the value it has when its command runs.
@@ -115,17 +92,3 @@ class RequestTarget:
     value: str | None
     # The for loop variable whose items give one target each, so its command runs once per value. None outside such a loop.
     loop_variable: str | None
-
-
-class ExitZeroMeans(StrEnum):
-    """Meaning of exit code 0 of a request's own program, after the options that change it.
-
-    Asking for no content, e.g. `curl -fI`, does not change it, since `asks_for_no_content` records that.
-    """
-
-    # The program also exits 0 without the network, e.g. pip with every package cached.
-    NOTHING = "nothing"
-    # The server answered, maybe with an HTTP error, e.g. curl without -f.
-    SERVER_RESPONDED = "server_responded"
-    # The server answered without an error, e.g. `curl -f`, wget or git clone.
-    REQUEST_SUCCEEDED = "request_succeeded"
