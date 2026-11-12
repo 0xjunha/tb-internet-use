@@ -66,7 +66,7 @@ class ObservationKind(StrEnum):
     CONNECTION_FAILED = "connection_failed"
     # A connection was made and then broke, e.g. `Connection reset by peer`, `Read timed out` or curl errors 52 and 56.
     CONNECTION_LOST = "connection_lost"
-    # A proxy refused the request or could not be reached, e.g. `Received HTTP code 403 from proxy` or `Could not resolve proxy`.
+    # A proxy refused the request or could not be reached, e.g. `ProxyError` in a Python traceback.
     PROXY_REFUSED = "proxy_refused"
     TLS_FAILED = "tls_failed"
     # A connection was made, as wget's `connected.` shows.
