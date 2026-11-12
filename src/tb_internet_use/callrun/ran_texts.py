@@ -7,6 +7,11 @@ import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+from tb_internet_use.callrun.code_program_tables import (
+    CODE_PROGRAMS,
+    LANGUAGE_OF_FILE_EXTENSION,
+    SHELL_FILE_EXTENSIONS,
+)
 from tb_internet_use.callrun.model import (
     ArgumentText,
     CallCommandText,
@@ -40,52 +45,8 @@ from tb_internet_use.toolcall.model import (
     may_have_run,
 )
 
-_SHELL_FILE_EXTENSIONS = frozenset({".sh", ".bash"})
 # The extension that ends a file name, e.g. .sh.
 _FILE_EXTENSION_AT_END = re.compile(r"\.\w+$")
-
-
-@dataclass(frozen=True, slots=True)
-class _CodeProgramRules:
-    """Rules of a program that runs code, used to find the code it runs."""
-
-    language: CodeLanguage
-    # Options whose value is the code itself, e.g. -c in `python -c 'import x'`.
-    inline_code_options: frozenset[str]
-    # A subcommand before the file, e.g. run in `bun run get.ts`.
-    file_subcommand: str | None = None
-    # Other plain arguments are subcommands, so only a file with a code extension is code, e.g. not install in `bun install`.
-    runs_only_code_files: bool = False
-
-
-_JAVASCRIPT_RULES = _CodeProgramRules(
-    CodeLanguage.JAVASCRIPT, frozenset({"-e", "--eval"})
-)
-_JAVASCRIPT_PACKAGE_MANAGER_RULES = _CodeProgramRules(
-    CodeLanguage.JAVASCRIPT,
-    frozenset({"-e", "--eval"}),
-    file_subcommand="run",
-    runs_only_code_files=True,
-)
-# Programs that run code, by the name `normalized_program_name` gives.
-_RULES_OF_CODE_PROGRAM = {
-    "python": _CodeProgramRules(CodeLanguage.PYTHON, frozenset({"-c"})),
-    "node": _CodeProgramRules(
-        CodeLanguage.JAVASCRIPT, frozenset({"-e", "--eval", "-p", "--print", "-pe"})
-    ),
-    "bun": _JAVASCRIPT_PACKAGE_MANAGER_RULES,
-    "deno": _JAVASCRIPT_PACKAGE_MANAGER_RULES,
-    "tsx": _JAVASCRIPT_RULES,
-    "ts-node": _JAVASCRIPT_RULES,
-}
-# Languages of the code files a command runs directly, e.g. ./get.py.
-_LANGUAGE_OF_FILE_EXTENSION = {
-    ".py": CodeLanguage.PYTHON,
-    ".js": CodeLanguage.JAVASCRIPT,
-    ".mjs": CodeLanguage.JAVASCRIPT,
-    ".cjs": CodeLanguage.JAVASCRIPT,
-    ".ts": CodeLanguage.JAVASCRIPT,
-}
 
 
 @dataclass(frozen=True, slots=True)
@@ -217,40 +178,40 @@ class _RanTextCollector:
         The code program can come after programs that run the next program, e.g. tsx in `npx tsx get.ts`.
         """
         words = last_program_words(program_words(command))
-        rules = _RULES_OF_CODE_PROGRAM.get(words[0]) if words else None
-        if rules is None:
+        code_program = CODE_PROGRAMS.get(words[0]) if words else None
+        if code_program is None:
             return self._directly_run_code_file(command)
         parsed = parse_arguments(words[0], words[1:])
-        inline_codes = parsed.option_values(*rules.inline_code_options)
+        inline_codes = parsed.option_values(*code_program.inline_code_options)
         if inline_codes:
             return RanCodeText(
-                ArgumentText(command.id), rules.language, inline_codes[0]
+                ArgumentText(command.id), code_program.language, inline_codes[0]
             )
         plain_arguments = parsed.plain_arguments
-        if rules.file_subcommand is not None and plain_arguments[:1] == (
-            rules.file_subcommand,
+        if code_program.file_subcommand is not None and plain_arguments[:1] == (
+            code_program.file_subcommand,
         ):
             plain_arguments = plain_arguments[1:]
         path = plain_arguments[0] if plain_arguments else None
         if (
-            rules.runs_only_code_files
+            code_program.needs_code_file_extension
             and path is not None
-            and _file_extension(path) not in _LANGUAGE_OF_FILE_EXTENSION
+            and _file_extension(path) not in LANGUAGE_OF_FILE_EXTENSION
         ):
             return None
         if path is None or path == "-":
             if command.stdin_text is None:
                 return None
             return RanCodeText(
-                StdinText(command.id), rules.language, command.stdin_text
+                StdinText(command.id), code_program.language, command.stdin_text
             )
-        return self._code_file_text(command.id, path, rules.language)
+        return self._code_file_text(command.id, path, code_program.language)
 
     def _directly_run_code_file(self, command: ShellCommand) -> RanCodeText | None:
         """Find a code file that a command runs by its path, e.g. ./get.py, with the language its extension gives."""
         word = program_word_as_written(command)
         extension = _file_extension(word) if word and "/" in word else None
-        language = _LANGUAGE_OF_FILE_EXTENSION.get(extension) if extension else None
+        language = LANGUAGE_OF_FILE_EXTENSION.get(extension) if extension else None
         if word is None or language is None:
             return None
         return self._code_file_text(command.id, word, language)
@@ -270,7 +231,7 @@ def _shell_file_run_by(command: ShellCommand) -> str | None:
     if path is not None:
         return path
     word = program_word_as_written(command)
-    if word and "/" in word and _file_extension(word) in _SHELL_FILE_EXTENSIONS:
+    if word and "/" in word and _file_extension(word) in SHELL_FILE_EXTENSIONS:
         return word
     return None
 

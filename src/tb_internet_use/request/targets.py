@@ -13,6 +13,13 @@ from tb_internet_use.network.model import Host
 from tb_internet_use.network.package_names import normalized_package_names
 from tb_internet_use.program.model import AskedPackagesSource, RequestKind
 from tb_internet_use.request.model import RequestTarget
+from tb_internet_use.request.target_tables import (
+    DNS_LOOKUP_PROGRAMS,
+    DNS_RECORD_TYPES_AND_CLASSES,
+    PROGRAMS_WITH_HOST_AS_EVERY_TARGET,
+    PROGRAMS_WITH_HOST_AS_FIRST_TARGET,
+    SCHEMELESS_URL_PROGRAMS,
+)
 
 # A remote git address without a scheme, e.g. github.com in `git@github.com:org/repo.git`.
 # The host needs a user or a dot, so a refspec such as `main:main` in `git fetch origin main:main` is no address.
@@ -21,32 +28,6 @@ _SCP_LIKE_ADDRESS = re.compile(r"^(?:[\w.-]+@([\w.-]+)|([\w-]+(?:\.[\w-]+)+)):(?
 _SCHEMELESS_HOST = re.compile(r"^([\w.-]+)(?::\d+)?(?:/|$)")
 # Targets that name a local path, a URL or an archive instead of a package, e.g. `./dist/x.whl`, `.` or `.[dev]`.
 _PATH_OR_URL = re.compile(r"^(?:[/~]|\.\.?(?:/|\[|$))|://|\.(?:whl|zip|tar\.gz|tgz)$")
-# Programs that read a target without a scheme as a URL, e.g. pypi.org/simple in `curl pypi.org/simple`.
-_SCHEMELESS_URL_PROGRAMS = frozenset({"curl", "wget"})
-# Direct connection and name lookup programs whose first target is a host and the rest are ports or record types, e.g. `nc host 80`.
-_FIRST_TARGET_HOST_PROGRAMS = frozenset({"nc", "ping", "dig", "nslookup", "host"})
-# Name lookup programs whose targets can hold DNS record types and classes before the host too, e.g. MX in `dig MX a.org`.
-_DNS_LOOKUP_PROGRAMS = frozenset({"dig", "nslookup", "host"})
-# Common DNS record types and classes in upper case, which name no host, e.g. MX and IN in `dig IN MX a.org`.
-_DNS_RECORD_TYPES_AND_CLASSES = frozenset(
-    {
-        "A",
-        "AAAA",
-        "MX",
-        "NS",
-        "TXT",
-        "CNAME",
-        "SOA",
-        "PTR",
-        "SRV",
-        "CAA",
-        "ANY",
-        "AXFR",
-        "IN",
-    }
-)
-# Name lookup programs whose every target is a host, e.g. a.org and b.org in `getent hosts a.org b.org`.
-_ALL_TARGETS_HOST_PROGRAMS = frozenset({"getent"})
 
 
 def request_targets(
@@ -115,7 +96,7 @@ def request_hosts(
             for text in schemeless
             if (m := _SCP_LIKE_ADDRESS.match(text))
         ]
-    elif program_name in _SCHEMELESS_URL_PROGRAMS:
+    elif program_name in SCHEMELESS_URL_PROGRAMS:
         names += [
             m.group(1) for text in schemeless if (m := _SCHEMELESS_HOST.match(text))
         ]
@@ -155,16 +136,16 @@ def _filled_or_none(word: str, value_of_name: dict[str, str]) -> str | None:
 
 def _remote_host_names(program_name: str, target_texts: Sequence[str]) -> list[str]:
     """Find the hosts a direct connection names, e.g. host for `nc host 80` or `rsync f host:/x`, and both for `dig @8.8.8.8 a.org`."""
-    if program_name in _ALL_TARGETS_HOST_PROGRAMS:
+    if program_name in PROGRAMS_WITH_HOST_AS_EVERY_TARGET:
         return list(target_texts)
-    if program_name in _FIRST_TARGET_HOST_PROGRAMS:
+    if program_name in PROGRAMS_WITH_HOST_AS_FIRST_TARGET:
         servers = [text[1:] for text in target_texts if text.startswith("@")]
         names = [text for text in target_texts if not text.startswith(("@", "+"))]
-        if program_name in _DNS_LOOKUP_PROGRAMS:
+        if program_name in DNS_LOOKUP_PROGRAMS:
             names = [
                 name
                 for name in names
-                if name.upper() not in _DNS_RECORD_TYPES_AND_CLASSES
+                if name.upper() not in DNS_RECORD_TYPES_AND_CLASSES
             ]
         return [_without_user(name) for name in (*servers, *names[:1])]
     # rsync names a remote host as `host:path`.

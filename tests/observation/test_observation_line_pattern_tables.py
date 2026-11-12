@@ -1,10 +1,10 @@
-"""Tests for observation/line_patterns.py, through the observations that extract.py makes of example lines."""
+"""Tests for observation/line_pattern_tables.py, through the observations that extract.py makes of example lines."""
 
 import pytest
 
 from tb_internet_use.network.model import PrintingProgram
 from tb_internet_use.observation.extract import extract_observations
-from tb_internet_use.observation.line_patterns import PROGRAM_OUTPUT_LINE_PATTERNS
+from tb_internet_use.observation.line_pattern_tables import PROGRAM_OUTPUT_LINE_PATTERNS
 from tb_internet_use.observation.model import Observation, ObservationKind
 from tb_internet_use.toolcall.model import (
     ExecutionStatus,

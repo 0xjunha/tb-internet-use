@@ -85,6 +85,7 @@ _DOWNLOAD_PRINTING_PROGRAMS = (
 # Labels that curl `-w` formats put before a bare status code, e.g. `status: 200`.
 _STATUS_CODE_LABEL = r"(?i:(?:status|code|http|http_code|http status|response) ?[:=] ?)"
 
+# Lines that programs print, read in every call's output except a web tool result.
 PROGRAM_OUTPUT_LINE_PATTERNS = _line_pattern_table(
     _program_output_row(
         ObservationKind.PROGRAM_MISSING,

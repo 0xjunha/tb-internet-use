@@ -6,7 +6,7 @@ from collections.abc import Iterator
 
 from tb_internet_use.network.hosts import host_from_name
 from tb_internet_use.network.package_names import normalized_package_names
-from tb_internet_use.observation.line_patterns import (
+from tb_internet_use.observation.line_pattern_tables import (
     PROGRAM_OUTPUT_LINE_PATTERNS,
     WEB_TOOL_RESULT_LINE_PATTERNS,
     LinePatternTable,
@@ -27,7 +27,7 @@ from tb_internet_use.toolcall.model import (
     action_steps_with_index,
 )
 
-# The trailing number of a named group, which `line_patterns` adds to keep names unique, e.g. 0 in host0.
+# The trailing number of a named group, which `line_pattern_tables` adds to keep names unique, e.g. 0 in host0.
 _GROUP_NUMBER = re.compile(r"\d+$")
 # An ANSI control sequence of the CSI form, i.e. ESC and `[`, then parameter and intermediate bytes and a final byte, e.g. the color code `\x1b[32m`.
 _ANSI_CSI_SEQUENCE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
