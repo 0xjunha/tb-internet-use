@@ -1,4 +1,4 @@
-"""Run types for tool calls in a trial, tying each command to the shell texts and code it runs and to the calls that show its output.
+"""Run types for tool calls in a trial, which expand each call into everything it actually ran and the calls that show its output.
 
 A request can sit in a file that an earlier call wrote, e.g. `bash fetch.sh`, and its output can show up only in a later poll or log read, e.g. `tail fetch.log`.
 """
@@ -30,7 +30,7 @@ type OutputRouteEnd = (
 
 @dataclass(frozen=True, slots=True)
 class CallRun:
-    """Run result of one tool call, resolved over its whole trial."""
+    """Run result of one tool call, expanded over its whole trial into everything the call actually ran, including what its own text does not show."""
 
     call: ToolCall
     # Shell texts the call ran, i.e. its command string, script steps or typed input, and the shell files and heredocs their commands run.
@@ -46,7 +46,7 @@ class CallRun:
     polls: tuple[ToolCallKey, ...]
     # Later readers of `call.output.output_path`, the file where the harness saved the call's whole result.
     # The readers of an output file that a poll result names are on the poll's own CallRun, found through `polls`.
-    harness_output_file_reads: tuple[FileReader, ...]
+    harness_output_file_readers: tuple[FileReader, ...]
     # Readers of each file that commands of the call send output to, e.g. `> fetch.log` or `tee fetch.log`.
     # A file that no call reads has no entry.
     redirected_output_reads: tuple[RedirectedOutputReads, ...]
@@ -113,7 +113,7 @@ class RanCommand:
 
     # The command as `parse_shell` gives it, with `$NAME` kept in its words.
     command: ShellCommand
-    # One per variable in its words that has literal values, e.g. U in `U=https://a.org; curl $U`.
+    # One per variable in its words or redirect file paths that has literal values, e.g. U in `U=https://a.org; curl $U` or LOG in `curl u > $LOG`.
     variable_values: tuple[VariableValues, ...]
     # One route per end of the output. Several when a `tee` on the way, e.g. `| tee log` or `>(tee log)`, also writes it to a file.
     stdout_routes: tuple[OutputRoute, ...]
@@ -122,7 +122,7 @@ class RanCommand:
 
 @dataclass(frozen=True, slots=True)
 class VariableValues:
-    """Literal values that assignments before a command in its text give to a variable in its words."""
+    """Literal values that assignments before a command in its text give to a variable in its words or redirect file paths."""
 
     name: str
     # The values in text order, without repeats.
@@ -193,5 +193,5 @@ class RedirectedOutputReads:
 
     # The path as the writing command names it, in a `FileDestination` or as a `tee` argument.
     path: str
-    # Calls that read the file before another command replaces its content with `>`.
+    # Calls that read the file before a later call replaces its content, e.g. with `>` or a write tool.
     readers: tuple[FileReader, ...]

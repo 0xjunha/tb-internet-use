@@ -49,6 +49,26 @@ def handles_from_ids(
     return tuple(ExecutionHandle(kind, i) for i in string_tuple(ids))
 
 
+def action_steps_with_index(action: Action) -> tuple[tuple[int | None, Action], ...]:
+    """List the steps of a tool script with their 0-based index, or the action alone with index None when it is not a script.
+
+    One call can run a script of several tool steps, e.g. a Codex `exec` that runs a command and then fetches a page, and later stages read each step, e.g. to record which step a request came from.
+    """
+    if isinstance(action, RunToolScriptAction):
+        return tuple(enumerate(action.steps))
+    return ((None, action),)
+
+
+def may_have_run(call: ToolCall) -> bool:
+    """Tell whether the tool may have run a call, i.e. whether its result is anything but `NOT_RUN`.
+
+    A call without a result may have run, since the trajectory does not say whether the tool ran it.
+    """
+    return (
+        call.output is None or call.output.execution_status != ExecutionStatus.NOT_RUN
+    )
+
+
 def string_tuple(values: Any) -> tuple[str, ...]:
     """Turn a list of values or one value into the strings of an Action field, in order and without missing, empty or repeated ones."""
     listed = values if isinstance(values, list) else [values]
@@ -166,7 +186,7 @@ class UnmatchedFormat(Enum):
 
 @dataclass(frozen=True, slots=True)
 class ToolCall:
-    """One tool call in common types."""
+    """One tool call in common types, as the trajectory records it."""
 
     raw: RawToolCall
     action: Action
