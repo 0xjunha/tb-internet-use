@@ -43,12 +43,10 @@ class PrintingProgram(StrEnum):
     UV = "uv"
     NPM = "npm"
     APT = "apt"
-    APK = "apk"
     GIT = "git"
     CURL = "curl"
     WGET = "wget"
     PLAYWRIGHT = "playwright"
-    DOCKER = "docker"
     # A run that prints response headers, e.g. `curl -i` or `wget -S`.
     HTTP_HEADERS = "http_headers"
     # curl run with -f, which prints error 22 for an HTTP error.
