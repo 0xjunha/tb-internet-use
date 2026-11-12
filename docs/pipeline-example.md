@@ -18,6 +18,20 @@ The agent writes a script and runs it in the background, with `pip install reque
 | 3 | `TaskOutput` | `task_id: task-1` | `Downloading requests-2.32.3`, `Successfully installed requests-2.32.3` |
 | 4 | `Read` | `file_path: fetch.log` | `curl: (6) Could not resolve host: data.example.org` |
 
+## Summary of the stages
+
+c1 to c4 are the calls of steps 1 to 4 above.
+
+| Stage | Input | Output | Question | In this example |
+|---|---|---|---|---|
+| 5 | One trial's `trajectory.json` | A `ToolCall` per call | What did the trajectory record? | c1 to c4 as `ToolCall`s, with c2 still running |
+| 6 | One shell text | `ParsedShellText` | How is the shell text structured? | c2's text gives `bash fetch.sh`, whose output goes to fetch.log, and `pip install requests`, which runs only if bash fails |
+| 7 | All calls of the trial (5), each text parsed by 6 | A `CallRun` per call | What did each call actually run, including what its own text does not show, and which calls show its output? | c2's run also holds the curl line that c1 wrote into fetch.sh. c3 polls c2, and c4 reads fetch.log |
+| 8 | One call's expanded run (7) | `CandidateRequest`s | Which of it may be an internet request, and what facts does its run give? | c2 gives a curl request to data.example.org and a pip request for requests |
+| 9 | One call's result (5) | `Observation`s | What network traces are there? | c3 gives two pip lines, and c4 a curl line saying the host did not resolve |
+| 10 | The trial's requests (8), observations (9) and call runs (7) | Linked requests (sketch) | Which belong together, and what does each call say about each request? | The curl request links to c4's line through fetch.log, and the pip request to c3's lines through the poll |
+| 11 | One linked request (10) | A result per request (sketch) | How far did it get, how sure is that, and what stopped it or hid the rest? | curl ran but stopped when the host did not resolve, and pip got as far as receiving the package |
+
 ## Stages 3 and 4: define types and labels
 
 These stages define harness-agnostic common types in [model.py](../src/tb_internet_use/toolcall/model.py) and tool call labels in the [tool catalog](../src/tb_internet_use/toolcall/catalogs/README.md).
@@ -31,8 +45,7 @@ These stages define harness-agnostic common types in [model.py](../src/tb_intern
 
 ## Stage 5: common types for tool calls
 
-Each tool call with their own harness-specific format is converted to common type `ToolCall`, which contains and tool call
-action and its output.
+Each call is converted from its harness's own format into a `ToolCall`, holding what the call asked for (its action) and what it returned (its output), as the trajectory records them.
 
 ```python
 c1.action = WriteFileAction(
@@ -58,8 +71,8 @@ c4.output = ToolCallOutput(
 
 ## Stage 6: parse commands
 
-Parse one call's shell text into a flat list of simple commands, each recording when it runs and where its stdout and stderr go.
-This stage records structure only and does not know what `fetch.sh` is.
+Parse one shell text into a flat list of simple commands, each recording when it runs and where its stdout and stderr go.
+It looks at this one text alone, so it does not know what `fetch.sh` holds.
 
 ```python
 c2_text = ParsedShellText(
@@ -90,9 +103,11 @@ c2_text = ParsedShellText(
 )
 ```
 
-## Stage 7: trace each call's commands and output across the trial
+## Stage 7: expand each call into everything it ran
 
-Follow each call's commands into the files and code they run, and its output to the calls that show it.
+Expand each call into one `CallRun` that holds everything the call actually ran, including what its own text does not show.
+c2's text names only `bash fetch.sh`, but c2 also ran the curl line that c1 wrote into fetch.sh, so that line is in c2's `CallRun`.
+The `CallRun` also follows the output through pipes to where it ends, and to the later calls that show it.
 This stage still does not ask about the network. `k1` to `k4` stand for `c1.raw.key` to `c4.raw.key`.
 
 ```python
@@ -136,7 +151,7 @@ curl = RanCommand(
 )
 ```
 
-## Stage 8: extract candidate requests from what each call ran
+## Stage 8: extract candidate requests from each call's expanded run
 
 Extract candidate requests from the commands, code and web tool actions that Stage 7 traced, before any output is read.
 Each records facts about its run from the program catalog and its options.
@@ -308,15 +323,3 @@ The trial grades evidence like this, so that counts can be strict or lenient.
 | Call | The call's exit code or result text | `curl -s` alone with exit code 0 and text |
 | Indirect | A line that something else can explain too | `Successfully installed` alone, which a cache can give |
 | Status | Only that the call ran | No network line at all |
-
-## What separates the stages
-
-| Stage | Looks at | Question |
-|---|---|---|
-| 5 | One call | What did the trajectory record? |
-| 6 | One call's text | How is the shell text structured? |
-| 7 | The whole trial | What actually ran, and where did its output go? |
-| 8 | What ran | Which of it may be an internet request, and what facts does its run give? |
-| 9 | The output | What network traces are there? |
-| 10 | Requests and observations | Which belong together, and what does each call say about each request? |
-| 11 | One linked request | How far did it get, how sure is that, and what stopped it or hid the rest? |
