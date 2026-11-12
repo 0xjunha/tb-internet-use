@@ -1,4 +1,4 @@
-"""Run stages 7 to 9 on raw trials, count what they find and check invariants, to see a change's effect on the full data.
+"""Run stages 8 to 10 on raw trials, count what they find and check invariants, to see a change's effect on the full data.
 
 It prints counts, enum values and invariant names only, never text from a trajectory.
 
@@ -59,7 +59,7 @@ def main() -> None:
 
 
 def count_trial(trial_dir: Path) -> Counter[str]:
-    """Run stages 7 to 9 on one trial and count what they find, with an exception counted instead of raised."""
+    """Run stages 8 to 10 on one trial and count what they find, with an exception counted instead of raised."""
     counts: Counter[str] = Counter({"trials": 1})
     try:
         result = interpret_trial_before_linking(convert_trial(trial_dir))
@@ -75,7 +75,7 @@ def count_trial(trial_dir: Path) -> Counter[str]:
 
 
 def _call_run_counts(call_runs: tuple[CallRun, ...]) -> Counter[str]:
-    """Count the stage 7 results of one trial and the invariants they break."""
+    """Count the stage 8 results of one trial and the invariants they break."""
     counts: Counter[str] = Counter()
     index_of_key = {run.call.raw.key: index for index, run in enumerate(call_runs)}
     command_ids_of_call = _command_ids_of_call(call_runs)
@@ -90,7 +90,7 @@ def _call_run_counts(call_runs: tuple[CallRun, ...]) -> Counter[str]:
         for text in run.shell_texts:
             source = type(text.source).__name__
             counts[
-                f"7 shell text {source} {'known' if text.commands is not None else 'unknown'}"
+                f"8 shell text {source} {'known' if text.commands is not None else 'unknown'}"
             ] += 1
             runner_id = getattr(text.source, "runner_command_id", None)
             if runner_id is not None and runner_id not in ids:
@@ -110,20 +110,20 @@ def _call_run_counts(call_runs: tuple[CallRun, ...]) -> Counter[str]:
             for ran_command in text.commands or ():
                 for values in ran_command.variable_values:
                     in_turn = "in turn" if values.takes_each_value_in_turn else "one of"
-                    counts[f"7 variable with values, {in_turn}"] += 1
+                    counts[f"8 variable with values, {in_turn}"] += 1
                     if not values.values:
                         counts["invariant: variable values without a value"] += 1
                 for route in (*ran_command.stdout_routes, *ran_command.stderr_routes):
-                    counts[f"7 route end {type(route.end).__name__}"] += 1
+                    counts[f"8 route end {type(route.end).__name__}"] += 1
                     if not set(route.pipe_reader_ids) <= ids:
                         counts["invariant: pipe reader names no command"] += 1
         for code in run.code_texts:
             known = "known" if code.code is not None else "unknown"
             counts[
-                f"7 code text {type(code.source).__name__} {code.language} {known}"
+                f"8 code text {type(code.source).__name__} {code.language} {known}"
             ] += 1
         for poll_key in run.polls:
-            counts["7 poll links"] += 1
+            counts["8 poll links"] += 1
             if index_of_key[poll_key] <= index:
                 counts["invariant: poll not later than what it polls"] += 1
         status = run.command_text_status
@@ -132,17 +132,17 @@ def _call_run_counts(call_runs: tuple[CallRun, ...]) -> Counter[str]:
                 "own result" if status.reported_by == run.call.raw.key else "poll"
             )
             counts[
-                f"7 command text status {status.execution_status} from {reporter}"
+                f"8 command text status {status.execution_status} from {reporter}"
             ] += 1
             if status.reported_by not in (run.call.raw.key, *run.polls):
                 counts[
                     "invariant: status reported by neither the call nor its poll"
                 ] += 1
-        counts["7 harness output file readers"] += len(run.harness_output_file_readers)
+        counts["8 harness output file readers"] += len(run.harness_output_file_readers)
         readers = list(run.harness_output_file_readers)
         for reads in run.redirected_output_reads:
-            counts["7 redirected outputs with readers"] += 1
-            counts["7 redirected output readers"] += len(reads.readers)
+            counts["8 redirected outputs with readers"] += 1
+            counts["8 redirected output readers"] += len(reads.readers)
             readers += reads.readers
             for reader in reads.readers:
                 if index_of_key[reader.call] < index:
@@ -163,19 +163,19 @@ def _candidate_request_counts(
     counts: Counter[str] = Counter()
     command_ids_of_call = _command_ids_of_call(call_runs)
     for request in requests:
-        counts[f"8 request {request.kind} {request.program_name}"] += 1
-        counts[f"8 request source {type(request.source).__name__}"] += 1
+        counts[f"9 request {request.kind} {request.program_name}"] += 1
+        counts[f"9 request source {type(request.source).__name__}"] += 1
         host_kinds = " ".join(sorted({host.kind for host in request.hosts})) or "none"
-        counts[f"8 request host kinds {host_kinds}"] += 1
+        counts[f"9 request host kinds {host_kinds}"] += 1
         counts[
-            f"8 request asked packages {'unknown' if request.asked_package_names is None else 'known'}"
+            f"9 request asked packages {'unknown' if request.asked_package_names is None else 'known'}"
         ] += 1
         if request.asked_package_names and request.kind not in _PACKAGE_REQUEST_KINDS:
             counts["invariant: package names on a request of no package kind"] += 1
-        counts["8 targets without a value"] += sum(
+        counts["9 targets without a value"] += sum(
             t.value is None for t in request.targets
         )
-        counts["8 targets of a loop value"] += sum(
+        counts["9 targets of a loop value"] += sum(
             t.loop_variable is not None for t in request.targets
         )
         for flag in (
@@ -186,7 +186,7 @@ def _candidate_request_counts(
             "quiet_progress_lines",
             "quiet_error_lines",
         ):
-            counts[f"8 request {flag}"] += getattr(request, flag)
+            counts[f"9 request {flag}"] += getattr(request, flag)
         source = request.source
         command_id = (
             source.command_id
@@ -213,13 +213,13 @@ def _observation_counts(observations: tuple[Observation, ...]) -> Counter[str]:
             and observation.place.line_index_in_json_string is not None
         ):
             place = "line in a JSON string"
-        counts[f"9 observation {observation.kind} in a {place}"] += 1
+        counts[f"10 observation {observation.kind} in a {place}"] += 1
         if (
             not observation.printing_programs
             and not observation.is_printed_by_other_programs_too
             and place != "field"
         ):
-            counts["9 observation of a web tool result"] += 1
+            counts["10 observation of a web tool result"] += 1
     return counts
 
 

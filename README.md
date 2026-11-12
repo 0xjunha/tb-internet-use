@@ -32,7 +32,7 @@ Example: [pipeline example](docs/pipeline-example.md)
 - `Interpret` applies rules to decide what happened, so rules can change without touching the parser.
 - `Output` makes the results safe to share and reports them.
 
-Each trial flows through the stages in one pass: tool calls as the trajectory records them (5), the commands of each shell text on its own (6), each call expanded into one record of everything it ran, including what its own text does not show, and of the calls that show its output (7), candidate requests (8) and observations (9) side by side, requests linked to their evidence (10), and how far each got (11).
+Each trial flows through the stages in one pass: tool calls as the trajectory records them (5), the commands of each shell text on its own (6), labels of the programs those commands run (7), each call expanded into one record of everything it ran, including what its own text does not show, and of the calls that show its output (8), candidate requests (9) and observations (10) side by side, requests linked to their evidence (11), and how far each got (12).
 
 | # | Part | Input | Step | Status |
 |---|---|---|---|---|
@@ -42,16 +42,18 @@ Each trial flows through the stages in one pass: tool calls as the trajectory re
 | 4 | Parse | Tool names in all trajectories | Catalog every tool in the trajectories and label it with a common type by hand | Done |
 | 5 | Parse | One trial's `trajectory.json` | Convert each harness's `trajectory.json` into these common types | Done (result format catalog review pending) |
 | 6 | Parse | One shell text | Split each shell text into commands, looking at that text alone, with when each runs, where its output goes and what the text's exit code says about it (e.g. after `\|\|`, piped into `tail`, redirected to a log) | Done |
-| 7 | Interpret | All calls of one trial (5), each text parsed by 6 | Expand each call into one record of everything it actually ran, reading all calls of the trial for what its own text does not show: the files, heredocs, code and typed input its commands run, variable values, where its output ends up after pipes, and the later calls that show that output (e.g. written files, polls and log reads) | Planned |
-| 8 | Interpret | One call's expanded run (7) | From each call's expanded run, extract candidate requests with their kinds, targets, hosts and what their run can show, before any output is read (e.g. `curl -f` exits 0 only when the content arrived) | Planned |
-| 9 | Interpret | One call's result (5) | Apart from requests, extract observations of network results from each call's output lines and result fields (e.g. a download line, an HTTP status) | Planned |
-| 10 | Interpret | One trial's requests (8), observations (9) and call runs (7) | Join 8 and 9: link each request to the lines and call facts about it through the calls from 7 that show its output (e.g. lines several requests share, whether it ran, how much of its output is visible), and add requests only the output reveals | Planned |
-| 11 | Interpret | One linked request (10) | For each linked request, decide the furthest level shown, how strong its evidence is, and what stopped it or hid the rest, keeping the evidence | Planned |
-| 12 | Output | One result row | Redact credentials and omit hidden task lines before result rows are written | Planned |
-| 13 | Output | All result rows | Aggregate the rows for each research question | Planned |
-| 14 | Output | The aggregates (13) | Build the spreadsheet (e.g. tabs, formulas, charts) and check it against the aggregates | Planned |
+| 7 | Parse | Program names in all commands (6) | Catalog the programs that commands run and label by hand what each does when a command runs it (e.g. whether `tail` reads its files, whether `npx` runs the next program, whether `pip install` makes a request) | Done (program catalog review pending) |
+| 8 | Interpret | All calls of one trial (5), each text parsed by 6, and the program catalog (7) | Expand each call into one record of everything it actually ran, reading all calls of the trial for what its own text does not show: the files, heredocs, code and typed input its commands run, variable values, where its output ends up after pipes, and the later calls that show that output (e.g. written files, polls and log reads) | Done |
+| 9 | Interpret | One call's expanded run (8) and the program catalog (7) | From each call's expanded run, extract candidate requests with their kinds, targets, hosts and what their run can show, before any output is read (e.g. `curl -f` exits 0 only when the content arrived) | Done |
+| 10 | Interpret | One call's result (5) | Apart from requests, extract observations of network results from each call's output lines and result fields (e.g. a download line, an HTTP status) | Done |
+| 11 | Interpret | One trial's requests (9), observations (10) and call runs (8) | Join 9 and 10: link each request to the lines and call facts about it through the calls from 8 that show its output (e.g. lines several requests share, whether it ran, how much of its output is visible), and add requests only the output reveals | Planned |
+| 12 | Interpret | One linked request (11) | For each linked request, decide the furthest level shown, how strong its evidence is, and what stopped it or hid the rest, keeping the evidence | Planned |
+| 13 | Output | One result row | Redact credentials and omit hidden task lines before result rows are written | Planned |
+| 14 | Output | All result rows | Aggregate the rows for each research question | Planned |
+| 15 | Output | The aggregates (14) | Build the spreadsheet (e.g. tabs, formulas, charts) and check it against the aggregates | Planned |
 
-Stages 3 to 5 are described in [Tool call parsing](src/tb_internet_use/toolcall/README.md).
+Stages 3 to 5 are described in [Tool call parsing](src/tb_internet_use/toolcall/README.md), and stage 7 in [Program catalog](src/tb_internet_use/program/catalogs/README.md).
+Work left for later is listed in [TODO](TODO.md).
 
 ### Code layout
 
@@ -59,12 +61,12 @@ Stages 3 to 5 are described in [Tool call parsing](src/tb_internet_use/toolcall/
 |---|---|---|
 | `toolcall/` | 3 to 5 | `convert_trial(trial_dir) -> list[ToolCall]` |
 | `shell/` | 6 | `parse_shell(text) -> ParsedShellText` |
-| `program/` | 7, 8 | None, shared (program catalog and option syntax) |
-| `callrun/` | 7 | `expand_calls(calls) -> tuple[CallRun, ...]` |
-| `network/` | 8, 9 | None, shared (host and package names) |
-| `request/` | 8 | `extract_candidate_requests(call_run) -> tuple[CandidateRequest, ...]` |
-| `observation/` | 9 | `extract_observations(call) -> tuple[Observation, ...]` |
-| `trial_interpretation.py` | 7 to 9 | `interpret_trial_before_linking(calls) -> TrialLinkingInputs` |
+| `program/` | 7, and shared by 8 and 9 | `program_catalog() -> Mapping[str, tuple[ProgramCatalogRow, ...]]` |
+| `callrun/` | 8 | `expand_calls(calls) -> tuple[CallRun, ...]` |
+| `network/` | 9, 10 | None, shared (host and package names) |
+| `request/` | 9 | `extract_candidate_requests(call_run) -> tuple[CandidateRequest, ...]` |
+| `observation/` | 10 | `extract_observations(call) -> tuple[Observation, ...]` |
+| `trial_interpretation.py` | 8 to 10 | `interpret_trial_before_linking(calls) -> TrialLinkingInputs` |
 
 ## Limits
 

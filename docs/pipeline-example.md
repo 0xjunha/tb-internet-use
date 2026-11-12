@@ -1,6 +1,6 @@
 # Pipeline example
 
-An end-to-end example demonstrating stages 3 to 11 of the [pipeline](../README.md#pipeline), turning an ATIF `trajectory.json`
+An end-to-end example demonstrating stages 3 to 12 of the [pipeline](../README.md#pipeline), turning an ATIF `trajectory.json`
 into structured data for internet use analysis.
 
 The example tool calls are made up to showcase several representative tool calls and their output patterns.
@@ -26,11 +26,12 @@ c1 to c4 are the calls of steps 1 to 4 above.
 |---|---|---|---|---|
 | 5 | One trial's `trajectory.json` | A `ToolCall` per call | What did the trajectory record? | c1 to c4 as `ToolCall`s, with c2 still running |
 | 6 | One shell text | `ParsedShellText` | How is the shell text structured? | c2's text gives `bash fetch.sh`, whose output goes to fetch.log, and `pip install requests`, which runs only if bash fails |
-| 7 | All calls of the trial (5), each text parsed by 6 | A `CallRun` per call | What did each call actually run, including what its own text does not show, and which calls show its output? | c2's run also holds the curl line that c1 wrote into fetch.sh. c3 polls c2, and c4 reads fetch.log |
-| 8 | One call's expanded run (7) | `CandidateRequest`s | Which of it may be an internet request, and what facts does its run give? | c2 gives a curl request to data.example.org and a pip request for requests |
-| 9 | One call's result (5) | `Observation`s | What network traces are there? | c3 gives two pip lines, and c4 a curl line saying the host did not resolve |
-| 10 | The trial's requests (8), observations (9) and call runs (7) | Linked requests (sketch) | Which belong together, and what does each call say about each request? | The curl request links to c4's line through fetch.log, and the pip request to c3's lines through the poll |
-| 11 | One linked request (10) | A result per request (sketch) | How far did it get, how sure is that, and what stopped it or hid the rest? | curl ran but stopped when the host did not resolve, and pip got as far as receiving the package |
+| 7 | Program names in all commands (6) | `program_catalog.csv` | What does each program do when a command runs it? | curl and pip install make requests, and their rows say what their runs can show |
+| 8 | All calls of the trial (5), each text parsed by 6, and the program catalog (7) | A `CallRun` per call | What did each call actually run, including what its own text does not show, and which calls show its output? | c2's run also holds the curl line that c1 wrote into fetch.sh. c3 polls c2, and c4 reads fetch.log |
+| 9 | One call's expanded run (8) and the program catalog (7) | `CandidateRequest`s | Which of it may be an internet request, and what facts does its run give? | c2 gives a curl request to data.example.org and a pip request for requests |
+| 10 | One call's result (5) | `Observation`s | What network traces are there? | c3 gives two pip lines, and c4 a curl line saying the host did not resolve |
+| 11 | The trial's requests (9), observations (10) and call runs (8) | Linked requests (sketch) | Which belong together, and what does each call say about each request? | The curl request links to c4's line through fetch.log, and the pip request to c3's lines through the poll |
+| 12 | One linked request (11) | A result per request (sketch) | How far did it get, how sure is that, and what stopped it or hid the rest? | curl ran but stopped when the host did not resolve, and pip got as far as receiving the package |
 
 ## Stages 3 and 4: define types and labels
 
@@ -103,7 +104,18 @@ c2_text = ParsedShellText(
 )
 ```
 
-## Stage 7: expand each call into everything it ran
+## Stage 7: label programs
+
+The [program catalog](../src/tb_internet_use/program/catalogs/README.md) labels by hand what a program does when a command runs it, one row per program and subcommand.
+The rows below are the two that make requests in this example, with some of their columns.
+Rows of programs that make no request can label other things, e.g. `tail` has `reads_file_arguments=yes`, so stage 8 counts `tail fetch.log` as a read of fetch.log.
+
+| `program` | `subcommand` | `request_kind` | `exit_zero_means` | `prints_response_body` | `asked_packages_source` |
+|---|---|---|---|---|---|
+| `curl` | | `url` | `server_responded` | `yes` | `none` |
+| `pip` | `install` | `package` | `nothing` | `no` | `targets` |
+
+## Stage 8: expand each call into everything it ran
 
 Expand each call into one `CallRun` that holds everything the call actually ran, including what its own text does not show.
 c2's text names only `bash fetch.sh`, but c2 also ran the curl line that c1 wrote into fetch.sh, so that line is in c2's `CallRun`.
@@ -151,9 +163,9 @@ curl = RanCommand(
 )
 ```
 
-## Stage 8: extract candidate requests from each call's expanded run
+## Stage 9: extract candidate requests from each call's expanded run
 
-Extract candidate requests from the commands, code and web tool actions that Stage 7 traced, before any output is read.
+Extract candidate requests from the commands, code and web tool actions that stage 8 traced, before any output is read.
 Each records facts about its run from the program catalog and its options.
 A command that may not use the network stays a candidate, and its fields record why, e.g. `fetches_only_to_run_or_build=True` for `npx tsc`.
 
@@ -206,10 +218,10 @@ r2 = CandidateRequest(
 )
 ```
 
-## Stage 9: extract observations from each call's result
+## Stage 10: extract observations from each call's result
 
 Extract observations of how far a request got from each call's output lines and result fields, such as the HTTP status of a web fetch.
-This stage reads only the call's result, not Stage 7 or 8, so it does not know which request a line belongs to.
+This stage reads only the call's result, not stage 8 or 9, so it does not know which request a line belongs to.
 A table of line patterns gives each line its kind and printing programs.
 
 ```python
@@ -223,7 +235,7 @@ o1 = Observation(
     # empty, since any program that looks up a host may print this line
     printing_programs=frozenset(),
     is_printed_by_other_programs_too=True,
-    # read as PUBLIC, as in Stage 8
+    # read as PUBLIC, as in stage 9
     host=Host("data.example.org", PUBLIC),
 )
 o2 = Observation(
@@ -249,9 +261,9 @@ o3 = Observation(
 )
 ```
 
-## Stage 10: link candidate requests to observations (not implemented)
+## Stage 11: link candidate requests to observations (not implemented)
 
-Link each candidate request to the observations about it, through the calls that Stage 7 found showing its output and through matching printing programs and hosts.
+Link each candidate request to the observations about it, through the calls that stage 8 found showing its output and through matching printing programs and hosts.
 Requests that only the output reveals are added here, e.g. for a download line that no candidate request explains.
 This stage has no code yet. `LinkedRequest` below is a sketch from the trial implementation with some of its fields, and its rules are still open.
 
@@ -275,11 +287,11 @@ l2 = LinkedRequest(
 )
 ```
 
-## Stage 11: decide how far each request got (not implemented)
+## Stage 12: decide how far each request got (not implemented)
 
 Decide for each linked request the highest level its evidence shows, how strong that evidence is, and what stopped it or hid the rest.
 A table maps each observation kind to a level, and a few named rules handle what depends on other lines.
-Like Stage 10, this stage has no code yet. `RequestResult` below is a sketch from the trial implementation, and its rules and evidence grades are still open.
+Like stage 11, this stage has no code yet. `RequestResult` below is a sketch from the trial implementation, and its rules and evidence grades are still open.
 
 ```python
 r1.result = RequestResult(

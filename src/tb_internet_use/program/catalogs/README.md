@@ -1,11 +1,12 @@
 # Program catalog
 
 `program_catalog.csv` labels what a program does when a shell command runs it, one row per program and subcommand.
-Stage 7 reads which programs read their file arguments, e.g. `tail fetch.log`, and which run the next program, e.g. tsx in `npx tsx get.ts`.
-Stage 8 reads which runs make a request and what that run can show.
+It is stage 7 of the [pipeline](../../../../README.md#pipeline).
+Stage 8 reads which programs read their file arguments, e.g. `tail fetch.log`, and which run the next program, e.g. tsx in `npx tsx get.ts`.
+Stage 9 reads which runs make a request and what that run can show.
 A program without a row reads no file and makes no request, so a missing row hides a request until someone adds it.
 
-[build_program_catalog.py](../../../../scripts/build_program_catalog.py) rewrites only `command_count` and `trial_count`, counted on the raw trials with the same matching that stage 8 uses.
+[build_program_catalog.py](../../../../scripts/build_program_catalog.py) rewrites only `command_count` and `trial_count`, counted on the raw trials with the same matching that stage 9 uses.
 It never changes the other columns, which are labeled by hand, and lists every other program in `out/program_catalog_candidates.csv`, which `.gitignore` keeps out of the repo.
 
 | Column | Values |
