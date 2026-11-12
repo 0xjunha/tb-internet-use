@@ -21,23 +21,17 @@ class CodeProgram:
     needs_code_file_extension: bool = False
 
 
-_TYPESCRIPT_RUNNER = CodeProgram(CodeLanguage.JAVASCRIPT, frozenset({"-e", "--eval"}))
-_JAVASCRIPT_PACKAGE_MANAGER = CodeProgram(
-    CodeLanguage.JAVASCRIPT,
-    frozenset({"-e", "--eval"}),
-    file_subcommand="run",
-    needs_code_file_extension=True,
-)
 # Programs that run code, by the name `normalized_program_name` gives.
 CODE_PROGRAMS = {
     "python": CodeProgram(CodeLanguage.PYTHON, frozenset({"-c"})),
-    "node": CodeProgram(
-        CodeLanguage.JAVASCRIPT, frozenset({"-e", "--eval", "-p", "--print", "-pe"})
+    "node": CodeProgram(CodeLanguage.JAVASCRIPT, frozenset({"-e", "-p", "-pe"})),
+    "bun": CodeProgram(
+        CodeLanguage.JAVASCRIPT,
+        frozenset({"-e", "--eval"}),
+        file_subcommand="run",
+        needs_code_file_extension=True,
     ),
-    "bun": _JAVASCRIPT_PACKAGE_MANAGER,
-    "deno": _JAVASCRIPT_PACKAGE_MANAGER,
-    "tsx": _TYPESCRIPT_RUNNER,
-    "ts-node": _TYPESCRIPT_RUNNER,
+    "tsx": CodeProgram(CodeLanguage.JAVASCRIPT, frozenset({"-e", "--eval"})),
 }
 # Languages of the code files a command runs directly, e.g. ./get.py.
 LANGUAGE_OF_FILE_EXTENSION = {
@@ -48,4 +42,4 @@ LANGUAGE_OF_FILE_EXTENSION = {
     ".ts": CodeLanguage.JAVASCRIPT,
 }
 # Extensions of the shell files a command runs directly, e.g. ./fetch.sh.
-SHELL_FILE_EXTENSIONS = frozenset({".sh", ".bash"})
+SHELL_FILE_EXTENSIONS = frozenset({".sh"})

@@ -22,7 +22,7 @@ from tb_internet_use.program.arguments import file_arguments, parse_arguments
         ),
         ("curl", "--output=out u", [("--output", "out")], ["u"]),
         ("curl", "-H a:b u -- -x", [("-H", "a:b")], ["u", "-x"]),
-        ("curl", "--proto =https u", [("--proto", "=https")], ["u"]),
+        ("curl", "--url-query a=b u", [("--url-query", "a=b")], ["u"]),
         (
             "pip",
             "install --timeout 60 x",
@@ -38,18 +38,14 @@ from tb_internet_use.program.arguments import file_arguments, parse_arguments
         ("tail", "-n 5 log", [("-n", "5")], ["log"]),
         ("head", "-$n log", [("-$n", None)], ["log"]),
         ("cat", "- log", [], ["-", "log"]),
-        ("wget", "-nv -qO- u", [("-nv", None), ("-q", None), ("-O", "-")], ["u"]),
-        # -nv is one option only in wget.
-        ("curl", "-nv u", [("-n", None), ("-v", None)], ["u"]),
+        ("wget", "-qO- u", [("-q", None), ("-O", "-")], ["u"]),
         # Words after the file go to the code, so -c is no inline code here.
         ("python", "-u get.py -c cfg", [("-u", None)], ["get.py", "-c", "cfg"]),
         ("python", "-uc code x", [("-u", None), ("-c", "code")], ["x"]),
         ("node", "-pe code", [("-pe", "code")], []),
+        # -pe is one option only in node.
+        ("curl", "-pe u", [("-p", None), ("-e", None)], ["u"]),
         ("pip", "download -d out x", [("-d", "out")], ["download", "x"]),
-        ("dig", "-t MX -p 53 a.org", [("-t", "MX"), ("-p", "53")], ["a.org"]),
-        # The name to look up follows -q, so it stays a plain argument.
-        ("dig", "-q a.org", [("-q", None)], ["a.org"]),
-        ("host", "-tmx -W 2 a.org", [("-t", "mx"), ("-W", "2")], ["a.org"]),
     ],
 )
 def test_parse_arguments(program: str, arguments: str, options: list, plain: list[str]):

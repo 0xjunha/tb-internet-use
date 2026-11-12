@@ -14,7 +14,7 @@ class OptionSyntax:
     short_options_with_value: str = ""
     # Long options that take the next word as their value unless written as `--name=value`, e.g. `--output out`.
     long_options_with_value: frozenset[str] = frozenset()
-    # Options written with one dash that are one option, not a cluster of letters, e.g. wget's -nv.
+    # Options written with one dash that are one option, not a cluster of letters, e.g. node's -pe.
     one_dash_long_options: frozenset[str] = frozenset()
     # The words after the first plain argument belong to the code or program it names, e.g. -c in `python get.py -c cfg`.
     options_end_at_first_plain_argument: bool = False
@@ -23,89 +23,12 @@ class OptionSyntax:
     script_options: frozenset[str] = frozenset()
 
 
-_PIP_SYNTAX = OptionSyntax(
-    short_options_with_value="rceitfbd",
-    long_options_with_value=frozenset(
-        [
-            "--requirement",
-            "--constraint",
-            "--editable",
-            "--index-url",
-            "--extra-index-url",
-            "--target",
-            "--find-links",
-            "--prefix",
-            "--root",
-            "--cache-dir",
-            "--python-version",
-            "--platform",
-            "--implementation",
-            "--abi",
-            "--only-binary",
-            "--no-binary",
-            "--upgrade-strategy",
-            "--src",
-            "--progress-bar",
-            "--log",
-            "--trusted-host",
-            "--dest",
-            "--python",
-            "--report",
-            "--timeout",
-        ]
-    ),
-)
-_NODE_PACKAGE_MANAGER_LONG_OPTIONS_WITH_VALUE = frozenset(
-    [
-        "--prefix",
-        "--registry",
-        "--cache",
-        "--workspace",
-        "--dir",
-        "--filter",
-        "--package",
-        "--userconfig",
-    ]
-)
-_NODE_PACKAGE_MANAGER_SYNTAX = OptionSyntax(
-    short_options_with_value="Cwp",
-    long_options_with_value=_NODE_PACKAGE_MANAGER_LONG_OPTIONS_WITH_VALUE,
-)
-_APT_SYNTAX = OptionSyntax(
-    short_options_with_value="ot",
-    long_options_with_value=frozenset({"--option", "--target-release"}),
-)
-_GREP_SYNTAX = OptionSyntax(
-    short_options_with_value="efmABCdD",
-    long_options_with_value=frozenset(
-        [
-            "--regexp",
-            "--file",
-            "--max-count",
-            "--after-context",
-            "--before-context",
-            "--context",
-            "--include",
-            "--exclude",
-            "--exclude-dir",
-        ]
-    ),
-    script_options=frozenset({"-e", "--regexp", "-f", "--file"}),
-)
-_HEAD_OR_TAIL_SYNTAX = OptionSyntax(
-    short_options_with_value="nc",
-    long_options_with_value=frozenset({"--lines", "--bytes"}),
-)
-_TYPESCRIPT_RUNNER_SYNTAX = OptionSyntax(
-    short_options_with_value="e",
-    long_options_with_value=frozenset({"--eval"}),
-    options_end_at_first_plain_argument=True,
-)
+_HEAD_OR_TAIL_SYNTAX = OptionSyntax(short_options_with_value="nc")
 # Syntax of the programs whose options decide a file, a script, a target or code, by the name `normalized_program_name` gives.
 # A program without one has no option with a value.
 OPTION_SYNTAX_OF_PROGRAM = {
     "curl": OptionSyntax(
-        short_options_with_value="oDCEYyzKrxmcbFTeAuwXHdU",
+        short_options_with_value="oDrmcbFTAuwXHd",
         long_options_with_value=frozenset(
             [
                 "--output",
@@ -113,147 +36,71 @@ OPTION_SYNTAX_OF_PROGRAM = {
                 "--data-raw",
                 "--data-binary",
                 "--data-urlencode",
-                "--data-ascii",
                 "--header",
                 "--request",
                 "--write-out",
                 "--user",
-                "--user-agent",
                 "--max-time",
                 "--connect-timeout",
-                "--proxy",
                 "--retry",
                 "--retry-delay",
-                "--retry-max-time",
-                "--cookie",
-                "--cookie-jar",
-                "--form",
                 "--upload-file",
                 "--range",
-                "--referer",
-                "--config",
-                "--cacert",
-                "--cert",
-                "--key",
-                "--resolve",
-                "--dump-header",
-                "--continue-at",
-                "--limit-rate",
-                "--output-dir",
-                "--proto",
-                "--max-redirs",
                 "--url-query",
             ]
         ),
     ),
-    "wget": OptionSyntax(
-        short_options_with_value="OoaPtTwUeiQlARBDIX",
+    "wget": OptionSyntax(short_options_with_value="O"),
+    "pip": OptionSyntax(
+        short_options_with_value="reitfd",
         long_options_with_value=frozenset(
             [
-                "--output-document",
-                "--output-file",
-                "--directory-prefix",
-                "--tries",
+                "--index-url",
+                "--extra-index-url",
+                "--target",
+                "--find-links",
+                "--python-version",
+                "--platform",
+                "--implementation",
+                "--only-binary",
+                "--no-binary",
+                "--progress-bar",
+                "--dest",
+                "--python",
+                "--report",
                 "--timeout",
-                "--user-agent",
-                "--header",
-                "--post-data",
-                "--post-file",
-                "--input-file",
-                "--user",
-                "--password",
-                "--load-cookies",
-                "--save-cookies",
-                "--limit-rate",
-                "--wait",
             ]
         ),
-        one_dash_long_options=frozenset({"-nv"}),
     ),
-    "pip": _PIP_SYNTAX,
     "uv": OptionSyntax(
-        short_options_with_value="rcepi",
-        long_options_with_value=_PIP_SYNTAX.long_options_with_value
-        | {
-            "--index",
-            "--default-index",
-            "--with",
-            "--directory",
-            "--project",
-            "--from",
-            "--group",
-            "--extra",
-        },
+        short_options_with_value="e",
+        long_options_with_value=frozenset(
+            {"--index-url", "--extra-index-url", "--python", "--with"}
+        ),
     ),
-    "npm": _NODE_PACKAGE_MANAGER_SYNTAX,
-    "pnpm": _NODE_PACKAGE_MANAGER_SYNTAX,
-    "npx": _NODE_PACKAGE_MANAGER_SYNTAX,
+    "npm": OptionSyntax(long_options_with_value=frozenset({"--prefix", "--package"})),
+    "pnpm": OptionSyntax(
+        short_options_with_value="p", long_options_with_value=frozenset({"--dir"})
+    ),
+    "npx": OptionSyntax(
+        short_options_with_value="p",
+        long_options_with_value=frozenset({"--prefix", "--package"}),
+    ),
     "bun": OptionSyntax(
-        short_options_with_value="Cwpe",
-        long_options_with_value=_NODE_PACKAGE_MANAGER_LONG_OPTIONS_WITH_VALUE
-        | {"--eval"},
+        short_options_with_value="pe", long_options_with_value=frozenset({"--eval"})
     ),
-    "deno": OptionSyntax(
-        short_options_with_value="e", long_options_with_value=frozenset({"--eval"})
-    ),
-    "apt": _APT_SYNTAX,
-    "apt-get": _APT_SYNTAX,
+    "apt-get": OptionSyntax(short_options_with_value="o"),
     "git": OptionSyntax(
-        short_options_with_value="Cbojc",
-        long_options_with_value=frozenset(
-            [
-                "--depth",
-                "--branch",
-                "--origin",
-                "--reference",
-                "--config",
-                "--jobs",
-                "--filter",
-                "--shallow-since",
-                "--upload-pack",
-            ]
-        ),
+        short_options_with_value="Cboc",
+        long_options_with_value=frozenset({"--depth", "--branch", "--filter"}),
     ),
-    "rsync": OptionSyntax(
-        short_options_with_value="eT",
-        long_options_with_value=frozenset({"--exclude", "--include"}),
-    ),
-    "ping": OptionSyntax(short_options_with_value="ciWws"),
-    "nc": OptionSyntax(short_options_with_value="pwsiq"),
-    # The word after dig's -q or -x is the name to look up, so it stays a plain argument, e.g. a.org in `dig -q a.org`.
-    "dig": OptionSyntax(short_options_with_value="tcpfbky"),
-    "host": OptionSyntax(short_options_with_value="tcNRWm"),
-    "gh": OptionSyntax(
-        short_options_with_value="XHfFRpDq",
-        long_options_with_value=frozenset(
-            {
-                "--method",
-                "--header",
-                "--field",
-                "--raw-field",
-                "--jq",
-                "--repo",
-                "--pattern",
-                "--dir",
-            }
-        ),
-    ),
-    "conda": OptionSyntax(
-        short_options_with_value="ncp",
-        long_options_with_value=frozenset({"--name", "--channel", "--prefix"}),
-    ),
+    "rsync": OptionSyntax(long_options_with_value=frozenset({"--exclude"})),
+    "ping": OptionSyntax(short_options_with_value="ciW"),
+    "nc": OptionSyntax(short_options_with_value="wq"),
+    "gh": OptionSyntax(long_options_with_value=frozenset({"--jq"})),
+    "conda": OptionSyntax(short_options_with_value="nc"),
     "huggingface-cli": OptionSyntax(
-        long_options_with_value=frozenset(
-            [
-                "--local-dir",
-                "--repo-type",
-                "--revision",
-                "--cache-dir",
-                "--token",
-                "--include",
-                "--exclude",
-            ]
-        )
+        long_options_with_value=frozenset({"--local-dir", "--revision"})
     ),
     "python": OptionSyntax(
         short_options_with_value="cmWX", options_end_at_first_plain_argument=True
@@ -261,62 +108,42 @@ OPTION_SYNTAX_OF_PROGRAM = {
     # node writes -p -e as `-pe 'code'`, whose value is the code.
     "node": OptionSyntax(
         short_options_with_value="epr",
-        long_options_with_value=frozenset({"--eval", "--print", "--require", "-pe"}),
+        long_options_with_value=frozenset({"-pe"}),
         one_dash_long_options=frozenset({"-pe"}),
         options_end_at_first_plain_argument=True,
     ),
-    "tsx": _TYPESCRIPT_RUNNER_SYNTAX,
-    "ts-node": _TYPESCRIPT_RUNNER_SYNTAX,
+    "tsx": OptionSyntax(
+        short_options_with_value="e",
+        long_options_with_value=frozenset({"--eval"}),
+        options_end_at_first_plain_argument=True,
+    ),
     "head": _HEAD_OR_TAIL_SYNTAX,
     "tail": _HEAD_OR_TAIL_SYNTAX,
-    "grep": _GREP_SYNTAX,
-    "egrep": _GREP_SYNTAX,
+    "grep": OptionSyntax(
+        short_options_with_value="efmABC",
+        long_options_with_value=frozenset({"--include", "--exclude", "--exclude-dir"}),
+        script_options=frozenset({"-e", "--regexp", "-f", "--file"}),
+    ),
+    "egrep": OptionSyntax(script_options=frozenset({"-e", "--regexp", "-f", "--file"})),
     "rg": OptionSyntax(
-        short_options_with_value="efgtTmABCrj",
+        short_options_with_value="egmABCr",
         long_options_with_value=frozenset(
-            [
-                "--regexp",
-                "--file",
-                "--glob",
-                "--type",
-                "--type-not",
-                "--max-count",
-                "--after-context",
-                "--before-context",
-                "--context",
-                "--replace",
-                "--threads",
-            ]
+            {"--glob", "--type", "--max-count", "--context"}
         ),
         script_options=frozenset({"-e", "--regexp", "-f", "--file"}),
     ),
     "sed": OptionSyntax(
-        short_options_with_value="efl",
-        long_options_with_value=frozenset({"--expression", "--file"}),
+        short_options_with_value="e",
         script_options=frozenset({"-e", "--expression", "-f", "--file"}),
     ),
     "awk": OptionSyntax(
-        short_options_with_value="Fvfe",
-        long_options_with_value=frozenset(
-            {"--field-separator", "--assign", "--file", "--source"}
-        ),
+        short_options_with_value="Fvf",
         script_options=frozenset({"-f", "--file", "-e", "--source"}),
     ),
     "jq": OptionSyntax(
         short_options_with_value="f",
-        long_options_with_value=frozenset({"--from-file", "--indent"}),
         script_options=frozenset({"-f", "--from-file"}),
     ),
-    "cut": OptionSyntax(
-        short_options_with_value="dfcb",
-        long_options_with_value=frozenset(
-            {"--delimiter", "--fields", "--characters", "--bytes"}
-        ),
-    ),
-    "sort": OptionSyntax(
-        short_options_with_value="ktoST",
-        long_options_with_value=frozenset(
-            {"--key", "--field-separator", "--output", "--buffer-size"}
-        ),
-    ),
+    "cut": OptionSyntax(short_options_with_value="dfc"),
+    "sort": OptionSyntax(short_options_with_value="ktoST"),
 }

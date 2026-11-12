@@ -3,7 +3,7 @@
 `docs/behavior-tables.md` shows them for review.
 """
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 
 
 @dataclass(frozen=True, slots=True)
@@ -26,59 +26,54 @@ class OptionMeanings:
     package_file_options: frozenset[str] = frozenset()
 
 
-_PIP_OPTION_MEANINGS = OptionMeanings(
-    no_request_options=frozenset({"-h", "--help", "-V", "--version"}),
-    offline_options=frozenset({"--no-index"}),
-    quiet_progress_options=frozenset({"-q", "--quiet"}),
-    index_options=frozenset({"-i", "--index-url", "--extra-index-url"}),
-    package_file_options=frozenset(
-        {"-r", "--requirement", "-e", "--editable", "-c", "--constraint"}
-    ),
-)
-_NODE_PACKAGE_MANAGER_OPTION_MEANINGS = OptionMeanings(
-    offline_options=frozenset({"--offline", "--prefer-offline"}),
-    quiet_progress_options=frozenset({"--quiet"}),
-    quiet_error_options=frozenset({"-s", "--silent"}),
-    index_options=frozenset({"--registry"}),
-)
-_APT_OPTION_MEANINGS = OptionMeanings(
-    no_request_options=frozenset({"-h", "--help", "-v", "--version"}),
-    quiet_progress_options=frozenset({"-q", "--quiet"}),
-)
 # Option meanings of the programs with a request row in the program catalog, by the name `normalized_program_name` gives.
 # A program without a row sends no request only with --help or --version, and its other options change nothing.
 OPTION_MEANINGS_OF_PROGRAM = {
     "curl": OptionMeanings(
-        no_request_options=frozenset({"-h", "--help", "-V", "--version"}),
+        no_request_options=frozenset({"--version"}),
         quiet_error_options=frozenset({"-s", "--silent"}),
         error_showing_options=frozenset({"-S", "--show-error"}),
     ),
     "wget": OptionMeanings(
-        no_request_options=frozenset({"-h", "--help", "-V", "--version"}),
-        quiet_progress_options=frozenset({"-nv", "--no-verbose"}),
-        quiet_error_options=frozenset({"-q", "--quiet"}),
+        no_request_options=frozenset(), quiet_error_options=frozenset({"-q"})
     ),
-    "pip": _PIP_OPTION_MEANINGS,
-    "uv": OptionMeanings(
-        no_request_options=frozenset({"-h", "--help", "-V", "--version"}),
-        offline_options=frozenset({"--offline"}),
+    "pip": OptionMeanings(
+        no_request_options=frozenset({"--help", "--version"}),
+        offline_options=frozenset({"--no-index"}),
         quiet_progress_options=frozenset({"-q", "--quiet"}),
-        index_options=_PIP_OPTION_MEANINGS.index_options
-        | {"--index", "--default-index"},
-        package_file_options=_PIP_OPTION_MEANINGS.package_file_options,
+        index_options=frozenset({"-i", "--index-url", "--extra-index-url"}),
+        package_file_options=frozenset({"-r", "-e"}),
     ),
-    "npm": _NODE_PACKAGE_MANAGER_OPTION_MEANINGS,
-    "pnpm": _NODE_PACKAGE_MANAGER_OPTION_MEANINGS,
-    "bun": _NODE_PACKAGE_MANAGER_OPTION_MEANINGS,
-    # `npx --no-install` runs only a package that is already there.
-    "npx": replace(
-        _NODE_PACKAGE_MANAGER_OPTION_MEANINGS,
-        offline_options=_NODE_PACKAGE_MANAGER_OPTION_MEANINGS.offline_options
-        | {"--no-install"},
+    "uv": OptionMeanings(
+        no_request_options=frozenset({"--help"}),
+        quiet_progress_options=frozenset({"-q", "--quiet"}),
+        index_options=frozenset({"--index-url", "--extra-index-url"}),
+        package_file_options=frozenset({"-e"}),
     ),
-    "apt": _APT_OPTION_MEANINGS,
-    "apt-get": _APT_OPTION_MEANINGS,
-    # -h is no help option, since it means --heads in `git ls-remote -h`.
-    "git": OptionMeanings(quiet_progress_options=frozenset({"-q", "--quiet"})),
-    "nc": OptionMeanings(no_request_options=frozenset({"-h", "-l", "--listen"})),
+    "npm": OptionMeanings(
+        no_request_options=frozenset(),
+        offline_options=frozenset({"--offline", "--prefer-offline"}),
+        quiet_progress_options=frozenset({"--quiet"}),
+        quiet_error_options=frozenset({"--silent"}),
+    ),
+    "pnpm": OptionMeanings(
+        no_request_options=frozenset(), offline_options=frozenset({"--offline"})
+    ),
+    "bun": OptionMeanings(no_request_options=frozenset()),
+    "npx": OptionMeanings(
+        no_request_options=frozenset({"--version"}),
+        offline_options=frozenset({"--no-install"}),
+    ),
+    "apt": OptionMeanings(
+        no_request_options=frozenset(), quiet_progress_options=frozenset({"-q"})
+    ),
+    "apt-get": OptionMeanings(
+        no_request_options=frozenset({"--help"}),
+        quiet_progress_options=frozenset({"-q"}),
+    ),
+    "git": OptionMeanings(
+        no_request_options=frozenset(),
+        quiet_progress_options=frozenset({"-q", "--quiet"}),
+    ),
+    "nc": OptionMeanings(no_request_options=frozenset()),
 }

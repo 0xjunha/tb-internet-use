@@ -14,8 +14,6 @@ from tb_internet_use.network.package_names import normalized_package_names
 from tb_internet_use.program.model import AskedPackagesSource, RequestKind
 from tb_internet_use.request.model import RequestTarget
 from tb_internet_use.request.target_tables import (
-    DNS_LOOKUP_PROGRAMS,
-    DNS_RECORD_TYPES_AND_CLASSES,
     PROGRAMS_WITH_HOST_AS_EVERY_TARGET,
     PROGRAMS_WITH_HOST_AS_FIRST_TARGET,
     SCHEMELESS_URL_PROGRAMS,
@@ -141,12 +139,6 @@ def _remote_host_names(program_name: str, target_texts: Sequence[str]) -> list[s
     if program_name in PROGRAMS_WITH_HOST_AS_FIRST_TARGET:
         servers = [text[1:] for text in target_texts if text.startswith("@")]
         names = [text for text in target_texts if not text.startswith(("@", "+"))]
-        if program_name in DNS_LOOKUP_PROGRAMS:
-            names = [
-                name
-                for name in names
-                if name.upper() not in DNS_RECORD_TYPES_AND_CLASSES
-            ]
         return [_without_user(name) for name in (*servers, *names[:1])]
     # rsync names a remote host as `host:path`.
     return [

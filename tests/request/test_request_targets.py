@@ -89,10 +89,6 @@ def test_request_hosts():
         "8.8.8.8",
         "a.org",
     ]
-    assert _hosts("dig", RequestKind.REMOTE_HOST, "IN", "MX", "a.org") == ["a.org"]
-    assert _hosts("nslookup", RequestKind.REMOTE_HOST, "any", "a.org") == ["a.org"]
-    # nc takes no record type, so a host named mx stays.
-    assert _hosts("nc", RequestKind.REMOTE_HOST, "mx", "25") == ["mx"]
     assert _hosts("rsync", RequestKind.REMOTE_HOST, "./a", "/b") == []
     assert _hosts("getent", RequestKind.REMOTE_HOST, "a.org", "db") == ["a.org", "db"]
 

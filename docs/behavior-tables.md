@@ -2,6 +2,7 @@
 
 Behavior tables describe how programs, code and servers behave and which naming conventions they follow, as the rules of stages 6 to 10 read them, e.g. which curl options take a value, which output lines show a download or which extension a Python file has.
 Each lives in a `*_tables.py` module beside the code that reads it.
+Each table holds only rows that the trajectories use, i.e. rows that change what the code reading them returns on the 2026-10-08 data. A row that only a manual lists is left out, e.g. sudo's `-g`.
 Mappings that need no judgment live in CSV catalogs instead, e.g. the [program catalog](../src/tb_internet_use/program/catalogs/program_catalog.csv).
 
 This page is written by `scripts/build_behavior_tables_doc.py` from `src/tb_internet_use/behavior_tables.py`, so edit the tables and run it again.
@@ -10,33 +11,30 @@ This page is written by `scripts/build_behavior_tables_doc.py` from `src/tb_inte
 |---|---|
 | trajectories | The rows are chosen from what the trajectories hold, e.g. the wrappers that commands use or the lines that programs print. |
 | manuals | The values follow the programs' documentation, e.g. which curl options take a value. |
-| standards | The rows follow a standard or a common convention, e.g. DNS record types or the `.py` extension. |
+| standards | The rows follow a standard or a common convention, e.g. the `.py` extension. |
 
 ## Summary
 
 | Table | Module | Basis | Rows | What it holds |
 |---|---|---|---|---|
-| [`WRAPPERS`](#wrappers) | `shell/program_tables.py` | trajectories, manuals | 14 | Commands that run the command in their arguments. |
+| [`WRAPPERS`](#wrappers) | `shell/program_tables.py` | trajectories, manuals | 11 | Commands that run the command in their arguments. |
 | [`PROGRAMS_GIVING_RUN_TIME_ARGUMENTS`](#programs_giving_run_time_arguments) | `shell/program_tables.py` | manuals | 2 | Programs that run another program with arguments the text does not show. |
 | [`PYTHON_OPTIONS_WITH_VALUE_BEFORE_MODULE`](#python_options_with_value_before_module) | `shell/program_tables.py` | manuals | 2 | Python options that take the next word as their value, e.g. -X in `python -X dev -m pip`. |
-| [`VERSIONED_PROGRAMS`](#versioned_programs) | `shell/program_tables.py` | standards | 16 | Programs whose name often ends with a version, e.g. python3.11, pip3 and gcc-12. |
-| [`SHELL_PROGRAMS`](#shell_programs) | `shell/program_tables.py` | manuals | 4 | Shells that run a file, a `-c` text or their stdin as shell text, e.g. bash in `bash -c 'a && b'`. |
-| [`EXIT_CODE_SHELL_OPTION_NAMES`](#exit_code_shell_option_names) | `shell/program_tables.py` | manuals | 2 | Options that `set -o` and `bash -o` take and that change what the exit code says. |
-| [`SHELL_LONG_OPTIONS_WITH_VALUE`](#shell_long_options_with_value) | `shell/program_tables.py` | manuals | 2 | Long shell options that take the next word as their value, e.g. `bash --rcfile f`. |
-| [`OPTION_SYNTAX_OF_PROGRAM`](#option_syntax_of_program) | `program/option_syntax_tables.py` | trajectories, manuals | 34 | Syntax of the programs whose options decide a file, a script, a target or code, by the name `normalized_program_name` gives. |
-| [`CODE_PROGRAMS`](#code_programs) | `callrun/code_program_tables.py` | trajectories, manuals | 6 | Programs that run code, by the name `normalized_program_name` gives. |
+| [`VERSIONED_PROGRAMS`](#versioned_programs) | `shell/program_tables.py` | standards | 4 | Programs whose name often ends with a version, e.g. python3.11, pip3 and gcc-12. |
+| [`SHELL_PROGRAMS`](#shell_programs) | `shell/program_tables.py` | manuals | 3 | Shells that run a file, a `-c` text or their stdin as shell text, e.g. bash in `bash -c 'a && b'`. |
+| [`EXIT_CODE_SHELL_OPTION_NAMES`](#exit_code_shell_option_names) | `shell/program_tables.py` | manuals | 1 | Option names after `bash -o` that change what the exit code says, e.g. pipefail in `bash -o pipefail -c a`. |
+| [`OPTION_SYNTAX_OF_PROGRAM`](#option_syntax_of_program) | `program/option_syntax_tables.py` | trajectories, manuals | 29 | Syntax of the programs whose options decide a file, a script, a target or code, by the name `normalized_program_name` gives. |
+| [`CODE_PROGRAMS`](#code_programs) | `callrun/code_program_tables.py` | trajectories, manuals | 4 | Programs that run code, by the name `normalized_program_name` gives. |
 | [`LANGUAGE_OF_FILE_EXTENSION`](#language_of_file_extension) | `callrun/code_program_tables.py` | standards | 5 | Languages of the code files a command runs directly, e.g. ./get.py. |
-| [`SHELL_FILE_EXTENSIONS`](#shell_file_extensions) | `callrun/code_program_tables.py` | standards | 2 | Extensions of the shell files a command runs directly, e.g. ./fetch.sh. |
+| [`SHELL_FILE_EXTENSIONS`](#shell_file_extensions) | `callrun/code_program_tables.py` | standards | 1 | Extensions of the shell files a command runs directly, e.g. ./fetch.sh. |
 | [`OPTION_MEANINGS_OF_PROGRAM`](#option_meanings_of_program) | `request/option_meaning_tables.py` | trajectories, manuals | 12 | Option meanings of the programs with a request row in the program catalog, by the name `normalized_program_name` gives. |
-| [`SCHEMELESS_URL_PROGRAMS`](#schemeless_url_programs) | `request/target_tables.py` | manuals | 2 | Programs that read a target without a scheme as a URL, e.g. pypi.org/simple in `curl pypi.org/simple`. |
-| [`PROGRAMS_WITH_HOST_AS_FIRST_TARGET`](#programs_with_host_as_first_target) | `request/target_tables.py` | manuals | 5 | Direct connection and name lookup programs whose first target is a host and the rest are ports or record types, e.g. `nc host 80`. |
-| [`DNS_LOOKUP_PROGRAMS`](#dns_lookup_programs) | `request/target_tables.py` | manuals | 3 | Name lookup programs whose targets can hold DNS record types and classes before the host too, e.g. MX in `dig MX a.org`. |
-| [`DNS_RECORD_TYPES_AND_CLASSES`](#dns_record_types_and_classes) | `request/target_tables.py` | standards | 13 | Common DNS record types and classes in upper case, which name no host, e.g. MX and IN in `dig IN MX a.org`. |
+| [`SCHEMELESS_URL_PROGRAMS`](#schemeless_url_programs) | `request/target_tables.py` | manuals | 1 | Programs that read a target without a scheme as a URL, e.g. pypi.org/simple in `curl pypi.org/simple`. |
+| [`PROGRAMS_WITH_HOST_AS_FIRST_TARGET`](#programs_with_host_as_first_target) | `request/target_tables.py` | manuals | 5 | Programs whose first target is the host they connect to or look up, e.g. a.org in `nc a.org 80` or `nslookup a.org`. |
 | [`PROGRAMS_WITH_HOST_AS_EVERY_TARGET`](#programs_with_host_as_every_target) | `request/target_tables.py` | manuals | 1 | Name lookup programs whose every target is a host, e.g. a.org and b.org in `getent hosts a.org b.org`. |
 | [`NETWORK_CALL_OF_LANGUAGE`](#network_call_of_language) | `request/code_request_tables.py` | trajectories, manuals | 2 | Network calls in code, by language. |
 | [`PROGRAM_RUN_BY_CODE`](#program_run_by_code) | `request/code_request_tables.py` | manuals |  | A program that the code runs, e.g. pip in `subprocess.run(["pip", "install", "x"])` or `os.system("python -m pip install x")`. |
 | [`HOST_NAMED_BY_CODE`](#host_named_by_code) | `request/code_request_tables.py` | trajectories |  | Hosts that code names as an address tuple, e.g. ("api", 8000), or as the argument of a name lookup. |
-| [`SCHEMA_HOST_NAMES`](#schema_host_names) | `request/code_request_tables.py` | trajectories | 9 | Hosts of XML namespaces and schemas, whose URLs code uses as names and does not fetch unless they name a file. |
+| [`SCHEMA_HOST_NAMES`](#schema_host_names) | `request/code_request_tables.py` | trajectories | 4 | Hosts of XML namespaces and schemas, whose URLs code uses as names and does not fetch unless they name a file. |
 | [`PROGRAM_OUTPUT_LINE_PATTERNS`](#program_output_line_patterns) | `observation/line_pattern_tables.py` | trajectories | 36 | Lines that programs print, read in every call's output except a web tool result. |
 | [`WEB_TOOL_RESULT_LINE_PATTERNS`](#web_tool_result_line_patterns) | `observation/line_pattern_tables.py` | trajectories | 1 | Web tool results are page text, so only a page that a server gave instead of the content counts, e.g. a robot check. |
 
@@ -50,20 +48,17 @@ Commands that run the command in their arguments.
 
 | Key | options_with_value | operand_count | takes_assignments |
 |---|---|---|---|
-| `sudo` | `--chdir`, `--chroot`, `--close-from`, `--command-timeout`, `--group`, `--host`, `--other-user`, `--prompt`, `--role`, `--type`, `--user`, `-C`, `-D`, `-R`, `-T`, `-U`, `-g`, `-h`, `-p`, `-r`, `-t`, `-u` | 0 | yes |
-| `doas` | `-C`, `-u` | 0 | no |
-| `env` | `--chdir`, `--unset`, `-C`, `-u` | 0 | yes |
+| `sudo` | `-u` | 0 | yes |
+| `env` | `-u` | 0 | yes |
 | `timeout` | `--kill-after`, `--signal`, `-k`, `-s` | 1 | no |
-| `gtimeout` | `--kill-after`, `--signal`, `-k`, `-s` | 1 | no |
 | `nohup` |  | 0 | no |
-| `nice` | `--adjustment`, `-n` | 0 | no |
-| `time` | `--format`, `--output`, `-f`, `-o` | 0 | yes |
-| `stdbuf` | `--error`, `--input`, `--output`, `-e`, `-i`, `-o` | 0 | no |
+| `nice` | `-n` | 0 | no |
+| `time` | `-f`, `-o` | 0 | yes |
+| `stdbuf` |  | 0 | no |
 | `setsid` |  | 0 | no |
-| `unbuffer` |  | 0 | no |
 | `exec` | `-a` | 0 | no |
 | `command` |  | 0 | no |
-| `xargs` | `--arg-file`, `--delimiter`, `--max-args`, `--max-chars`, `--max-lines`, `--max-procs`, `-E`, `-I`, `-L`, `-P`, `-a`, `-d`, `-n`, `-s` | 0 | no |
+| `xargs` | `-I`, `-L`, `-P`, `-a`, `-d`, `-n` | 0 | no |
 
 ### `PROGRAMS_GIVING_RUN_TIME_ARGUMENTS`
 
@@ -87,7 +82,7 @@ Module: [`shell/program_tables.py`](../src/tb_internet_use/shell/program_tables.
 
 Programs whose name often ends with a version, e.g. python3.11, pip3 and gcc-12.
 
-`clang++`, `clang`, `g++`, `gcc`, `gem`, `java`, `javac`, `lua`, `node`, `perl`, `php`, `pip`, `pydoc`, `pypy`, `python`, `ruby`
+`clang`, `gcc`, `pip`, `python`
 
 ### `SHELL_PROGRAMS`
 
@@ -95,23 +90,15 @@ Module: [`shell/program_tables.py`](../src/tb_internet_use/shell/program_tables.
 
 Shells that run a file, a `-c` text or their stdin as shell text, e.g. bash in `bash -c 'a && b'`.
 
-`bash`, `dash`, `sh`, `zsh`
+`bash`, `dash`, `sh`
 
 ### `EXIT_CODE_SHELL_OPTION_NAMES`
 
 Module: [`shell/program_tables.py`](../src/tb_internet_use/shell/program_tables.py). Basis: manuals.
 
-Options that `set -o` and `bash -o` take and that change what the exit code says.
+Option names after `bash -o` that change what the exit code says, e.g. pipefail in `bash -o pipefail -c a`.
 
-`errexit`, `pipefail`
-
-### `SHELL_LONG_OPTIONS_WITH_VALUE`
-
-Module: [`shell/program_tables.py`](../src/tb_internet_use/shell/program_tables.py). Basis: manuals.
-
-Long shell options that take the next word as their value, e.g. `bash --rcfile f`.
-
-`--init-file`, `--rcfile`
+`pipefail`
 
 ### `OPTION_SYNTAX_OF_PROGRAM`
 
@@ -121,40 +108,35 @@ Syntax of the programs whose options decide a file, a script, a target or code, 
 
 | Key | short_options_with_value | long_options_with_value | one_dash_long_options | options_end_at_first_plain_argument | script_options |
 |---|---|---|---|---|---|
-| `curl` | `oDCEYyzKrxmcbFTeAuwXHdU` | `--cacert`, `--cert`, `--config`, `--connect-timeout`, `--continue-at`, `--cookie-jar`, `--cookie`, `--data-ascii`, `--data-binary`, `--data-raw`, `--data-urlencode`, `--data`, `--dump-header`, `--form`, `--header`, `--key`, `--limit-rate`, `--max-redirs`, `--max-time`, `--output-dir`, `--output`, `--proto`, `--proxy`, `--range`, `--referer`, `--request`, `--resolve`, `--retry-delay`, `--retry-max-time`, `--retry`, `--upload-file`, `--url-query`, `--user-agent`, `--user`, `--write-out` |  | no |  |
-| `wget` | `OoaPtTwUeiQlARBDIX` | `--directory-prefix`, `--header`, `--input-file`, `--limit-rate`, `--load-cookies`, `--output-document`, `--output-file`, `--password`, `--post-data`, `--post-file`, `--save-cookies`, `--timeout`, `--tries`, `--user-agent`, `--user`, `--wait` | `-nv` | no |  |
-| `pip` | `rceitfbd` | `--abi`, `--cache-dir`, `--constraint`, `--dest`, `--editable`, `--extra-index-url`, `--find-links`, `--implementation`, `--index-url`, `--log`, `--no-binary`, `--only-binary`, `--platform`, `--prefix`, `--progress-bar`, `--python-version`, `--python`, `--report`, `--requirement`, `--root`, `--src`, `--target`, `--timeout`, `--trusted-host`, `--upgrade-strategy` |  | no |  |
-| `uv` | `rcepi` | `--abi`, `--cache-dir`, `--constraint`, `--default-index`, `--dest`, `--directory`, `--editable`, `--extra-index-url`, `--extra`, `--find-links`, `--from`, `--group`, `--implementation`, `--index-url`, `--index`, `--log`, `--no-binary`, `--only-binary`, `--platform`, `--prefix`, `--progress-bar`, `--project`, `--python-version`, `--python`, `--report`, `--requirement`, `--root`, `--src`, `--target`, `--timeout`, `--trusted-host`, `--upgrade-strategy`, `--with` |  | no |  |
-| `npm` | `Cwp` | `--cache`, `--dir`, `--filter`, `--package`, `--prefix`, `--registry`, `--userconfig`, `--workspace` |  | no |  |
-| `pnpm` | `Cwp` | `--cache`, `--dir`, `--filter`, `--package`, `--prefix`, `--registry`, `--userconfig`, `--workspace` |  | no |  |
-| `npx` | `Cwp` | `--cache`, `--dir`, `--filter`, `--package`, `--prefix`, `--registry`, `--userconfig`, `--workspace` |  | no |  |
-| `bun` | `Cwpe` | `--cache`, `--dir`, `--eval`, `--filter`, `--package`, `--prefix`, `--registry`, `--userconfig`, `--workspace` |  | no |  |
-| `deno` | `e` | `--eval` |  | no |  |
-| `apt` | `ot` | `--option`, `--target-release` |  | no |  |
-| `apt-get` | `ot` | `--option`, `--target-release` |  | no |  |
-| `git` | `Cbojc` | `--branch`, `--config`, `--depth`, `--filter`, `--jobs`, `--origin`, `--reference`, `--shallow-since`, `--upload-pack` |  | no |  |
-| `rsync` | `eT` | `--exclude`, `--include` |  | no |  |
-| `ping` | `ciWws` |  |  | no |  |
-| `nc` | `pwsiq` |  |  | no |  |
-| `dig` | `tcpfbky` |  |  | no |  |
-| `host` | `tcNRWm` |  |  | no |  |
-| `gh` | `XHfFRpDq` | `--dir`, `--field`, `--header`, `--jq`, `--method`, `--pattern`, `--raw-field`, `--repo` |  | no |  |
-| `conda` | `ncp` | `--channel`, `--name`, `--prefix` |  | no |  |
-| `huggingface-cli` |  | `--cache-dir`, `--exclude`, `--include`, `--local-dir`, `--repo-type`, `--revision`, `--token` |  | no |  |
+| `curl` | `oDrmcbFTAuwXHd` | `--connect-timeout`, `--data-binary`, `--data-raw`, `--data-urlencode`, `--data`, `--header`, `--max-time`, `--output`, `--range`, `--request`, `--retry-delay`, `--retry`, `--upload-file`, `--url-query`, `--user`, `--write-out` |  | no |  |
+| `wget` | `O` |  |  | no |  |
+| `pip` | `reitfd` | `--dest`, `--extra-index-url`, `--find-links`, `--implementation`, `--index-url`, `--no-binary`, `--only-binary`, `--platform`, `--progress-bar`, `--python-version`, `--python`, `--report`, `--target`, `--timeout` |  | no |  |
+| `uv` | `e` | `--extra-index-url`, `--index-url`, `--python`, `--with` |  | no |  |
+| `npm` |  | `--package`, `--prefix` |  | no |  |
+| `pnpm` | `p` | `--dir` |  | no |  |
+| `npx` | `p` | `--package`, `--prefix` |  | no |  |
+| `bun` | `pe` | `--eval` |  | no |  |
+| `apt-get` | `o` |  |  | no |  |
+| `git` | `Cboc` | `--branch`, `--depth`, `--filter` |  | no |  |
+| `rsync` |  | `--exclude` |  | no |  |
+| `ping` | `ciW` |  |  | no |  |
+| `nc` | `wq` |  |  | no |  |
+| `gh` |  | `--jq` |  | no |  |
+| `conda` | `nc` |  |  | no |  |
+| `huggingface-cli` |  | `--local-dir`, `--revision` |  | no |  |
 | `python` | `cmWX` |  |  | yes |  |
-| `node` | `epr` | `--eval`, `--print`, `--require`, `-pe` | `-pe` | yes |  |
+| `node` | `epr` | `-pe` | `-pe` | yes |  |
 | `tsx` | `e` | `--eval` |  | yes |  |
-| `ts-node` | `e` | `--eval` |  | yes |  |
-| `head` | `nc` | `--bytes`, `--lines` |  | no |  |
-| `tail` | `nc` | `--bytes`, `--lines` |  | no |  |
-| `grep` | `efmABCdD` | `--after-context`, `--before-context`, `--context`, `--exclude-dir`, `--exclude`, `--file`, `--include`, `--max-count`, `--regexp` |  | no | `--file`, `--regexp`, `-e`, `-f` |
-| `egrep` | `efmABCdD` | `--after-context`, `--before-context`, `--context`, `--exclude-dir`, `--exclude`, `--file`, `--include`, `--max-count`, `--regexp` |  | no | `--file`, `--regexp`, `-e`, `-f` |
-| `rg` | `efgtTmABCrj` | `--after-context`, `--before-context`, `--context`, `--file`, `--glob`, `--max-count`, `--regexp`, `--replace`, `--threads`, `--type-not`, `--type` |  | no | `--file`, `--regexp`, `-e`, `-f` |
-| `sed` | `efl` | `--expression`, `--file` |  | no | `--expression`, `--file`, `-e`, `-f` |
-| `awk` | `Fvfe` | `--assign`, `--field-separator`, `--file`, `--source` |  | no | `--file`, `--source`, `-e`, `-f` |
-| `jq` | `f` | `--from-file`, `--indent` |  | no | `--from-file`, `-f` |
-| `cut` | `dfcb` | `--bytes`, `--characters`, `--delimiter`, `--fields` |  | no |  |
-| `sort` | `ktoST` | `--buffer-size`, `--field-separator`, `--key`, `--output` |  | no |  |
+| `head` | `nc` |  |  | no |  |
+| `tail` | `nc` |  |  | no |  |
+| `grep` | `efmABC` | `--exclude-dir`, `--exclude`, `--include` |  | no | `--file`, `--regexp`, `-e`, `-f` |
+| `egrep` |  |  |  | no | `--file`, `--regexp`, `-e`, `-f` |
+| `rg` | `egmABCr` | `--context`, `--glob`, `--max-count`, `--type` |  | no | `--file`, `--regexp`, `-e`, `-f` |
+| `sed` | `e` |  |  | no | `--expression`, `--file`, `-e`, `-f` |
+| `awk` | `Fvf` |  |  | no | `--file`, `--source`, `-e`, `-f` |
+| `jq` | `f` |  |  | no | `--from-file`, `-f` |
+| `cut` | `dfc` |  |  | no |  |
+| `sort` | `ktoST` |  |  | no |  |
 
 ### `CODE_PROGRAMS`
 
@@ -165,11 +147,9 @@ Programs that run code, by the name `normalized_program_name` gives.
 | Key | language | inline_code_options | file_subcommand | needs_code_file_extension |
 |---|---|---|---|---|
 | `python` | python | `-c` |  | no |
-| `node` | javascript | `--eval`, `--print`, `-e`, `-p`, `-pe` |  | no |
+| `node` | javascript | `-e`, `-p`, `-pe` |  | no |
 | `bun` | javascript | `--eval`, `-e` | `run` | yes |
-| `deno` | javascript | `--eval`, `-e` | `run` | yes |
 | `tsx` | javascript | `--eval`, `-e` |  | no |
-| `ts-node` | javascript | `--eval`, `-e` |  | no |
 
 ### `LANGUAGE_OF_FILE_EXTENSION`
 
@@ -191,7 +171,7 @@ Module: [`callrun/code_program_tables.py`](../src/tb_internet_use/callrun/code_p
 
 Extensions of the shell files a command runs directly, e.g. ./fetch.sh.
 
-`.bash`, `.sh`
+`.sh`
 
 ### `OPTION_MEANINGS_OF_PROGRAM`
 
@@ -201,18 +181,18 @@ Option meanings of the programs with a request row in the program catalog, by th
 
 | Key | no_request_options | offline_options | quiet_progress_options | quiet_error_options | error_showing_options | index_options | package_file_options |
 |---|---|---|---|---|---|---|---|
-| `curl` | `--help`, `--version`, `-V`, `-h` |  |  | `--silent`, `-s` | `--show-error`, `-S` |  |  |
-| `wget` | `--help`, `--version`, `-V`, `-h` |  | `--no-verbose`, `-nv` | `--quiet`, `-q` |  |  |  |
-| `pip` | `--help`, `--version`, `-V`, `-h` | `--no-index` | `--quiet`, `-q` |  |  | `--extra-index-url`, `--index-url`, `-i` | `--constraint`, `--editable`, `--requirement`, `-c`, `-e`, `-r` |
-| `uv` | `--help`, `--version`, `-V`, `-h` | `--offline` | `--quiet`, `-q` |  |  | `--default-index`, `--extra-index-url`, `--index-url`, `--index`, `-i` | `--constraint`, `--editable`, `--requirement`, `-c`, `-e`, `-r` |
-| `npm` | `--help`, `--version` | `--offline`, `--prefer-offline` | `--quiet` | `--silent`, `-s` |  | `--registry` |  |
-| `pnpm` | `--help`, `--version` | `--offline`, `--prefer-offline` | `--quiet` | `--silent`, `-s` |  | `--registry` |  |
-| `bun` | `--help`, `--version` | `--offline`, `--prefer-offline` | `--quiet` | `--silent`, `-s` |  | `--registry` |  |
-| `npx` | `--help`, `--version` | `--no-install`, `--offline`, `--prefer-offline` | `--quiet` | `--silent`, `-s` |  | `--registry` |  |
-| `apt` | `--help`, `--version`, `-h`, `-v` |  | `--quiet`, `-q` |  |  |  |  |
-| `apt-get` | `--help`, `--version`, `-h`, `-v` |  | `--quiet`, `-q` |  |  |  |  |
-| `git` | `--help`, `--version` |  | `--quiet`, `-q` |  |  |  |  |
-| `nc` | `--listen`, `-h`, `-l` |  |  |  |  |  |  |
+| `curl` | `--version` |  |  | `--silent`, `-s` | `--show-error`, `-S` |  |  |
+| `wget` |  |  |  | `-q` |  |  |  |
+| `pip` | `--help`, `--version` | `--no-index` | `--quiet`, `-q` |  |  | `--extra-index-url`, `--index-url`, `-i` | `-e`, `-r` |
+| `uv` | `--help` |  | `--quiet`, `-q` |  |  | `--extra-index-url`, `--index-url` | `-e` |
+| `npm` |  | `--offline`, `--prefer-offline` | `--quiet` | `--silent` |  |  |  |
+| `pnpm` |  | `--offline` |  |  |  |  |  |
+| `bun` |  |  |  |  |  |  |  |
+| `npx` | `--version` | `--no-install` |  |  |  |  |  |
+| `apt` |  |  | `-q` |  |  |  |  |
+| `apt-get` | `--help` |  | `-q` |  |  |  |  |
+| `git` |  |  | `--quiet`, `-q` |  |  |  |  |
+| `nc` |  |  |  |  |  |  |  |
 
 ### `SCHEMELESS_URL_PROGRAMS`
 
@@ -220,31 +200,15 @@ Module: [`request/target_tables.py`](../src/tb_internet_use/request/target_table
 
 Programs that read a target without a scheme as a URL, e.g. pypi.org/simple in `curl pypi.org/simple`.
 
-`curl`, `wget`
+`curl`
 
 ### `PROGRAMS_WITH_HOST_AS_FIRST_TARGET`
 
 Module: [`request/target_tables.py`](../src/tb_internet_use/request/target_tables.py). Basis: manuals.
 
-Direct connection and name lookup programs whose first target is a host and the rest are ports or record types, e.g. `nc host 80`.
+Programs whose first target is the host they connect to or look up, e.g. a.org in `nc a.org 80` or `nslookup a.org`. Later targets are not read.
 
 `dig`, `host`, `nc`, `nslookup`, `ping`
-
-### `DNS_LOOKUP_PROGRAMS`
-
-Module: [`request/target_tables.py`](../src/tb_internet_use/request/target_tables.py). Basis: manuals.
-
-Name lookup programs whose targets can hold DNS record types and classes before the host too, e.g. MX in `dig MX a.org`.
-
-`dig`, `host`, `nslookup`
-
-### `DNS_RECORD_TYPES_AND_CLASSES`
-
-Module: [`request/target_tables.py`](../src/tb_internet_use/request/target_tables.py). Basis: standards.
-
-Common DNS record types and classes in upper case, which name no host, e.g. MX and IN in `dig IN MX a.org`.
-
-`AAAA`, `ANY`, `AXFR`, `A`, `CAA`, `CNAME`, `IN`, `MX`, `NS`, `PTR`, `SOA`, `SRV`, `TXT`
 
 ### `PROGRAMS_WITH_HOST_AS_EVERY_TARGET`
 
@@ -262,8 +226,8 @@ Network calls in code, by language. One request per code text, however many of t
 
 | Key | Value |
 |---|---|
-| python | `\brequests\.(?:get\|post\|put\|head\|request\|Session)\b\|\bhttpx\.(?:get\|post\|stream\|Client\|AsyncClient)\b\|\baiohttp\.ClientSession\b\|\burlopen\(\|\burlretrieve\(\|\burllib3\.PoolManager\b\|\b(?:snapshot_download\|hf_hub_download\|from_pretrained\|load_dataset)\(\|\bnltk\.download\(\|\bsocket\.(?:create_connection\|getaddrinfo\|gethostbyname)\b` |
-| javascript | `\bfetch\(\|\baxios\.\|\bhttps?\.get\(` |
+| python | `\brequests\.(?:get\|post\|put\|head\|request\|Session)\b\|\bhttpx\.(?:get\|post\|stream\|Client\|AsyncClient)\b\|\baiohttp\.ClientSession\b\|\burlopen\(\|\burlretrieve\(\|\b(?:snapshot_download\|hf_hub_download\|from_pretrained\|load_dataset)\(\|\bnltk\.download\(\|\bsocket\.(?:create_connection\|getaddrinfo\|gethostbyname)\b` |
+| javascript | `\bfetch\(\|\bhttps?\.get\(` |
 
 ### `PROGRAM_RUN_BY_CODE`
 
@@ -272,7 +236,7 @@ Module: [`request/code_request_tables.py`](../src/tb_internet_use/request/code_r
 A program that the code runs, e.g. pip in `subprocess.run(["pip", "install", "x"])` or `os.system("python -m pip install x")`. The name is a whole word of a string, so `.git` in `["rm", "-rf", ".git"]` names no program.
 
 ```text
-\b(?:subprocess\.\w+|os\.system|os\.popen)\([^)]*?(?<=['"\s/])(pip|curl|wget|git|npm|apt-get)(?=['"\s])
+\b(?:subprocess\.\w+|os\.system|os\.popen)\([^)]*?(?<=['"\s/])(pip|curl|git|npm|apt-get)(?=['"\s])
 ```
 
 ### `HOST_NAMED_BY_CODE`
@@ -291,7 +255,7 @@ Module: [`request/code_request_tables.py`](../src/tb_internet_use/request/code_r
 
 Hosts of XML namespaces and schemas, whose URLs code uses as names and does not fetch unless they name a file.
 
-`json-schema.org`, `ns.adobe.com`, `purl.org`, `schemas.microsoft.com`, `schemas.openxmlformats.org`, `schemas.xmlsoap.org`, `w3.org`, `www.w3.org`, `xmlns.com`
+`json-schema.org`, `purl.org`, `schemas.openxmlformats.org`, `www.w3.org`
 
 ### `PROGRAM_OUTPUT_LINE_PATTERNS`
 

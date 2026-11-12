@@ -42,9 +42,7 @@ def _facts(program: str, arguments: str, rule: RequestRule = CURL_RULE) -> Optio
     ("program", "arguments", "sends_no_request"),
     [
         ("curl", "--version", True),
-        ("curl", "-h", True),
-        ("pip", "-V", True),
-        ("nc", "-l 8080", True),
+        ("pip", "install --help", True),
         ("rsync", "-avh a b", False),  # -h is human-readable sizes for rsync
         ("git", "ls-remote -h u", False),  # -h is --heads for git ls-remote
     ],
@@ -59,7 +57,6 @@ def test_sends_no_request(program: str, arguments: str, sends_no_request: bool):
         ("curl", "-s u", True, True),
         ("curl", "-sS u", True, False),
         ("wget", "-q u", True, True),
-        ("wget", "-nv u", True, False),
         ("pip", "install -q x", True, False),
         ("npm", "install --silent", True, True),
         ("git", "clone u", False, False),

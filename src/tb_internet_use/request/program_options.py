@@ -23,7 +23,7 @@ class OptionFacts:
 
     # The catalog row's request rule after the options that change it, e.g. REQUEST_SUCCEEDED as exit_zero_means for `curl -f`.
     rule: RequestRule
-    # An option makes the run send no request, e.g. `--help`, `--version` or `nc -l`, which listens.
+    # An option makes the run send no request, e.g. `--help` or `--version`.
     sends_no_request: bool
     has_offline_option: bool
     # Package index URLs that options name, e.g. the value of `pip --index-url`.

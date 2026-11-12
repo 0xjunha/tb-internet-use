@@ -93,7 +93,6 @@ def test_commands_without_a_request():
         "pip install --help",
         "curl",  # no target
         "pip list",
-        "nc -l 8080",  # listens
         "rsync -a ./a /b",  # names no host
         "cat log",
     ]

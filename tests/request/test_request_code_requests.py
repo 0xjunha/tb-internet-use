@@ -25,7 +25,6 @@ def _request(code: str | None, language: CodeLanguage = CodeLanguage.PYTHON):
         ("AutoModel.from_pretrained('bert')", CodeLanguage.PYTHON),
         ("socket.create_connection(('db', 5432))", CodeLanguage.PYTHON),
         ("await fetch(u)", CodeLanguage.JAVASCRIPT),
-        ("axios.get(u)", CodeLanguage.JAVASCRIPT),
         ("https.get(u, cb)", CodeLanguage.JAVASCRIPT),
     ],
 )

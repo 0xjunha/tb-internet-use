@@ -8,7 +8,6 @@ from tb_internet_use.shell.program_tables import (
     EXIT_CODE_SHELL_OPTION_NAMES,
     PROGRAMS_GIVING_RUN_TIME_ARGUMENTS,
     PYTHON_OPTIONS_WITH_VALUE_BEFORE_MODULE,
-    SHELL_LONG_OPTIONS_WITH_VALUE,
     SHELL_PROGRAMS,
     VERSIONED_PROGRAMS,
     WRAPPERS,
@@ -206,7 +205,7 @@ def _shell_invocation(arguments: tuple[str, ...]) -> _ShellInvocation:
     while index < len(arguments):
         word = arguments[index]
         following = arguments[index + 1] if index + 1 < len(arguments) else None
-        if word in ("-o", "+o", "-O", "+O") or word in SHELL_LONG_OPTIONS_WITH_VALUE:
+        if word in ("-o", "+o", "-O", "+O"):
             if word == "-o" and following in EXIT_CODE_SHELL_OPTION_NAMES:
                 options.add(following)
             index += 2

@@ -49,11 +49,9 @@ def test_normalized_program_name(word: str, name: str):
             ("apt-get", "install"),
         ),
         (("sudo", "-n", "curl", "u"), ("curl", "u")),
-        (("sudo", "--user", "root", "curl", "u"), ("curl", "u")),
         (("timeout", "--signal", "KILL", "30", "curl", "u"), ("curl", "u")),
         (("sudo", "-k", "apt-get", "update"), ("apt-get", "update")),
         (("/usr/bin/sudo", "curl", "u"), ("curl", "u")),
-        (("doas", "curl", "u"), ("curl", "u")),
         (("timeout", "-s", "KILL", "30", "curl", "u"), ("curl", "u")),
         (("nohup", "nice", "-n", "10", "pip", "install", "x"), ("pip", "install", "x")),
         (("time", "curl", "u"), ("curl", "u")),
@@ -102,11 +100,9 @@ def test_gets_arguments_at_run_time(words: tuple[str, ...], expected: bool):
     [
         (("bash", "-c", "a && b"), "a && b"),
         (("sh", "-lc", "a"), "a"),
-        (("zsh", "-c", "a"), "a"),
         (("bash", "-o", "pipefail", "-c", "a"), "a"),
         (("bash", "-euo", "pipefail", "-c", "a"), "a"),
         (("sudo", "-n", "bash", "-c", "a"), "a"),
-        (("bash", "--rcfile", "f", "-c", "a"), "a"),
         (("eval", "a", "&&", "b"), "a && b"),
         (("bash", "fetch.sh", "-c", "a"), None),  # -c is an argument of fetch.sh
         (("bash", "-c", "-e", "a"), "a"),  # options go on after -c

@@ -2,6 +2,8 @@
 
 Behavior tables describe how programs, code and servers behave and which naming conventions they follow, e.g. which curl options take a value, which output lines show a download or which extension a Python file has.
 Each lives in a `*_tables.py` module beside the code that reads it. This module lists them with the rules that stay in logic modules, so that `docs/behavior-tables.md` shows them all in one place.
+
+A table holds only rows that the trajectories use, i.e. rows that change what the code reading them returns on the 2026-10-08 data. A row that only a manual lists is left out, e.g. sudo's `-g`.
 """
 
 import inspect
@@ -51,7 +53,7 @@ class BehaviorTableBasis(StrEnum):
 _MEANING_OF_BASIS = {
     BehaviorTableBasis.TRAJECTORIES: "The rows are chosen from what the trajectories hold, e.g. the wrappers that commands use or the lines that programs print.",
     BehaviorTableBasis.MANUALS: "The values follow the programs' documentation, e.g. which curl options take a value.",
-    BehaviorTableBasis.STANDARDS: "The rows follow a standard or a common convention, e.g. DNS record types or the `.py` extension.",
+    BehaviorTableBasis.STANDARDS: "The rows follow a standard or a common convention, e.g. the `.py` extension.",
 }
 
 
@@ -104,9 +106,6 @@ BEHAVIOR_TABLES = (
         program_tables, "EXIT_CODE_SHELL_OPTION_NAMES", (BehaviorTableBasis.MANUALS,)
     ),
     BehaviorTable(
-        program_tables, "SHELL_LONG_OPTIONS_WITH_VALUE", (BehaviorTableBasis.MANUALS,)
-    ),
-    BehaviorTable(
         option_syntax_tables,
         "OPTION_SYNTAX_OF_PROGRAM",
         (BehaviorTableBasis.TRAJECTORIES, BehaviorTableBasis.MANUALS),
@@ -136,10 +135,6 @@ BEHAVIOR_TABLES = (
         target_tables,
         "PROGRAMS_WITH_HOST_AS_FIRST_TARGET",
         (BehaviorTableBasis.MANUALS,),
-    ),
-    BehaviorTable(target_tables, "DNS_LOOKUP_PROGRAMS", (BehaviorTableBasis.MANUALS,)),
-    BehaviorTable(
-        target_tables, "DNS_RECORD_TYPES_AND_CLASSES", (BehaviorTableBasis.STANDARDS,)
     ),
     BehaviorTable(
         target_tables,
@@ -210,6 +205,7 @@ def behavior_tables_markdown() -> str:
         "",
         "Behavior tables describe how programs, code and servers behave and which naming conventions they follow, as the rules of stages 6 to 10 read them, e.g. which curl options take a value, which output lines show a download or which extension a Python file has.",
         "Each lives in a `*_tables.py` module beside the code that reads it.",
+        "Each table holds only rows that the trajectories use, i.e. rows that change what the code reading them returns on the 2026-10-08 data. A row that only a manual lists is left out, e.g. sudo's `-g`.",
         "Mappings that need no judgment live in CSV catalogs instead, e.g. the [program catalog](../src/tb_internet_use/program/catalogs/program_catalog.csv).",
         "",
         "This page is written by `scripts/build_behavior_tables_doc.py` from `src/tb_internet_use/behavior_tables.py`, so edit the tables and run it again.",
