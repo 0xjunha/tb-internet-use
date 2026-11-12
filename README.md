@@ -2,7 +2,7 @@
 
 Analysis of internet use patterns of agents in Terminal-Bench trajectories.
 
-Source: 15,813 readable ATIF trajectories out of 15,990 trials of Terminal-Bench 3/4 leaderboard runs
+Source: 15,813 readable ATIF trajectories out of 15,990 trials of Terminal-Bench 3.0/4.0 leaderboard runs
 
 ## What it measures
 
@@ -25,12 +25,14 @@ Further analysis builds on this data.
 
 ## Pipeline
 
+Example: [pipeline example](docs/pipeline-example.md)
+
 - `Collect` checks the inputs and records facts about every trial.
 - `Parse` records what the trajectories say, without deciding whether a call used the internet.
 - `Interpret` applies rules to decide what happened, so rules can change without touching the parser.
 - `Output` makes the results safe to share and reports them.
 
-Each trial flows through the stages in one pass: tool calls (5), their commands (6), what each call ran and which calls show its output (7), candidate requests (8) and observations (9) side by side, requests linked to their evidence (10), and how far each got (11).
+Each trial flows through the stages in one pass: tool calls as the trajectory records them (5), the commands of each shell text on its own (6), each call expanded into one record of everything it ran, including what its own text does not show, and of the calls that show its output (7), candidate requests (8) and observations (9) side by side, requests linked to their evidence (10), and how far each got (11).
 
 | # | Part | Step | Status |
 |---|---|---|---|
@@ -39,9 +41,9 @@ Each trial flows through the stages in one pass: tool calls (5), their commands 
 | 3 | Parse | Define common types for tool calls and their outputs, so later stages never need a harness's own names | Done |
 | 4 | Parse | Catalog every tool in the trajectories and label it with a common type by hand | Done |
 | 5 | Parse | Convert each harness's `trajectory.json` into these common types | Done (result format catalog review pending) |
-| 6 | Parse | Split each call's shell text into commands, with when each runs, where its output goes and what the text's exit code says about it (e.g. after `\|\|`, piped into `tail`, redirected to a log) | Done |
-| 7 | Interpret | Go through all calls of a trial to add what one call alone cannot show: the scripts and code it runs that were written earlier in the trial, variable values, and the later calls that show its output (e.g. written files, polls and log reads) | Planned |
-| 8 | Interpret | From what each call ran, extract candidate requests with their kinds, targets, hosts and what their run can show, before any output is read (e.g. `curl -f` exits 0 only when the content arrived) | Planned |
+| 6 | Parse | Split each shell text into commands, looking at that text alone, with when each runs, where its output goes and what the text's exit code says about it (e.g. after `\|\|`, piped into `tail`, redirected to a log) | Done |
+| 7 | Interpret | Expand each call into one record of everything it actually ran, reading all calls of the trial for what its own text does not show: the files, heredocs, code and typed input its commands run, variable values, where its output ends up after pipes, and the later calls that show that output (e.g. written files, polls and log reads) | Planned |
+| 8 | Interpret | From each call's expanded run, extract candidate requests with their kinds, targets, hosts and what their run can show, before any output is read (e.g. `curl -f` exits 0 only when the content arrived) | Planned |
 | 9 | Interpret | Apart from requests, extract observations of network results from each call's output lines and result fields (e.g. a download line, an HTTP status) | Planned |
 | 10 | Interpret | Join 8 and 9: link each request to the lines and call facts about it through the calls from 7 that show its output (e.g. lines several requests share, whether it ran, how much of its output is visible), and add requests only the output reveals | Planned |
 | 11 | Interpret | For each linked request, decide the furthest level shown, how strong its evidence is, and what stopped it or hid the rest, keeping the evidence | Planned |
@@ -50,7 +52,19 @@ Each trial flows through the stages in one pass: tool calls (5), their commands 
 | 14 | Output | Build the spreadsheet (e.g. tabs, formulas, charts) and check it against the aggregates | Planned |
 
 Stages 3 to 5 are described in [Tool call parsing](src/tb_internet_use/toolcall/README.md).
-For how the data changes shape from stage to stage, see the [pipeline example](docs/pipeline-example.md).
+
+### Code layout
+
+| Package | Stages | Entrypoint function |
+|---|---|---|
+| `toolcall/` | 3 to 5 | `convert_trial(trial_dir)` |
+| `shell/` | 6 | `parse_shell(text)` |
+| `program/` | 7, 8 | None, shared (program catalog and option syntax) |
+| `callrun/` | 7 | `expand_calls(calls)` |
+| `network/` | 8, 9 | None, shared (host and package names) |
+| `request/` | 8 | `extract_candidate_requests(call_run)` |
+| `observation/` | 9 | `extract_observations(call)` |
+| `trial_interpretation.py` | 7 to 9 | `interpret_trial_before_linking(calls)` |
 
 ## Limits
 
