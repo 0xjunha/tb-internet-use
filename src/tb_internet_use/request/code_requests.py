@@ -8,7 +8,7 @@ import re
 from tb_internet_use.callrun.model import RanCodeText
 from tb_internet_use.network.hosts import host_from_name, host_name_in_url
 from tb_internet_use.network.model import PrintingProgram
-from tb_internet_use.program.catalog_loader import program_catalog
+from tb_internet_use.program import program_catalog
 from tb_internet_use.program.model import RequestKind
 from tb_internet_use.request.code_request_tables import (
     HOST_NAMED_BY_CODE,

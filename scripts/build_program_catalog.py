@@ -12,12 +12,12 @@ from collections import Counter
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
-from tb_internet_use.callrun.expand import expand_calls
+from tb_internet_use.callrun import expand_calls
 from tb_internet_use.program.arguments import parse_arguments
 from tb_internet_use.program.catalog_loader import PROGRAM_CATALOG_CSV
 from tb_internet_use.program.catalog_rows import matched_catalog_rows
 from tb_internet_use.shell.programs import program_words
-from tb_internet_use.toolcall.convert import convert_trial
+from tb_internet_use.toolcall import convert_trial
 
 DEFAULT_CANDIDATES_CSV = (
     Path(__file__).resolve().parents[1] / "out" / "program_catalog_candidates.csv"

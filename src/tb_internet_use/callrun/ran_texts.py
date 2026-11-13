@@ -28,8 +28,8 @@ from tb_internet_use.callrun.poll_links import PollLinks, typed_text
 from tb_internet_use.callrun.written_files import WrittenFiles
 from tb_internet_use.program.arguments import parse_arguments
 from tb_internet_use.program.catalog_rows import last_program_words
+from tb_internet_use.shell import parse_shell
 from tb_internet_use.shell.model import ParsedShellText, ShellCommand
-from tb_internet_use.shell.parser import parse_shell
 from tb_internet_use.shell.programs import (
     program_word_as_written,
     program_words,

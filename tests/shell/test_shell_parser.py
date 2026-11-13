@@ -2,6 +2,7 @@
 
 import pytest
 
+from tb_internet_use.shell import parse_shell
 from tb_internet_use.shell.model import (
     CaptureDestination,
     DiscardDestination,
@@ -15,7 +16,6 @@ from tb_internet_use.shell.model import (
     ShellCommand,
     VariableAssignment,
 )
-from tb_internet_use.shell.parser import parse_shell
 
 S = ExitOutcome.SUCCESS
 F = ExitOutcome.FAILURE

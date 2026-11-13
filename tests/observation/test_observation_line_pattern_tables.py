@@ -3,7 +3,7 @@
 import pytest
 
 from tb_internet_use.network.model import PrintingProgram
-from tb_internet_use.observation.extract import extract_observations
+from tb_internet_use.observation import extract_observations
 from tb_internet_use.observation.line_pattern_tables import PROGRAM_OUTPUT_LINE_PATTERNS
 from tb_internet_use.observation.model import Observation, ObservationKind
 from tb_internet_use.toolcall.model import (

@@ -1,6 +1,6 @@
 """Tests for callrun/expand.py, through which ran_texts.py and file_reads.py are tested too."""
 
-from tb_internet_use.callrun.expand import expand_calls
+from tb_internet_use.callrun import expand_calls
 from tb_internet_use.callrun.model import (
     ArgumentText,
     CallRun,

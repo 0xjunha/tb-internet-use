@@ -4,7 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from tb_internet_use.program.catalog_loader import load_program_catalog, program_catalog
+from tb_internet_use.program import program_catalog
+from tb_internet_use.program.catalog_loader import load_program_catalog
 from tb_internet_use.program.model import AskedPackagesSource
 
 HEADER = (

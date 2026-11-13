@@ -2,10 +2,10 @@
 
 from dataclasses import replace
 
-from tb_internet_use.callrun.expand import expand_calls
+from tb_internet_use.callrun import expand_calls
 from tb_internet_use.network.model import Host, HostKind, PrintingProgram
 from tb_internet_use.program.model import ExitZeroMeans, RequestKind
-from tb_internet_use.request.extract import extract_candidate_requests
+from tb_internet_use.request import extract_candidate_requests
 from tb_internet_use.request.model import (
     CandidateRequest,
     FromCommand,

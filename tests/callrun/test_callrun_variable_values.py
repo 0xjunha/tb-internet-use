@@ -8,7 +8,7 @@ from tb_internet_use.callrun.variable_values import (
     plain_variable_names,
     word_with_single_values_filled,
 )
-from tb_internet_use.shell.parser import parse_shell
+from tb_internet_use.shell import parse_shell
 
 
 @pytest.mark.parametrize(

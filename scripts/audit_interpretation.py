@@ -16,7 +16,7 @@ from tb_internet_use.callrun.model import CallRun, FileText, PollInputText
 from tb_internet_use.observation.model import Observation, OutputLine
 from tb_internet_use.program.model import RequestKind
 from tb_internet_use.request.model import CandidateRequest, FromCode, FromCommand
-from tb_internet_use.toolcall.convert import convert_trial
+from tb_internet_use.toolcall import convert_trial
 from tb_internet_use.toolcall.model import ToolCallKey
 from tb_internet_use.trial_interpretation import interpret_trial_before_linking
 

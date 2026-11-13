@@ -4,13 +4,13 @@ import pytest
 
 from tb_internet_use.callrun.model import OutputRouteEnd
 from tb_internet_use.callrun.output_routes import output_routes
+from tb_internet_use.shell import parse_shell
 from tb_internet_use.shell.model import (
     CaptureDestination,
     DiscardDestination,
     FileDestination,
     ResultDestination,
 )
-from tb_internet_use.shell.parser import parse_shell
 
 RESULT = ResultDestination()
 

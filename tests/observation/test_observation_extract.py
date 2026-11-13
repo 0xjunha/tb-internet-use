@@ -3,7 +3,7 @@
 import json
 import time
 
-from tb_internet_use.observation.extract import extract_observations
+from tb_internet_use.observation import extract_observations
 from tb_internet_use.observation.model import (
     HttpStatusField,
     ObservationKind,

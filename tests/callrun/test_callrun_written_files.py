@@ -3,7 +3,7 @@
 import pytest
 
 from tb_internet_use.callrun.written_files import WrittenFiles
-from tb_internet_use.shell.parser import parse_shell
+from tb_internet_use.shell import parse_shell
 from tb_internet_use.toolcall.model import EditFileAction, ToolCallKey, WriteFileAction
 
 FIRST = ToolCallKey("trial", "main", 1, 0)

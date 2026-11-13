@@ -3,11 +3,11 @@
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from tb_internet_use.callrun.expand import expand_calls
+from tb_internet_use.callrun import expand_calls
 from tb_internet_use.callrun.model import CallRun
-from tb_internet_use.observation.extract import extract_observations
+from tb_internet_use.observation import extract_observations
 from tb_internet_use.observation.model import Observation
-from tb_internet_use.request.extract import extract_candidate_requests
+from tb_internet_use.request import extract_candidate_requests
 from tb_internet_use.request.model import CandidateRequest
 from tb_internet_use.toolcall.model import ToolCall
 

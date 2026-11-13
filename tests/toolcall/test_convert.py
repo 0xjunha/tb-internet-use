@@ -7,7 +7,8 @@ from typing import Any
 
 import pytest
 
-from tb_internet_use.toolcall.convert import convert_call, convert_trial
+from tb_internet_use.toolcall import convert_trial
+from tb_internet_use.toolcall.convert import convert_call
 from tb_internet_use.toolcall.harnesses import converter_for
 from tb_internet_use.toolcall.harnesses.base import HarnessToolCallConverter
 from tb_internet_use.toolcall.model import (

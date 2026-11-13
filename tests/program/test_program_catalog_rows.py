@@ -2,7 +2,7 @@
 
 import pytest
 
-from tb_internet_use.program.catalog_loader import program_catalog
+from tb_internet_use.program import program_catalog
 from tb_internet_use.program.catalog_rows import (
     last_program_words,
     matched_catalog_row,
