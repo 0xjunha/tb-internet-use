@@ -11,7 +11,7 @@ import argparse
 import csv
 from pathlib import Path
 
-from tb_internet_use.toolcall.result_format_audit import (
+from tb_internet_use.parse.toolcall.result_format_audit import (
     CATALOG_COLUMNS,
     RESULT_FORMAT_CATALOG_CSV,
     catalog_rows,

@@ -13,29 +13,32 @@ from enum import Enum, StrEnum
 from pathlib import Path
 from types import ModuleType
 
-from tb_internet_use.callrun import (
+from tb_internet_use.interpret.callrun import (
+    _file_reads,
+    _output_routes,
+    _poll_links,
+    _written_files,
     code_program_tables,
-    file_reads,
-    output_routes,
-    poll_links,
-    written_files,
 )
-from tb_internet_use.network import hosts, package_names
-from tb_internet_use.observation import extract, line_pattern_tables
-from tb_internet_use.observation.line_pattern_tables import (
+from tb_internet_use.interpret.observation import (
+    _extract_observations,
+    line_pattern_tables,
+)
+from tb_internet_use.interpret.observation.line_pattern_tables import (
     LinePattern,
     LinePatternTable,
 )
-from tb_internet_use.program import option_syntax_tables
-from tb_internet_use.request import (
+from tb_internet_use.interpret.request import (
+    _code_requests,
+    _program_options,
+    _targets,
     code_request_tables,
-    code_requests,
     option_meaning_tables,
-    program_options,
     target_tables,
-    targets,
 )
-from tb_internet_use.shell import program_tables, programs
+from tb_internet_use.network import hosts, package_names
+from tb_internet_use.parse.program import option_syntax_tables
+from tb_internet_use.parse.shell import program_tables, programs
 
 # The page that `behavior_tables_markdown` writes, in the docs folder of the repo.
 BEHAVIOR_TABLES_DOC = Path(__file__).parents[2] / "docs" / "behavior-tables.md"
@@ -175,18 +178,18 @@ RULES_IN_CODE = (
     RuleInCode(programs, "_find_exec_words"),
     RuleInCode(programs, "_python_module_words"),
     RuleInCode(programs, "_shell_invocation"),
-    RuleInCode(written_files, "WrittenFiles.record_command"),
-    RuleInCode(output_routes, "tee_file_destinations"),
-    RuleInCode(file_reads, "_command_reads"),
-    RuleInCode(poll_links, "_KEY_PRESS_CHARACTERS"),
-    RuleInCode(poll_links, "_ENDED_STATUSES"),
-    RuleInCode(program_options, "_rule_after_options"),
-    RuleInCode(targets, "_SCP_LIKE_ADDRESS"),
-    RuleInCode(targets, "_SCHEMELESS_HOST"),
-    RuleInCode(targets, "_PATH_OR_URL"),
-    RuleInCode(targets, "_remote_host_names"),
-    RuleInCode(code_requests, "_URL"),
-    RuleInCode(code_requests, "_is_schema_name"),
+    RuleInCode(_written_files, "WrittenFiles.record_command"),
+    RuleInCode(_output_routes, "tee_file_destinations"),
+    RuleInCode(_file_reads, "_command_reads"),
+    RuleInCode(_poll_links, "_KEY_PRESS_CHARACTERS"),
+    RuleInCode(_poll_links, "_ENDED_STATUSES"),
+    RuleInCode(_program_options, "_rule_after_options"),
+    RuleInCode(_targets, "_SCP_LIKE_ADDRESS"),
+    RuleInCode(_targets, "_SCHEMELESS_HOST"),
+    RuleInCode(_targets, "_PATH_OR_URL"),
+    RuleInCode(_targets, "_remote_host_names"),
+    RuleInCode(_code_requests, "_URL"),
+    RuleInCode(_code_requests, "_is_schema_name"),
     RuleInCode(hosts, "_TEMPLATE_CHARACTER"),
     RuleInCode(hosts, "_LOCAL_NAME"),
     RuleInCode(hosts, "_RESERVED_NAME"),
@@ -194,7 +197,7 @@ RULES_IN_CODE = (
     RuleInCode(package_names, "_AFTER_NAME"),
     RuleInCode(package_names, "_DASHED_VERSION_AT_END"),
     RuleInCode(package_names, "_SEPARATORS"),
-    RuleInCode(extract, "_ANSI_CSI_SEQUENCE"),
+    RuleInCode(_extract_observations, "_ANSI_CSI_SEQUENCE"),
 )
 
 
@@ -206,7 +209,7 @@ def behavior_tables_markdown() -> str:
         "Behavior tables describe how programs, code and servers behave and which naming conventions they follow, as the rules of stages 6 to 10 read them, e.g. which curl options take a value, which output lines show a download or which extension a Python file has.",
         "Each lives in a `*_tables.py` module beside the code that reads it.",
         "Each table holds only rows that the trajectories use, i.e. rows that change what the code reading them returns on the 2026-10-08 data. A row that only a manual lists is left out, e.g. sudo's `-g`.",
-        "Mappings that need no judgment live in CSV catalogs instead, e.g. the [program catalog](../src/tb_internet_use/program/catalogs/program_catalog.csv).",
+        "Mappings that need no judgment live in CSV catalogs instead, e.g. the [program catalog](../src/tb_internet_use/parse/program/catalogs/program_catalog.csv).",
         "",
         "This page is written by `scripts/build_behavior_tables_doc.py` from `src/tb_internet_use/behavior_tables.py`, so edit the tables and run it again.",
         "",
@@ -270,7 +273,7 @@ def _markdown_row(cells: list[str]) -> str:
 
 
 def _module_path(module: ModuleType) -> str:
-    """Give a module's file path within the package, e.g. `shell/program_tables.py`."""
+    """Give a module's file path within the package, e.g. `parse/shell/program_tables.py`."""
     return module.__name__.removeprefix("tb_internet_use.").replace(".", "/") + ".py"
 
 

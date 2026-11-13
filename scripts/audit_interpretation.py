@@ -12,12 +12,16 @@ from collections import Counter
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
-from tb_internet_use.callrun.model import CallRun, FileText, PollInputText
-from tb_internet_use.observation.model import Observation, OutputLine
-from tb_internet_use.program.model import RequestKind
-from tb_internet_use.request.model import CandidateRequest, FromCode, FromCommand
-from tb_internet_use.toolcall import convert_trial
-from tb_internet_use.toolcall.model import ToolCallKey
+from tb_internet_use.interpret.callrun.model import CallRun, FileText, PollInputText
+from tb_internet_use.interpret.observation.model import Observation, OutputLine
+from tb_internet_use.interpret.request.model import (
+    CandidateRequest,
+    FromCode,
+    FromCommand,
+)
+from tb_internet_use.parse.program.model import RequestKind
+from tb_internet_use.parse.toolcall import convert_trial
+from tb_internet_use.parse.toolcall.model import ToolCallKey
 from tb_internet_use.trial_interpretation import interpret_trial_before_linking
 
 # Data runs use at most 4 processes, to leave the machine usable.

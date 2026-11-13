@@ -1,8 +1,12 @@
 """Tests for trial_interpretation.py, with the four calls of docs/pipeline-example.md."""
 
+from tb_internet_use.interpret.observation.model import (
+    Observation,
+    ObservationKind,
+    OutputLine,
+)
 from tb_internet_use.network.model import Host, HostKind, PrintingProgram
-from tb_internet_use.observation.model import Observation, ObservationKind, OutputLine
-from tb_internet_use.toolcall.model import (
+from tb_internet_use.parse.toolcall.model import (
     Action,
     ExecutionHandle,
     ExecutionHandleKind,

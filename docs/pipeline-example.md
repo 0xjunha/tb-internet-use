@@ -35,7 +35,7 @@ c1 to c4 are the calls of steps 1 to 4 above.
 
 ## Stages 3 and 4: define types and labels
 
-These stages define harness-agnostic common types in [model.py](../src/tb_internet_use/toolcall/model.py) and tool call labels in the [tool catalog](../src/tb_internet_use/toolcall/catalogs/README.md).
+These stages define harness-agnostic common types in [model.py](../src/tb_internet_use/parse/toolcall/model.py) and tool call labels in the [tool catalog](../src/tb_internet_use/parse/toolcall/catalogs/README.md).
 
 | Tool | `action_type` | Arguments that map to fields |
 |---|---|---|
@@ -106,7 +106,7 @@ c2_text = ParsedShellText(
 
 ## Stage 7: label programs
 
-The [program catalog](../src/tb_internet_use/program/catalogs/README.md) labels by hand what a program does when a command runs it, one row per program and subcommand.
+The [program catalog](../src/tb_internet_use/parse/program/catalogs/README.md) labels by hand what a program does when a command runs it, one row per program and subcommand.
 The rows below are the two that make requests in this example, with some of their columns.
 Rows of programs that make no request can label other things, e.g. `tail` has `reads_file_arguments=yes`, so stage 8 counts `tail fetch.log` as a read of fetch.log.
 

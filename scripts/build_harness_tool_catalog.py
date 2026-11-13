@@ -11,8 +11,11 @@ from collections import Counter, defaultdict
 from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
-from tb_internet_use.toolcall.atif_reader import TrajectoryStatus, read_trial_tool_calls
-from tb_internet_use.toolcall.catalog_loader import CATALOG_CSV
+from tb_internet_use.parse.toolcall.atif_reader import (
+    TrajectoryStatus,
+    read_trial_tool_calls,
+)
+from tb_internet_use.parse.toolcall.catalog_loader import CATALOG_CSV
 
 DEFAULT_OUTPUT_CSV = CATALOG_CSV
 

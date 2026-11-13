@@ -52,7 +52,7 @@ Each trial flows through the stages in one pass: tool calls as the trajectory re
 | 14 | Output | All result rows | Aggregate the rows for each research question | Planned |
 | 15 | Output | The aggregates (14) | Build the spreadsheet (e.g. tabs, formulas, charts) and check it against the aggregates | Planned |
 
-Stages 3 to 5 are described in [Tool call parsing](src/tb_internet_use/toolcall/README.md), and stage 7 in [Program catalog](src/tb_internet_use/program/catalogs/README.md).
+Stages 3 to 5 are described in [Tool call parsing](src/tb_internet_use/parse/toolcall/README.md), and stage 7 in [Program catalog](src/tb_internet_use/parse/program/catalogs/README.md).
 The behavior of programs, code and servers that stages 6 to 10 rely on is listed in [Behavior tables](docs/behavior-tables.md).
 Work left for later is listed in [TODO](TODO.md).
 
@@ -60,13 +60,13 @@ Work left for later is listed in [TODO](TODO.md).
 
 | Package | Stages | Entrypoint function |
 |---|---|---|
-| `toolcall/` | 3 to 5 | `convert_trial(trial_dir) -> list[ToolCall]` |
-| `shell/` | 6 | `parse_shell(text) -> ParsedShellText` |
-| `program/` | 7, and shared by 8 and 9 | `program_catalog() -> Mapping[str, tuple[ProgramCatalogRow, ...]]` |
-| `callrun/` | 8 | `expand_calls(calls) -> tuple[CallRun, ...]` |
+| `parse/toolcall/` | 3 to 5 | `convert_trial(trial_dir) -> list[ToolCall]` |
+| `parse/shell/` | 6 | `parse_shell(text) -> ParsedShellText` |
+| `parse/program/` | 7, and shared by 8 and 9 | `program_catalog() -> Mapping[str, tuple[ProgramCatalogRow, ...]]` |
+| `interpret/callrun/` | 8 | `expand_calls(calls) -> tuple[CallRun, ...]` |
 | `network/` | 9, 10 | None, shared (host and package names) |
-| `request/` | 9 | `extract_candidate_requests(call_run) -> tuple[CandidateRequest, ...]` |
-| `observation/` | 10 | `extract_observations(call) -> tuple[Observation, ...]` |
+| `interpret/request/` | 9 | `extract_candidate_requests(call_run) -> tuple[CandidateRequest, ...]` |
+| `interpret/observation/` | 10 | `extract_observations(call) -> tuple[Observation, ...]` |
 | `trial_interpretation.py` | 8 to 10 | `interpret_trial_before_linking(calls) -> TrialLinkingInputs` |
 | `behavior_tables.py` | 6 to 10, for review | `behavior_tables_markdown() -> str` |
 

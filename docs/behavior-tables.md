@@ -3,7 +3,7 @@
 Behavior tables describe how programs, code and servers behave and which naming conventions they follow, as the rules of stages 6 to 10 read them, e.g. which curl options take a value, which output lines show a download or which extension a Python file has.
 Each lives in a `*_tables.py` module beside the code that reads it.
 Each table holds only rows that the trajectories use, i.e. rows that change what the code reading them returns on the 2026-10-08 data. A row that only a manual lists is left out, e.g. sudo's `-g`.
-Mappings that need no judgment live in CSV catalogs instead, e.g. the [program catalog](../src/tb_internet_use/program/catalogs/program_catalog.csv).
+Mappings that need no judgment live in CSV catalogs instead, e.g. the [program catalog](../src/tb_internet_use/parse/program/catalogs/program_catalog.csv).
 
 This page is written by `scripts/build_behavior_tables_doc.py` from `src/tb_internet_use/behavior_tables.py`, so edit the tables and run it again.
 
@@ -17,32 +17,32 @@ This page is written by `scripts/build_behavior_tables_doc.py` from `src/tb_inte
 
 | Table | Module | Basis | Rows | What it holds |
 |---|---|---|---|---|
-| [`WRAPPERS`](#wrappers) | `shell/program_tables.py` | trajectories, manuals | 11 | Commands that run the command in their arguments. |
-| [`PROGRAMS_GIVING_RUN_TIME_ARGUMENTS`](#programs_giving_run_time_arguments) | `shell/program_tables.py` | manuals | 2 | Programs that run another program with arguments the text does not show. |
-| [`PYTHON_OPTIONS_WITH_VALUE_BEFORE_MODULE`](#python_options_with_value_before_module) | `shell/program_tables.py` | manuals | 2 | Python options that take the next word as their value, e.g. -X in `python -X dev -m pip`. |
-| [`VERSIONED_PROGRAMS`](#versioned_programs) | `shell/program_tables.py` | standards | 4 | Programs whose name often ends with a version, e.g. python3.11, pip3 and gcc-12. |
-| [`SHELL_PROGRAMS`](#shell_programs) | `shell/program_tables.py` | manuals | 3 | Shells that run a file, a `-c` text or their stdin as shell text, e.g. bash in `bash -c 'a && b'`. |
-| [`EXIT_CODE_SHELL_OPTION_NAMES`](#exit_code_shell_option_names) | `shell/program_tables.py` | manuals | 1 | Option names after `bash -o` that change what the exit code says, e.g. pipefail in `bash -o pipefail -c a`. |
-| [`OPTION_SYNTAX_OF_PROGRAM`](#option_syntax_of_program) | `program/option_syntax_tables.py` | trajectories, manuals | 29 | Syntax of the programs whose options decide a file, a script, a target or code, by the name `normalized_program_name` gives. |
-| [`CODE_PROGRAMS`](#code_programs) | `callrun/code_program_tables.py` | trajectories, manuals | 4 | Programs that run code, by the name `normalized_program_name` gives. |
-| [`LANGUAGE_OF_FILE_EXTENSION`](#language_of_file_extension) | `callrun/code_program_tables.py` | standards | 5 | Languages of the code files a command runs directly, e.g. ./get.py. |
-| [`SHELL_FILE_EXTENSIONS`](#shell_file_extensions) | `callrun/code_program_tables.py` | standards | 1 | Extensions of the shell files a command runs directly, e.g. ./fetch.sh. |
-| [`OPTION_MEANINGS_OF_PROGRAM`](#option_meanings_of_program) | `request/option_meaning_tables.py` | trajectories, manuals | 12 | Option meanings of the programs with a request row in the program catalog, by the name `normalized_program_name` gives. |
-| [`SCHEMELESS_URL_PROGRAMS`](#schemeless_url_programs) | `request/target_tables.py` | manuals | 1 | Programs that read a target without a scheme as a URL, e.g. pypi.org/simple in `curl pypi.org/simple`. |
-| [`PROGRAMS_WITH_HOST_AS_FIRST_TARGET`](#programs_with_host_as_first_target) | `request/target_tables.py` | manuals | 5 | Programs whose first target is the host they connect to or look up, e.g. a.org in `nc a.org 80` or `nslookup a.org`. |
-| [`PROGRAMS_WITH_HOST_AS_EVERY_TARGET`](#programs_with_host_as_every_target) | `request/target_tables.py` | manuals | 1 | Name lookup programs whose every target is a host, e.g. a.org and b.org in `getent hosts a.org b.org`. |
-| [`NETWORK_CALL_OF_LANGUAGE`](#network_call_of_language) | `request/code_request_tables.py` | trajectories, manuals | 2 | Network calls in code, by language. |
-| [`PROGRAM_RUN_BY_CODE`](#program_run_by_code) | `request/code_request_tables.py` | manuals |  | A program that the code runs, e.g. pip in `subprocess.run(["pip", "install", "x"])` or `os.system("python -m pip install x")`. |
-| [`HOST_NAMED_BY_CODE`](#host_named_by_code) | `request/code_request_tables.py` | trajectories |  | Hosts that code names as an address tuple, e.g. ("api", 8000), or as the argument of a name lookup. |
-| [`SCHEMA_HOST_NAMES`](#schema_host_names) | `request/code_request_tables.py` | trajectories | 4 | Hosts of XML namespaces and schemas, whose URLs code uses as names and does not fetch unless they name a file. |
-| [`PROGRAM_OUTPUT_LINE_PATTERNS`](#program_output_line_patterns) | `observation/line_pattern_tables.py` | trajectories | 36 | Lines that programs print, read in every call's output except a web tool result. |
-| [`WEB_TOOL_RESULT_LINE_PATTERNS`](#web_tool_result_line_patterns) | `observation/line_pattern_tables.py` | trajectories | 1 | Web tool results are page text, so only a page that a server gave instead of the content counts, e.g. a robot check. |
+| [`WRAPPERS`](#wrappers) | `parse/shell/program_tables.py` | trajectories, manuals | 11 | Commands that run the command in their arguments. |
+| [`PROGRAMS_GIVING_RUN_TIME_ARGUMENTS`](#programs_giving_run_time_arguments) | `parse/shell/program_tables.py` | manuals | 2 | Programs that run another program with arguments the text does not show. |
+| [`PYTHON_OPTIONS_WITH_VALUE_BEFORE_MODULE`](#python_options_with_value_before_module) | `parse/shell/program_tables.py` | manuals | 2 | Python options that take the next word as their value, e.g. -X in `python -X dev -m pip`. |
+| [`VERSIONED_PROGRAMS`](#versioned_programs) | `parse/shell/program_tables.py` | standards | 4 | Programs whose name often ends with a version, e.g. python3.11, pip3 and gcc-12. |
+| [`SHELL_PROGRAMS`](#shell_programs) | `parse/shell/program_tables.py` | manuals | 3 | Shells that run a file, a `-c` text or their stdin as shell text, e.g. bash in `bash -c 'a && b'`. |
+| [`EXIT_CODE_SHELL_OPTION_NAMES`](#exit_code_shell_option_names) | `parse/shell/program_tables.py` | manuals | 1 | Option names after `bash -o` that change what the exit code says, e.g. pipefail in `bash -o pipefail -c a`. |
+| [`OPTION_SYNTAX_OF_PROGRAM`](#option_syntax_of_program) | `parse/program/option_syntax_tables.py` | trajectories, manuals | 29 | Syntax of the programs whose options decide a file, a script, a target or code, by the name `normalized_program_name` gives. |
+| [`CODE_PROGRAMS`](#code_programs) | `interpret/callrun/code_program_tables.py` | trajectories, manuals | 4 | Programs that run code, by the name `normalized_program_name` gives. |
+| [`LANGUAGE_OF_FILE_EXTENSION`](#language_of_file_extension) | `interpret/callrun/code_program_tables.py` | standards | 5 | Languages of the code files a command runs directly, e.g. ./get.py. |
+| [`SHELL_FILE_EXTENSIONS`](#shell_file_extensions) | `interpret/callrun/code_program_tables.py` | standards | 1 | Extensions of the shell files a command runs directly, e.g. ./fetch.sh. |
+| [`OPTION_MEANINGS_OF_PROGRAM`](#option_meanings_of_program) | `interpret/request/option_meaning_tables.py` | trajectories, manuals | 12 | Option meanings of the programs with a request row in the program catalog, by the name `normalized_program_name` gives. |
+| [`SCHEMELESS_URL_PROGRAMS`](#schemeless_url_programs) | `interpret/request/target_tables.py` | manuals | 1 | Programs that read a target without a scheme as a URL, e.g. pypi.org/simple in `curl pypi.org/simple`. |
+| [`PROGRAMS_WITH_HOST_AS_FIRST_TARGET`](#programs_with_host_as_first_target) | `interpret/request/target_tables.py` | manuals | 5 | Programs whose first target is the host they connect to or look up, e.g. a.org in `nc a.org 80` or `nslookup a.org`. |
+| [`PROGRAMS_WITH_HOST_AS_EVERY_TARGET`](#programs_with_host_as_every_target) | `interpret/request/target_tables.py` | manuals | 1 | Name lookup programs whose every target is a host, e.g. a.org and b.org in `getent hosts a.org b.org`. |
+| [`NETWORK_CALL_OF_LANGUAGE`](#network_call_of_language) | `interpret/request/code_request_tables.py` | trajectories, manuals | 2 | Network calls in code, by language. |
+| [`PROGRAM_RUN_BY_CODE`](#program_run_by_code) | `interpret/request/code_request_tables.py` | manuals |  | A program that the code runs, e.g. pip in `subprocess.run(["pip", "install", "x"])` or `os.system("python -m pip install x")`. |
+| [`HOST_NAMED_BY_CODE`](#host_named_by_code) | `interpret/request/code_request_tables.py` | trajectories |  | Hosts that code names as an address tuple, e.g. ("api", 8000), or as the argument of a name lookup. |
+| [`SCHEMA_HOST_NAMES`](#schema_host_names) | `interpret/request/code_request_tables.py` | trajectories | 4 | Hosts of XML namespaces and schemas, whose URLs code uses as names and does not fetch unless they name a file. |
+| [`PROGRAM_OUTPUT_LINE_PATTERNS`](#program_output_line_patterns) | `interpret/observation/line_pattern_tables.py` | trajectories | 36 | Lines that programs print, read in every call's output except a web tool result. |
+| [`WEB_TOOL_RESULT_LINE_PATTERNS`](#web_tool_result_line_patterns) | `interpret/observation/line_pattern_tables.py` | trajectories | 1 | Web tool results are page text, so only a page that a server gave instead of the content counts, e.g. a robot check. |
 
 ## Tables
 
 ### `WRAPPERS`
 
-Module: [`shell/program_tables.py`](../src/tb_internet_use/shell/program_tables.py). Basis: trajectories, manuals.
+Module: [`parse/shell/program_tables.py`](../src/tb_internet_use/parse/shell/program_tables.py). Basis: trajectories, manuals.
 
 Commands that run the command in their arguments.
 
@@ -62,7 +62,7 @@ Commands that run the command in their arguments.
 
 ### `PROGRAMS_GIVING_RUN_TIME_ARGUMENTS`
 
-Module: [`shell/program_tables.py`](../src/tb_internet_use/shell/program_tables.py). Basis: manuals.
+Module: [`parse/shell/program_tables.py`](../src/tb_internet_use/parse/shell/program_tables.py). Basis: manuals.
 
 Programs that run another program with arguments the text does not show.
 
@@ -70,7 +70,7 @@ Programs that run another program with arguments the text does not show.
 
 ### `PYTHON_OPTIONS_WITH_VALUE_BEFORE_MODULE`
 
-Module: [`shell/program_tables.py`](../src/tb_internet_use/shell/program_tables.py). Basis: manuals.
+Module: [`parse/shell/program_tables.py`](../src/tb_internet_use/parse/shell/program_tables.py). Basis: manuals.
 
 Python options that take the next word as their value, e.g. -X in `python -X dev -m pip`.
 
@@ -78,7 +78,7 @@ Python options that take the next word as their value, e.g. -X in `python -X dev
 
 ### `VERSIONED_PROGRAMS`
 
-Module: [`shell/program_tables.py`](../src/tb_internet_use/shell/program_tables.py). Basis: standards.
+Module: [`parse/shell/program_tables.py`](../src/tb_internet_use/parse/shell/program_tables.py). Basis: standards.
 
 Programs whose name often ends with a version, e.g. python3.11, pip3 and gcc-12.
 
@@ -86,7 +86,7 @@ Programs whose name often ends with a version, e.g. python3.11, pip3 and gcc-12.
 
 ### `SHELL_PROGRAMS`
 
-Module: [`shell/program_tables.py`](../src/tb_internet_use/shell/program_tables.py). Basis: manuals.
+Module: [`parse/shell/program_tables.py`](../src/tb_internet_use/parse/shell/program_tables.py). Basis: manuals.
 
 Shells that run a file, a `-c` text or their stdin as shell text, e.g. bash in `bash -c 'a && b'`.
 
@@ -94,7 +94,7 @@ Shells that run a file, a `-c` text or their stdin as shell text, e.g. bash in `
 
 ### `EXIT_CODE_SHELL_OPTION_NAMES`
 
-Module: [`shell/program_tables.py`](../src/tb_internet_use/shell/program_tables.py). Basis: manuals.
+Module: [`parse/shell/program_tables.py`](../src/tb_internet_use/parse/shell/program_tables.py). Basis: manuals.
 
 Option names after `bash -o` that change what the exit code says, e.g. pipefail in `bash -o pipefail -c a`.
 
@@ -102,7 +102,7 @@ Option names after `bash -o` that change what the exit code says, e.g. pipefail 
 
 ### `OPTION_SYNTAX_OF_PROGRAM`
 
-Module: [`program/option_syntax_tables.py`](../src/tb_internet_use/program/option_syntax_tables.py). Basis: trajectories, manuals.
+Module: [`parse/program/option_syntax_tables.py`](../src/tb_internet_use/parse/program/option_syntax_tables.py). Basis: trajectories, manuals.
 
 Syntax of the programs whose options decide a file, a script, a target or code, by the name `normalized_program_name` gives. A program without one has no option with a value.
 
@@ -140,7 +140,7 @@ Syntax of the programs whose options decide a file, a script, a target or code, 
 
 ### `CODE_PROGRAMS`
 
-Module: [`callrun/code_program_tables.py`](../src/tb_internet_use/callrun/code_program_tables.py). Basis: trajectories, manuals.
+Module: [`interpret/callrun/code_program_tables.py`](../src/tb_internet_use/interpret/callrun/code_program_tables.py). Basis: trajectories, manuals.
 
 Programs that run code, by the name `normalized_program_name` gives.
 
@@ -153,7 +153,7 @@ Programs that run code, by the name `normalized_program_name` gives.
 
 ### `LANGUAGE_OF_FILE_EXTENSION`
 
-Module: [`callrun/code_program_tables.py`](../src/tb_internet_use/callrun/code_program_tables.py). Basis: standards.
+Module: [`interpret/callrun/code_program_tables.py`](../src/tb_internet_use/interpret/callrun/code_program_tables.py). Basis: standards.
 
 Languages of the code files a command runs directly, e.g. ./get.py.
 
@@ -167,7 +167,7 @@ Languages of the code files a command runs directly, e.g. ./get.py.
 
 ### `SHELL_FILE_EXTENSIONS`
 
-Module: [`callrun/code_program_tables.py`](../src/tb_internet_use/callrun/code_program_tables.py). Basis: standards.
+Module: [`interpret/callrun/code_program_tables.py`](../src/tb_internet_use/interpret/callrun/code_program_tables.py). Basis: standards.
 
 Extensions of the shell files a command runs directly, e.g. ./fetch.sh.
 
@@ -175,7 +175,7 @@ Extensions of the shell files a command runs directly, e.g. ./fetch.sh.
 
 ### `OPTION_MEANINGS_OF_PROGRAM`
 
-Module: [`request/option_meaning_tables.py`](../src/tb_internet_use/request/option_meaning_tables.py). Basis: trajectories, manuals.
+Module: [`interpret/request/option_meaning_tables.py`](../src/tb_internet_use/interpret/request/option_meaning_tables.py). Basis: trajectories, manuals.
 
 Option meanings of the programs with a request row in the program catalog, by the name `normalized_program_name` gives. A program without a row sends no request only with --help or --version, and its other options change nothing.
 
@@ -196,7 +196,7 @@ Option meanings of the programs with a request row in the program catalog, by th
 
 ### `SCHEMELESS_URL_PROGRAMS`
 
-Module: [`request/target_tables.py`](../src/tb_internet_use/request/target_tables.py). Basis: manuals.
+Module: [`interpret/request/target_tables.py`](../src/tb_internet_use/interpret/request/target_tables.py). Basis: manuals.
 
 Programs that read a target without a scheme as a URL, e.g. pypi.org/simple in `curl pypi.org/simple`.
 
@@ -204,7 +204,7 @@ Programs that read a target without a scheme as a URL, e.g. pypi.org/simple in `
 
 ### `PROGRAMS_WITH_HOST_AS_FIRST_TARGET`
 
-Module: [`request/target_tables.py`](../src/tb_internet_use/request/target_tables.py). Basis: manuals.
+Module: [`interpret/request/target_tables.py`](../src/tb_internet_use/interpret/request/target_tables.py). Basis: manuals.
 
 Programs whose first target is the host they connect to or look up, e.g. a.org in `nc a.org 80` or `nslookup a.org`. Later targets are not read.
 
@@ -212,7 +212,7 @@ Programs whose first target is the host they connect to or look up, e.g. a.org i
 
 ### `PROGRAMS_WITH_HOST_AS_EVERY_TARGET`
 
-Module: [`request/target_tables.py`](../src/tb_internet_use/request/target_tables.py). Basis: manuals.
+Module: [`interpret/request/target_tables.py`](../src/tb_internet_use/interpret/request/target_tables.py). Basis: manuals.
 
 Name lookup programs whose every target is a host, e.g. a.org and b.org in `getent hosts a.org b.org`.
 
@@ -220,7 +220,7 @@ Name lookup programs whose every target is a host, e.g. a.org and b.org in `gete
 
 ### `NETWORK_CALL_OF_LANGUAGE`
 
-Module: [`request/code_request_tables.py`](../src/tb_internet_use/request/code_request_tables.py). Basis: trajectories, manuals.
+Module: [`interpret/request/code_request_tables.py`](../src/tb_internet_use/interpret/request/code_request_tables.py). Basis: trajectories, manuals.
 
 Network calls in code, by language. One request per code text, however many of these it holds.
 
@@ -231,7 +231,7 @@ Network calls in code, by language. One request per code text, however many of t
 
 ### `PROGRAM_RUN_BY_CODE`
 
-Module: [`request/code_request_tables.py`](../src/tb_internet_use/request/code_request_tables.py). Basis: manuals.
+Module: [`interpret/request/code_request_tables.py`](../src/tb_internet_use/interpret/request/code_request_tables.py). Basis: manuals.
 
 A program that the code runs, e.g. pip in `subprocess.run(["pip", "install", "x"])` or `os.system("python -m pip install x")`. The name is a whole word of a string, so `.git` in `["rm", "-rf", ".git"]` names no program.
 
@@ -241,7 +241,7 @@ A program that the code runs, e.g. pip in `subprocess.run(["pip", "install", "x"
 
 ### `HOST_NAMED_BY_CODE`
 
-Module: [`request/code_request_tables.py`](../src/tb_internet_use/request/code_request_tables.py). Basis: trajectories.
+Module: [`interpret/request/code_request_tables.py`](../src/tb_internet_use/interpret/request/code_request_tables.py). Basis: trajectories.
 
 Hosts that code names as an address tuple, e.g. ("api", 8000), or as the argument of a name lookup. The tuple's parenthesis follows no name, so call arguments such as `d.get("count", 0)` are no address.
 
@@ -251,7 +251,7 @@ Hosts that code names as an address tuple, e.g. ("api", 8000), or as the argumen
 
 ### `SCHEMA_HOST_NAMES`
 
-Module: [`request/code_request_tables.py`](../src/tb_internet_use/request/code_request_tables.py). Basis: trajectories.
+Module: [`interpret/request/code_request_tables.py`](../src/tb_internet_use/interpret/request/code_request_tables.py). Basis: trajectories.
 
 Hosts of XML namespaces and schemas, whose URLs code uses as names and does not fetch unless they name a file.
 
@@ -259,7 +259,7 @@ Hosts of XML namespaces and schemas, whose URLs code uses as names and does not 
 
 ### `PROGRAM_OUTPUT_LINE_PATTERNS`
 
-Module: [`observation/line_pattern_tables.py`](../src/tb_internet_use/observation/line_pattern_tables.py). Basis: trajectories.
+Module: [`interpret/observation/line_pattern_tables.py`](../src/tb_internet_use/interpret/observation/line_pattern_tables.py). Basis: trajectories.
 
 Lines that programs print, read in every call's output except a web tool result.
 
@@ -306,7 +306,7 @@ The first matching row decides, so the order of the rows matters.
 
 ### `WEB_TOOL_RESULT_LINE_PATTERNS`
 
-Module: [`observation/line_pattern_tables.py`](../src/tb_internet_use/observation/line_pattern_tables.py). Basis: trajectories.
+Module: [`interpret/observation/line_pattern_tables.py`](../src/tb_internet_use/interpret/observation/line_pattern_tables.py). Basis: trajectories.
 
 Web tool results are page text, so only a page that a server gave instead of the content counts, e.g. a robot check.
 
@@ -322,22 +322,22 @@ These rules about programs, output, hosts and package names stay in logic module
 
 | Rule | Module | What it holds |
 |---|---|---|
-| `_VERSION_SUFFIX` | `shell/programs.py` | A version at the end of a program name, e.g. 3.11 in python3.11 or -12 in gcc-12. |
-| `_find_exec_words` | `shell/programs.py` | Take the command of `find -exec` or `-execdir`, without its `{}` and its `;` or `+` end. |
-| `_python_module_words` | `shell/programs.py` | Take the module and its arguments from `python [options] -m module ...`, empty without -m. |
-| `_shell_invocation` | `shell/programs.py` | Read a shell's options up to the first operand, which is the text when -c is given, or else the file it runs. |
-| `WrittenFiles.record_command` | `callrun/written_files.py` | Record what a command writes, i.e. files it redirects to, `tee` files, `sed -i` files and the destination of `cp` or `mv`. |
-| `tee_file_destinations` | `callrun/output_routes.py` | List the files a `tee` command writes its input to, appending with -a, e.g. log in `tee -a log`. |
-| `_command_reads` | `callrun/file_reads.py` | List the files that a reading command reads, i.e. the files it names, e.g. fetch.log in `tail -n 5 fetch.log`, and its stdin file, e.g. log in `grep x < log`. |
-| `_KEY_PRESS_CHARACTERS` | `callrun/poll_links.py` | Characters that typed input holds when it only presses keys, e.g. Enter or Ctrl-C. |
-| `_ENDED_STATUSES` | `callrun/poll_links.py` | Statuses of a poll that saw the polled command end. |
-| `_rule_after_options` | `request/program_options.py` | Change a request rule by the curl or wget options that change what a run prints and what its exit code 0 means. |
-| `_SCP_LIKE_ADDRESS` | `request/targets.py` | A remote git address without a scheme, e.g. github.com in `git@github.com:org/repo.git`. The host needs a user or a dot, so a refspec such as `main:main` in `git fetch origin main:main` is no address. |
-| `_SCHEMELESS_HOST` | `request/targets.py` | A host at the start of a URL without a scheme, e.g. pypi.org in `pypi.org/simple` or localhost in `localhost:8000/x`. |
-| `_PATH_OR_URL` | `request/targets.py` | Targets that name a local path, a URL or an archive instead of a package, e.g. `./dist/x.whl`, `.` or `.[dev]`. |
-| `_remote_host_names` | `request/targets.py` | Find the hosts a direct connection names, e.g. host for `nc host 80` or `rsync f host:/x`, and both for `dig @8.8.8.8 a.org`. |
-| `_URL` | `request/code_requests.py` | A URL with an http or https scheme, ending before a space, a quote, a backtick, an angle bracket or a closing bracket. |
-| `_is_schema_name` | `request/code_requests.py` | Check whether a URL is an XML namespace or schema name rather than a file, e.g. `http://www.w3.org/2000/svg`. |
+| `_VERSION_SUFFIX` | `parse/shell/programs.py` | A version at the end of a program name, e.g. 3.11 in python3.11 or -12 in gcc-12. |
+| `_find_exec_words` | `parse/shell/programs.py` | Take the command of `find -exec` or `-execdir`, without its `{}` and its `;` or `+` end. |
+| `_python_module_words` | `parse/shell/programs.py` | Take the module and its arguments from `python [options] -m module ...`, empty without -m. |
+| `_shell_invocation` | `parse/shell/programs.py` | Read a shell's options up to the first operand, which is the text when -c is given, or else the file it runs. |
+| `WrittenFiles.record_command` | `interpret/callrun/_written_files.py` | Record what a command writes, i.e. files it redirects to, `tee` files, `sed -i` files and the destination of `cp` or `mv`. |
+| `tee_file_destinations` | `interpret/callrun/_output_routes.py` | List the files a `tee` command writes its input to, appending with -a, e.g. log in `tee -a log`. |
+| `_command_reads` | `interpret/callrun/_file_reads.py` | List the files that a reading command reads, i.e. the files it names, e.g. fetch.log in `tail -n 5 fetch.log`, and its stdin file, e.g. log in `grep x < log`. |
+| `_KEY_PRESS_CHARACTERS` | `interpret/callrun/_poll_links.py` | Characters that typed input holds when it only presses keys, e.g. Enter or Ctrl-C. |
+| `_ENDED_STATUSES` | `interpret/callrun/_poll_links.py` | Statuses of a poll that saw the polled command end. |
+| `_rule_after_options` | `interpret/request/_program_options.py` | Change a request rule by the curl or wget options that change what a run prints and what its exit code 0 means. |
+| `_SCP_LIKE_ADDRESS` | `interpret/request/_targets.py` | A remote git address without a scheme, e.g. github.com in `git@github.com:org/repo.git`. The host needs a user or a dot, so a refspec such as `main:main` in `git fetch origin main:main` is no address. |
+| `_SCHEMELESS_HOST` | `interpret/request/_targets.py` | A host at the start of a URL without a scheme, e.g. pypi.org in `pypi.org/simple` or localhost in `localhost:8000/x`. |
+| `_PATH_OR_URL` | `interpret/request/_targets.py` | Targets that name a local path, a URL or an archive instead of a package, e.g. `./dist/x.whl`, `.` or `.[dev]`. |
+| `_remote_host_names` | `interpret/request/_targets.py` | Find the hosts a direct connection names, e.g. host for `nc host 80` or `rsync f host:/x`, and both for `dig @8.8.8.8 a.org`. |
+| `_URL` | `interpret/request/_code_requests.py` | A URL with an http or https scheme, ending before a space, a quote, a backtick, an angle bracket or a closing bracket. |
+| `_is_schema_name` | `interpret/request/_code_requests.py` | Check whether a URL is an XML namespace or schema name rather than a file, e.g. `http://www.w3.org/2000/svg`. |
 | `_TEMPLATE_CHARACTER` | `network/hosts.py` | A character that a shell or code template computes, e.g. $ in `$HOST` or { in `{host}`. |
 | `_LOCAL_NAME` | `network/hosts.py` | Names that resolve to this machine or its private network, e.g. localhost or db.internal. |
 | `_RESERVED_NAME` | `network/hosts.py` | Names reserved for examples and tests by RFC 2606 and RFC 6761, e.g. example.com or x.test. |
@@ -345,4 +345,4 @@ These rules about programs, output, hosts and package names stay in logic module
 | `_AFTER_NAME` | `network/package_names.py` | Where a version, an extra, an architecture or a list separator starts after a name, e.g. == in `requests==2.0`. |
 | `_DASHED_VERSION_AT_END` | `network/package_names.py` | A version after a dash at the end of a name, e.g. -2.32.3 in `requests-2.32.3`. A dash before a digit inside a name stays, e.g. in the apt package `openjdk-17-jdk`. |
 | `_SEPARATORS` | `network/package_names.py` | Runs of separators that package indexes treat as one, e.g. `_` and `.` in `Typing_Extensions`. |
-| `_ANSI_CSI_SEQUENCE` | `observation/extract.py` | An ANSI control sequence of the CSI form, i.e. ESC and `[`, then parameter and intermediate bytes and a final byte, e.g. the color code `\x1b[32m`. |
+| `_ANSI_CSI_SEQUENCE` | `interpret/observation/_extract_observations.py` | An ANSI control sequence of the CSI form, i.e. ESC and `[`, then parameter and intermediate bytes and a final byte, e.g. the color code `\x1b[32m`. |

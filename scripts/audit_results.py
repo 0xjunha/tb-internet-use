@@ -20,12 +20,12 @@ from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import Any
 
-from tb_internet_use.toolcall.atif_reader import read_trial_tool_calls
-from tb_internet_use.toolcall.catalog_loader import CATALOGS_DIR
-from tb_internet_use.toolcall.convert import convert_call
-from tb_internet_use.toolcall.harnesses import converter_for
-from tb_internet_use.toolcall.harnesses.claude_code import structured_result
-from tb_internet_use.toolcall.model import (
+from tb_internet_use.parse.toolcall.atif_reader import read_trial_tool_calls
+from tb_internet_use.parse.toolcall.catalog_loader import CATALOGS_DIR
+from tb_internet_use.parse.toolcall.convert import convert_call
+from tb_internet_use.parse.toolcall.harnesses import converter_for
+from tb_internet_use.parse.toolcall.harnesses.claude_code import structured_result
+from tb_internet_use.parse.toolcall.model import (
     PollAction,
     RawToolCall,
     ReadFileAction,
@@ -33,14 +33,14 @@ from tb_internet_use.toolcall.model import (
     ToolCall,
     UnmatchedFormat,
 )
-from tb_internet_use.toolcall.result_format_audit import (
+from tb_internet_use.parse.toolcall.result_format_audit import (
     all_matches,
     format_kind,
     harness_text_patterns,
     iter_declared_formats,
     render_text_format,
 )
-from tb_internet_use.toolcall.result_formats import (
+from tb_internet_use.parse.toolcall.result_formats import (
     HarnessResultFormat,
     HarnessTextResultFormat,
     MatchedValues,
