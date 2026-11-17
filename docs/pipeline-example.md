@@ -63,7 +63,7 @@ Outside knowledge is the facts that no trajectory holds. Each step asks for it t
 ## Step 1: convert tool calls
 
 Each call is converted from its harness's own format into a `ToolCall`, which holds what the call asked for (its action) and what came back (its output).
-The command text is split into commands by shell grammar alone, with when each runs and where its output goes. Command ids are 0-based and unique within a call.
+The command string (`command_str`) of each `RunCommandAction` is a shell text, split into commands by shell grammar alone, with when each runs and where its output goes, into its `parsed_shell_text`. Command ids are 0-based and unique within a call.
 
 | Asked through `ToolCallKnowledge` | Answer in this example |
 |---|---|
@@ -74,31 +74,37 @@ The command text is split into commands by shell grammar alone, with when each r
 ```python
 c1.action = RunCommandAction(
     command_str="curl -sS --connect-timeout 30 -O https://a.example.org/x.tgz; curl -sS ... -O https://b.example.org/y.tgz; echo done",
-    commands=(
-        ShellCommand(id=0, words=("curl", "-sS", "--connect-timeout", "30", "-O", "https://a.example.org/x.tgz")),
-        ShellCommand(id=1, words=("curl", "-sS", "--connect-timeout", "30", "-O", "https://b.example.org/y.tgz")),
-        ShellCommand(id=2, words=("echo", "done")),
+    parsed_shell_text=ParsedShellText(
+        commands=(
+            ShellCommand(id=0, words=("curl", "-sS", "--connect-timeout", "30", "-O", "https://a.example.org/x.tgz")),
+            ShellCommand(id=1, words=("curl", "-sS", "--connect-timeout", "30", "-O", "https://b.example.org/y.tgz")),
+            ShellCommand(id=2, words=("echo", "done"), succeeded_if_text_exits_zero=True),
+        ),
+        variable_assignments=(),
     ),
 )
-# The exit code is echo's, so it says nothing about either curl.
+# The exit code is echo's, so it says nothing about either curl. Only echo has `succeeded_if_text_exits_zero`.
 c1.result = ToolCallResult(execution_status=FINISHED, exit_code=0, tool_output_text="curl: (28) ...\ndone")
 
 c3.action = RunCommandAction(
     command_str="bash fetch.sh > fetch.log 2>&1 || pip install requests",
-    commands=(
-        # The redirect covers only command 0, and `2>&1` sends stderr where stdout goes.
-        ShellCommand(
-            id=0,
-            words=("bash", "fetch.sh"),
-            stdout=FileDestination("fetch.log", appends=False),
-            stderr=FileDestination("fetch.log", appends=False),
+    parsed_shell_text=ParsedShellText(
+        commands=(
+            # The redirect covers only command 0, and `2>&1` sends stderr where stdout goes.
+            ShellCommand(
+                id=0,
+                words=("bash", "fetch.sh"),
+                stdout=FileDestination("fetch.log", appends=False),
+                stderr=FileDestination("fetch.log", appends=False),
+            ),
+            # It runs only if command 0 failed, and its output goes to the call's result.
+            ShellCommand(
+                id=1,
+                words=("pip", "install", "requests"),
+                runs_if=(RunCondition((0,), ExitOutcome.FAILURE),),
+            ),
         ),
-        # It runs only if command 0 failed, and its output goes to the call's result.
-        ShellCommand(
-            id=1,
-            words=("pip", "install", "requests"),
-            runs_if=(RunCondition((0,), ExitOutcome.FAILURE),),
-        ),
+        variable_assignments=(),
     ),
 )
 c3.result = ToolCallResult(execution_status=RUNNING, handles=(ExecutionHandle(COMMAND, "task-1"),))

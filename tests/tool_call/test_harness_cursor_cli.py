@@ -33,6 +33,7 @@ from tb_internet_use.tool_call.model import (
     WebFetchAction,
     WebSearchAction,
 )
+from tb_internet_use.tool_call.parse_shell_text import parse_shell_text
 
 S = ExecutionStatus
 CONVERTER = CursorCliConverter()
@@ -272,7 +273,13 @@ RESULT_FORMAT_CASES: list[tuple[str, dict[str, Any], ToolCallResult]] = [
 # Every argument row has a case, and every `PollAction` states its `terminate`.
 # (tool, arguments in the trajectory, expected action)
 ACTION_CASES: list[tuple[str, dict[str, Any], ToolCallAction]] = [
-    ("shellToolCall", {"command": "ls /app"}, RunCommandAction("ls /app")),
+    (
+        "shellToolCall",
+        {"command": "ls /app"},
+        RunCommandAction(
+            "ls /app", parse_shell_text("ls /app", judgment_rule_use_counts=Counter())
+        ),
+    ),
     (
         "readToolCall",
         {"path": "/app/a.py", "offset": 10, "limit": 20},

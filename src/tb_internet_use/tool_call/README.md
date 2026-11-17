@@ -7,7 +7,7 @@ The step "Convert tool calls" of the [pipeline](../../../README.md#pipeline), wh
 | [Data model](#data-model) | [model.py](model.py) |
 | [Tool call labeling](#tool-call-labeling) | [knowledge/](../knowledge/README.md) |
 | [Conversion](#conversion), [Result formats](#result-formats) | [_convert_tool_calls.py](_convert_tool_calls.py), [_convert_tool_call_action.py](_convert_tool_call_action.py), [_convert_tool_call_result.py](_convert_tool_call_result.py), [harnesses/](harnesses/), [judgment_rules.py](judgment_rules.py) |
-| [Shell texts](#shell-texts) | [parse_shell_text.py](parse_shell_text.py) |
+| [Shell texts](#shell-texts) | [_convert_parsed_shell_texts.py](_convert_parsed_shell_texts.py), [parse_shell_text.py](parse_shell_text.py) |
 
 ## Data model
 
@@ -31,7 +31,7 @@ A tool that touches the task environment gets the type for what it does, the sam
 
 | `ToolCallAction` | What the tool does | e.g. |
 |---|---|---|
-| `RunCommandAction` | Runs a string in a shell. `parsed_shell_text` is to hold that string split into commands and is not filled yet | Claude Code `Bash`, Codex `exec_command` |
+| `RunCommandAction` | Runs a string in a shell. `parsed_shell_text` holds that string split into commands | Claude Code `Bash`, Codex `exec_command` |
 | `RunToolScriptAction` | Runs code that calls harness tools, with one step per tool call found in the code | Codex `exec` |
 | `WriteFileAction` | Writes a whole file | Claude Code `Write` |
 | `EditFileAction` | Replaces text in a file | Grok Build `search_replace` |
@@ -56,6 +56,10 @@ Text that a command runs, e.g. `curl u` in `bash -c 'curl u'`, stays one word of
 | `UnreadableShellText` | A text with a syntax error that gives no command at all, e.g. `)))` |
 | `ShellCommand` | One simple command: its words, when it runs (`runs_if`, loop, function or case body), where its stdin comes from and its stdout and stderr go, and whether a syntax error, a brace list or joined lines may have made these wrong |
 
+[`convert_parsed_shell_texts`](_convert_parsed_shell_texts.py) calls `parse_shell_text` on each command string of the action that `convert_tool_call_action` builds and puts the result in `RunCommandAction.parsed_shell_text`, which stays None when the trajectory has no command string.
+A Codex `exec` script can run several command strings, one per `RunCommandAction` step, and the command ids go on across its steps, e.g. 0 and 1 for `a; b` in the first step and 2 for `c` in the next, so that they are unique within the call.
+[`audit_parsed_shell_texts.py`](../../../scripts/audit_parsed_shell_texts.py) checks on raw trials that every parsed shell text holds together, e.g. that the ids of a call go 0, 1, 2 and that a pipe reader is a command of the same shell text, and counts the shell texts, commands and `UnreadableShellText`s of each harness under `out/parsed_shell_texts/`.
+
 ## Tool call labeling
 
 What each harness tool does is outside knowledge, which no trajectory holds. It is kept in the [harness tool catalog](../knowledge/catalogs/tool_call/README.md), hand-filled CSVs under [knowledge/](../knowledge/README.md): one row per harness tool, one row per argument that fills an action field, and one row per text that a tool writes in place of an exit code, e.g. `No matches found` in a Claude Code `Bash` result.
@@ -79,6 +83,7 @@ Tools whose `ToolCallAction` varies by call are labeled [`Deferred`](../knowledg
 | Match the result against the harness's declared result formats | [`_convert_tool_call_result.py`](_convert_tool_call_result.py), one [`HarnessToolCallConverter`](harnesses/harness_tool_call_converter.py) per harness in [harnesses/](harnesses/), with the formats from [`tool_call_knowledge.py`](../knowledge/tool_call_knowledge.py) | `ToolCallResult` |
 | Build the action from the label of the tool and the arguments, with the result at hand | [`_convert_tool_call_action.py`](_convert_tool_call_action.py), with the label from [`tool_call_knowledge.py`](../knowledge/tool_call_knowledge.py) | `ToolCallAction`, `UnknownAction` for a tool without a row or for a call whose two arguments give a field of one value different values |
 | Fill what the action type and argument fields of a label cannot express, e.g. the handles a result names, the terminate of a stop tool, Deferred tools | `HarnessToolCallConverter.refine_action`, `action_of_deferred_tool` | `ToolCallAction` |
+| Split each command string of the action into commands | [`_convert_parsed_shell_texts.py`](_convert_parsed_shell_texts.py), which calls the reading function [`parse_shell_text`](parse_shell_text.py) | `RunCommandAction.parsed_shell_text`: `ParsedShellText`, or `UnreadableShellText` for a text with a syntax error and no command |
 
 ## Result formats
 

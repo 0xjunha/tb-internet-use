@@ -32,6 +32,7 @@ from tb_internet_use.tool_call.model import (
     WebSearchAction,
     WriteFileAction,
 )
+from tb_internet_use.tool_call.parse_shell_text import parse_shell_text
 
 S = ExecutionStatus
 CONVERTER = CodexConverter()
@@ -338,7 +339,9 @@ ACTION_CASES: list[tuple[str, dict[str, Any], ToolCallAction]] = [
     (
         "exec_command",
         {"cmd": "ls /app", "yield_time_ms": 1000},
-        RunCommandAction("ls /app"),
+        RunCommandAction(
+            "ls /app", parse_shell_text("ls /app", judgment_rule_use_counts=Counter())
+        ),
     ),
     ("view_image", {"path": "/app/plot.png"}, ReadFileAction("/app/plot.png")),
     (
@@ -558,7 +561,12 @@ def test_exec_steps_are_the_actions_of_the_tool_calls_in_its_script():
     assert _script_action(code) == RunToolScriptAction(
         code,
         (
-            RunCommandAction("curl -O https://a.org/f"),
+            RunCommandAction(
+                "curl -O https://a.org/f",
+                parse_shell_text(
+                    "curl -O https://a.org/f", judgment_rule_use_counts=Counter()
+                ),
+            ),
             PollAction(
                 (ExecutionHandle(ExecutionHandleKind.COMMAND, "7"),), "\x03", True
             ),

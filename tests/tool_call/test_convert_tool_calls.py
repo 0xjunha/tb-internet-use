@@ -36,6 +36,7 @@ from tb_internet_use.tool_call.model import (
     WriteFileAction,
     strings_from_values,
 )
+from tb_internet_use.tool_call.parse_shell_text import parse_shell_text
 
 S = ExecutionStatus
 
@@ -304,7 +305,9 @@ def test_maps_labeled_args_and_ignores_the_rest():
     harness_tool_call = _harness_tool_call(
         "claude-code", "Bash", {"command": "ls", "timeout": 5}
     )
-    assert _converted(harness_tool_call).action == RunCommandAction("ls")
+    assert _converted(harness_tool_call).action == RunCommandAction(
+        "ls", parse_shell_text("ls", judgment_rule_use_counts=Counter())
+    )
 
 
 def test_converts_the_result_when_the_trajectory_has_one():
@@ -408,7 +411,14 @@ def test_deferred_tool_uses_deferred_action_with_the_result():
         "codex", "exec", {"input": "code"}, {"content": "done"}
     )
     action = _converted(harness_tool_call, _ScriptConverter()).action
-    assert action == RunToolScriptAction("code", (RunCommandAction("done"),))
+    assert action == RunToolScriptAction(
+        "code",
+        (
+            RunCommandAction(
+                "done", parse_shell_text("done", judgment_rule_use_counts=Counter())
+            ),
+        ),
+    )
 
 
 def test_deferred_tool_without_an_implementation_raises():
@@ -426,7 +436,9 @@ def test_convert_tool_calls_converts_every_call_of_its_harness_and_counts_lookup
     first, second = convert_tool_calls(
         raws, knowledge=knowledge, judgment_rule_use_counts=Counter()
     )
-    assert first.action == RunCommandAction("ls")
+    assert first.action == RunCommandAction(
+        "ls", parse_shell_text("ls", judgment_rule_use_counts=Counter())
+    )
     assert first.result is not None and first.result.tool_output_text == "out"
     assert second.action == UnknownAction()
     assert knowledge.uses == KnowledgeUses(

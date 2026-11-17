@@ -29,22 +29,6 @@ from tb_internet_use.tool_call.parse_shell_text import (
 
 SUCCESS = ExitOutcome.SUCCESS
 FAILURE = ExitOutcome.FAILURE
-# A made-up text whose lines tree-sitter-bash still joins after three repairs, e.g. `f j` from the lines `d 2>/dev/null | e | f` and `j 2>&1`, while the tree has no syntax error.
-TEXT_JOINED_AFTER_THREE_REPAIRS = (
-    "d 2>/dev/null | e | f\n"
-    "v | w\n"
-    "{ a | b | c\n"
-    "d 2>/dev/null | e | f\n"
-    "v | w\n"
-    "}\n"
-    "d 2>/dev/null | e | f\n"
-    "j 2>&1\n"
-    "x 2>&1 | y | z | w\n"
-    "a 2>&1 | b | c\n"
-    "}\n"
-    "j 2>&1\n"
-    "z"
-)
 
 # (text, the whole expected result), where a field left out has its default
 WHOLE_RESULT_CASES = [
@@ -1126,10 +1110,12 @@ def test_several_joined_lines_are_kept_apart(text: str, first_words: str):
     assert use_counts == Counter()
 
 
-def test_lines_joined_after_three_repairs_are_left_joined_marked_and_counted():
+def test_lines_joined_after_three_repairs_are_left_joined_marked_and_counted(
+    shell_text_joined_after_three_repairs: str,
+):
     use_counts: Counter[str] = Counter()
     parsed = parse_shell_text(
-        TEXT_JOINED_AFTER_THREE_REPAIRS, judgment_rule_use_counts=use_counts
+        shell_text_joined_after_three_repairs, judgment_rule_use_counts=use_counts
     )
     assert isinstance(parsed, ParsedShellText)
     assert ("f", "j") in [c.words for c in parsed.commands]
@@ -1140,14 +1126,14 @@ def test_lines_joined_after_three_repairs_are_left_joined_marked_and_counted():
 
 
 def test_lines_joined_after_three_repairs_are_repaired_on_when_the_rule_says_no(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, shell_text_joined_after_three_repairs: str
 ):
     monkeypatch.setattr(
         parse_shell_text_module,
         treat_lines_joined_after_three_repairs_as_left_joined.__name__,
         lambda repair_count, *, use_counts: False,
     )
-    parsed = _parsed_shell_text_of(TEXT_JOINED_AFTER_THREE_REPAIRS)
+    parsed = _parsed_shell_text_of(shell_text_joined_after_three_repairs)
     assert all(len(c.words) == 1 for c in parsed.commands)
     assert not any(c.structure_may_be_wrong for c in parsed.commands)
 

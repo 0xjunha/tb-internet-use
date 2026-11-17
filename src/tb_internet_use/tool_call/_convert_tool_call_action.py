@@ -1,7 +1,11 @@
 """Build the `ToolCallAction` of one tool call from the label of its tool and its arguments."""
 
+from collections import Counter
 from typing import TYPE_CHECKING, Any
 
+from tb_internet_use.tool_call._convert_parsed_shell_texts import (
+    convert_parsed_shell_texts,
+)
 from tb_internet_use.tool_call.model import (
     DEFERRED,
     TOOL_CALL_ACTION_CLASSES,
@@ -32,24 +36,35 @@ def convert_tool_call_action(
     converter: HarnessToolCallConverter,
     *,
     knowledge: ToolCallKnowledge,
+    judgment_rule_use_counts: Counter[str],
 ) -> ToolCallAction:
     """Build the `ToolCallAction` of one call from the label of its tool, its arguments and its converted result.
 
     A tool without a label gives `UnknownAction`.
     A tool labeled `DEFERRED` gets its action from the converter of its harness.
     Any other tool gets it from the label and the arguments, and the converter then fills what the label cannot express.
+    Each command string of the action, e.g. of a Claude Code `Bash` call or of a step of a Codex `exec` script, is then split into commands.
     """
     label = knowledge.harness_tool_label(
         harness_tool_call.tool, harness_tool_call.args.keys()
     )
+    action: ToolCallAction
     if isinstance(label, UnknownHarnessToolLabel):
-        return UnknownAction()
-    if label.action_type == DEFERRED:
-        return converter.action_of_deferred_tool(
+        action = UnknownAction()
+    elif label.action_type == DEFERRED:
+        action = converter.action_of_deferred_tool(
             harness_tool_call, tool_call_result, knowledge=knowledge
         )
-    action = action_from_label(label, harness_tool_call.args)
-    return converter.refine_action(harness_tool_call, action, tool_call_result, label)
+    else:
+        action = converter.refine_action(
+            harness_tool_call,
+            action_from_label(label, harness_tool_call.args),
+            tool_call_result,
+            label,
+        )
+    return convert_parsed_shell_texts(
+        action, judgment_rule_use_counts=judgment_rule_use_counts
+    )
 
 
 def action_from_label(label: HarnessToolLabel, args: dict[str, Any]) -> ToolCallAction:

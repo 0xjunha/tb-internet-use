@@ -57,6 +57,10 @@ def convert_one_tool_call(
         judgment_rule_use_counts=judgment_rule_use_counts,
     )
     action = convert_tool_call_action(
-        harness_tool_call, tool_call_result, converter, knowledge=knowledge
+        harness_tool_call,
+        tool_call_result,
+        converter,
+        knowledge=knowledge,
+        judgment_rule_use_counts=judgment_rule_use_counts,
     )
     return ToolCall(harness_tool_call, action, tool_call_result)

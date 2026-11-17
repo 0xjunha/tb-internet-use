@@ -28,6 +28,7 @@ from tb_internet_use.tool_call.model import (
     UnmatchedFormat,
     WriteFileAction,
 )
+from tb_internet_use.tool_call.parse_shell_text import parse_shell_text
 
 S = ExecutionStatus
 CONVERTER = GrokBuildConverter()
@@ -425,11 +426,22 @@ RESULT_FORMAT_CASES: list[tuple[str, str, ToolCallResult]] = [
 # Every argument row has a case, and every `PollAction` states its `terminate`.
 # (tool, arguments in the trajectory, expected action)
 ACTION_CASES: list[tuple[str, dict[str, Any], ToolCallAction]] = [
-    ("run_terminal_command", {"command": "ls /app"}, RunCommandAction("ls /app")),
+    (
+        "run_terminal_command",
+        {"command": "ls /app"},
+        RunCommandAction(
+            "ls /app", parse_shell_text("ls /app", judgment_rule_use_counts=Counter())
+        ),
+    ),
     (
         "monitor",
         {"command": "tail -f /app/run.log"},
-        RunCommandAction("tail -f /app/run.log"),
+        RunCommandAction(
+            "tail -f /app/run.log",
+            parse_shell_text(
+                "tail -f /app/run.log", judgment_rule_use_counts=Counter()
+            ),
+        ),
     ),
     (
         "read_file",

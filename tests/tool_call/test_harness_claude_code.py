@@ -44,6 +44,7 @@ from tb_internet_use.tool_call.model import (
     WebSearchAction,
     WriteFileAction,
 )
+from tb_internet_use.tool_call.parse_shell_text import parse_shell_text
 
 S = ExecutionStatus
 CONVERTER = ClaudeCodeConverter()
@@ -620,7 +621,13 @@ RESULT_FORMAT_CASES: list[tuple[str, dict[str, Any], ToolCallResult]] = [
 # Every argument row has a case, and every `PollAction` states its `terminate`.
 # (tool, arguments in the trajectory, expected action)
 ACTION_CASES: list[tuple[str, dict[str, Any], ToolCallAction]] = [
-    ("Bash", {"command": "ls /app", "timeout": 5000}, RunCommandAction("ls /app")),
+    (
+        "Bash",
+        {"command": "ls /app", "timeout": 5000},
+        RunCommandAction(
+            "ls /app", parse_shell_text("ls /app", judgment_rule_use_counts=Counter())
+        ),
+    ),
     (
         "Edit",
         {"file_path": "/app/a.py", "old_string": "x = 1", "new_string": "x = 2"},

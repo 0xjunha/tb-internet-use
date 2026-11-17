@@ -21,6 +21,7 @@ from tb_internet_use.tool_call.model import (
     ToolCallResult,
     UnmatchedFormat,
 )
+from tb_internet_use.tool_call.parse_shell_text import parse_shell_text
 
 S = ExecutionStatus
 CONVERTER = converter_for("mini-swe-agent")
@@ -104,7 +105,13 @@ RESULT_FORMAT_CASES: list[tuple[str, dict[str, Any], ToolCallResult]] = [
 # Every argument row has a case, and every `PollAction` states its `terminate`.
 # (tool, arguments in the trajectory, expected action)
 ACTION_CASES: list[tuple[str, dict[str, Any], ToolCallAction]] = [
-    ("bash", {"command": "ls /app"}, RunCommandAction("ls /app")),
+    (
+        "bash",
+        {"command": "ls /app"},
+        RunCommandAction(
+            "ls /app", parse_shell_text("ls /app", judgment_rule_use_counts=Counter())
+        ),
+    ),
 ]
 
 
