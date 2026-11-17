@@ -66,7 +66,7 @@ def catalog_rows_from_declarations() -> list[dict[str, str]]:
             "format": fmt.name,
             "kind": format_kind_of(fmt),
             "template": describe_format(fmt),
-            "status": fmt.status.value,
+            "status": _status_label_of(fmt),
             "is_truncated": _truncation_label_of(fmt),
             "no_tool_output_text": "True" if fmt.no_tool_output_text else "",
             "handle_kind": handle_kind_label_of(fmt),
@@ -102,6 +102,13 @@ def describe_format(fmt: HarnessResultFormat[Any]) -> str:
         condition = fmt.condition
         rules.append(f"{condition.path} {condition.op} {condition.value!r}")
     return " ".join(rules)
+
+
+def _status_label_of(fmt: HarnessResultFormat[Any]) -> str:
+    """The status a format states, or `by <judgment rule>` for a format whose judgment rule decides it, for the catalog."""
+    if fmt.status is None:
+        return f"by {fmt.judgment_rule}"
+    return fmt.status.value
 
 
 def _truncation_label_of(fmt: HarnessResultFormat[Any]) -> str:

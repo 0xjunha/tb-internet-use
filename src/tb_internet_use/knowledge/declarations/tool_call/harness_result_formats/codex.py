@@ -3,9 +3,11 @@
 from collections.abc import Mapping
 
 from tb_internet_use.knowledge.harness_result_format_declaration import (
+    HarnessJsonResultFormat,
     HarnessResultFormatList,
     HarnessTextResultFormat,
     HarnessToolResultDeclaration,
+    JsonObject,
 )
 from tb_internet_use.tool_call.model import (
     ExecutionHandleKind,
@@ -14,6 +16,7 @@ from tb_internet_use.tool_call.model import (
 
 S = ExecutionStatus
 Text = HarnessTextResultFormat
+Json = HarnessJsonResultFormat
 
 _HEAD = "Chunk ID: {chunk:id}\nWall time: {seconds:line_without_brackets} seconds\n"
 _PROCESS_EXITED = "Process exited with code {exit_code:int}\n"
@@ -27,14 +30,34 @@ _TRUNCATED_NO_LINE_COUNT = (
 
 _V2 = "Wall time: {seconds:line_without_brackets} seconds\nOutput:\n"
 
-_SHELL = HarnessResultFormatList[str](
+# Formats that exec_command and write_stdin share, of a command that exited or still runs.
+_SHELL_EXITED_TRUNCATED = Text(
+    "exited_truncated",
+    _HEAD + _PROCESS_EXITED + _TOKENS + _TRUNCATED + "{tool_output:text}",
+    S.FINISHED,
+    is_truncated=True,
+)
+_SHELL_EXITED = Text(
+    "exited",
+    _HEAD + _PROCESS_EXITED + _TOKENS + "{tool_output:text}",
+    S.FINISHED,
+)
+_SHELL_RUNNING_TRUNCATED = Text(
+    "running_truncated",
+    _HEAD + _PROCESS_RUNNING + _TOKENS + _TRUNCATED + "{tool_output:text}",
+    S.RUNNING,
+    is_truncated=True,
+    fixed_handle_kind=ExecutionHandleKind.COMMAND,
+)
+_SHELL_RUNNING = Text(
+    "running",
+    _HEAD + _PROCESS_RUNNING + _TOKENS + "{tool_output:text}",
+    S.RUNNING,
+    fixed_handle_kind=ExecutionHandleKind.COMMAND,
+)
+_EXEC_COMMAND = HarnessResultFormatList[str](
     (
-        Text(
-            "exited_truncated",
-            _HEAD + _PROCESS_EXITED + _TOKENS + _TRUNCATED + "{tool_output:text}",
-            S.FINISHED,
-            is_truncated=True,
-        ),
+        _SHELL_EXITED_TRUNCATED,
         Text(
             "exited_truncated_no_line_count",
             _HEAD
@@ -45,24 +68,9 @@ _SHELL = HarnessResultFormatList[str](
             S.FINISHED,
             is_truncated=True,
         ),
-        Text(
-            "exited",
-            _HEAD + _PROCESS_EXITED + _TOKENS + "{tool_output:text}",
-            S.FINISHED,
-        ),
-        Text(
-            "running_truncated",
-            _HEAD + _PROCESS_RUNNING + _TOKENS + _TRUNCATED + "{tool_output:text}",
-            S.RUNNING,
-            is_truncated=True,
-            fixed_handle_kind=ExecutionHandleKind.COMMAND,
-        ),
-        Text(
-            "running",
-            _HEAD + _PROCESS_RUNNING + _TOKENS + "{tool_output:text}",
-            S.RUNNING,
-            fixed_handle_kind=ExecutionHandleKind.COMMAND,
-        ),
+        _SHELL_EXITED,
+        _SHELL_RUNNING_TRUNCATED,
+        _SHELL_RUNNING,
         Text(
             "v2_exited",
             _V2
@@ -80,6 +88,14 @@ _SHELL = HarnessResultFormatList[str](
             "apply_patch verification failed: {reason:text}",
             S.NOT_RUN,
         ),
+    )
+)
+_WRITE_STDIN = HarnessResultFormatList[str](
+    (
+        _SHELL_EXITED_TRUNCATED,
+        _SHELL_EXITED,
+        _SHELL_RUNNING_TRUNCATED,
+        _SHELL_RUNNING,
         Text("rejected_stdin", "write_stdin failed: {reason:text}", S.NOT_RUN),
     )
 )
@@ -128,7 +144,7 @@ _EXEC = HarnessResultFormatList[str](
         Text(
             "failed_syntax",
             _SCRIPT_FAILED + "Script error:\nSyntaxError: {error:rest_of_line}",
-            S.NOT_RUN,
+            judgment_rule="treat_script_syntax_error_as_not_run",
         ),
         _FAILED,
         _RUNNING_TRUNCATED,
@@ -170,10 +186,24 @@ _WAIT = HarnessResultFormatList[str](
     )
 )
 
+# The result entry of a web search in the trajectory, which the Codex converter holds as a JSON object.
+_WEB_SEARCH_CALL = HarnessResultFormatList[JsonObject](
+    (
+        # Codex keeps no output of a web search, so the entry has no `content`.
+        Json(
+            "no_content",
+            judgment_rule="treat_web_search_call_without_content_as_finished",
+            absent_paths=("content",),
+            no_tool_output_text=True,
+        ),
+    )
+)
+
 
 RESULT_FORMATS_BY_TOOL: Mapping[str, HarnessToolResultDeclaration] = {
-    "exec_command": HarnessToolResultDeclaration(text_formats=_SHELL),
-    "write_stdin": HarnessToolResultDeclaration(text_formats=_SHELL),
+    "exec_command": HarnessToolResultDeclaration(text_formats=_EXEC_COMMAND),
+    "write_stdin": HarnessToolResultDeclaration(text_formats=_WRITE_STDIN),
     "exec": HarnessToolResultDeclaration(text_formats=_EXEC),
     "wait": HarnessToolResultDeclaration(text_formats=_WAIT),
+    "web_search_call": HarnessToolResultDeclaration(json_formats=_WEB_SEARCH_CALL),
 }

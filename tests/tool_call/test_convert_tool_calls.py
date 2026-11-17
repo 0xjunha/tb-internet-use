@@ -8,6 +8,7 @@ import pytest
 
 from tb_internet_use.knowledge.catalog import KnowledgeUses
 from tb_internet_use.knowledge.tool_call_knowledge import (
+    HARNESS_RESULT_FORMATS_DECLARATIONS,
     HarnessToolLabel,
     ToolCallKnowledge,
 )
@@ -21,6 +22,7 @@ from tb_internet_use.tool_call.model import (
     DeleteFileAction,
     ExecutionHandle,
     ExecutionHandleKind,
+    ExecutionStatus,
     HarnessTool,
     HarnessToolCall,
     ListFilesAction,
@@ -38,6 +40,131 @@ from tb_internet_use.tool_call.model import (
     WriteFileAction,
     strings_from_values,
 )
+
+S = ExecutionStatus
+
+
+def _claude_code_result(text: str, structured: dict[str, Any] | None = None):
+    """A Claude Code result as Harbor writes it, with the original text and, when given, the structured result in the metadata."""
+    metadata: dict[str, Any] = {
+        "raw_tool_result": {"type": "tool_result", "content": text}
+    }
+    if structured is not None:
+        metadata["tool_use_result"] = structured
+    return {"content": text, "extra": {"tool_result_metadata": metadata}}
+
+
+def _codex_script_result(state: str, printed: str) -> dict[str, Any]:
+    """A Codex `exec` result, a Python list of the state of the script and what it printed."""
+    items = [
+        {"type": "input_text", "text": state + "\nWall time 0.1 seconds\nOutput:\n"},
+        {"type": "input_text", "text": printed},
+    ]
+    return {"content": repr(items)}
+
+
+_GROK_FAILED_TASK = (
+    "=== Task call1 ===\nCommand: sleep 5\nStatus: failed\nDuration: 1.0s\n"
+)
+_GROK_TASK_OUTPUT = "Output File: /t.log\n\n=== Output ===\npartial\n"
+
+# Made-up results whose status or exit code the result text does not state, one or more per judgment rule.
+# (harness, tool, result, expected status and exit code, expected judgment rule uses)
+JUDGMENT_RULE_CASES: list[
+    tuple[str, str, dict[str, Any], tuple[ExecutionStatus, int | None], dict[str, int]]
+] = [
+    # A structured result that is neither interrupted nor names a meaning for code 1 lets the second rule give 0.
+    (
+        "claude-code",
+        "Bash",
+        _claude_code_result("hello", {"stdout": "hello", "interrupted": False}),
+        (S.FINISHED, 0),
+        {
+            "treat_bash_output_without_exit_code_line_as_finished": 1,
+            "treat_bash_output_without_exit_code_line_as_exit_code_0": 1,
+        },
+    ),
+    # Without a structured result, 0 and the 1 of grep look the same, so no exit code.
+    (
+        "claude-code",
+        "Bash",
+        _claude_code_result("hello"),
+        (S.FINISHED, None),
+        {"treat_bash_output_without_exit_code_line_as_finished": 1},
+    ),
+    (
+        "claude-code",
+        "Read",
+        _claude_code_result("File does not exist. Current working directory: /app"),
+        (S.NOT_RUN, None),
+        {"treat_failed_file_tool_call_as_not_run": 1},
+    ),
+    (
+        "claude-code",
+        "WebFetch",
+        _claude_code_result("A page about tests."),
+        (S.FINISHED, None),
+        {"treat_web_fetch_text_as_finished": 1},
+    ),
+    (
+        "codex",
+        "exec",
+        _codex_script_result("Script failed", "Script error:\nSyntaxError: oops"),
+        (S.NOT_RUN, None),
+        {"treat_script_syntax_error_as_not_run": 1},
+    ),
+    (
+        "codex",
+        "web_search_call",
+        {"source_call_id": "id"},
+        (S.FINISHED, None),
+        {"treat_web_search_call_without_content_as_finished": 1},
+    ),
+    (
+        "devin",
+        "get_output",
+        {"content": "partial output"},
+        (S.RUNNING, None),
+        {"treat_get_output_without_exit_code_as_running": 1},
+    ),
+    # The format names the rule, and the Devin converter, which applies it again, finds no code left to count.
+    (
+        "devin",
+        "exec",
+        {"content": "Output from command in shell sh1:\nfoo\nExit code: -1"},
+        (S.KILLED, None),
+        {"treat_negative_exit_code_as_killed": 1},
+    ),
+    (
+        "devin",
+        "write_to_process",
+        {"content": "Written 3 bytes to shell sh1"},
+        (S.RUNNING, None),
+        {"treat_written_input_as_running_target": 1},
+    ),
+    (
+        "muse-code",
+        "work_stop",
+        {"content": '{"status": "accepted", "request_id": "r", "work_id": "w1"}'},
+        (S.KILLED, None),
+        {"treat_accepted_stop_request_as_killed": 1},
+    ),
+    (
+        "grok-build",
+        "get_command_or_subagent_output",
+        {"content": _GROK_FAILED_TASK + _GROK_TASK_OUTPUT},
+        (S.KILLED, None),
+        {"treat_failed_task_without_exit_code_as_killed": 1},
+    ),
+    # A failed task with an `Exit Code` line states its own status and code.
+    (
+        "grok-build",
+        "get_command_or_subagent_output",
+        {"content": _GROK_FAILED_TASK + "Exit Code: 2\n" + _GROK_TASK_OUTPUT},
+        (S.FINISHED, 2),
+        {},
+    ),
+]
 
 _SUBAGENT = ExecutionHandle(ExecutionHandleKind.SUBAGENT, "a1")
 # (harness, tool, arguments of a call, action of the call), one case per tool that reads, searches, lists or deletes files or that starts or polls a subagent.
@@ -330,6 +457,35 @@ def test_convert_tool_calls_converts_every_call_of_its_harness_and_counts_lookup
     )
 
 
+def test_a_read_image_and_a_web_search_without_content_count_as_uses_of_their_declared_formats():
+    knowledge = ToolCallKnowledge()
+    image = {"type": "image", "source": {"type": "base64", "data": "AAAA"}}
+    image_result = {
+        "content": "",
+        "extra": {
+            "tool_result_metadata": {
+                "raw_tool_result": {"type": "tool_result", "content": [image]}
+            }
+        },
+    }
+    raws = [
+        _harness_tool_call(
+            "claude-code", "Read", {"file_path": "/i.png"}, image_result
+        ),
+        _harness_tool_call("codex", "web_search_call", {"action_type": "search"}, {}),
+    ]
+    convert_tool_calls(raws, knowledge=knowledge, judgment_rule_use_counts=Counter())
+    format_uses = {
+        row_key: count
+        for (source, row_key), count in knowledge.uses.row_use_counts.items()
+        if source == HARNESS_RESULT_FORMATS_DECLARATIONS
+    }
+    assert format_uses == {
+        ("claude-code", "Read", "image"): 1,
+        ("codex", "web_search_call", "no_content"): 1,
+    }
+
+
 def test_converter_for_an_unknown_harness_raises():
     with pytest.raises(ValueError, match="nope"):
         converter_for("nope")
@@ -349,3 +505,28 @@ def test_convert_tool_calls_counts_each_judgment_rule_that_a_converter_applies()
         raws, knowledge=ToolCallKnowledge(), judgment_rule_use_counts=use_counts
     )
     assert use_counts == Counter({"treat_negative_exit_code_as_killed": 2})
+
+
+@pytest.mark.parametrize(
+    ("harness", "tool", "result", "status_and_exit_code", "rule_uses"),
+    JUDGMENT_RULE_CASES,
+)
+def test_a_result_whose_text_does_not_state_its_status_gets_it_from_a_counted_judgment_rule(
+    harness: str,
+    tool: str,
+    result: dict[str, Any],
+    status_and_exit_code: tuple[ExecutionStatus, int | None],
+    rule_uses: dict[str, int],
+):
+    use_counts: Counter[str] = Counter()
+    (tool_call,) = convert_tool_calls(
+        [_harness_tool_call(harness, tool, {}, result)],
+        knowledge=ToolCallKnowledge(),
+        judgment_rule_use_counts=use_counts,
+    )
+    assert tool_call.result is not None
+    assert (
+        tool_call.result.execution_status,
+        tool_call.result.exit_code,
+    ) == status_and_exit_code
+    assert use_counts == Counter(rule_uses)

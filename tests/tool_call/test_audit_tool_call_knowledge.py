@@ -16,13 +16,26 @@ _SPEC.loader.exec_module(audit)
 
 
 def test_judgment_rule_rows_list_every_rule_with_the_most_used_first_and_0_for_unused():
-    use_counts = Counter({"treat_negative_exit_code_as_killed": 5})
-    trial_counts = Counter({"treat_negative_exit_code_as_killed": 2})
+    use_counts = Counter(
+        {
+            "treat_negative_exit_code_as_killed": 5,
+            "treat_web_fetch_text_as_finished": 7,
+        }
+    )
+    trial_counts = Counter(
+        {
+            "treat_negative_exit_code_as_killed": 2,
+            "treat_web_fetch_text_as_finished": 3,
+        }
+    )
 
     rows = list(audit.judgment_rule_rows(use_counts, trial_counts))
 
-    assert rows == [
+    assert rows[:2] == [
+        ("treat_web_fetch_text_as_finished", 7, 3),
         ("treat_negative_exit_code_as_killed", 5, 2),
-        ("treat_exit_code_130_after_ctrl_c_as_killed", 0, 0),
-        ("treat_wait_on_several_tasks_as_their_shared_status", 0, 0),
     ]
+    # Every other rule follows with 0, by name.
+    unused_names = [name for name, _, _ in rows[2:]]
+    assert rows[2:] == [(name, 0, 0) for name in sorted(unused_names)]
+    assert "treat_wait_on_several_tasks_as_their_shared_status" in unused_names

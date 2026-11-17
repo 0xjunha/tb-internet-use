@@ -61,8 +61,7 @@ CSV_COLUMNS = [
     "harness",
     "tool",
     "format",  # format name, or "unknown_format" and "skipped_format" rows per tool
-    # text or json for a declared format, special for one built by converter code,
-    # empty for the unknown_format and skipped_format rows
+    # text or json for a declared format, empty for the unknown_format and skipped_format rows
     "kind",
     "call_count",
     "trial_count",
@@ -76,7 +75,6 @@ MAX_EXAMPLES = 3
 _PROCESS_COUNT = 4
 UNKNOWN = str(UnmatchedFormat.UNKNOWN)
 SKIPPED = str(UnmatchedFormat.SKIPPED)
-UNMATCHED_NAMES = {UNKNOWN, SKIPPED}
 
 type Key = tuple[str, str, str]  # harness, tool, format
 type Shape = tuple[str, str, str]  # harness, tool, masked shape of an unknown format
@@ -383,17 +381,17 @@ def write_audit_csv(rows: list[dict[str, str]], path: Path) -> None:
 
 
 def audit_rows(tally: Tally) -> list[dict[str, str]]:
-    """List the declared formats in the catalog's order, then the other formats seen, sorted."""
+    """List the declared formats in the catalog's order, then the unknown and skipped results seen per tool, sorted."""
     rows: list[dict[str, str]] = []
     declared: set[Key] = set()
     for harness, tool, fmt in iter_declared_formats():
         key = (harness, tool, fmt.name)
         declared.add(key)
         rows.append(_row(tally, key, format_kind_of(fmt)))
+    # Every matched format is declared, so the other keys are `unknown_format` and `skipped_format`.
     for key in sorted(tally.calls):
         if key not in declared:
-            kind = "" if key[2] in UNMATCHED_NAMES else "special"
-            rows.append(_row(tally, key, kind))
+            rows.append(_row(tally, key, ""))
     return rows
 
 

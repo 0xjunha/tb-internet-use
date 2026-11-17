@@ -47,7 +47,7 @@ class HarnessToolCallConverter:
 
         By default, it asks `knowledge` which declared format the result has, from what the hooks `tool_result_raw_text_of`, `tool_result_json_of` and `is_marked_as_error` return, and builds the result with `result_from_harness_result_format`.
         A harness overrides those hooks when its trajectory differs, and this method to add what formats cannot express.
-        An override that applies a rule of `judgment_rules.py` passes it `judgment_rule_use_counts`.
+        A format that names a rule of `judgment_rules.py` and an override that applies one both count its use in `judgment_rule_use_counts`.
         """
         tool_result_raw_text = self.tool_result_raw_text_of(
             harness_tool_call, tool_result
@@ -64,7 +64,9 @@ class HarnessToolCallConverter:
             is_marked_as_error=self.is_marked_as_error(harness_tool_call, tool_result),
         )
         return result_from_harness_result_format(
-            tool_result_raw_text, harness_result_format
+            tool_result_raw_text,
+            harness_result_format,
+            judgment_rule_use_counts=judgment_rule_use_counts,
         )
 
     def tool_result_json_of(

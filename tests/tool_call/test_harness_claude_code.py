@@ -496,16 +496,6 @@ def test_web_tools_that_reached_the_server_are_finished_even_on_errors():
             tool_call_result.tool_output_text,
             tool_call_result.http_status,
         ) == (S.FINISHED, MatchedFormat(name), "", http_status)
-    tool_call_result = _converted(
-        _harness_tool_call(
-            "WebFetch",
-            {"url": "u"},
-            _result("<tool_use_error>Invalid URL</tool_use_error>", is_error=True),
-        )
-    ).result
-    assert (
-        tool_call_result is not None and tool_call_result.execution_status is S.NOT_RUN
-    )
 
 
 def test_other_tools_have_skipped_format():
@@ -644,6 +634,12 @@ def test_only_a_read_without_text_and_with_an_image_is_an_image_read():
     assert image_of_bash.harness_result_format == UnmatchedFormat.UNKNOWN
     read_without_items = _converted_result("Read", {"file_path": "/a"}, _result([]))
     assert read_without_items.harness_result_format == UnmatchedFormat.UNKNOWN
+    # Only the one item of a result without text is matched, and only an image item is an image read.
+    for items in ([IMAGE, IMAGE], [{"type": "document", "source": {}}]):
+        read_without_text = _converted_result(
+            "Read", {"file_path": "/a"}, _result(items)
+        )
+        assert read_without_text.harness_result_format == UnmatchedFormat.UNKNOWN
     text_item = {"type": "text", "text": "1\ta\n"}
     read_with_text = _converted_result(
         "Read", {"file_path": "/a"}, _result([IMAGE, text_item])

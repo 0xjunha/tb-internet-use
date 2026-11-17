@@ -7,9 +7,9 @@ from tb_internet_use.tool_call.harnesses.harness_tool_call_converter import (
 )
 from tb_internet_use.tool_call.model import (
     HarnessToolCall,
-    OtherAction,
     ToolCallAction,
     ToolCallResult,
+    UnknownAction,
     WebFetchAction,
     strings_from_values,
 )
@@ -35,5 +35,5 @@ class CursorCliConverter(HarnessToolCallConverter):
             return WebFetchAction(
                 strings_from_values(args.get("url") if isinstance(args, dict) else None)
             )
-        # another wrapped MCP tool, labeled OtherAction like Claude Code's MCP tools
-        return OtherAction()
+        # A wrapped MCP tool that this converter does not know does something it cannot tell, e.g. `browser_click`.
+        return UnknownAction()

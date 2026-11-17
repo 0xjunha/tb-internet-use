@@ -1,6 +1,7 @@
 """Tests for tool_call/_convert_tool_call_result.py, with made-up annotations matched by `HarnessToolResultDeclaration.harness_result_format_of`."""
 
 import json
+from collections import Counter
 from typing import Any
 
 from tb_internet_use.knowledge.harness_result_format_declaration import (
@@ -56,7 +57,7 @@ def _converted(
         tool_result_raw_text, tool_result_json, is_marked_as_error=False
     )
     return result_from_harness_result_format(
-        tool_result_raw_text, harness_result_format
+        tool_result_raw_text, harness_result_format, judgment_rule_use_counts=Counter()
     )
 
 
@@ -142,7 +143,7 @@ def test_tool_with_formats_but_no_text_is_unknown_not_skipped():
 
 def test_skipped_format_keeps_the_content_with_unknown_status():
     tool_call_result = result_from_harness_result_format(
-        "anything", UnmatchedFormat.SKIPPED
+        "anything", UnmatchedFormat.SKIPPED, judgment_rule_use_counts=Counter()
     )
     assert (
         tool_call_result.tool_output_text,
@@ -386,3 +387,51 @@ def test_matched_values_of_another_json_type_fill_no_exit_code_and_a_text_output
     fmt = Json("done", S.FINISHED, {"exit_code": "code", "output_path": "path"})
     tool_call_result = _json_tool_call_result(fmt, {"code": [1], "path": 7})
     assert (tool_call_result.exit_code, tool_call_result.output_path) == (None, "7")
+
+
+def _counted_result_of(fmt: HarnessTextResultFormat, raw_text: str):
+    """Build the result of a text that `fmt` matches, with the judgment rule uses it counted."""
+    use_counts: Counter[str] = Counter()
+    harness_result_format = HarnessToolResultDeclaration(
+        text_formats=HarnessResultFormatList[str]((fmt,))
+    ).harness_result_format_of(raw_text, None, is_marked_as_error=False)
+    tool_call_result = result_from_harness_result_format(
+        raw_text, harness_result_format, judgment_rule_use_counts=use_counts
+    )
+    return tool_call_result, use_counts
+
+
+def test_a_format_that_names_a_judgment_rule_gets_its_status_from_the_rule_and_counts_it():
+    fmt = Text(
+        "page", "{tool_output:text}", judgment_rule="treat_web_fetch_text_as_finished"
+    )
+    tool_call_result, use_counts = _counted_result_of(fmt, "some page")
+    assert (
+        tool_call_result.execution_status,
+        tool_call_result.tool_output_text,
+        tool_call_result.harness_result_format,
+    ) == (S.FINISHED, "some page", MatchedFormat("page"))
+    assert use_counts == Counter({"treat_web_fetch_text_as_finished": 1})
+
+
+def test_a_format_that_states_its_status_counts_no_judgment_rule():
+    tool_call_result, use_counts = _counted_result_of(EXITED, "exit 0\nok")
+    assert tool_call_result.execution_status is S.FINISHED
+    assert use_counts == Counter()
+
+
+def test_a_negative_exit_code_line_is_killed_by_the_rule_its_format_names():
+    fmt = Text(
+        "killed",
+        "{tool_output:text}\nExit code: {exit_code:negative_int}",
+        judgment_rule="treat_negative_exit_code_as_killed",
+    )
+    tool_call_result, use_counts = _counted_result_of(fmt, "out\nExit code: -1")
+    assert (
+        tool_call_result.execution_status,
+        tool_call_result.exit_code,
+        tool_call_result.tool_output_text,
+    ) == (S.KILLED, None, "out")
+    assert use_counts == Counter({"treat_negative_exit_code_as_killed": 1})
+    # A code without a minus sign does not fit the format.
+    assert fmt.match("out\nExit code: 1") is None

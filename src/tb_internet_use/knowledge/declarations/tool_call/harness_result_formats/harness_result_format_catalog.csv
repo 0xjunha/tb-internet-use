@@ -32,44 +32,28 @@ Output exceeded the {limit:line_without_brackets} persist limit; only the first 
 Preview (first {preview:line_without_brackets}):
 {tool_output:text}
 </persisted-output>",finished,True,,,yes,
-claude-code,Bash,bare_output,text,{tool_output:text},finished,,,,yes,"recheck whether all cases should be counted as ""finished"""
+claude-code,Bash,bare_output,text,{tool_output:text},by treat_bash_output_without_exit_code_line_as_finished,,,,,"recheck whether all cases should be counted as ""finished"""
 claude-code,Read,tool_use_error,text,<tool_use_error>{reason:text}</tool_use_error>,not_run,,,,yes,
 claude-code,Read,interrupted_classifier,text,Interrupted: the response that made this tool call was stopped by a safety classifier{reason:text},unknown,,,,yes,check this pattern as well: !!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
 claude-code,Read,warning,text,<system-reminder>Warning: {warning:text}</system-reminder>,finished,,,,yes,
-claude-code,Read,unchanged,text,Wasted call — file unchanged since your last Read. Refer to that earlier tool_result instead.,not_run,,,,yes,
+claude-code,Read,unchanged,text,Wasted call — file unchanged since your last Read. Refer to that earlier tool_result instead.,by treat_failed_file_tool_call_as_not_run,,,,,
 claude-code,Read,pdf,text,PDF file read: {path:line} ({size:line_without_brackets}),finished,,True,,yes,
 claude-code,Read,pdf_pages,text,PDF pages extracted: {pages:int} page(s) from {path:line} ({size:line_without_brackets}),finished,,True,,yes,
-claude-code,Read,pdf_tool_missing,text,pdftoppm is not installed. {hint:text},not_run,,,,yes,
-claude-code,Read,pdf_too_many_pages,text,"This PDF has {pages:int} pages, which is too many to read at once. {hint:text}",not_run,,,,yes,
-claude-code,Read,pdf_too_large,text,PDF file exceeds maximum allowed size of {limit:rest_of_line},not_run,,,,yes,
-claude-code,Read,image_too_large,text,Unable to resize image {detail:text},not_run,,,,yes,
-claude-code,Read,directory,text,"EISDIR: illegal operation on a directory, {detail:text}",not_run,,,,yes,
-claude-code,Read,missing,text,File does not exist. {note:text},not_run,,,,yes,
-claude-code,Read,too_large,text,File content ({size:line_without_brackets}) exceeds maximum allowed {limit:text},not_run,,,,yes,
-claude-code,Read,persisted_output,text,"<persisted-output>
-Output too large ({size:line_without_brackets}). Full output saved to: {output_path:word}
-
-Preview (first {preview:line_without_brackets}):
-{tool_output:text}
-</persisted-output>",finished,True,,,yes,
-claude-code,Read,persisted_output_partial,text,"<persisted-output>
-Output exceeded the {limit:line_without_brackets} persist limit; only the first {kept:line_without_brackets} were saved to: {output_path:word}
-
-Preview (first {preview:line_without_brackets}):
-{tool_output:text}
-</persisted-output>",finished,True,,,yes,
+claude-code,Read,pdf_tool_missing,text,pdftoppm is not installed. {hint:text},by treat_failed_file_tool_call_as_not_run,,,,,
+claude-code,Read,pdf_too_many_pages,text,"This PDF has {pages:int} pages, which is too many to read at once. {hint:text}",by treat_failed_file_tool_call_as_not_run,,,,,
+claude-code,Read,pdf_too_large,text,PDF file exceeds maximum allowed size of {limit:rest_of_line},by treat_failed_file_tool_call_as_not_run,,,,,
+claude-code,Read,image_too_large,text,Unable to resize image {detail:text},by treat_failed_file_tool_call_as_not_run,,,,,
+claude-code,Read,directory,text,"EISDIR: illegal operation on a directory, {detail:text}",by treat_failed_file_tool_call_as_not_run,,,,,
+claude-code,Read,missing,text,File does not exist. {note:text},by treat_failed_file_tool_call_as_not_run,,,,,
+claude-code,Read,too_large,text,File content ({size:line_without_brackets}) exceeds maximum allowed {limit:text},by treat_failed_file_tool_call_as_not_run,,,,,
 claude-code,Read,listing,text,{tool_output:numbered_tab},finished,,,,yes,"recheck whether all cases should be counted as ""finished"""
 claude-code,Write,tool_use_error,text,<tool_use_error>{reason:text}</tool_use_error>,not_run,,,,yes,
-claude-code,Write,interrupted_classifier,text,Interrupted: the response that made this tool call was stopped by a safety classifier{reason:text},unknown,,,,yes,
 claude-code,Write,not_run_classifier,text,Not run: the response that made this tool call was stopped by a safety classifier{reason:text},not_run,,,,yes,
-claude-code,Write,refused_symlink,text,Refusing to write through symlink: {path:word} {hint:text},not_run,,,,yes,
 claude-code,Write,created_fresh,text,File created successfully at: {path:word} (file state is current in your context — no need to Read it back),finished,,,,yes,
 claude-code,Write,created,text,File created successfully at: {path:rest_of_line},finished,,,,yes,
 claude-code,Write,updated_fresh,text,The file {path:line} has been updated successfully. (file state is current in your context — no need to Read it back),finished,,,,yes,
 claude-code,Write,updated,text,The file {path:line} has been updated successfully.,finished,,,,yes,
 claude-code,Edit,tool_use_error,text,<tool_use_error>{reason:text}</tool_use_error>,not_run,,,,yes,
-claude-code,Edit,interrupted_classifier,text,Interrupted: the response that made this tool call was stopped by a safety classifier{reason:text},unknown,,,,yes,
-claude-code,Edit,not_run_classifier,text,Not run: the response that made this tool call was stopped by a safety classifier{reason:text},not_run,,,,yes,
 claude-code,Edit,refused_symlink,text,Refusing to write through symlink: {path:word} {hint:text},not_run,,,,yes,
 claude-code,Edit,updated_fresh,text,The file {path:line} has been updated successfully. (file state is current in your context — no need to Read it back),finished,,,,yes,
 claude-code,Edit,updated,text,The file {path:line} has been updated successfully.,finished,,,,yes,
@@ -77,20 +61,6 @@ claude-code,Edit,updated_note,text,The file {path:line} has been updated success
 claude-code,Edit,replaced_all_fresh,text,The file {path:line} has been updated. All occurrences were successfully replaced. (file state is current in your context — no need to Read it back),finished,,,,yes,
 claude-code,Edit,replaced_all,text,The file {path:line} has been updated. All occurrences were successfully replaced.,finished,,,,yes,
 claude-code,Edit,replaced_all_note,text,The file {path:line} has been updated. All occurrences were successfully replaced. (note: {note:text},finished,,,,yes,
-claude-code,WebFetch,tool_use_error,text,<tool_use_error>{reason:text}</tool_use_error>,not_run,,,,yes,
-claude-code,WebFetch,interrupted_classifier,text,Interrupted: the response that made this tool call was stopped by a safety classifier{reason:text},unknown,,,,yes,
-claude-code,WebFetch,persisted_output,text,"<persisted-output>
-Output too large ({size:line_without_brackets}). Full output saved to: {output_path:word}
-
-Preview (first {preview:line_without_brackets}):
-{tool_output:text}
-</persisted-output>",finished,True,,,yes,
-claude-code,WebFetch,persisted_output_partial,text,"<persisted-output>
-Output exceeded the {limit:line_without_brackets} persist limit; only the first {kept:line_without_brackets} were saved to: {output_path:word}
-
-Preview (first {preview:line_without_brackets}):
-{tool_output:text}
-</persisted-output>",finished,True,,,yes,
 claude-code,WebFetch,no_model_response,text,No response from model,finished,,,,yes,"status: ""finished"" or ""not_run""?"
 claude-code,WebFetch,no_model_response_binary_saved,text,"No response from model
 
@@ -104,27 +74,13 @@ claude-code,WebFetch,connection_error,text,connect {error:rest_of_line},finished
 claude-code,WebFetch,page_binary_saved,text,"{tool_output:text}
 
 [Binary content ({detail:line_without_brackets}) also saved to {output_path:line_without_brackets}]",finished,,,,yes,
-claude-code,WebFetch,page,text,{tool_output:text},finished,,,,yes,"recheck whether all cases should be counted as ""finished"""
-claude-code,WebSearch,tool_use_error,text,<tool_use_error>{reason:text}</tool_use_error>,not_run,,,,yes,
-claude-code,WebSearch,interrupted_classifier,text,Interrupted: the response that made this tool call was stopped by a safety classifier{reason:text},unknown,,,,yes,
+claude-code,WebFetch,page,text,{tool_output:text},by treat_web_fetch_text_as_finished,,,,,"recheck whether all cases should be counted as ""finished"""
 claude-code,WebSearch,persisted_results,text,"<persisted-output>
 Output too large ({size:line_without_brackets}). Full output saved to: {output_path:word}
 
 Preview (first {preview:line_without_brackets}):
 Web search results for query: ""{query:line}""
 
-{tool_output:text}
-</persisted-output>",finished,True,,,yes,
-claude-code,WebSearch,persisted_output,text,"<persisted-output>
-Output too large ({size:line_without_brackets}). Full output saved to: {output_path:word}
-
-Preview (first {preview:line_without_brackets}):
-{tool_output:text}
-</persisted-output>",finished,True,,,yes,
-claude-code,WebSearch,persisted_output_partial,text,"<persisted-output>
-Output exceeded the {limit:line_without_brackets} persist limit; only the first {kept:line_without_brackets} were saved to: {output_path:word}
-
-Preview (first {preview:line_without_brackets}):
 {tool_output:text}
 </persisted-output>",finished,True,,,yes,
 claude-code,WebSearch,cut_off,text,The search was cut off before any results arrived. Try again.,finished,,,,yes,
@@ -134,25 +90,13 @@ claude-code,WebSearch,results,text,"Web search results for query: ""{query:line}
 
 REMINDER: You MUST include the sources above in your response to the user using markdown hyperlinks.",finished,,,,yes,
 claude-code,TaskStop,tool_use_error,text,<tool_use_error>{reason:text}</tool_use_error>,not_run,,,,yes,
-claude-code,TaskStop,interrupted_classifier,text,Interrupted: the response that made this tool call was stopped by a safety classifier{reason:text},unknown,,,,yes,
 claude-code,TaskStop,persisted_stopped,text,"<persisted-output>
 Output too large ({size:line_without_brackets}). Full output saved to: {output_path:word}
 
 Preview (first {preview:line_without_brackets}):
 {""message"":""Successfully stopped task: {handle:id} {rest:text}",killed,True,,command,yes,"is ""Output too large"" related to TaskStop? / recheck whether ""killed"" should be status for this tool call. / recheck handle_kind=command"
-claude-code,TaskStop,persisted_output,text,"<persisted-output>
-Output too large ({size:line_without_brackets}). Full output saved to: {output_path:word}
-
-Preview (first {preview:line_without_brackets}):
-{tool_output:text}
-</persisted-output>",finished,True,,,yes,"is ""Output too large"" related to TaskStop? / recheck handle_kind=null"
-claude-code,TaskStop,persisted_output_partial,text,"<persisted-output>
-Output exceeded the {limit:line_without_brackets} persist limit; only the first {kept:line_without_brackets} were saved to: {output_path:word}
-
-Preview (first {preview:line_without_brackets}):
-{tool_output:text}
-</persisted-output>",finished,True,,,yes,"is ""Output exceeded the"" related to TaskStop? / recheck handle_kind=null"
 claude-code,TaskStop,not_owner,text,Task {task:id} is owned by {owner:id}; agent {agent:id} cannot stop it.,not_run,,,,yes,
+claude-code,Read,image,json,type == 'image',finished,,True,,,
 claude-code,TaskOutput,task_running,json,task.status == 'running',running,,,by task.task_type,yes,recheck
 claude-code,TaskOutput,task_completed,json,task.status == 'completed',finished,,,by task.task_type,yes,recheck
 claude-code,TaskOutput,task_failed,json,task.status == 'failed',finished,,,by task.task_type,yes,recheck
@@ -203,7 +147,6 @@ Output:
 codex,exec_command,rejected,text,exec_command failed: {reason:text},not_run,,,,,
 codex,exec_command,rejected_command,text,exec_command failed for `{command:text}`: {reason:text},not_run,,,,,
 codex,exec_command,rejected_patch,text,apply_patch verification failed: {reason:text},not_run,,,,,
-codex,exec_command,rejected_stdin,text,write_stdin failed: {reason:text},not_run,,,,,
 codex,write_stdin,exited_truncated,text,"Chunk ID: {chunk:id}
 Wall time: {seconds:line_without_brackets} seconds
 Process exited with code {exit_code:int}
@@ -212,13 +155,6 @@ Output:
 Warning: truncated output (original token count: {original:int})
 Total output lines: {lines:int}
 
-{tool_output:text}",finished,True,,,,
-codex,write_stdin,exited_truncated_no_line_count,text,"Chunk ID: {chunk:id}
-Wall time: {seconds:line_without_brackets} seconds
-Process exited with code {exit_code:int}
-Original token count: {tokens:int}
-Output:
-Warning: truncated output (original token count: {original:int})
 {tool_output:text}",finished,True,,,,
 codex,write_stdin,exited,text,"Chunk ID: {chunk:id}
 Wall time: {seconds:line_without_brackets} seconds
@@ -241,15 +177,6 @@ Process running with session ID {handle:int}
 Original token count: {tokens:int}
 Output:
 {tool_output:text}",running,,,command,,
-codex,write_stdin,v2_exited,text,"Wall time: {seconds:line_without_brackets} seconds
-Output:
-Exit code: {exit_code:int}
-Wall time: {seconds2:line_without_brackets} seconds
-Output:
-{tool_output:text}",finished,,,,,
-codex,write_stdin,rejected,text,exec_command failed: {reason:text},not_run,,,,,
-codex,write_stdin,rejected_command,text,exec_command failed for `{command:text}`: {reason:text},not_run,,,,,
-codex,write_stdin,rejected_patch,text,apply_patch verification failed: {reason:text},not_run,,,,,
 codex,write_stdin,rejected_stdin,text,write_stdin failed: {reason:text},not_run,,,,,
 codex,exec,completed_truncated,text,"Script completed
 Wall time {seconds:line_without_brackets} seconds
@@ -273,7 +200,7 @@ codex,exec,failed_syntax,text,"Script failed
 Wall time {seconds:line_without_brackets} seconds
 Output:
 Script error:
-SyntaxError: {error:rest_of_line}",not_run,,,,,
+SyntaxError: {error:rest_of_line}",by treat_script_syntax_error_as_not_run,,,,,
 codex,exec,failed,text,"Script failed
 Wall time {seconds:line_without_brackets} seconds
 Output:
@@ -327,6 +254,7 @@ Wall time {seconds:line_without_brackets} seconds
 Output:
 {tool_output:text}",killed,,,,,
 codex,wait,rejected_arguments,text,failed to parse function arguments: {reason:text},not_run,,,,,
+codex,web_search_call,no_content,json,absent=content,by treat_web_search_call_without_content_as_finished,,True,,,
 cursor-cli,shellToolCall,not_spawned,json,present=spawnError,not_run,,,,,
 cursor-cli,shellToolCall,background,json,"present=success.shellId,success.interleavedOutput",running,,,command,,
 cursor-cli,shellToolCall,background_requested,json,present=success.shellId absent=success.interleavedOutput,running,,,command,,
@@ -337,24 +265,21 @@ cursor-cli,shellToolCall,failed,json,present=failure.exitCode absent=failure.out
 cursor-cli,awaitToolCall,no_task,json,present=success.complete success.complete.taskId == '',unknown,,,,,
 cursor-cli,awaitToolCall,complete,json,present=success.complete success.complete.taskId != '',finished,,,command,,
 cursor-cli,awaitToolCall,still_running,json,present=success.stillRunning,running,,,command,,
-cursor-cli,awaitToolCall,error,json,present=error,not_run,,,,,
 cursor-cli,readToolCall,content,json,present=success.content success.exceededLimit != True,finished,,,,,
-cursor-cli,readToolCall,too_large,json,present=success.content success.exceededLimit == True,not_run,,,,,
+cursor-cli,readToolCall,too_large,json,present=success.content success.exceededLimit == True,by treat_failed_file_tool_call_as_not_run,,,,,
 cursor-cli,readToolCall,blob,json,present=success absent=success.content,finished,,True,,,
-cursor-cli,readToolCall,error,json,present=error,not_run,,,,,
+cursor-cli,readToolCall,error,json,present=error,by treat_failed_file_tool_call_as_not_run,,,,,
 cursor-cli,editToolCall,edited,json,present=success,finished,,,,,
-cursor-cli,editToolCall,error,json,present=error,not_run,,,,,
+cursor-cli,editToolCall,error,json,present=error,by treat_failed_file_tool_call_as_not_run,,,,,
 cursor-cli,webFetchToolCall,page_saved,json,"present=success.markdown,success.outputLocation",finished,True,,,,
 cursor-cli,webFetchToolCall,page,json,present=success.markdown absent=success.outputLocation,finished,,,,,
 cursor-cli,webFetchToolCall,refused_localhost,json,present=error.error error.error startswith 'Cannot fetch from localhost',not_run,,,,,
 cursor-cli,webFetchToolCall,error,json,present=error.error error.error !startswith 'Cannot fetch from localhost',finished,,,,,
 cursor-cli,webSearchToolCall,results,json,present=success.references,finished,,,,,
-cursor-cli,webSearchToolCall,error,json,present=error,finished,,,,,
 cursor-cli,mcpToolCall,content,json,present=success.content success.isError != True,finished,,,,,
-cursor-cli,mcpToolCall,error,json,present=error,not_run,,,,,
 devin,exec,killed,text,"Output from command in shell {handle:id}:
 {tool_output:text}
-Exit code: -{sentinel:uint}",killed,,,command,,
+Exit code: {exit_code:negative_int}",by treat_negative_exit_code_as_killed,,,command,,
 devin,exec,exited_truncated_after_warning,text,"Output from command in shell {handle:id}:
 Warning: requested timeout {asked:line_without_brackets} exceeds maximum of {max:line_without_brackets}; clamping to {clamped:line_without_brackets}.
 {tool_output:text}
@@ -414,7 +339,7 @@ devin,exec,rejected_env,text,`env` can only be set when starting a new shell; {r
 devin,exec,rejected_busy,text,Shell {handle:id} still has a running command. {reason:text},not_run,,,command,,
 devin,get_output,killed_silent_twice,text,"Exited with code {code:int} and no output
 
-Exit code: -{sentinel:uint}",killed,,,,,
+Exit code: {exit_code:negative_int}",by treat_negative_exit_code_as_killed,,,,,
 devin,get_output,exited_silent_twice,text,"Exited with code {code:int} and no output
 
 Exit code: {exit_code:int}",finished,,,,,
@@ -428,10 +353,10 @@ Exit code: {exit_code:int}",finished,when … ({count:int} chars truncated),,,,
 devin,get_output,exited_no_more,text,No more output to read. Shell {handle:id} exited with code {exit_code:int}.,finished,,,command,,
 devin,get_output,running_silent,text,No output yet (still running),running,,,,,
 devin,get_output,rejected,text,Tool 'get_output' validation failed: {reason:text},not_run,,,,,
-devin,get_output,running,text,{tool_output:text},running,when … ({count:int} chars truncated),,,,
+devin,get_output,running,text,{tool_output:text},by treat_get_output_without_exit_code_as_running,when … ({count:int} chars truncated),,,,
 devin,kill_shell,killed,text,Shell {handle:id} terminated successfully,killed,,,command,,
 devin,kill_shell,rejected,text,Tool 'kill_shell' validation failed: {reason:text},not_run,,,,,
-devin,write_to_process,written,text,Written {bytes:int} bytes to shell {handle:id},running,,,command,,
+devin,write_to_process,written,text,Written {bytes:int} bytes to shell {handle:id},by treat_written_input_as_running_target,,,command,,
 devin,read,listing,text,"<file-view path=""{path:line}"" start_line=""{start:int}"" end_line=""{end:int}"" total_lines=""{total:int}"">
 {tool_output:numbered_pipe}
 </file-view>",finished,,,,,
@@ -456,13 +381,6 @@ devin,write,updated,text,"The file {path:line} has been updated. Here's the resu
 devin,write,rejected,text,Tool 'write' validation failed: {reason:text},not_run,,,,,
 devin,edit,updated_truncated_note,text,"The file {path:line} has been updated. Here's the result of running `cat -n` on a snippet of the edited file:
 {snippet:numbered_pipe}
-… ({cut:int} lines truncated)
-<truncation_notice>
-Full output written to: {output_path:word}
-</truncation_notice>",finished,True,,,,
-devin,edit,updated_truncated_cut_line,text,"The file {path:line} has been updated. Here's the result of running `cat -n` on a snippet of the edited file:
-{snippet:numbered_pipe}
-{cut_line:line}
 … ({cut:int} lines truncated)
 <truncation_notice>
 Full output written to: {output_path:word}
@@ -600,7 +518,7 @@ Duration: {duration:line}
 Output File: {output_path:line}
 
 === Output ===
-(no output)",killed,,,command,,
+(no output)",by treat_failed_task_without_exit_code_as_killed,,,command,,
 grok-build,get_command_or_subagent_output,failed_signaled,text,"=== Task {handle:id} ===
 Command: {command:text}
 Status: failed
@@ -608,7 +526,7 @@ Duration: {duration:line}
 Output File: {output_path:line}
 
 === Output ===
-{tool_output:text}",killed,,,command,,
+{tool_output:text}",by treat_failed_task_without_exit_code_as_killed,,,command,,
 grok-build,get_command_or_subagent_output,running_truncated,text,"=== Task {handle:id} ===
 Command: {command:text}
 Status: running
@@ -659,21 +577,21 @@ grok-build,read_file,image,text,Read image file: {path:rest_of_line},finished,,T
 grok-build,read_file,pdf,text,"Read PDF file: {path:line} ({pages:line_without_brackets} pages rendered, {total:int} total)",finished,,True,,,
 grok-build,read_file,empty,text,File is empty.,finished,,,,,
 grok-build,read_file,past_end,text,(no lines returned: the requested window is past the end of the file; the file has {total:int} lines),finished,,,,,
-grok-build,read_file,missing,text,Error: {path:line} does not exist.,not_run,,,,,
-grok-build,read_file,directory,text,"Error: {path:line} is a directory, not a file.",not_run,,,,,
-grok-build,read_file,binary,text,Cannot read binary file: {path:rest_of_line},not_run,,,,,
-grok-build,read_file,too_large,text,File content ({size:line_without_brackets}) exceeds maximum allowed tokens ({limit:line_without_brackets}).{rest:text},not_run,,,,,
-grok-build,read_file,range_too_large,text,The requested line range ({range:line_without_brackets}) contains {rest:text},not_run,,,,,
+grok-build,read_file,missing,text,Error: {path:line} does not exist.,by treat_failed_file_tool_call_as_not_run,,,,,
+grok-build,read_file,directory,text,"Error: {path:line} is a directory, not a file.",by treat_failed_file_tool_call_as_not_run,,,,,
+grok-build,read_file,binary,text,Cannot read binary file: {path:rest_of_line},by treat_failed_file_tool_call_as_not_run,,,,,
+grok-build,read_file,too_large,text,File content ({size:line_without_brackets}) exceeds maximum allowed tokens ({limit:line_without_brackets}).{rest:text},by treat_failed_file_tool_call_as_not_run,,,,,
+grok-build,read_file,range_too_large,text,The requested line range ({range:line_without_brackets}) contains {rest:text},by treat_failed_file_tool_call_as_not_run,,,,,
 grok-build,read_file,listing,text,{tool_output:partly_numbered_arrow},finished,,,,,
 grok-build,write,written,text,Wrote file successfully to {path:rest_of_line},finished,,,,,
 grok-build,write,created,text,The file {path:line} has been created.,finished,,,,,
 grok-build,search_replace,updated,text,The file {path:line} has been updated successfully.,finished,,,,,
 grok-build,search_replace,created,text,The file {path:line} has been created successfully.,finished,,,,,
 grok-build,search_replace,replaced_all,text,The file {path:line} has been updated. All occurrences were successfully replaced.,finished,,,,,
-grok-build,search_replace,not_found,text,"The string to replace was not found in the file, {hint:text}",not_run,,,,,
-grok-build,search_replace,not_unique,text,The string to replace was found multiple times in the file. {hint:text},not_run,,,,,
-grok-build,search_replace,same_strings,text,Old string and new string are the same,not_run,,,,,
-grok-build,search_replace,missing,text,Error: {path:line} does not exist.,not_run,,,,,
+grok-build,search_replace,not_found,text,"The string to replace was not found in the file, {hint:text}",by treat_failed_file_tool_call_as_not_run,,,,,
+grok-build,search_replace,not_unique,text,The string to replace was found multiple times in the file. {hint:text},by treat_failed_file_tool_call_as_not_run,,,,,
+grok-build,search_replace,same_strings,text,Old string and new string are the same,by treat_failed_file_tool_call_as_not_run,,,,,
+grok-build,search_replace,missing,text,Error: {path:line} does not exist.,by treat_failed_file_tool_call_as_not_run,,,,,
 grok-build,search_replace,rejected_arguments,text,Failed to parse arguments for tool `search_replace`: {reason:text},not_run,,,,,
 mini-swe-agent,bash,not_executed,json,exception_info startswith 'action was not executed',not_run,,,,,
 mini-swe-agent,bash,timed_out,json,absent=elided_chars exception_info contains 'timed out',timed_out,,,,,
@@ -705,21 +623,18 @@ source_bytes: {bytes:int}",finished,,True,,,
 muse-code,read_file,rejected,text,tool failed: {reason:text},not_run,,,,,
 muse-code,write_file,written_note,text,wrote {bytes:int} bytes to {path:line} note: {note:text},finished,,,,,
 muse-code,write_file,written,text,wrote {bytes:int} bytes to {path:rest_of_line},finished,,,,,
-muse-code,write_file,rejected,text,tool failed: {reason:text},not_run,,,,,
 muse-code,edit_file,edited,text,"edited
 {detail:text}",finished,,,,,
 muse-code,edit_file,rejected,text,tool failed: {reason:text},not_run,,,,,
 muse-code,bash,exited,json,terminal_status == 'completed',finished,by truncated,,,,
 muse-code,bash,failed,json,present=exit_code terminal_status == 'failed',finished,by truncated,,,,
 muse-code,bash,signaled,json,absent=exit_code terminal_reason startswith 'process exited with signal',killed,by truncated,,,,
-muse-code,bash,cancelled,json,terminal_status == 'cancelled',killed,by truncated,,,,
 muse-code,bash,background,json,execution_state == 'background_running',running,by truncated,,command,,
 muse-code,bash_input,exited,json,terminal_status == 'completed',finished,by truncated,,,,
 muse-code,bash_input,failed,json,present=exit_code terminal_status == 'failed',finished,by truncated,,,,
-muse-code,bash_input,signaled,json,absent=exit_code terminal_reason startswith 'process exited with signal',killed,by truncated,,,,
 muse-code,bash_input,cancelled,json,terminal_status == 'cancelled',killed,by truncated,,,,
 muse-code,bash_input,background,json,execution_state == 'background_running',running,by truncated,,command,,
-muse-code,work_stop,accepted,json,status == 'accepted',killed,,,command,,
+muse-code,work_stop,accepted,json,status == 'accepted',by treat_accepted_stop_request_as_killed,,,command,,
 muse-code,work_stop,already_ended,json,status == 'already_terminal',finished,,,command,,
 muse-code,web_search,results,json,present=results,finished,,,,,
 muse-code,monitor,started,json,present=work_id,running,,,command,,

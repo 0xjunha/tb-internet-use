@@ -1,15 +1,30 @@
 """Tests for tool_call/judgment_rules.py, with made-up results."""
 
 from collections import Counter
+from collections.abc import Callable
 
 import pytest
 
 from tb_internet_use.tool_call.judgment_rules import (
+    treat_accepted_stop_request_as_killed,
+    treat_bash_output_without_exit_code_line_as_exit_code_0,
+    treat_bash_output_without_exit_code_line_as_finished,
     treat_exit_code_130_after_ctrl_c_as_killed,
+    treat_failed_file_tool_call_as_not_run,
+    treat_failed_task_without_exit_code_as_killed,
+    treat_get_output_without_exit_code_as_running,
     treat_negative_exit_code_as_killed,
+    treat_script_syntax_error_as_not_run,
     treat_wait_on_several_tasks_as_their_shared_status,
+    treat_web_fetch_text_as_finished,
+    treat_web_search_call_without_content_as_finished,
+    treat_written_input_as_running_target,
 )
-from tb_internet_use.tool_call.model import ExecutionStatus, ToolCallResult
+from tb_internet_use.tool_call.model import (
+    ExecutionStatus,
+    MatchedFormat,
+    ToolCallResult,
+)
 
 S = ExecutionStatus
 STATUS_BY_TASK_STATE = {
@@ -26,6 +41,25 @@ WAIT_CASES = [
     (["completed", "failed"], S.UNKNOWN),
     (["cancelled", "cancelled"], S.UNKNOWN),
     ([], S.UNKNOWN),
+]
+
+
+type JudgmentRule = Callable[..., ToolCallResult]
+
+# A result as a format that names the rule builds it, with the status the rule replaces still unknown.
+UNDECIDED = ToolCallResult("out", harness_result_format=MatchedFormat("f"))
+
+# (rule that sets one status whatever the result, the status it sets)
+STATUS_RULE_CASES: list[tuple[JudgmentRule, ExecutionStatus]] = [
+    (treat_bash_output_without_exit_code_line_as_finished, S.FINISHED),
+    (treat_script_syntax_error_as_not_run, S.NOT_RUN),
+    (treat_web_search_call_without_content_as_finished, S.FINISHED),
+    (treat_failed_file_tool_call_as_not_run, S.NOT_RUN),
+    (treat_get_output_without_exit_code_as_running, S.RUNNING),
+    (treat_web_fetch_text_as_finished, S.FINISHED),
+    (treat_written_input_as_running_target, S.RUNNING),
+    (treat_accepted_stop_request_as_killed, S.KILLED),
+    (treat_failed_task_without_exit_code_as_killed, S.KILLED),
 ]
 
 
@@ -79,4 +113,26 @@ def test_a_wait_on_several_tasks_has_the_status_of_the_state_they_share_and_coun
     )
     assert use_counts == Counter(
         {"treat_wait_on_several_tasks_as_their_shared_status": 1}
+    )
+
+
+@pytest.mark.parametrize(("judgment_rule", "status"), STATUS_RULE_CASES)
+def test_a_status_rule_sets_its_status_keeps_every_other_field_and_counts_once(
+    judgment_rule: JudgmentRule, status: ExecutionStatus
+):
+    use_counts: Counter[str] = Counter()
+    decided = judgment_rule(UNDECIDED, use_counts=use_counts)
+    assert decided == ToolCallResult(
+        "out", status, harness_result_format=MatchedFormat("f")
+    )
+    assert use_counts == Counter({judgment_rule.__name__: 1})
+
+
+def test_a_finished_bash_output_without_exit_code_line_gets_exit_code_0_and_counts_once():
+    use_counts: Counter[str] = Counter()
+    assert treat_bash_output_without_exit_code_line_as_exit_code_0(
+        _exited(None), use_counts=use_counts
+    ) == _exited(0)
+    assert use_counts == Counter(
+        {"treat_bash_output_without_exit_code_line_as_exit_code_0": 1}
     )

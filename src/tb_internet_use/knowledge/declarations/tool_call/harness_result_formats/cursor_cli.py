@@ -108,7 +108,6 @@ _AWAIT_TOOL_CALL = HarnessResultFormatList[JsonObject](
             present_paths=("success.stillRunning",),
             fixed_handle_kind=ExecutionHandleKind.COMMAND,
         ),
-        Json("error", S.NOT_RUN, present_paths=("error",)),
     )
 )
 
@@ -124,7 +123,7 @@ _READ_TOOL_CALL = HarnessResultFormatList[JsonObject](
         # The file is over the size limit, so the tool read nothing.
         Json(
             "too_large",
-            S.NOT_RUN,
+            judgment_rule="treat_failed_file_tool_call_as_not_run",
             present_paths=("success.content",),
             condition=JsonCondition("success.exceededLimit", "==", True),
         ),
@@ -136,14 +135,22 @@ _READ_TOOL_CALL = HarnessResultFormatList[JsonObject](
             absent_paths=("success.content",),
             no_tool_output_text=True,
         ),
-        Json("error", S.NOT_RUN, present_paths=("error",)),
+        Json(
+            "error",
+            present_paths=("error",),
+            judgment_rule="treat_failed_file_tool_call_as_not_run",
+        ),
     )
 )
 
 _EDIT_TOOL_CALL = HarnessResultFormatList[JsonObject](
     (
         Json("edited", S.FINISHED, present_paths=("success",)),
-        Json("error", S.NOT_RUN, present_paths=("error",)),
+        Json(
+            "error",
+            present_paths=("error",),
+            judgment_rule="treat_failed_file_tool_call_as_not_run",
+        ),
     )
 )
 
@@ -190,7 +197,6 @@ _WEB_SEARCH_TOOL_CALL = HarnessResultFormatList[JsonObject](
             {"tool_output": "success.references"},
             present_paths=("success.references",),
         ),
-        Json("error", S.FINISHED, present_paths=("error",)),
     )
 )
 
@@ -219,7 +225,6 @@ _MCP_TOOL_CALL = HarnessResultFormatList[JsonObject](
             condition=JsonCondition("success.isError", "!=", True),
             text_from_matched_values=_content_text_of,
         ),
-        Json("error", S.NOT_RUN, present_paths=("error",)),
     )
 )
 

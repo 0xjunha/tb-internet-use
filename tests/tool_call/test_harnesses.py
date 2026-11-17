@@ -18,7 +18,6 @@ from tb_internet_use.tool_call.model import (
     ExecutionStatus,
     HarnessTool,
     HarnessToolCall,
-    OtherAction,
     RunToolScriptAction,
     ToolCallKey,
     ToolCallResult,
@@ -37,7 +36,7 @@ CATALOG_TOOLS = _catalog_tools()
 DEFERRED_ACTION_WITHOUT_ARGUMENTS = {
     HarnessTool("codex", "exec"): RunToolScriptAction(),
     HarnessTool("codex", "web_search_call"): UnknownAction(),
-    HarnessTool("cursor-cli", "mcpToolCall"): OtherAction(),
+    HarnessTool("cursor-cli", "mcpToolCall"): UnknownAction(),
 }
 # Muse Code ends a truncated shell output with this reminder.
 MUSE_REMINDER = (

@@ -42,8 +42,8 @@ _STOPPED = (
 _OUTPUT_HEAD = "Output from command in shell {handle:id}:\n"
 _EXIT = "\nExit code: {exit_code:int}"
 # Devin writes -1 here, never another negative code, for a command it stopped, e.g. one that killed its own shell.
-# It is no real exit code or signal number, so `convert_tool_calls` reads any negative code as killed, whatever the format, by the judgment rule `treat_negative_exit_code_as_killed`.
-_SIGNALED = "\nExit code: -{sentinel:uint}"
+# It is no real exit code or signal number, so the formats that end in it name the judgment rule `treat_negative_exit_code_as_killed`, which reads it as killed.
+_SIGNALED = "\nExit code: {exit_code:negative_int}"
 # Devin cuts a long line and ends it with this.
 _CUT_LINE_MARKER = "… ({count:int} chars truncated)"
 
@@ -84,7 +84,7 @@ _EXEC = HarnessResultFormatList[str](
         Text(
             "killed",
             _OUTPUT_HEAD + "{tool_output:text}" + _SIGNALED,
-            S.KILLED,
+            judgment_rule="treat_negative_exit_code_as_killed",
             fixed_handle_kind=ExecutionHandleKind.COMMAND,
         ),
         Text(
@@ -202,7 +202,7 @@ _GET_OUTPUT = HarnessResultFormatList[str](
         Text(
             "killed_silent_twice",
             "Exited with code {code:int} and no output\n" + _SIGNALED,
-            S.KILLED,
+            judgment_rule="treat_negative_exit_code_as_killed",
         ),
         Text(
             "exited_silent_twice",
@@ -240,7 +240,7 @@ _GET_OUTPUT = HarnessResultFormatList[str](
         Text(
             "running",
             "{tool_output:text}",
-            S.RUNNING,
+            judgment_rule="treat_get_output_without_exit_code_as_running",
             truncation_marker=_CUT_LINE_MARKER,
         ),
     ),
@@ -266,7 +266,7 @@ _WRITE_TO_PROCESS = HarnessResultFormatList[str](
         Text(
             "written",
             "Written {bytes:int} bytes to shell {handle:id}",
-            S.RUNNING,
+            judgment_rule="treat_written_input_as_running_target",
             fixed_handle_kind=ExecutionHandleKind.COMMAND,
         ),
     )
@@ -289,40 +289,41 @@ _READ = HarnessResultFormatList[str](
     )
 )
 
-_UPDATED = (
+_UPDATED_WITH_SNIPPET = (
     "The file {path:line} has been updated. Here's the result of running `cat -n` on a snippet of the edited file:\n"
     "{snippet:numbered_pipe}"
 )
 _CUT_LINES = "\n… ({cut:int} lines truncated)\n"
-_UPDATED_TRUNCATED_NOTE = _UPDATED + _CUT_LINES + _TRUNCATED
-_UPDATED_TRUNCATED_CUT_LINE = _UPDATED + "\n{cut_line:line}" + _CUT_LINES + _TRUNCATED
-# What write and edit return after they changed a file.
-_UPDATED_FORMATS = (
-    Text(
-        "updated_truncated_note", _UPDATED_TRUNCATED_NOTE, S.FINISHED, is_truncated=True
-    ),
-    Text(
-        "updated_truncated_cut_line",
-        _UPDATED_TRUNCATED_CUT_LINE,
-        S.FINISHED,
-        is_truncated=True,
-    ),
-    Text("updated", _UPDATED, S.FINISHED),
+# Formats that write and edit share, of a file they changed.
+_UPDATED_TRUNCATED_NOTE = Text(
+    "updated_truncated_note",
+    _UPDATED_WITH_SNIPPET + _CUT_LINES + _TRUNCATED,
+    S.FINISHED,
+    is_truncated=True,
 )
+_UPDATED = Text("updated", _UPDATED_WITH_SNIPPET, S.FINISHED)
 
 _WRITE = HarnessResultFormatList[str](
     (
         Text(
             "created", "File created successfully at: {path:rest_of_line}", S.FINISHED
         ),
-        *_UPDATED_FORMATS,
+        _UPDATED_TRUNCATED_NOTE,
+        Text(
+            "updated_truncated_cut_line",
+            _UPDATED_WITH_SNIPPET + "\n{cut_line:line}" + _CUT_LINES + _TRUNCATED,
+            S.FINISHED,
+            is_truncated=True,
+        ),
+        _UPDATED,
         Text("rejected", "Tool 'write' validation failed: {reason:text}", S.NOT_RUN),
     )
 )
 
 _EDIT = HarnessResultFormatList[str](
     (
-        *_UPDATED_FORMATS,
+        _UPDATED_TRUNCATED_NOTE,
+        _UPDATED,
         Text("rejected", "Tool 'edit' validation failed: {reason:text}", S.NOT_RUN),
     )
 )

@@ -39,12 +39,13 @@ HEAD = "Chunk ID: ab12\nWall time: 0.5 seconds\n"
 def _harness_tool_call(
     tool: str, args: dict[str, Any], content: str | None
 ) -> HarnessToolCall:
+    """A call whose result entry holds `content`, or no `content` key for None, as Codex writes a web search."""
     return HarnessToolCall(
         ToolCallKey("t", "main", 1, 0),
         HarnessTool("codex", tool),
         "id",
         args,
-        {"content": content},
+        {} if content is None else {"content": content},
     )
 
 
@@ -171,16 +172,18 @@ def test_ctrl_c_through_write_stdin_is_a_terminate_and_exit_130_is_killed():
     assert isinstance(call.action, PollAction) and not call.action.terminate
 
 
-def test_web_search_call_with_content_keeps_it_as_text():
+def test_web_search_call_with_content_has_an_unknown_format_and_keeps_it_as_text():
     tool_call_result = _converted(
         _harness_tool_call("web_search_call", {"action_type": "search"}, "some text")
     ).result
     assert tool_call_result is not None
     assert (
         tool_call_result.harness_result_format,
+        tool_call_result.execution_status,
         tool_call_result.tool_output_text,
     ) == (
-        UnmatchedFormat.SKIPPED,
+        UnmatchedFormat.UNKNOWN,
+        S.UNKNOWN,
         "some text",
     )
 
@@ -202,10 +205,11 @@ def test_web_search_call_without_content_is_finished_and_typed_by_action_type():
         )
     )
     assert call.result is not None
-    assert (call.result.execution_status, call.result.tool_output_text) == (
-        S.FINISHED,
-        None,
-    )
+    assert (
+        call.result.execution_status,
+        call.result.tool_output_text,
+        call.result.harness_result_format,
+    ) == (S.FINISHED, None, MatchedFormat("no_content"))
     assert call.action == WebSearchAction(("q",))
     assert _converted(
         _harness_tool_call(

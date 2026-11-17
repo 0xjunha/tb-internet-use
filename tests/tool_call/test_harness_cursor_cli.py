@@ -14,9 +14,9 @@ from tb_internet_use.tool_call.model import (
     HarnessTool,
     HarnessToolCall,
     MatchedFormat,
-    OtherAction,
     PollAction,
     ToolCallKey,
+    UnknownAction,
     UnmatchedFormat,
     WebFetchAction,
 )
@@ -298,7 +298,8 @@ def test_mcp_tool_call_action_follows_the_wrapped_tool():
             "mcpToolCall", {"toolName": "browser_click", "args": {}}, result
         )
     )
-    assert call.action == OtherAction()
+    # A wrapped tool that the converter does not know is unknown, not a default.
+    assert call.action == UnknownAction()
     call = _converted(
         _harness_tool_call(
             "mcpToolCall", {"toolName": "browser_navigate", "args": {}}, result

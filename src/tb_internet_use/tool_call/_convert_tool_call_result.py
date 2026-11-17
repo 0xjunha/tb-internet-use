@@ -3,9 +3,11 @@
 from collections import Counter
 from typing import TYPE_CHECKING, Any
 
+from tb_internet_use.tool_call import judgment_rules
 from tb_internet_use.tool_call.model import (
     ExecutionHandle,
     ExecutionHandleKind,
+    ExecutionStatus,
     HarnessToolCall,
     MatchedFormat,
     ToolCallResult,
@@ -49,14 +51,21 @@ def convert_tool_call_result(
 def result_from_harness_result_format(
     tool_result_raw_text: str | None,
     harness_result_format: MatchedHarnessResultFormat | UnmatchedFormat,
+    *,
+    judgment_rule_use_counts: Counter[str],
 ) -> ToolCallResult:
-    """Build the `ToolCallResult` of a tool result from the declared format that `ToolCallKnowledge.harness_result_format` found for it, or keep its raw text when no format matched."""
+    """Build the `ToolCallResult` of a tool result from the declared format that `ToolCallKnowledge.harness_result_format` found for it, or keep its raw text when no format matched.
+
+    A format that names a rule of `judgment_rules.py` gets its status from that rule, which counts the use in `judgment_rule_use_counts`.
+    """
     if isinstance(harness_result_format, UnmatchedFormat):
         return _result_from_unmatched_format(
             tool_result_raw_text, harness_result_format
         )
     return _result_from_matched_format(
-        harness_result_format.format, harness_result_format.matched_values
+        harness_result_format.format,
+        harness_result_format.matched_values,
+        judgment_rule_use_counts=judgment_rule_use_counts,
     )
 
 
@@ -71,12 +80,16 @@ def _result_from_unmatched_format(
 
 
 def _result_from_matched_format(
-    fmt: HarnessResultFormat[Any], values: MatchedValues
+    fmt: HarnessResultFormat[Any],
+    values: MatchedValues,
+    *,
+    judgment_rule_use_counts: Counter[str],
 ) -> ToolCallResult:
-    """Turn a matched format and its matched values into common types."""
-    return ToolCallResult(
+    """Turn a matched format and its matched values into common types, with the status the format states or the one its judgment rule decides."""
+    tool_call_result = ToolCallResult(
         tool_output_text=fmt.tool_output_text_of(values),
-        execution_status=fmt.status,
+        # A format without a status names a judgment rule, which building the format checks, and the rule decides the status below.
+        execution_status=ExecutionStatus.UNKNOWN if fmt.status is None else fmt.status,
         exit_code=_int_from_matched_values(values, "exit_code"),
         http_status=_int_from_matched_values(values, "http_status"),
         handles=_handles_from_matched_values(fmt.handle_kind_of(values), values),
@@ -84,6 +97,11 @@ def _result_from_matched_format(
         is_truncated=fmt.is_truncated_of(values),
         harness_result_format=MatchedFormat(fmt.name),
     )
+    if fmt.judgment_rule is None:
+        return tool_call_result
+    # A test checks that every rule a declared format names is a function of `judgment_rules.py`.
+    judgment_rule = getattr(judgment_rules, fmt.judgment_rule)
+    return judgment_rule(tool_call_result, use_counts=judgment_rule_use_counts)
 
 
 def _int_from_matched_values(values: MatchedValues, name: str) -> int | None:

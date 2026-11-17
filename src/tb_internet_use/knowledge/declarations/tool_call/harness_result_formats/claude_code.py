@@ -37,8 +37,7 @@ _NOTICES = (
     HarnessNotice("session_cwd_bare", "\nSession cwd {what:rest_of_line}", at="end"),
 )
 
-# Formats several tools share, e.g. a rejected call, a safety-classifier stop, a
-# refused symlink and a result saved to a file.
+# Formats several tools share, a rejected call and a safety-classifier stop.
 _TOOL_USE_ERROR = Text(
     "tool_use_error", "<tool_use_error>{reason:text}</tool_use_error>", S.NOT_RUN
 )
@@ -48,16 +47,6 @@ _INTERRUPTED_CLASSIFIER = Text(
     "Interrupted: the response that made this tool call was stopped by a safety classifier{reason:text}",
     S.UNKNOWN,
 )
-_NOT_RUN_CLASSIFIER = Text(
-    "not_run_classifier",
-    "Not run: the response that made this tool call was stopped by a safety classifier{reason:text}",
-    S.NOT_RUN,
-)
-_REFUSED_SYMLINK = Text(
-    "refused_symlink",
-    "Refusing to write through symlink: {path:word} {hint:text}",
-    S.NOT_RUN,
-)
 
 _PERSISTED_HEAD = (
     "<persisted-output>\nOutput too large ({size:line_without_brackets}). Full output saved to: {output_path:word}\n\n"
@@ -66,18 +55,6 @@ _PERSISTED_HEAD = (
 _PERSISTED_PARTIAL_HEAD = (
     "<persisted-output>\nOutput exceeded the {limit:line_without_brackets} persist limit; only the first {kept:line_without_brackets} were saved to: "
     "{output_path:word}\n\nPreview (first {preview:line_without_brackets}):\n"
-)
-_PERSISTED = Text(
-    "persisted_output",
-    _PERSISTED_HEAD + "{tool_output:text}\n</persisted-output>",
-    S.FINISHED,
-    is_truncated=True,
-)
-_PERSISTED_PARTIAL = Text(
-    "persisted_output_partial",
-    _PERSISTED_PARTIAL_HEAD + "{tool_output:text}\n</persisted-output>",
-    S.FINISHED,
-    is_truncated=True,
 )
 
 _NOTIFY = " You will be notified when it completes. To check interim output, use Read on that file path."
@@ -124,10 +101,24 @@ _BASH_OK = HarnessResultFormatList[str](
             S.RUNNING,
             fixed_handle_kind=ExecutionHandleKind.COMMAND,
         ),
-        _PERSISTED,
-        _PERSISTED_PARTIAL,
+        Text(
+            "persisted_output",
+            _PERSISTED_HEAD + "{tool_output:text}\n</persisted-output>",
+            S.FINISHED,
+            is_truncated=True,
+        ),
+        Text(
+            "persisted_output_partial",
+            _PERSISTED_PARTIAL_HEAD + "{tool_output:text}\n</persisted-output>",
+            S.FINISHED,
+            is_truncated=True,
+        ),
         # Not judged an error, so no header. The exit code is 0, or 1 for grep, find, diff and the like.
-        Text("bare_output", "{tool_output:text}", S.FINISHED),
+        Text(
+            "bare_output",
+            "{tool_output:text}",
+            judgment_rule="treat_bash_output_without_exit_code_line_as_finished",
+        ),
     ),
     notices=_NOTICES,
 )
@@ -189,7 +180,7 @@ _READ = HarnessResultFormatList[str](
         Text(
             "unchanged",
             "Wasted call — file unchanged since your last Read. Refer to that earlier tool_result instead.",
-            S.NOT_RUN,
+            judgment_rule="treat_failed_file_tool_call_as_not_run",
         ),
         Text(
             "pdf",
@@ -203,32 +194,55 @@ _READ = HarnessResultFormatList[str](
             S.FINISHED,
             no_tool_output_text=True,
         ),
-        Text("pdf_tool_missing", "pdftoppm is not installed. {hint:text}", S.NOT_RUN),
+        Text(
+            "pdf_tool_missing",
+            "pdftoppm is not installed. {hint:text}",
+            judgment_rule="treat_failed_file_tool_call_as_not_run",
+        ),
         Text(
             "pdf_too_many_pages",
             "This PDF has {pages:int} pages, which is too many to read at once. {hint:text}",
-            S.NOT_RUN,
+            judgment_rule="treat_failed_file_tool_call_as_not_run",
         ),
         Text(
             "pdf_too_large",
             "PDF file exceeds maximum allowed size of {limit:rest_of_line}",
-            S.NOT_RUN,
+            judgment_rule="treat_failed_file_tool_call_as_not_run",
         ),
-        Text("image_too_large", "Unable to resize image {detail:text}", S.NOT_RUN),
+        Text(
+            "image_too_large",
+            "Unable to resize image {detail:text}",
+            judgment_rule="treat_failed_file_tool_call_as_not_run",
+        ),
         Text(
             "directory",
             "EISDIR: illegal operation on a directory, {detail:text}",
-            S.NOT_RUN,
+            judgment_rule="treat_failed_file_tool_call_as_not_run",
         ),
-        Text("missing", "File does not exist. {note:text}", S.NOT_RUN),
+        Text(
+            "missing",
+            "File does not exist. {note:text}",
+            judgment_rule="treat_failed_file_tool_call_as_not_run",
+        ),
         Text(
             "too_large",
             "File content ({size:line_without_brackets}) exceeds maximum allowed {limit:text}",
-            S.NOT_RUN,
+            judgment_rule="treat_failed_file_tool_call_as_not_run",
         ),
-        _PERSISTED,
-        _PERSISTED_PARTIAL,
         Text("listing", "{tool_output:numbered_tab}", S.FINISHED),
+    )
+)
+
+# A Read result without text, which the Claude Code converter holds as its only content item.
+_READ_WITHOUT_TEXT = HarnessResultFormatList[JsonObject](
+    (
+        # A Read of an image file returns the image, of which the trajectory keeps no text.
+        Json(
+            "image",
+            S.FINISHED,
+            condition=JsonCondition("type", "==", "image"),
+            no_tool_output_text=True,
+        ),
     )
 )
 
@@ -250,9 +264,11 @@ _PARAMETER_NOTICE = HarnessNotice(
 _WRITE = HarnessResultFormatList[str](
     (
         _TOOL_USE_ERROR,
-        _INTERRUPTED_CLASSIFIER,
-        _NOT_RUN_CLASSIFIER,
-        _REFUSED_SYMLINK,
+        Text(
+            "not_run_classifier",
+            "Not run: the response that made this tool call was stopped by a safety classifier{reason:text}",
+            S.NOT_RUN,
+        ),
         Text(
             "created_fresh",
             "File created successfully at: {path:word}" + _FRESH,
@@ -269,9 +285,11 @@ _WRITE = HarnessResultFormatList[str](
 _EDIT = HarnessResultFormatList[str](
     (
         _TOOL_USE_ERROR,
-        _INTERRUPTED_CLASSIFIER,
-        _NOT_RUN_CLASSIFIER,
-        _REFUSED_SYMLINK,
+        Text(
+            "refused_symlink",
+            "Refusing to write through symlink: {path:word} {hint:text}",
+            S.NOT_RUN,
+        ),
         *_UPDATED,
         Text(
             "updated_note",
@@ -299,10 +317,6 @@ _EDIT = HarnessResultFormatList[str](
 
 _WEB_FETCH = HarnessResultFormatList[str](
     (
-        _TOOL_USE_ERROR,
-        _INTERRUPTED_CLASSIFIER,
-        _PERSISTED,
-        _PERSISTED_PARTIAL,
         Text("no_model_response", "No response from model", S.FINISHED),
         Text(
             "no_model_response_binary_saved",
@@ -321,7 +335,11 @@ _WEB_FETCH = HarnessResultFormatList[str](
             "{tool_output:text}\n\n[Binary content ({detail:line_without_brackets}) also saved to {output_path:line_without_brackets}]",
             S.FINISHED,
         ),
-        Text("page", "{tool_output:text}", S.FINISHED),
+        Text(
+            "page",
+            "{tool_output:text}",
+            judgment_rule="treat_web_fetch_text_as_finished",
+        ),
     )
 )
 
@@ -329,16 +347,12 @@ _SEARCH_HEAD = 'Web search results for query: "{query:line}"\n\n'
 _SEARCH_FOOT = "\n\nREMINDER: You MUST include the sources above in your response to the user using markdown hyperlinks."
 _WEB_SEARCH = HarnessResultFormatList[str](
     (
-        _TOOL_USE_ERROR,
-        _INTERRUPTED_CLASSIFIER,
         Text(
             "persisted_results",
             _PERSISTED_HEAD + _SEARCH_HEAD + "{tool_output:text}\n</persisted-output>",
             S.FINISHED,
             is_truncated=True,
         ),
-        _PERSISTED,
-        _PERSISTED_PARTIAL,
         Text(
             "cut_off",
             "The search was cut off before any results arrived. Try again.",
@@ -366,7 +380,6 @@ _TASK_STOP = HarnessResultFormatList[JsonObject](
 _TASK_STOP_TEXT = HarnessResultFormatList[str](
     (
         _TOOL_USE_ERROR,
-        _INTERRUPTED_CLASSIFIER,
         Text(
             "persisted_stopped",
             _PERSISTED_HEAD
@@ -375,8 +388,6 @@ _TASK_STOP_TEXT = HarnessResultFormatList[str](
             is_truncated=True,
             fixed_handle_kind=ExecutionHandleKind.COMMAND,
         ),
-        _PERSISTED,
-        _PERSISTED_PARTIAL,
         Text(
             "not_owner",
             "Task {task:id} is owned by {owner:id}; agent {agent:id} cannot stop it.",
@@ -413,7 +424,9 @@ RESULT_FORMATS_BY_TOOL: Mapping[str, HarnessToolResultDeclaration] = {
     "Bash": HarnessToolResultDeclaration(
         text_formats=_BASH_OK, text_formats_when_marked_as_error=_BASH_ERROR
     ),
-    "Read": HarnessToolResultDeclaration(text_formats=_READ),
+    "Read": HarnessToolResultDeclaration(
+        text_formats=_READ, json_formats=_READ_WITHOUT_TEXT
+    ),
     "Write": HarnessToolResultDeclaration(text_formats=_WRITE),
     "Edit": HarnessToolResultDeclaration(text_formats=_EDIT),
     "WebFetch": HarnessToolResultDeclaration(text_formats=_WEB_FETCH),

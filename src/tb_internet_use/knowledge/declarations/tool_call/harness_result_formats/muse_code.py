@@ -40,23 +40,38 @@ def _shell_output_text_of(values: MatchedValues) -> str:
     return output[note.end() :] if note else output
 
 
-_SHELL = HarnessResultFormatList[JsonObject](
+# Formats that bash and bash_input share, of a command that ended or still runs.
+_SHELL_EXITED = Json(
+    "exited",
+    S.FINISHED,
+    _SHELL_FIELDS,
+    condition=JsonCondition("terminal_status", "==", "completed"),
+    text_from_matched_values=_shell_output_text_of,
+)
+_SHELL_FAILED = Json(
+    "failed",
+    S.FINISHED,
+    _SHELL_FIELDS,
+    present_paths=("exit_code",),
+    condition=JsonCondition("terminal_status", "==", "failed"),
+    text_from_matched_values=_shell_output_text_of,
+)
+_SHELL_BACKGROUND = Json(
+    "background",
+    S.RUNNING,
+    {
+        "tool_output": "output",
+        "handles": ("session_id", "work_id"),
+        "is_truncated": "truncated",
+    },
+    condition=JsonCondition("execution_state", "==", "background_running"),
+    text_from_matched_values=_shell_output_text_of,
+    fixed_handle_kind=ExecutionHandleKind.COMMAND,
+)
+_BASH = HarnessResultFormatList[JsonObject](
     (
-        Json(
-            "exited",
-            S.FINISHED,
-            _SHELL_FIELDS,
-            condition=JsonCondition("terminal_status", "==", "completed"),
-            text_from_matched_values=_shell_output_text_of,
-        ),
-        Json(
-            "failed",
-            S.FINISHED,
-            _SHELL_FIELDS,
-            present_paths=("exit_code",),
-            condition=JsonCondition("terminal_status", "==", "failed"),
-            text_from_matched_values=_shell_output_text_of,
-        ),
+        _SHELL_EXITED,
+        _SHELL_FAILED,
         Json(
             "signaled",
             S.KILLED,
@@ -67,6 +82,13 @@ _SHELL = HarnessResultFormatList[JsonObject](
             ),
             text_from_matched_values=_shell_output_text_of,
         ),
+        _SHELL_BACKGROUND,
+    )
+)
+_BASH_INPUT = HarnessResultFormatList[JsonObject](
+    (
+        _SHELL_EXITED,
+        _SHELL_FAILED,
         Json(
             "cancelled",
             S.KILLED,
@@ -74,18 +96,7 @@ _SHELL = HarnessResultFormatList[JsonObject](
             condition=JsonCondition("terminal_status", "==", "cancelled"),
             text_from_matched_values=_shell_output_text_of,
         ),
-        Json(
-            "background",
-            S.RUNNING,
-            {
-                "tool_output": "output",
-                "handles": ("session_id", "work_id"),
-                "is_truncated": "truncated",
-            },
-            condition=JsonCondition("execution_state", "==", "background_running"),
-            text_from_matched_values=_shell_output_text_of,
-            fixed_handle_kind=ExecutionHandleKind.COMMAND,
-        ),
+        _SHELL_BACKGROUND,
     )
 )
 # Any tool's call that Muse refused.
@@ -96,8 +107,8 @@ _WORK_STOP = HarnessResultFormatList[JsonObject](
     (
         Json(
             "accepted",
-            S.KILLED,
-            {"handle": "work_id"},
+            value_paths={"handle": "work_id"},
+            judgment_rule="treat_accepted_stop_request_as_killed",
             condition=JsonCondition("status", "==", "accepted"),
             fixed_handle_kind=ExecutionHandleKind.COMMAND,
         ),
@@ -175,7 +186,6 @@ _WRITE_FILE = HarnessResultFormatList[str](
             S.FINISHED,
         ),
         Text("written", "wrote {bytes:int} bytes to {path:rest_of_line}", S.FINISHED),
-        _REJECTED,
     )
 )
 _EDIT_FILE = HarnessResultFormatList[str](
@@ -187,9 +197,9 @@ _EDIT_FILE = HarnessResultFormatList[str](
 
 
 RESULT_FORMATS_BY_TOOL: Mapping[str, HarnessToolResultDeclaration] = {
-    "bash": HarnessToolResultDeclaration(text_formats=_SHELL_TEXT, json_formats=_SHELL),
+    "bash": HarnessToolResultDeclaration(text_formats=_SHELL_TEXT, json_formats=_BASH),
     "bash_input": HarnessToolResultDeclaration(
-        text_formats=_SHELL_TEXT, json_formats=_SHELL
+        text_formats=_SHELL_TEXT, json_formats=_BASH_INPUT
     ),
     "work_stop": HarnessToolResultDeclaration(json_formats=_WORK_STOP),
     "web_search": HarnessToolResultDeclaration(json_formats=_WEB_SEARCH),

@@ -15,9 +15,10 @@ Step 1 reaches them only through `ToolCallKnowledge.has_json_result_formats` and
 `harness_result_format_catalog.csv` lists every result format the harnesses declare, one row per (harness, tool, format), in the order the formats are tried.
 [build_harness_result_format_catalog.py](../../../../../../scripts/build_harness_result_format_catalog.py) writes it from the code alone, without reading any trajectory. Only `reviewed` and `note` are filled by hand. `reviewed` is kept as long as `template`, `status`, `is_truncated`, `no_tool_output_text` and `handle_kind` stay the same, and `note` is always kept. A test checks that the committed file matches the code.
 
-A row is what the format declares. A converter's `convert_result` may still change `status`, `is_truncated`, `no_tool_output_text` or the handles after the match, e.g. the status and handles of a Grok multi-wait, the status of a Codex Ctrl-C or a negative Devin exit code, `is_truncated` from Claude Code's structured result, and no tool output text for a Codex script that printed only images. The status changes are judgment rules in [judgment_rules.py](../../../../tool_call/judgment_rules.py).
+A row is what the format declares. A format whose result text does not tell the status names the judgment rule of [judgment_rules.py](../../../../tool_call/judgment_rules.py) that decides it, and its `status` is `by <judgment rule>`, e.g. `by treat_bash_output_without_exit_code_line_as_finished`. A converter's `convert_result` may still change `status`, `is_truncated`, `no_tool_output_text` or the handles after the match, e.g. the status and handles of a Grok multi-wait, the status of a Codex Ctrl-C or a negative Devin exit code in a format that states a status, `is_truncated` from Claude Code's structured result, and no tool output text for a Codex script that printed only images. The status changes there are judgment rules too.
 
 - **`kind`:** `text` or `json`.
+- **`status`:** the status of every result of the format, or `by <judgment rule>` when a rule of `judgment_rules.py` decides it.
 - **`template`:** the template of a text format, or the present paths, absent paths and
   condition of a JSON format. A carriage return is written as `\r`, so that editors keep
   it, and a backslash as `\\`.
@@ -33,8 +34,7 @@ A row is what the format declares. A converter's `convert_result` may still chan
 
 [audit_results.py](../../../../../../scripts/audit_results.py) counts what the declared formats match on the raw trials, with the checks in [harness_result_format_audit.py](../../../harness_result_format_audit.py). A run writes `out/tool_call_knowledge/harness_result_format_audit.csv`, one row per (harness, tool, format) with the same keys as the catalog, and prints a report. Neither is committed, since the counts come from the trajectories.
 
-- **`kind`:** `text` or `json` for a declared format; `special` for a form built by
-  converter code, e.g. Claude Code `image`, Codex `no_content`; empty for the
+- **`kind`:** `text` or `json` for a declared format; empty for the
   `unknown_format` and `skipped_format` rows that count a tool's other results.
 - **`call_count`, `trial_count`, `example_calls`:** how often it matched and where
   (`trial/trajectory#step.index`), never result text.

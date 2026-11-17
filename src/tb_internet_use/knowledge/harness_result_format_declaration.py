@@ -32,6 +32,7 @@ _NO_OUTPUT_TEXT = ""
 #   is_truncated      is_truncated, a bool (JSON only)
 # A format that gives `handle` or `handles` states the kind of its handles, and a format that gives neither states no kind.
 # What every result of a format shares, such as `status`, is a field of the format.
+# A format states its `status`, or names the `judgment_rule` that decides it when the result text does not say, never both.
 # What every call of a tool shares, such as `stops_execution`, is a column of the harness tool catalogs.
 
 # values of the placeholders or JSON paths that matched
@@ -48,6 +49,8 @@ PLACEHOLDER_TYPE_PATTERNS = {
     "int": r"-?\d+",
     # a whole number without a sign, e.g. after a fixed minus sign
     "uint": r"\d+",
+    # a whole number with a minus sign, e.g. an exit code that only a negative value fits
+    "negative_int": r"-\d+",
     # Letters, digits, `_` and `-`, with dots inside but not at the end, e.g. a handle.
     "id": r"[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*",
     # lazy, without spaces, e.g. a path
@@ -224,9 +227,11 @@ class HarnessTextResultFormat:
 
     name: str
     template: str
-    # The execution status of every result of this format.
-    status: ExecutionStatus
+    # The execution status of every result of this format, None when `judgment_rule` decides it.
+    status: ExecutionStatus | None = None
     _: KW_ONLY
+    # The function of `tool_call/judgment_rules.py` that decides the status, named as text since `knowledge/` imports no rule.
+    judgment_rule: str | None = None
     # Whether every result of this format has a truncated tool output. None when the
     # format does not tell.
     is_truncated: bool | None = None
@@ -242,6 +247,9 @@ class HarnessTextResultFormat:
     truncation_marker: str | None = None
 
     def __post_init__(self) -> None:
+        _check_status_or_judgment_rule_stated(
+            self.name, self.status, self.judgment_rule
+        )
         _check_handle_kind_stated(
             self.name,
             gives_handles=not _HANDLE_VALUE_NAMES.isdisjoint(
@@ -280,6 +288,19 @@ class HarnessTextResultFormat:
             return text
         every_line = placeholder_type != "partly_numbered_arrow"
         return strip_line_numbers(text, separator, every_line=every_line)
+
+
+def _check_status_or_judgment_rule_stated(
+    format_name: str, status: ExecutionStatus | None, judgment_rule: str | None
+) -> None:
+    """Raise ValueError when a format states both a status and a judgment rule, or neither.
+
+    A format whose result text tells the status states it, and any other format names the judgment rule that decides it, so every status has one source.
+    """
+    if (status is None) == (judgment_rule is None):
+        raise ValueError(
+            f"the format {format_name!r} must state either a `status` or a `judgment_rule`, not both and not neither"
+        )
 
 
 def _check_handle_kind_stated(
@@ -352,13 +373,15 @@ class HarnessJsonResultFormat:
     """
 
     name: str
-    # The execution status of every result of this format.
-    status: ExecutionStatus
+    # The execution status of every result of this format, None when `judgment_rule` decides it.
+    status: ExecutionStatus | None = None
     # Each value name and the JSON path it is read from. Several paths give the
     # parts of one tool output in order, or one handle each for `handles`. Missing
     # and null parts are left out.
     value_paths: Mapping[str, str | tuple[str, ...]] = field(default_factory=dict)
     _: KW_ONLY
+    # The function of `tool_call/judgment_rules.py` that decides the status, as for a text format.
+    judgment_rule: str | None = None
     # JSON paths that every result of this format has.
     present_paths: tuple[str, ...] = ()
     # JSON paths that no result of this format has.
@@ -379,6 +402,9 @@ class HarnessJsonResultFormat:
     no_tool_output_text: bool = False
 
     def __post_init__(self) -> None:
+        _check_status_or_judgment_rule_stated(
+            self.name, self.status, self.judgment_rule
+        )
         _check_handle_kind_stated(
             self.name,
             gives_handles=not _HANDLE_VALUE_NAMES.isdisjoint(self.value_paths),
@@ -589,7 +615,10 @@ class HarnessResultFormat[AnnotatedOutputT](Protocol):
     def name(self) -> str: ...
 
     @property
-    def status(self) -> ExecutionStatus: ...
+    def status(self) -> ExecutionStatus | None: ...
+
+    @property
+    def judgment_rule(self) -> str | None: ...
 
     @property
     def is_truncated(self) -> bool | None: ...

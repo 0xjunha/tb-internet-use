@@ -21,7 +21,6 @@ from tb_internet_use.tool_call.model import (
     HarnessTool,
     HarnessToolCall,
     HarnessToolLabel,
-    MatchedFormat,
     PollAction,
     RunToolScriptAction,
     ToolCallAction,
@@ -42,7 +41,10 @@ from tb_internet_use.tool_call.parse_codex_exec_script import (
 )
 
 if TYPE_CHECKING:
-    # The door is passed in and named in annotations only, so that `convert_tool_calls` never loads `knowledge/` itself.
+    # The door and the declaration types are named in annotations only, so that `convert_tool_calls` never loads `knowledge/` itself.
+    from tb_internet_use.knowledge.harness_result_format_declaration import (
+        JsonObject,
+    )
     from tb_internet_use.knowledge.tool_call_knowledge import ToolCallKnowledge
 
 S = ExecutionStatus
@@ -56,9 +58,6 @@ _NOT_IN_SCRIPTS = frozenset({"exec", "wait", "request_user_input_async"})
 _WEB_SEARCH_CALL = "web_search_call"
 # Ctrl-C sent through write_stdin stops the process.
 _CTRL_C = "\x03"
-_NO_CONTENT = ToolCallResult(
-    execution_status=S.FINISHED, harness_result_format=MatchedFormat("no_content")
-)
 
 
 # A step result a script printed as JSON, e.g. `text(JSON.stringify(await tools.exec_command(...)))`.
@@ -80,6 +79,17 @@ class CodexConverter(HarnessToolCallConverter):
             return text
         return join_text_parts(str(i.get("text") or "") for i in items if _is_text(i))
 
+    def tool_result_json_of(
+        self, harness_tool_call: HarnessToolCall, tool_result: dict[str, Any]
+    ) -> JsonObject | None:
+        """For `web_search_call`, the result entry of the trajectory itself, since Codex keeps no output of a web search and the entry is all there is to match.
+
+        The entry stays even when it is empty, unlike a decoded raw text, since `{}` is what such a result looks like.
+        """
+        if harness_tool_call.tool.name == _WEB_SEARCH_CALL:
+            return tool_result
+        return super().tool_result_json_of(harness_tool_call, tool_result)
+
     def convert_result(
         self,
         harness_tool_call: HarnessToolCall,
@@ -88,11 +98,6 @@ class CodexConverter(HarnessToolCallConverter):
         knowledge: ToolCallKnowledge,
         judgment_rule_use_counts: Counter[str],
     ) -> ToolCallResult:
-        if (
-            harness_tool_call.tool.name == _WEB_SEARCH_CALL
-            and tool_result.get("content") is None
-        ):
-            return _NO_CONTENT
         tool_call_result = super().convert_result(
             harness_tool_call,
             tool_result,

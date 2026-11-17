@@ -1,9 +1,11 @@
-"""The declared result formats of every harness agree with the harness tool catalog, with their own order, and with the names that tie a converted result to its catalog and audit rows."""
+"""The declared result formats of every harness agree with the harness tool catalog, with their own order, and with the names that tie a converted result to its catalog and audit rows, and a tool has no format for a form it never returned."""
 
 import csv
-import json
-from collections import Counter, defaultdict
+import inspect
+from collections import defaultdict
 from typing import Any
+
+import pytest
 
 from tb_internet_use.knowledge.harness_result_format_audit import (
     iter_declared_format_lists,
@@ -20,12 +22,9 @@ from tb_internet_use.knowledge.tool_call_knowledge import (
     TOOL_CALL_CATALOGS_DIR,
     ToolCallKnowledge,
 )
-from tb_internet_use.tool_call.harnesses import converter_for
+from tb_internet_use.tool_call import judgment_rules
 from tb_internet_use.tool_call.model import (
     HarnessTool,
-    HarnessToolCall,
-    MatchedFormat,
-    ToolCallKey,
     UnmatchedFormat,
 )
 
@@ -40,6 +39,7 @@ def _catalog_tools() -> set[HarnessTool]:
 _SAMPLE_BY_TYPE = {
     "int": "1",
     "uint": "1",
+    "negative_int": "-1",
     "id": "a1",
     "word": "w",
     "line": "l",
@@ -51,33 +51,17 @@ _SAMPLE_BY_TYPE = {
     "partly_numbered_arrow": "1→x\n2→y",
 }
 
-# A made-up result per format that converter code builds instead of a declared list, by (harness, tool).
-# A new such format also shows up as a `special` row of the audit CSV.
-_RESULT_BY_SPECIAL_FORMAT_TOOL = {
-    ("claude-code", "Read"): {"content": json.dumps({"type": "image", "source": {}})},
-    ("codex", "web_search_call"): {"content": None},
-}
 
-
-def _special_formats() -> dict[tuple[str, str], set[str]]:
-    """Convert the made-up result of each tool and give the name of the format its converter built, so that a renamed format is seen."""
-    names: dict[tuple[str, str], set[str]] = {}
-    for (harness, tool), result in _RESULT_BY_SPECIAL_FORMAT_TOOL.items():
-        harness_tool_call = HarnessToolCall(
-            ToolCallKey("t", "main", 1, 0), HarnessTool(harness, tool), "id", {}, result
-        )
-        tool_call_result = converter_for(harness).convert_result(
-            harness_tool_call,
-            result,
-            knowledge=ToolCallKnowledge(),
-            judgment_rule_use_counts=Counter(),
-        )
-        assert isinstance(tool_call_result.harness_result_format, MatchedFormat)
-        names[harness, tool] = {str(tool_call_result.harness_result_format)}
-    return names
-
-
-SPECIAL_FORMATS = _special_formats()
+# Made-up results of forms that tools of other harnesses or other tools of the same harness have, but that these tools never returned in the trajectories, as (harness, tool, raw text, JSON object).
+_RESULTS_OF_FORMS_NEVER_SEEN = (
+    ("claude-code", "Write", "Refusing to write through symlink: /a hint", None),
+    ("codex", "exec_command", "write_stdin failed: no session", None),
+    ("codex", "write_stdin", "exec_command failed: no shell", None),
+    ("cursor-cli", "awaitToolCall", None, {"error": {"message": "m"}}),
+    ("cursor-cli", "mcpToolCall", None, {"error": {"message": "m"}}),
+    ("muse-code", "write_file", "tool failed: denied", None),
+    ("muse-code", "bash", None, {"terminal_status": "cancelled", "output": ""}),
+)
 
 
 def _declared() -> dict[tuple[str, str], dict[str, list[Any]]]:
@@ -102,18 +86,21 @@ def test_one_name_means_one_format_within_a_tool():
     assert not clashes
 
 
-def test_no_declared_or_special_name_is_a_reserved_value():
+def test_no_declared_name_is_a_reserved_value():
     # The types keep them apart, but CSV rows hold names as text.
     reserved = {str(member) for member in UnmatchedFormat}
     declared = {name for by_name in _declared().values() for name in by_name}
-    special = set().union(*SPECIAL_FORMATS.values())
-    assert not (declared | special) & reserved
+    assert not declared & reserved
 
 
-def test_special_names_do_not_reuse_a_declared_name_of_their_tool():
-    declared = _declared()
-    for key, names in SPECIAL_FORMATS.items():
-        assert not names & set(declared[key]), key
+def test_every_judgment_rule_a_format_names_is_a_function_of_judgment_rules():
+    unknown_rules = [
+        (harness, tool, fmt.name, fmt.judgment_rule)
+        for harness, tool, fmt in iter_declared_formats()
+        if fmt.judgment_rule is not None
+        and not inspect.isfunction(getattr(judgment_rules, fmt.judgment_rule, None))
+    ]
+    assert not unknown_rules
 
 
 def test_every_placeholder_type_has_a_sample():
@@ -146,3 +133,19 @@ def test_every_text_format_is_the_first_match_of_its_own_template():
             if found is None or found[0].name != fmt.name:
                 shadowed.append((harness, tool, fmt.name, found and found[0].name))
     assert not shadowed
+
+
+@pytest.mark.parametrize(
+    ("harness", "tool", "raw_text", "tool_result_json"), _RESULTS_OF_FORMS_NEVER_SEEN
+)
+def test_a_form_that_a_tool_never_returned_in_the_trajectories_is_not_declared_for_it(
+    harness: str, tool: str, raw_text: str | None, tool_result_json: Any
+):
+    # Only formats that occur in the data are declared, so such a result is unknown and not a guess.
+    harness_result_format = ToolCallKnowledge().harness_result_format(
+        HarnessTool(harness, tool),
+        raw_text,
+        tool_result_json,
+        is_marked_as_error=False,
+    )
+    assert harness_result_format is UnmatchedFormat.UNKNOWN

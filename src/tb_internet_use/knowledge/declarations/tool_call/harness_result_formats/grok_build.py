@@ -90,7 +90,11 @@ _OUTPUT = "Output File: {output_path:line}\n\n=== Output ===\n"
 _TRUNCATED_TAIL = "\n[truncated - use read_file on output_file for full content]"
 # A line some truncated results have before `_TRUNCATED_TAIL`.
 _TRUNCATED_BYTES = "\n[Output truncated - {bytes:int} bytes total. Use read_file on {saved_to:line_without_brackets} for full content]"
-_MISSING = Text("missing", "Error: {path:line} does not exist.", S.NOT_RUN)
+_MISSING = Text(
+    "missing",
+    "Error: {path:line} does not exist.",
+    judgment_rule="treat_failed_file_tool_call_as_not_run",
+)
 # What Grok writes in place of an empty task output.
 _EMPTY = "(no output)"
 
@@ -177,13 +181,13 @@ _GET_OUTPUT = HarnessResultFormatList[str](
         Text(
             "failed_signaled_empty",
             _FAILED_SIGNALED + _EMPTY,
-            S.KILLED,
+            judgment_rule="treat_failed_task_without_exit_code_as_killed",
             fixed_handle_kind=ExecutionHandleKind.COMMAND,
         ),
         Text(
             "failed_signaled",
             _FAILED_SIGNALED + "{tool_output:text}",
-            S.KILLED,
+            judgment_rule="treat_failed_task_without_exit_code_as_killed",
             fixed_handle_kind=ExecutionHandleKind.COMMAND,
         ),
         Text(
@@ -276,17 +280,25 @@ _READ_FILE = HarnessResultFormatList[str](
             S.FINISHED,
         ),
         _MISSING,
-        Text("directory", "Error: {path:line} is a directory, not a file.", S.NOT_RUN),
-        Text("binary", "Cannot read binary file: {path:rest_of_line}", S.NOT_RUN),
+        Text(
+            "directory",
+            "Error: {path:line} is a directory, not a file.",
+            judgment_rule="treat_failed_file_tool_call_as_not_run",
+        ),
+        Text(
+            "binary",
+            "Cannot read binary file: {path:rest_of_line}",
+            judgment_rule="treat_failed_file_tool_call_as_not_run",
+        ),
         Text(
             "too_large",
             "File content ({size:line_without_brackets}) exceeds maximum allowed tokens ({limit:line_without_brackets}).{rest:text}",
-            S.NOT_RUN,
+            judgment_rule="treat_failed_file_tool_call_as_not_run",
         ),
         Text(
             "range_too_large",
             "The requested line range ({range:line_without_brackets}) contains {rest:text}",
-            S.NOT_RUN,
+            judgment_rule="treat_failed_file_tool_call_as_not_run",
         ),
         Text("listing", "{tool_output:partly_numbered_arrow}", S.FINISHED),
     ),
@@ -317,14 +329,18 @@ _SEARCH_REPLACE = HarnessResultFormatList[str](
         Text(
             "not_found",
             "The string to replace was not found in the file, {hint:text}",
-            S.NOT_RUN,
+            judgment_rule="treat_failed_file_tool_call_as_not_run",
         ),
         Text(
             "not_unique",
             "The string to replace was found multiple times in the file. {hint:text}",
-            S.NOT_RUN,
+            judgment_rule="treat_failed_file_tool_call_as_not_run",
         ),
-        Text("same_strings", "Old string and new string are the same", S.NOT_RUN),
+        Text(
+            "same_strings",
+            "Old string and new string are the same",
+            judgment_rule="treat_failed_file_tool_call_as_not_run",
+        ),
         _MISSING,
         Text(
             "rejected_arguments",

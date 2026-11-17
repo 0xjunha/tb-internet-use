@@ -173,6 +173,35 @@ def test_a_format_that_misstates_its_handle_kind_cannot_be_built(build_format):
         build_format()
 
 
+@pytest.mark.parametrize(
+    "build_format",
+    [
+        # Both a status and a judgment rule.
+        lambda: Text("page", "{tool_output:text}", S.FINISHED, judgment_rule="r"),
+        lambda: Json("accepted", S.KILLED, judgment_rule="r"),
+        # Neither.
+        lambda: Text("page", "{tool_output:text}"),
+        lambda: Json("accepted"),
+    ],
+)
+def test_a_format_must_state_either_a_status_or_a_judgment_rule(build_format):
+    with pytest.raises(ValueError, match="either a `status` or a `judgment_rule`"):
+        build_format()
+
+
+def test_a_format_builds_with_a_judgment_rule_in_place_of_a_status():
+    text = Text("page", "{tool_output:text}", judgment_rule="r")
+    json_format = Json("accepted", judgment_rule="r")
+    assert (text.status, text.judgment_rule) == (None, "r")
+    assert (json_format.status, json_format.judgment_rule) == (None, "r")
+
+
+def test_negative_int_placeholder_takes_only_a_number_with_a_minus_sign():
+    fmt = Text("killed", "code {exit_code:negative_int}", judgment_rule="r")
+    assert fmt.match("code -1") == {"exit_code": "-1"}
+    assert fmt.match("code 1") is None
+
+
 def test_a_format_that_gives_handles_builds_with_one_stated_kind():
     text = Text(
         "background",
