@@ -1,0 +1,57 @@
+"""Record types for the trials of a collection, giving each trial the task, harness and reward that the rows of its network requests are grouped by.
+
+A trial without requests still counts in the share of trials of a task that have one, so every trial has a `Trial`, also when its trajectory could not be read.
+"""
+
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True, slots=True)
+class Trial:
+    """Record of one trial of a leaderboard run, made by `collect_trials` and read by `export_rows` to write its `TrialRow`."""
+
+    # The name of the trial folder. The keys of the trial's tool calls carry the same id.
+    trial_id: str
+    # The benchmark version of the leaderboard that the trial belongs to, as the status file writes it, e.g. `4-0-0`.
+    # A task is named by this and `task_name` together, since one task name occurs in two benchmark versions.
+    benchmark_version: str
+    # The task name as the detail file writes it, e.g. `terminal-bench/<name>`.
+    task_name: str
+    # The leaderboard row that the trial belongs to. One row is one run of a harness with one model and its settings over every task.
+    leaderboard_row_id: str
+    # The agent name of the detail file, e.g. `claude-code`.
+    harness: str
+    # The agent version of the detail file. The check that one leaderboard row ran every task with one harness version reads it.
+    harness_version: str
+    model_name: str
+    # None when the detail file has no verifier result.
+    reward: float | None
+
+
+@dataclass(frozen=True, slots=True)
+class TrialFileTexts:
+    """Texts of the two files of one trial folder as `pipeline.py` read them, taken by `collect_trials` since a step takes text and never a path."""
+
+    # The name of the trial folder.
+    trial_id: str
+    detail_text: str | bytes
+    status_text: str | bytes
+
+
+@dataclass(frozen=True, slots=True)
+class TrialDetail:
+    """Values of one trial's detail file that a `Trial` holds, returned by `parse_trial_detail`."""
+
+    task_name: str
+    harness: str
+    harness_version: str
+    model_name: str
+    reward: float | None  # None when the file has no verifier result
+
+
+@dataclass(frozen=True, slots=True)
+class TrialLeaderboardMembership:
+    """Leaderboard row that one trial belongs to, returned by `parse_trial_status`."""
+
+    benchmark_version: str
+    leaderboard_row_id: str
