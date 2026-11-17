@@ -31,10 +31,9 @@ Run it as `nice -n 10 uv run python -I scripts/audit_parsed_shell_texts.py <raw_
 """
 
 import argparse
-import csv
 import itertools
+import sys
 from collections import Counter
-from collections.abc import Iterable, Sequence
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import astuple, dataclass, field, fields
 from enum import StrEnum
@@ -59,9 +58,18 @@ from tb_internet_use.tool_call.model import (
 )
 from tb_internet_use.trial.model import UnreadableTrajectory
 
+# `python -I` leaves the folder of this script off `sys.path`, so the script puts it there to import the module beside it.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from trial_folders_and_csv_files import (
+    PROCESS_COUNT,
+    add_trial_choice_arguments,
+    chosen_trial_dirs_from,
+    # This script does not use it. It stays until tests/tool_call/test_audit_parsed_shell_texts.py stops testing it through this script.
+    trial_ids_from_file_text,  # noqa: F401
+    write_csv,
+)
+
 OUT_DIR = Path(__file__).resolve().parents[1] / "out" / "parsed_shell_texts"
-# Data runs use at most 4 processes, to leave the machine usable.
-_PROCESS_COUNT = 4
 # The examples kept per check, per trial outcome and of unreadable shell texts in all, so that the CSVs stay short.
 _EXAMPLE_LIMIT = 20
 # The parts of a word that `expansion_word_indexes` may point at, i.e. what `$A`, `${A}`, `$(...)`, `$((...))`, backticks, `<(...)` and `>(...)` start with.
@@ -89,33 +97,18 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument("raw_trials_dir", type=Path)
-    trial_choice = parser.add_mutually_exclusive_group()
-    trial_choice.add_argument(
-        "--limit", type=int, help="only the first N trial folders by name"
-    )
-    trial_choice.add_argument(
-        "--trial-ids",
-        type=Path,
-        help="only the trials a file lists, one id per line in its first tab-separated column, skipping lines that start with #",
-    )
+    add_trial_choice_arguments(parser)
     arguments = parser.parse_args()
 
-    trial_dirs = sorted(p for p in arguments.raw_trials_dir.iterdir() if p.is_dir())
-    if arguments.limit is not None:
-        trial_dirs = trial_dirs[: arguments.limit]
-    if arguments.trial_ids is not None:
-        trial_dirs = [
-            arguments.raw_trials_dir / trial_id
-            for trial_id in trial_ids_from_file_text(arguments.trial_ids.read_text())
-        ]
     total = TrialAuditTotal()
-    with ProcessPoolExecutor(_PROCESS_COUNT) as pool:
-        for trial_audit in pool.map(audit_trial, trial_dirs, chunksize=5):
+    with ProcessPoolExecutor(PROCESS_COUNT) as pool:
+        for trial_audit in pool.map(
+            audit_trial, chosen_trial_dirs_from(arguments), chunksize=5
+        ):
             total.add_trial(trial_audit)
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    _write_csv(
+    write_csv(
         OUT_DIR / "trial_outcomes.csv",
         ("outcome", "trial_count", "first_trial_ids"),
         (
@@ -127,7 +120,7 @@ def main() -> None:
             for outcome, trial_count in sorted(total.outcome_counts.items())
         ),
     )
-    _write_csv(
+    write_csv(
         OUT_DIR / "checks.csv",
         ("check", "checked_count", "violation_count"),
         (
@@ -135,7 +128,7 @@ def main() -> None:
             for check in ParsedShellTextCheck
         ),
     )
-    _write_csv(
+    write_csv(
         OUT_DIR / "check_violation_examples.csv",
         ("check", "trial_id", "tool_call_key", "violation_count"),
         (
@@ -143,7 +136,7 @@ def main() -> None:
             for check, trial_id, tool_call_key in total.violation_examples
         ),
     )
-    _write_csv(
+    write_csv(
         OUT_DIR / "counts_by_harness.csv",
         ("harness", *(column.name for column in fields(ShellTextCounts))),
         (
@@ -153,7 +146,7 @@ def main() -> None:
             )
         ),
     )
-    _write_csv(
+    write_csv(
         OUT_DIR / "unreadable_shell_text_shape_examples.csv",
         ("harness", "shell_text_length", "first_character_kind"),
         total.unreadable_shell_text_shapes,
@@ -165,15 +158,6 @@ def main() -> None:
             f" of {total.checked_counts[check]} checked"
         )
     print(f"written under {OUT_DIR}")
-
-
-def trial_ids_from_file_text(file_text: str) -> list[str]:
-    """List the trial ids of a file, i.e. the first tab-separated column of each line that is neither empty nor starts with `#`."""
-    return [
-        line.split("\t")[0]
-        for line in file_text.splitlines()
-        if line.strip() and not line.startswith("#")
-    ]
 
 
 def audit_trial(trial_dir: Path) -> TrialAudit:
@@ -508,13 +492,6 @@ def _text_of_tool_call_key(tool_call_key: ToolCallKey) -> str:
         f"{tool_call_key.trajectory_id}:{tool_call_key.step_id}"
         f":{tool_call_key.call_index}"
     )
-
-
-def _write_csv(path: Path, columns: Sequence[str], rows: Iterable[Sequence]) -> None:
-    with path.open("w", newline="") as csv_file:
-        writer = csv.writer(csv_file, lineterminator="\n")
-        writer.writerow(columns)
-        writer.writerows(rows)
 
 
 if __name__ == "__main__":

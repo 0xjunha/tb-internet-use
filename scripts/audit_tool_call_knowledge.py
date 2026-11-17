@@ -16,13 +16,13 @@ The `source` column of the first two files names the catalog file or the declara
 A row key is written as a JSON array of its key column values.
 The first two files list the keys of the most trials first, and a row that no lookup used is in neither.
 
-Run it as `nice -n 10 uv run python -I scripts/audit_tool_call_knowledge.py <raw_trials_dir> [--limit N]`.
+Run it as `nice -n 10 uv run python -I scripts/audit_tool_call_knowledge.py <raw_trials_dir> [--limit N | --trial-ids FILE]`.
 """
 
 import argparse
-import csv
 import inspect
 import json
+import sys
 from collections import Counter
 from collections.abc import Iterable, Sequence
 from concurrent.futures import ProcessPoolExecutor
@@ -44,9 +44,16 @@ from tb_internet_use.tool_call.model import (
 )
 from tb_internet_use.trial.model import UnreadableTrajectory
 
+# `python -I` leaves the folder of this script off `sys.path`, so the script puts it there to import the module beside it.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from trial_folders_and_csv_files import (
+    PROCESS_COUNT,
+    add_trial_choice_arguments,
+    chosen_trial_dirs_from,
+    write_csv,
+)
+
 OUT_DIR = Path(__file__).resolve().parents[1] / "out" / "tool_call_knowledge"
-# Data runs use at most 4 processes, to leave the machine usable.
-_PROCESS_COUNT = 4
 _JSON_TYPE_NAMES = {
     str: "string",
     int: "integer",
@@ -67,22 +74,18 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument("raw_trials_dir", type=Path)
-    parser.add_argument(
-        "--limit", type=int, help="only the first N trial folders by name"
-    )
+    add_trial_choice_arguments(parser)
     arguments = parser.parse_args()
 
-    trial_dirs = sorted(p for p in arguments.raw_trials_dir.iterdir() if p.is_dir())
-    if arguments.limit is not None:
-        trial_dirs = trial_dirs[: arguments.limit]
     total = TrialAuditTotal()
-    with ProcessPoolExecutor(_PROCESS_COUNT) as pool:
-        for trial_audit in pool.map(audit_trial, trial_dirs, chunksize=20):
+    with ProcessPoolExecutor(PROCESS_COUNT) as pool:
+        for trial_audit in pool.map(
+            audit_trial, chosen_trial_dirs_from(arguments), chunksize=20
+        ):
             total.add_trial(trial_audit)
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    _write_csv(
+    write_csv(
         OUT_DIR / "row_uses.csv",
         ("source", "row_key", "lookup_count", "trial_count"),
         _lookup_rows(
@@ -90,7 +93,7 @@ def main() -> None:
             total.knowledge_uses_total.row_trial_counts,
         ),
     )
-    _write_csv(
+    write_csv(
         OUT_DIR / "unknown_inputs.csv",
         ("source", "key_asked", "lookup_count", "trial_count"),
         _lookup_rows(
@@ -98,7 +101,7 @@ def main() -> None:
             total.knowledge_uses_total.unknown_input_trial_counts,
         ),
     )
-    _write_csv(
+    write_csv(
         OUT_DIR / "harness_tool_arguments_in_data.csv",
         (
             "harness",
@@ -111,7 +114,7 @@ def main() -> None:
         ),
         _argument_rows(total.argument_value_call_counts, total.argument_trial_counts),
     )
-    _write_csv(
+    write_csv(
         OUT_DIR / "judgment_rule_uses.csv",
         ("judgment_rule", "use_count", "trial_count"),
         judgment_rule_rows(
@@ -276,13 +279,6 @@ def _argument_rows(
             "|".join(sorted(type_counts)),
             action_field,
         )
-
-
-def _write_csv(path: Path, columns: Sequence[str], rows: Iterable[Sequence]) -> None:
-    with path.open("w", newline="") as csv_file:
-        writer = csv.writer(csv_file, lineterminator="\n")
-        writer.writerow(columns)
-        writer.writerows(rows)
 
 
 if __name__ == "__main__":
