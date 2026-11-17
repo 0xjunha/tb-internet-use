@@ -102,15 +102,63 @@ WHOLE_RESULT_CASES = [
             (),
         ),
     ),
-    # The `-` is lost, as in the earlier code, and a later change fixes it.
+    # tree-sitter puts the `-` in no node, and the reading adds it back.
     (
         "python - <<EOF\nimport x\nEOF",
         ParsedShellText(
             (
                 ShellCommand(
                     0,
-                    ("python",),
+                    ("python", "-"),
                     stdin_text="import x\n",
+                    succeeded_if_text_exits_zero=True,
+                ),
+            ),
+            (),
+        ),
+    ),
+    # The `-` that tree-sitter leaves out takes its place among the words, so later word indexes count it.
+    (
+        "cmd - 2>&1 $A",
+        ParsedShellText(
+            (
+                ShellCommand(
+                    0,
+                    ("cmd", "-", "$A"),
+                    expansion_word_indexes=(2,),
+                    succeeded_if_text_exits_zero=True,
+                ),
+            ),
+            (),
+        ),
+    ),
+    # A word after the redirect target of a statement that is no simple command is lost, and `[ ]` gives no command.
+    ("[ -f x ] > f b", ParsedShellText((), ())),
+    # A word that tree-sitter put into a redirect takes its place among the words, and its $(...) is walked once.
+    (
+        "cmd 2>&1 $(curl u)",
+        ParsedShellText(
+            (
+                ShellCommand(
+                    0,
+                    ("cmd", "$(curl u)"),
+                    expansion_word_indexes=(1,),
+                    succeeded_if_text_exits_zero=True,
+                ),
+                ShellCommand(1, ("curl", "u"), stdout=CaptureDestination()),
+            ),
+            (),
+        ),
+    ),
+    # The reserved word time and its -p are no words of the command, so word indexes start after them.
+    (
+        "time -p curl $U",
+        ParsedShellText(
+            (
+                ShellCommand(
+                    0,
+                    ("curl", "$U"),
+                    expansion_word_indexes=(1,),
                     succeeded_if_text_exits_zero=True,
                 ),
             ),
@@ -586,6 +634,17 @@ STRUCTURE_CASES = [
     ("cat <<EOF\n$(curl u)\nEOF", "curl", "capture", "result", [], False),
     ("a | tee >(curl -T - u) | b", "curl", "pipe to b", "result", [], False),
     ("time (a && b)", "b", "result", "result", [(["a"], SUCCESS)], True),
+    # time times the whole pipeline and leaves its pipes, conditions and exit code as they are.
+    ("time a | b", "a", "pipe to b", "result", [], False),
+    ("a && time b > f", "b", "file f", "result", [(["a"], SUCCESS)], True),
+    ("! time a", "a", "result", "result", [], False),
+    ("time (a) || b", "b", "result", "result", [(["a"], FAILURE)], False),
+    ("time a && b", "b", "result", "result", [(["a"], SUCCESS)], True),
+    # exec with a word that tree-sitter put into its redirect runs that word, so later output stays.
+    ("exec > f x; y", "y", "result", "result", [], True),
+    # A $(...) in a word that tree-sitter put into a redirect gets the scope after the redirects, as one before the redirect does.
+    # Bash expands the words before it applies the redirects, so curl's stderr would reach the result there.
+    ("cmd 2>/dev/null $(curl u)", "curl", "capture", "discard", [], False),
     # The outer shell runs the $(...) in a word that it expands, also inside single quotes within double quotes.
     ('eval "$(ssh-agent -s)"', "ssh-agent", "capture", "result", [], False),
     ("bash -c \"bash -c 'echo $(a)'\"", "a", "capture", "result", [], False),
@@ -761,8 +820,55 @@ COMMAND_CASES = [
     ("cat <<EOF\ncurl u\nEOF", [("cat",)]),
     ("cat <<'EOF'\n$(curl u)\nEOF", [("cat",)]),
     ("echo $(curl u)", [("echo", "$(curl u)"), ("curl", "u")]),
-    ("time (a && b)", [("time",), ("a",), ("b",)]),
     ("a && b ||", [("a",), ("b",)]),
+    # tree-sitter puts a `-` before a heredoc or a redirect with a descriptor number in no node.
+    ("cat - - <<EOF\nx\nEOF", [("cat", "-", "-")]),
+    ("cat - \\\n  <<EOF\nx\nEOF", [("cat", "-")]),
+    ("cat - 2>/dev/null", [("cat", "-")]),
+    ("cat 2>&1 - <<EOF\nx\nEOF", [("cat", "-")]),
+    ("cat - 2>&1 - <<EOF\nx\nEOF", [("cat", "-", "-")]),
+    ("cmd - 2>&1 a", [("cmd", "-", "a")]),
+    ("cmd - 2>&1 a - <<EOF\nx\nEOF", [("cmd", "-", "a", "-")]),
+    # Guards that a written option before a heredoc gains no `-`.
+    ("python -u <<EOF\nx\nEOF", [("python", "-u")]),
+    # A `-` in a tree with a syntax error stays lost, and the commands are marked (see test_structure_may_be_wrong).
+    ("python - <<EOF `\nx\nEOF", [("python",), ("x",), ("EOF",)]),
+    # tree-sitter puts words after a redirect target into the redirect, and the reading gives them back to the command.
+    ("cmd >f a", [("cmd", "a")]),
+    ("cmd 2>&1 a b", [("cmd", "a", "b")]),
+    # The word that tree-sitter put into the redirect is itself a `-`.
+    ("cmd > f -", [("cmd", "-")]),
+    ("curl -o x 2>/dev/null u", [("curl", "-o", "x", "u")]),
+    ("cmd > f a | b", [("cmd", "a"), ("b",)]),
+    ("a && b > f c", [("a",), ("b", "c")]),
+    ("cat <<EOF a\nx\nEOF", [("cat", "a")]),
+    ("cat <<EOF > f a\nx\nEOF", [("cat", "a")]),
+    # The words after a redirect that tree-sitter misread stay lost, and the commands are marked (see test_structure_may_be_wrong).
+    ("python - <<EOF 2>&1 | tail -5\nx\nEOF", [("python", "-")]),
+    # The reserved word time and its -p start a pipeline and are no words of its first command.
+    ("time curl u", [("curl", "u")]),
+    ("time (a && b)", [("a",), ("b",)]),
+    ("time -p (a)", [("a",)]),
+    ("x && time a; time b", [("x",), ("a",), ("b",)]),
+    ("(time a)", [("a",)]),
+    ("time python - <<EOF\nx\nEOF", [("python", "-")]),
+    ("time > f x", [("x",)]),
+    # Guards that time is dropped only as the first word, and -p only after it.
+    ("echo time", [("echo", "time")]),
+    ("/usr/bin/time curl u", [("/usr/bin/time", "curl", "u")]),
+    ("mkdir -p x", [("mkdir", "-p", "x")]),
+    # After a pipe or an assignment and in quotes, time is a program.
+    ("a | time b", [("a",), ("time", "b")]),
+    ("a |& time b", [("a",), ("time", "b")]),
+    ("X=1 time b", [("time", "b")]),
+    ("'time' b", [("time", "b")]),
+    # Wrong, since bash runs nothing for time alone. It stays as the earlier code gave it, see the module docstring.
+    ("time", [("time",)]),
+    ("time -p", [("time", "-p")]),
+    # tree-sitter misreads what time times here, so the words keep time and the commands are marked (see test_structure_may_be_wrong).
+    ("time { a; }", [("time", "{", "a"), ("}",)]),
+    ("time A=1 b", [("time", "A=1", "b")]),
+    ("time a[0]=1 b", [("time", "a[0]=1", "b")]),
     ("pip install \\\n  x", [("pip", "install", "x")]),
 ]
 
@@ -1152,7 +1258,12 @@ def test_joined_lines_with_non_ascii_words():
 
 def test_joined_line_with_heredoc():
     parsed = _parsed_shell_text_of("a | b | c\npython3 - <<EOF\nprint(1)\nEOF")
-    assert [c.words for c in parsed.commands] == [("a",), ("b",), ("c",), ("python3",)]
+    assert [c.words for c in parsed.commands] == [
+        ("a",),
+        ("b",),
+        ("c",),
+        ("python3", "-"),
+    ]
     assert [c.stdin_text for c in parsed.commands] == [None, None, None, "print(1)\n"]
 
 
@@ -1256,6 +1367,25 @@ def test_heredoc_with_output_file():
         ("curl u && echo '{a,b}'", [False, False]),
         ('curl --data=\'{"a":1,"b":2}\' u', [False]),
         ("find . -exec curl {} \\;", [False]),
+        # tree-sitter misreads what time times, so every command of the text is marked.
+        ("x; time A=1 b", [True, True]),
+        ("time a[0]=1 b", [True]),
+        ("time { a; }", [True, True]),
+        ("time ! a", [True]),
+        ("time [[ -f x ]]", [True]),
+        ("time (( 1 ))", [True, True]),
+        ("time if a; then b; fi", [True, True, True]),
+        ("time for x in a; do b; done", [True, True, True]),
+        ("x; time a", [False, False]),
+        # tree-sitter leaves b beside the timed subshell, which bash rejects.
+        ("time (a) > f b", [True, True]),
+        ("time (a) > f", [False]),
+        # A word after the redirect target of a statement that is no simple command is lost.
+        ("x; { a; } > f b", [True, True]),
+        ("x; { a; } > f", [False, False]),
+        # A `-` or the words after a redirect that tree-sitter misread are lost in a tree with a syntax error.
+        ("python - <<EOF `\nx\nEOF", [True, True, True]),
+        ("python - <<EOF 2>&1 | tail -5\nx\nEOF", [True]),
     ],
 )
 def test_structure_may_be_wrong(text: str, flags: list[bool]):

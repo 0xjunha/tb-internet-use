@@ -190,7 +190,8 @@ class ShellCommand:
     # If the whole text exits 0, this command exited 0.
     # This holds for b in `a; b`, for a and b in `a && b` and for neither in `a || b`.
     succeeded_if_text_exits_zero: bool = False
-    # The text has a syntax error, a brace list or lines that stayed joined after the line repairs, so the fields above may be wrong.
+    # The text has a syntax error, a brace list, lines that stayed joined after the line repairs or a statement that tree-sitter-bash misreads and the reading does not repair, so the fields above may be wrong.
+    # Those statements are a `time` before a reserved word, `((`, an assignment or words beside a subshell, e.g. `time { a; }`, and a statement that is no simple command with words after its redirect target, e.g. `{ a; } > f b`.
     # A result that rests on them is then not given as confirmed. A text with a syntax error that gives no command at all is an `UnreadableShellText` instead.
     structure_may_be_wrong: bool = False
 

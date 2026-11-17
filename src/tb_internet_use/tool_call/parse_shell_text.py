@@ -2,6 +2,7 @@
 
 The text is read as bash reads it, also when another shell such as sh runs it, since the trajectories do not say which shell a harness runs.
 Besides the grammar, the reading knows the few words of the shell itself that change how later parts of the same text run, i.e. `set -e` and `set -o pipefail`, `exec` with redirects only, `exit`, `return` and the redirect targets `/dev/null`, `/dev/stdout` and `/dev/stderr`.
+It also knows the reserved word `time` with its `-p`, which starts a pipeline and is no word of its first command, e.g. `time -p curl u` runs curl u.
 It knows no program, so text that a command runs, e.g. `curl u` in `bash -c 'curl u'` or in `eval 'curl u'`, stays one word of that command.
 A caller that reads such a text passes the command that runs it as `runner`.
 
@@ -16,6 +17,15 @@ Known limits, rare in the trajectories
 - A `set` in a function body is taken to hold in the body only.
 - tree-sitter misreads `$"..."`, an escaped line break inside a word, `! { a; b; }`
   and backticks in heredocs.
+- tree-sitter misreads what `time` times when it starts with a reserved word, `((` or an assignment, or when a redirect leaves words beside a timed subshell, e.g. `time { a; }`, `time ! a`, `time A=1 b` or `time (a) > f b`.
+  The words keep `time` there, and the commands of the text are marked as maybe wrong.
+- `time` alone and `time -p` alone stay a command, although bash runs nothing for them.
+- A `-` written right before a heredoc operator, as in `python -<<EOF`, is part of the operator to tree-sitter and is lost.
+- Words after a redirect that closes a descriptor, e.g. a in `cmd 2>&- a`, and a `-` between a heredoc start and a later redirect, e.g. in `cmd <<EOF - 2>&1 a`, are lost. Neither occurs in the trajectories.
+- In a redirect that tree-sitter misread, what follows its first target is lost, and that can be whole commands, not only words.
+  For example `python - <<EOF 2>&1 | tail -5` gives python alone with its stdout to the result, without `tail -5` and the pipe to it.
+  The text has a syntax error then, so its commands are marked.
+  Words after the redirect target of a statement that is no simple command, e.g. b in `{ a; } > f b`, are lost too, and the commands are marked.
 """
 
 import itertools
@@ -23,6 +33,7 @@ import re
 from collections import Counter
 from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass, field, replace
+from enum import Enum
 from functools import partial
 from typing import Any, NamedTuple
 
@@ -108,12 +119,37 @@ _COMMENT_START = re.compile(rb"(?:^|\s)#")
 _MAX_LINE_REPAIRS = 3
 # A cluster of one-letter options of `set`, e.g. -e, +e or -euo.
 _SET_OPTION_CLUSTER = re.compile(r"[-+][a-zA-Z]+")
+# Text between two parts of a command that is a `-` word alone, e.g. ` - ` in `python - <<EOF`.
+_LOST_DASH = re.compile(rb"\s+-\s+")
+# The start of a word that bash reads as an assignment before a command, e.g. `A=` of `A=1` or `a[0]=` of `a[0]=1` in `time A=1 b`, which tree-sitter reads as a word after `time`.
+_ASSIGNMENT_WORD_START = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(?:\[[^\]]*\])?\+?=")
+# Reserved words that bash reads after `time` as the start of the statement it times, i.e. a compound command, a negation (`!`), a function definition or a coprocess.
+# tree-sitter reads them as plain words, e.g. `{` in `time { a; }`.
+_RESERVED_WORDS_MISREAD_AFTER_TIME = frozenset(
+    [
+        "!",
+        "{",
+        "[[",
+        "case",
+        "coproc",
+        "for",
+        "function",
+        "if",
+        "select",
+        "until",
+        "while",
+    ]
+)
 
 # The ids of the commands whose exit code can be a statement's.
 # None when unknown, e.g. for `! a`, `[ -f x ]` or an if statement.
 type _DecidingCommandIds = tuple[int, ...] | None
 # Walks one statement under a scope.
 type _StatementWalk = Callable[[_Scope], _DecidingCommandIds]
+# The node types that tree-sitter puts in a command for the statement that `time` times, e.g. `(a && b)` in `time (a && b)`.
+_TIMED_STATEMENT_TYPES = frozenset(["subshell", "compound_statement"])
+# A word node of a command, or a `-` word that tree-sitter left out of the tree.
+type _CommandWord = Node | _LostDash
 
 
 def parse_shell_text(
@@ -140,14 +176,16 @@ def parse_shell_text(
     parse_state = _ParseState(first_command_id)
     scope = _Scope.of_runner(runner) if runner else _Scope()
     options = _ShellOptions().after_set(set_arguments_at_start)
+    tree_with_lines_kept_apart = _build_tree_with_lines_kept_apart(
+        shell_text, judgment_rule_use_counts=judgment_rule_use_counts
+    )
     walker = _ShellTextWalker(
         parse_state,
         options,
+        tree_with_lines_kept_apart,
         substitutions_run_by_outer_shell=command_substitution_texts_run_by_outer_shell,
     )
-    has_syntax_error = walker.walk_text(
-        shell_text, scope, judgment_rule_use_counts=judgment_rule_use_counts
-    )
+    has_syntax_error = walker.walk_text(scope)
     if has_syntax_error and not parse_state.commands:
         return UnreadableShellText()
     return ParsedShellText(
@@ -181,33 +219,33 @@ class _ShellTextWalker:
         self,
         parse_state: _ParseState,
         options: _ShellOptions,
+        tree_with_lines_kept_apart: _TreeWithLinesKeptApart,
         *,
         substitutions_run_by_outer_shell: frozenset[str] = frozenset(),
     ) -> None:
         self._parse_state = parse_state
         self._options = options
+        self._tree_with_lines_kept_apart = tree_with_lines_kept_apart
         # The text of each `$(...)` that an outer shell ran before this text ran,
         # e.g. `$(a)` in the text of `bash -c "echo $(a)"`.
         self._substitutions_run_by_outer_shell = substitutions_run_by_outer_shell
         self._has_brace_list = False
+        # tree-sitter misread a statement in a way that the walk sees but cannot repair, e.g. `time { a; }` or `{ a; } > f b`.
+        self._has_misread_statement = False
 
-    def walk_text(
-        self, text: str, scope: _Scope, *, judgment_rule_use_counts: Counter[str]
-    ) -> bool:
+    def walk_text(self, scope: _Scope) -> bool:
         """Add the text's commands and return whether the text has a syntax error.
 
-        All its commands are marked as maybe wrong after a syntax error, a brace list or lines that stayed joined after the line repairs.
+        All its commands are marked as maybe wrong after a syntax error, a brace list, lines that stayed joined after the line repairs or a statement that tree-sitter misread and the walk cannot repair.
         """
         first_new_index = len(self._parse_state.commands)
-        tree_with_lines_kept_apart = _build_tree_with_lines_kept_apart(
-            text, judgment_rule_use_counts=judgment_rule_use_counts
-        )
-        root = tree_with_lines_kept_apart.tree.root_node
+        root = self._tree_with_lines_kept_apart.tree.root_node
         self._walk_statements(root.named_children, scope)
         if (
             root.has_error
             or self._has_brace_list
-            or tree_with_lines_kept_apart.has_lines_left_joined
+            or self._has_misread_statement
+            or self._tree_with_lines_kept_apart.has_lines_left_joined
         ):
             commands = self._parse_state.commands
             for index in range(first_new_index, len(commands)):
@@ -312,17 +350,33 @@ class _ShellTextWalker:
     ) -> _DecidingCommandIds:
         """Walk a command under its own redirects and those of its redirected statement."""
         redirects = _redirects_in_text_order(node, outer_redirects)
-        walk = partial(self._walk_command_words, node)
+        walk = partial(self._walk_command_words, node, redirects=redirects)
         return self._walk_under_redirects(redirects, scope, walk)
 
-    def _walk_command_words(self, node: Node, scope: _Scope) -> _DecidingCommandIds:
-        """Add a command from its words, then walk the commands in its `$(...)`."""
-        word_nodes = _command_word_nodes(node)
+    def _walk_command_words(
+        self, node: Node, scope: _Scope, *, redirects: Sequence[Node]
+    ) -> _DecidingCommandIds:
+        """Add a command from its words, then walk the commands in its `$(...)`.
+
+        `redirects` are the command's own and those of its redirected statement, which can hold words of the command, e.g. a in `cmd > f a`.
+        """
+        word_nodes = _command_word_nodes_with_redirect_word_nodes_of(node, redirects)
         if any(map(_is_brace_list, word_nodes)):
             self._has_brace_list = True
+        command_words = _command_words_with_restored_dashes_from(
+            word_nodes,
+            redirects,
+            self._tree_with_lines_kept_apart.text_after_line_repairs,
+        )
+        timed_command_words = _timed_command_words_of(node, command_words)
+        if timed_command_words is not None:
+            if _is_timed_statement_misread(node, timed_command_words):
+                self._has_misread_statement = True
+            else:
+                command_words = timed_command_words
         deciding_command_ids: _DecidingCommandIds = None
-        if word_nodes:
-            deciding_command_ids = (self._append_shell_command(word_nodes, scope),)
+        if command_words:
+            deciding_command_ids = (self._append_shell_command(command_words, scope),)
         substitution_scope = scope.inside_substitution()
         for word_node in word_nodes:
             # e.g. `$(ls)` in `echo $(ls)`
@@ -333,7 +387,7 @@ class _ShellTextWalker:
                 value = child.child_by_field_name("value")
                 if value is not None:
                     self._walk_node(value, substitution_scope)
-            elif child.type in ("subshell", "compound_statement"):
+            elif child.type in _TIMED_STATEMENT_TYPES:
                 # The statement that `time` times, e.g. `time (a && b)`.
                 deciding_command_ids = self._walk_node(child, scope)
         return deciding_command_ids
@@ -428,6 +482,10 @@ class _ShellTextWalker:
                     partial(self._walk_with_redirects, stages[-1], redirects),
                 ]
                 return self._walk_pipeline_stages(stage_walks, pipes_stderr, scope)
+        if _redirect_word_nodes_of(redirects):
+            # tree-sitter-bash 0.25.1 puts a word after the redirect target into the redirect, e.g. b in `{ a; } > f b` or in `[ -f x ] > f b`.
+            # Bash reads it as a word of the statement, which is no simple command here, so the word is lost.
+            self._has_misread_statement = True
         return self._walk_under_redirects(
             redirects, scope, partial(self._walk_node, body)
         )
@@ -664,15 +722,18 @@ class _ShellTextWalker:
         outcome = ExitOutcome.SUCCESS if is_or else ExitOutcome.FAILURE
         return walked.whole, _run_condition(walked.left, outcome)
 
-    def _append_shell_command(self, word_nodes: Sequence[Node], scope: _Scope) -> int:
+    def _append_shell_command(
+        self, command_words: Sequence[_CommandWord], scope: _Scope
+    ) -> int:
         """Add one command and return its id."""
         command = ShellCommand(
             id=self._parse_state.next_command_id,
-            words=tuple(map(_word_value, word_nodes)),
+            words=tuple(map(_command_word_value_of, command_words)),
             expansion_word_indexes=tuple(
                 index
-                for index, word_node in enumerate(word_nodes)
-                if _word_has_expansion(word_node)
+                for index, command_word in enumerate(command_words)
+                if not isinstance(command_word, _LostDash)
+                and _word_has_expansion(command_word)
             ),
             **scope.command_fields(),
         )
@@ -916,13 +977,15 @@ def _build_tree_with_lines_kept_apart(
         repair_count += 1
         count_before_last_repair = len(positions)
         positions = _joined_line_ends(tree.root_node, source)
-    return _TreeWithLinesKeptApart(tree, has_lines_left_joined=bool(positions))
+    return _TreeWithLinesKeptApart(tree, source, has_lines_left_joined=bool(positions))
 
 
 class _TreeWithLinesKeptApart(NamedTuple):
-    """Tree of one shell text after the line repairs, read by `_ShellTextWalker.walk_text`."""
+    """Tree of one shell text after the line repairs, read by `_ShellTextWalker`."""
 
     tree: Tree
+    # The text with the `;` of the repairs, which the byte offsets of the tree point into.
+    text_after_line_repairs: bytes
     # Lines are still joined after the last repair, so the commands of the tree may be wrong.
     has_lines_left_joined: bool
 
@@ -1410,7 +1473,168 @@ def _is_bare_exec(statement: Node) -> bool:
     command = statement.child_by_field_name("body") if is_redirected else statement
     if command is None or command.type != "command":
         return False
-    return [_word_value(w) for w in _command_word_nodes(command)] == ["exec"]
+    statement_redirects = (
+        statement.children_by_field_name("redirect") if is_redirected else []
+    )
+    redirects = _redirects_in_text_order(command, statement_redirects)
+    word_nodes = _command_word_nodes_with_redirect_word_nodes_of(command, redirects)
+    return [_word_value(w) for w in word_nodes] == ["exec"]
+
+
+def _command_word_nodes_with_redirect_word_nodes_of(
+    command_node: Node, redirects: Sequence[Node]
+) -> list[Node]:
+    """List the word nodes of a command with those that tree-sitter put into its redirects, in text order, e.g. cmd and a for `cmd > f a`."""
+    return sorted(
+        [*_command_word_nodes(command_node), *_redirect_word_nodes_of(redirects)],
+        key=lambda word_node: word_node.start_byte,
+    )
+
+
+def _redirect_word_nodes_of(redirects: Sequence[Node]) -> list[Node]:
+    """Find the word nodes that tree-sitter put into redirects after their target, which bash reads as words of the command.
+
+    tree-sitter-bash 0.25.1 reads a word after a redirect target as another target, e.g. a and b in `cmd 2>&1 a b`, and a word after a heredoc start as part of the heredoc, e.g. a in `cat <<EOF a`.
+    A redirect with a syntax error in it gives none, e.g. `2>&1 | tail -5` that tree-sitter reads as the target of `python - <<EOF 2>&1 | tail -5`, since its words come from a wrong reading.
+    The text has a syntax error then, so its commands are marked.
+    """
+    words: list[Node] = []
+    for redirect in redirects:
+        if any(child.type == "ERROR" for child in redirect.children):
+            continue
+        if redirect.type == "file_redirect":
+            words.extend(redirect.children_by_field_name("destination")[1:])
+        elif redirect.type == "heredoc_redirect":
+            words.extend(redirect.children_by_field_name("argument"))
+            # e.g. a in `cat <<EOF > f a`
+            words.extend(
+                _redirect_word_nodes_of(redirect.children_by_field_name("redirect"))
+            )
+    return words
+
+
+def _command_words_with_restored_dashes_from(
+    word_nodes: Sequence[Node],
+    redirects: Sequence[Node],
+    text_after_line_repairs: bytes,
+) -> list[_CommandWord]:
+    """Restore among a command's word nodes each `-` word that tree-sitter left out of the tree, in text order.
+
+    tree-sitter-bash 0.25.1 puts a `-` word in no node when a heredoc or a redirect with a descriptor number follows it, e.g. `python - <<EOF` or `cat - 2>&1`.
+    Bash reads the `-` as a word of the command in both.
+    """
+    # Byte offsets in the text of the redirects that follow a lost `-`.
+    lost_dash_offsets: list[int] = []
+    # Byte offset of the end of the last word or redirect seen.
+    previous_end_offset: int | None = None
+    for node in sorted([*word_nodes, *redirects], key=lambda n: n.start_byte):
+        if node in redirects and previous_end_offset is not None:
+            gap = text_after_line_repairs[previous_end_offset : node.start_byte]
+            if _LOST_DASH.fullmatch(gap.replace(b"\\\n", b"")):
+                lost_dash_offsets.append(node.start_byte)
+        previous_end_offset = max(previous_end_offset or 0, node.end_byte)
+    command_words: list[_CommandWord] = list(word_nodes)
+    for offset in lost_dash_offsets:
+        index = sum(1 for w in word_nodes if w.start_byte < offset)
+        index += sum(1 for o in lost_dash_offsets if o < offset)
+        command_words.insert(index, _LostDash.DASH)
+    return command_words
+
+
+class _LostDash(Enum):
+    """`-` word that tree-sitter puts in no node, kept among the word nodes of its command, e.g. in `python - <<EOF`."""
+
+    DASH = "-"
+
+
+def _timed_command_words_of(
+    command_node: Node, command_words: Sequence[_CommandWord]
+) -> list[_CommandWord] | None:
+    """Give the words of the command that the reserved word `time` times, without `time` and its `-p`, e.g. curl u for `time -p curl u`.
+
+    tree-sitter-bash 0.25.1 reads `time` as a command name, e.g. `time -p curl u` as a command with four words.
+    For `time (a && b)` no word is left, since the subshell is walked on its own.
+    Returns None when `time` is no reserved word here or times nothing.
+    Bash takes `time` as the reserved word only at the start of a pipeline, so it is a program in `a | time b`, `X=1 time b` and `'time' b`.
+    `time` alone and `time -p` alone time nothing, and their words stay as they are.
+    """
+    name = command_node.child_by_field_name("name")
+    if (
+        name is None
+        or command_node.children[0] != name
+        or _is_pipe_reader(command_node)
+    ):
+        return None
+    if not command_words or _written_command_word_of(command_words[0]) != "time":
+        return None
+    index = 1
+    if (
+        index < len(command_words)
+        and _written_command_word_of(command_words[index]) == "-p"
+    ):
+        index += 1
+    timed_command_words = list(command_words[index:])
+    if not timed_command_words and not _timed_statements_of(command_node):
+        return None
+    return timed_command_words
+
+
+def _is_timed_statement_misread(
+    command_node: Node, timed_command_words: Sequence[_CommandWord]
+) -> bool:
+    """Check whether tree-sitter misread what `time` times, so the timed words are wrong.
+
+    tree-sitter-bash 0.25.1 reads a compound command after `time` as plain words, e.g. `time { a; }` or `time if a; then b; fi`, an assignment as a word, e.g. A=1 in `time A=1 b`, and `time (( 1 ))` as two subshells.
+    It also leaves words beside a timed subshell, e.g. b from the redirect in `time (a) > f b`, which bash rejects.
+    """
+    timed_statements = _timed_statements_of(command_node)
+    if timed_command_words:
+        if timed_statements:
+            return True
+        first_timed_word = _written_command_word_of(timed_command_words[0])
+        return (
+            first_timed_word in _RESERVED_WORDS_MISREAD_AFTER_TIME
+            or _ASSIGNMENT_WORD_START.match(first_timed_word) is not None
+        )
+    return _node_text(timed_statements[0]).startswith("((")
+
+
+def _timed_statements_of(command_node: Node) -> list[Node]:
+    """Find the subshells and brace groups that tree-sitter puts in a command, e.g. `(a && b)` in `time (a && b)`."""
+    return [
+        child
+        for child in command_node.named_children
+        if child.type in _TIMED_STATEMENT_TYPES
+    ]
+
+
+def _is_pipe_reader(command_node: Node) -> bool:
+    """Check whether a command is a pipeline stage after the first, e.g. b in `a | b` or in `a | b > f`."""
+    node = command_node
+    while True:
+        previous = node.prev_sibling
+        while previous is not None and previous.type == "comment":
+            previous = previous.prev_sibling
+        if previous is not None:
+            return previous.type in ("|", "|&")
+        parent = node.parent
+        if parent is None or parent.type != "redirected_statement":
+            return False
+        node = parent
+
+
+def _written_command_word_of(command_word: _CommandWord) -> str:
+    """Give a command word as written, quotes included, e.g. `'time'` for a quoted time."""
+    if isinstance(command_word, _LostDash):
+        return command_word.value
+    return _node_text(command_word)
+
+
+def _command_word_value_of(command_word: _CommandWord) -> str:
+    """Give a command word as the shell passes it, without quotes, e.g. `time` for `'time'`."""
+    if isinstance(command_word, _LostDash):
+        return command_word.value
+    return _word_value(command_word)
 
 
 def _command_word_nodes(node: Node) -> list[Node]:

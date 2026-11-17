@@ -54,7 +54,7 @@ Text that a command runs, e.g. `curl u` in `bash -c 'curl u'`, stays one word of
 |---|---|
 | `ParsedShellText` | The commands of one text and its variable assignments, e.g. `U=a.org` in `U=a.org; curl $U` |
 | `UnreadableShellText` | A text with a syntax error that gives no command at all, e.g. `)))` |
-| `ShellCommand` | One simple command: its words, when it runs (`runs_if`, loop, function or case body), where its stdin comes from and its stdout and stderr go, and whether a syntax error, a brace list or joined lines may have made these wrong |
+| `ShellCommand` | One simple command: its words, when it runs (`runs_if`, loop, function or case body), where its stdin comes from and its stdout and stderr go, and whether a syntax error, a brace list, joined lines or a statement that tree-sitter-bash misreads and the reading does not repair (a `time` before a reserved word, `((`, an assignment or words beside a subshell, e.g. `time { a; }`, or a statement that is no simple command with words after its redirect target, e.g. `{ a; } > f b`) may have made these wrong |
 
 [`convert_parsed_shell_texts`](_convert_parsed_shell_texts.py) calls `parse_shell_text` on each command string of the action that `convert_tool_call_action` builds and puts the result in `RunCommandAction.parsed_shell_text`, which stays None when the trajectory has no command string.
 A Codex `exec` script can run several command strings, one per `RunCommandAction` step, and the command ids go on across its steps, e.g. 0 and 1 for `a; b` in the first step and 2 for `c` in the next, so that they are unique within the call.
