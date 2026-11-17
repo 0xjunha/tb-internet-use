@@ -2,12 +2,9 @@
 
 from pathlib import Path
 
-from tb_internet_use.tool_call.model import (
-    HarnessToolCall,
-    UnreadableTrajectory,
-    UnreadableTrajectoryReason,
-)
+from tb_internet_use.tool_call.model import HarnessToolCall
 from tb_internet_use.tool_call.parse_trajectory import parse_trajectory
+from tb_internet_use.trial.model import UnreadableTrajectory, UnreadableTrajectoryReason
 
 _TRAJECTORY_FILE_NAME = "trajectory.json"
 

@@ -55,9 +55,9 @@ from tb_internet_use.tool_call.model import (
     ToolCallAction,
     ToolCallKey,
     UnreadableShellText,
-    UnreadableTrajectory,
     indexed_action_steps_of,
 )
+from tb_internet_use.trial.model import UnreadableTrajectory
 
 OUT_DIR = Path(__file__).resolve().parents[1] / "out" / "parsed_shell_texts"
 # Data runs use at most 4 processes, to leave the machine usable.

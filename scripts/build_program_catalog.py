@@ -20,7 +20,7 @@ from tb_internet_use.parse.program.catalog_rows import matched_catalog_rows
 from tb_internet_use.parse.shell.programs import program_words
 from tb_internet_use.pipeline import read_trajectory
 from tb_internet_use.tool_call import convert_tool_calls
-from tb_internet_use.tool_call.model import UnreadableTrajectory
+from tb_internet_use.trial.model import UnreadableTrajectory
 
 DEFAULT_CANDIDATES_CSV = (
     Path(__file__).resolve().parents[1] / "out" / "program_catalog_candidates.csv"

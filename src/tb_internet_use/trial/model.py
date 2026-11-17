@@ -4,6 +4,7 @@ A trial without requests still counts in the share of trials of a task that have
 """
 
 from dataclasses import dataclass
+from enum import StrEnum
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,3 +56,20 @@ class TrialLeaderboardMembership:
 
     benchmark_version: str
     leaderboard_row_id: str
+
+
+@dataclass(frozen=True, slots=True)
+class UnreadableTrajectory:
+    """Result of reading a trial whose trajectory file gives no tool calls, returned in place of the calls so that the trial is not taken for one without calls.
+
+    It sits here and not beside `parse_trajectory`, which returns it, since whether the trajectory can be read is a fact about the trial and a step never imports from a later step.
+    """
+
+    reason: UnreadableTrajectoryReason
+
+
+class UnreadableTrajectoryReason(StrEnum):
+    """Reason a trial's trajectory could not be read."""
+
+    MISSING = "missing"  # the trial folder has no trajectory file
+    INVALID_JSON = "invalid_json"  # the file holds broken JSON or broken UTF-8

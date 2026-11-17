@@ -4,11 +4,8 @@ import json
 from pathlib import Path
 
 from tb_internet_use.pipeline import read_trajectory
-from tb_internet_use.tool_call.model import (
-    ToolCallKey,
-    UnreadableTrajectory,
-    UnreadableTrajectoryReason,
-)
+from tb_internet_use.tool_call.model import ToolCallKey
+from tb_internet_use.trial.model import UnreadableTrajectory, UnreadableTrajectoryReason
 
 
 def _trial_dir(tmp_path: Path, trajectory_bytes: bytes | None) -> Path:

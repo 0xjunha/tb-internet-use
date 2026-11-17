@@ -48,8 +48,8 @@ from tb_internet_use.tool_call.model import (
     RunCommandAction,
     ToolCall,
     UnmatchedFormat,
-    UnreadableTrajectory,
 )
+from tb_internet_use.trial.model import UnreadableTrajectory
 
 DEFAULT_OUTPUT_CSV = (
     Path(__file__).resolve().parents[1]

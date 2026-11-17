@@ -26,11 +26,10 @@ from tb_internet_use.tool_call.model import (
     ToolCall,
     ToolCallAction,
     ToolCallKey,
-    UnreadableTrajectory,
-    UnreadableTrajectoryReason,
     VariableAssignment,
 )
 from tb_internet_use.tool_call.parse_shell_text import parse_shell_text
+from tb_internet_use.trial.model import UnreadableTrajectory, UnreadableTrajectoryReason
 
 _SPEC = importlib.util.spec_from_file_location(
     "audit_parsed_shell_texts",

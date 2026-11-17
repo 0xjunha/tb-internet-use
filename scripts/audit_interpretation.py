@@ -23,7 +23,8 @@ from tb_internet_use.knowledge.tool_call_knowledge import ToolCallKnowledge
 from tb_internet_use.parse.program.model import RequestKind
 from tb_internet_use.pipeline import read_trajectory
 from tb_internet_use.tool_call import convert_tool_calls
-from tb_internet_use.tool_call.model import ToolCallKey, UnreadableTrajectory
+from tb_internet_use.tool_call.model import ToolCallKey
+from tb_internet_use.trial.model import UnreadableTrajectory
 from tb_internet_use.trial_interpretation import interpret_trial_before_linking
 
 # Data runs use at most 4 processes, to leave the machine usable.

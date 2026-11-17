@@ -41,8 +41,8 @@ from tb_internet_use.tool_call.model import (
     HarnessTool,
     HarnessToolCall,
     HarnessToolLabel,
-    UnreadableTrajectory,
 )
+from tb_internet_use.trial.model import UnreadableTrajectory
 
 OUT_DIR = Path(__file__).resolve().parents[1] / "out" / "tool_call_knowledge"
 # Data runs use at most 4 processes, to leave the machine usable.

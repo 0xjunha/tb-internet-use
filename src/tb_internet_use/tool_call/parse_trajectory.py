@@ -12,9 +12,8 @@ from tb_internet_use.tool_call.model import (
     HarnessTool,
     HarnessToolCall,
     ToolCallKey,
-    UnreadableTrajectory,
-    UnreadableTrajectoryReason,
 )
+from tb_internet_use.trial.model import UnreadableTrajectory, UnreadableTrajectoryReason
 
 _SUPPORTED_SCHEMA_VERSIONS = {"ATIF-v1.7", "ATIF-v1.8"}
 _AGENT_LOOP_MESSAGE_PREFIX = "Tool call error"

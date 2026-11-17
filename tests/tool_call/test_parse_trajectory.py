@@ -5,17 +5,14 @@ from typing import Any
 
 import pytest
 
-from tb_internet_use.tool_call.model import (
-    ToolCallKey,
-    UnreadableTrajectory,
-    UnreadableTrajectoryReason,
-)
+from tb_internet_use.tool_call.model import ToolCallKey
 from tb_internet_use.tool_call.parse_trajectory import (
     _drop_agent_loop_messages,
     _pair_calls_with_results,
     _walk_trajectory,
     parse_trajectory,
 )
+from tb_internet_use.trial.model import UnreadableTrajectory, UnreadableTrajectoryReason
 
 LOOP_MESSAGE = {"content": "Tool call error:\n\n<error>No tool calls found</error>"}
 
