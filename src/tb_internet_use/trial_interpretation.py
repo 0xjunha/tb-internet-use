@@ -9,7 +9,7 @@ from tb_internet_use.interpret.observation import extract_observations
 from tb_internet_use.interpret.observation.model import Observation
 from tb_internet_use.interpret.request import extract_candidate_requests
 from tb_internet_use.interpret.request.model import CandidateRequest
-from tb_internet_use.parse.toolcall.model import ToolCall
+from tb_internet_use.tool_call.model import ToolCall
 
 
 @dataclass(frozen=True, slots=True)

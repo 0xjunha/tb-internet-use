@@ -13,7 +13,7 @@ from tb_internet_use.parse.shell.model import (
     ResultDestination,
     ShellCommand,
 )
-from tb_internet_use.parse.toolcall.model import ExecutionStatus, ToolCall, ToolCallKey
+from tb_internet_use.tool_call.model import ExecutionStatus, ToolCall, ToolCallKey
 
 # Source of a shell text that a call ran.
 type ShellTextSource = (
@@ -44,7 +44,7 @@ class CallRun:
     # Later calls that poll a handle this call started.
     # For a call that typed input, the later polls of the same handle.
     polls: tuple[ToolCallKey, ...]
-    # Later readers of `call.output.output_path`, the file where the harness saved the call's whole result.
+    # Later readers of `call.result.output_path`, the file where the harness saved the call's whole result.
     # The readers of an output file that a poll result names are on the poll's own CallRun, found through `polls`.
     harness_output_file_readers: tuple[FileReader, ...]
     # Readers of each file that commands of the call send output to, e.g. `> fetch.log` or `tee fetch.log`.

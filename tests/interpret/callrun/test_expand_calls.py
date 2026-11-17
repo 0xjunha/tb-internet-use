@@ -18,36 +18,36 @@ from tb_internet_use.interpret.callrun.model import (
     StdinText,
 )
 from tb_internet_use.parse.shell.model import FileDestination, ShellCommand
-from tb_internet_use.parse.toolcall.model import (
-    Action,
+from tb_internet_use.tool_call.model import (
     ExecutionHandle,
     ExecutionHandleKind,
     ExecutionStatus,
     HarnessTool,
+    HarnessToolCall,
     PollAction,
-    RawToolCall,
     ReadFileAction,
     RunCommandAction,
     RunToolScriptAction,
     ToolCall,
+    ToolCallAction,
     ToolCallKey,
-    ToolCallOutput,
+    ToolCallResult,
     WriteFileAction,
 )
 
 FINISHED = ExecutionStatus.FINISHED
-NOT_RUN_OUTPUT = ToolCallOutput(execution_status=ExecutionStatus.NOT_RUN)
+NOT_RUN_OUTPUT = ToolCallResult(execution_status=ExecutionStatus.NOT_RUN)
 
 
 def _call(
-    step_id: int, action: Action, output: ToolCallOutput | None = None
+    step_id: int, action: ToolCallAction, output: ToolCallResult | None = None
 ) -> ToolCall:
     key = ToolCallKey("trial", "main", step_id, 0)
-    raw = RawToolCall(key, HarnessTool("h", "t"), "", {}, None)
-    return ToolCall(raw, action, output or ToolCallOutput(execution_status=FINISHED))
+    raw = HarnessToolCall(key, HarnessTool("h", "t"), "", {}, None)
+    return ToolCall(raw, action, output or ToolCallResult(execution_status=FINISHED))
 
 
-def _run_of_last_call(*actions: Action) -> CallRun:
+def _run_of_last_call(*actions: ToolCallAction) -> CallRun:
     calls = [_call(step_id, action) for step_id, action in enumerate(actions, 1)]
     return expand_calls(calls)[-1]
 
@@ -68,7 +68,7 @@ def test_example_of_the_pipeline_doc():
     c2 = _call(
         2,
         RunCommandAction("bash fetch.sh > fetch.log 2>&1 || pip install requests"),
-        ToolCallOutput(execution_status=ExecutionStatus.RUNNING, handles=(task,)),
+        ToolCallResult(execution_status=ExecutionStatus.RUNNING, handles=(task,)),
     )
     c3 = _call(
         3, PollAction(handles=(ExecutionHandle(ExecutionHandleKind.UNKNOWN, "task-1"),))
@@ -88,16 +88,20 @@ def test_example_of_the_pipeline_doc():
         stderr_routes=(OutputRoute((), log),),
     )
     assert c2_run.shell_texts[1] == RanShellText(
-        FileText(0, "fetch.sh", c1.raw.key), (curl,)
+        FileText(0, "fetch.sh", c1.harness_tool_call.key), (curl,)
     )
     assert _words_of_texts(c2_run)[0] == [
         ("bash", "fetch.sh"),
         ("pip", "install", "requests"),
     ]
-    assert c2_run.command_text_status == CommandTextStatus(FINISHED, None, c3.raw.key)
-    assert c2_run.polls == (c3.raw.key,)
+    assert c2_run.command_text_status == CommandTextStatus(
+        FINISHED, None, c3.harness_tool_call.key
+    )
+    assert c2_run.polls == (c3.harness_tool_call.key,)
     assert c2_run.redirected_output_reads == (
-        RedirectedOutputReads("fetch.log", (FileReader(c4.raw.key, None),)),
+        RedirectedOutputReads(
+            "fetch.log", (FileReader(c4.harness_tool_call.key, None),)
+        ),
     )
 
 
@@ -215,11 +219,13 @@ def test_typed_input_is_a_shell_text_of_the_poll():
     start = _call(
         1,
         RunCommandAction("bash"),
-        ToolCallOutput(execution_status=ExecutionStatus.RUNNING, handles=(session,)),
+        ToolCallResult(execution_status=ExecutionStatus.RUNNING, handles=(session,)),
     )
     typing = _call(2, PollAction(handles=(session,), input="curl u\n"))
     call_run = expand_calls([start, typing])[1]
-    assert call_run.shell_texts[0].source == PollInputText(None, start.raw.key)
+    assert call_run.shell_texts[0].source == PollInputText(
+        None, start.harness_tool_call.key
+    )
 
 
 def test_readers_of_redirected_output():
@@ -271,7 +277,7 @@ def test_readers_of_redirected_output():
 
 
 def test_readers_in_run_order_within_a_call():
-    def readers_of_log(action: Action) -> tuple[FileReader, ...]:
+    def readers_of_log(action: ToolCallAction) -> tuple[FileReader, ...]:
         writes = WriteFileAction("x.sh", "tail log")
         (_, call_run) = expand_calls([_call(1, writes), _call(2, action)])
         reads = call_run.redirected_output_reads
@@ -312,7 +318,7 @@ def test_a_call_the_tool_did_not_run_reads_and_writes_no_file():
     rejected_write = _call(2, WriteFileAction("log", ""), NOT_RUN_OUTPUT)
     read = _call(3, ReadFileAction("log"))
     assert expand_calls([curl, rejected_write, read])[0].redirected_output_reads == (
-        RedirectedOutputReads("log", (FileReader(read.raw.key, None),)),
+        RedirectedOutputReads("log", (FileReader(read.harness_tool_call.key, None),)),
     )
     rejected_curl = _call(1, RunCommandAction("curl u > log"), NOT_RUN_OUTPUT)
     cat = _call(2, RunCommandAction("cat log"))
@@ -320,12 +326,12 @@ def test_a_call_the_tool_did_not_run_reads_and_writes_no_file():
 
 
 def test_readers_of_the_harness_output_file():
-    output = ToolCallOutput(
+    output = ToolCallResult(
         execution_status=ExecutionStatus.RUNNING, output_path="/tmp/tasks/b1.output"
     )
     start = _call(1, RunCommandAction("pip install x"), output)
     other = _call(2, RunCommandAction("cat /tmp/tasks/b2.output"))
     read = _call(3, RunCommandAction("cat /tmp/tasks/b1.output"))
     assert expand_calls([start, other, read])[0].harness_output_file_readers == (
-        FileReader(read.raw.key, 0),
+        FileReader(read.harness_tool_call.key, 0),
     )

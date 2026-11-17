@@ -1,12 +1,12 @@
 """Audit tool result conversion on every raw trial and write the harness result format audit CSV.
 
-For each (harness, tool, format): calls, trials and example call keys. Also coverage
-(results of an unknown format per tool), harness text of the templates left in the tool output, results that match more than
-one format of their list, byte-exact round trips of text formats, and cross-source checks.
+The CSV goes to `out/tool_call_knowledge/` by default, which `.gitignore` keeps out of the repo, since its counts come from the trajectories.
+
+It counts the calls, trials and example call keys of each (harness, tool, format).
+It also counts coverage (results of an unknown format per tool), harness text of the templates left in the tool output, results that match more than one format of their list, byte-exact round trips of text formats, and cross-source checks.
 Prints counts and masked shapes only, never result text.
 
-Usage: uv run python -I scripts/audit_results.py <raw_trials_dir> [output_csv]
-           [--harness NAME ...] [--report PATH] [--limit N]
+Run it as `uv run python -I scripts/audit_results.py <raw_trials_dir> [output_csv] [--harness NAME ...] [--report PATH] [--limit N]`.
 """
 
 import argparse
@@ -14,55 +14,66 @@ import csv
 import os
 import re
 from collections import Counter, defaultdict
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import Any
 
-from tb_internet_use.parse.toolcall.atif_reader import read_trial_tool_calls
-from tb_internet_use.parse.toolcall.catalog_loader import CATALOGS_DIR
-from tb_internet_use.parse.toolcall.convert import convert_call
-from tb_internet_use.parse.toolcall.harnesses import converter_for
-from tb_internet_use.parse.toolcall.harnesses.claude_code import structured_result
-from tb_internet_use.parse.toolcall.model import (
-    PollAction,
-    RawToolCall,
-    ReadFileAction,
-    RunCommandAction,
-    ToolCall,
-    UnmatchedFormat,
-)
-from tb_internet_use.parse.toolcall.result_format_audit import (
-    all_matches,
-    format_kind,
-    harness_text_patterns,
+from tb_internet_use.knowledge.harness_result_format_audit import (
+    all_matches_of,
+    format_kind_of,
+    harness_text_patterns_of,
     iter_declared_formats,
     render_text_format,
 )
-from tb_internet_use.parse.toolcall.result_formats import (
+from tb_internet_use.knowledge.harness_result_format_declaration import (
     HarnessResultFormat,
     HarnessTextResultFormat,
     MatchedValues,
     annotated_output_of,
 )
+from tb_internet_use.knowledge.tool_call_knowledge import (
+    ToolCallKnowledge,
+    harness_tool_result_declaration_of,
+)
+from tb_internet_use.pipeline import read_trajectory
+from tb_internet_use.tool_call import convert_tool_calls
+from tb_internet_use.tool_call.harnesses import converter_for
+from tb_internet_use.tool_call.harnesses.claude_code import structured_result_of
+from tb_internet_use.tool_call.model import (
+    HarnessToolCall,
+    PollAction,
+    ReadFileAction,
+    RunCommandAction,
+    ToolCall,
+    UnmatchedFormat,
+    UnreadableTrajectory,
+)
 
-DEFAULT_OUTPUT_CSV = CATALOGS_DIR / "harness_result_format_audit.csv"
+DEFAULT_OUTPUT_CSV = (
+    Path(__file__).resolve().parents[1]
+    / "out"
+    / "tool_call_knowledge"
+    / "harness_result_format_audit.csv"
+)
 CSV_COLUMNS = [
     "harness",
     "tool",
-    "format",  # format name; also "unknown_format" and "skipped_format" rows per tool
+    "format",  # format name, or "unknown_format" and "skipped_format" rows per tool
     # text or json for a declared format, special for one built by converter code,
     # empty for the unknown_format and skipped_format rows
     "kind",
     "call_count",
     "trial_count",
-    "example_calls",  # up to 3 keys: trial/trajectory#step.index
-    "roundtrip_mismatches",  # text formats: render_text_format(values) != annotated output
+    "example_calls",  # up to 3 keys, each `trial/trajectory#step.index`
+    "roundtrip_mismatches",  # text formats whose `render_text_format(values)` differs from the annotated output
     "harness_text_hits",  # results whose tool output holds harness text of this tool's templates
     "multi_match",  # results that also matched another format of the list
 ]
 MAX_EXAMPLES = 3
+# Data runs use at most 4 processes, to leave the machine usable.
+_PROCESS_COUNT = 4
 UNKNOWN = str(UnmatchedFormat.UNKNOWN)
 SKIPPED = str(UnmatchedFormat.SKIPPED)
 UNMATCHED_NAMES = {UNKNOWN, SKIPPED}
@@ -96,7 +107,7 @@ def main() -> None:
     )[: args.limit]
     harnesses = frozenset(args.harness)
     tally = Tally()
-    with ProcessPoolExecutor(max_workers=max(2, (os.cpu_count() or 2) - 2)) as pool:
+    with ProcessPoolExecutor(_PROCESS_COUNT) as pool:
         for part in pool.map(
             audit_trial, ((d, harnesses) for d in trial_dirs), chunksize=16
         ):
@@ -113,13 +124,20 @@ def main() -> None:
 def audit_trial(args: tuple[str, frozenset[str]]) -> Tally:
     trial_dir, harnesses = args
     tally = Tally()
-    trial = read_trial_tool_calls(Path(trial_dir))
-    if not trial.calls or (harnesses and trial.calls[0].tool.harness not in harnesses):
+    harness_tool_calls = read_trajectory(Path(trial_dir))
+    # A trial whose trajectory cannot be read counts as one without calls.
+    if isinstance(harness_tool_calls, UnreadableTrajectory) or not harness_tool_calls:
+        return tally
+    if harnesses and harness_tool_calls[0].tool.harness not in harnesses:
         return tally
     seen = TrialSeen()
-    calls = [convert_call(raw, converter_for(raw.tool.harness)) for raw in trial.calls]
+    calls = convert_tool_calls(
+        harness_tool_calls,
+        knowledge=ToolCallKnowledge(),
+        judgment_rule_use_counts=Counter(),
+    )
     for call in calls:
-        if call.output is not None:
+        if call.result is not None:
             audit_result(tally, call, seen)
     audit_links(tally, calls)
     tally.trials.update(seen.formats)
@@ -129,28 +147,46 @@ def audit_trial(args: tuple[str, frozenset[str]]) -> Tally:
 
 def audit_result(tally: Tally, call: ToolCall, seen: TrialSeen) -> None:
     """Record what one result matched and the checks that apply to it."""
-    raw, output = call.raw, call.output
-    assert raw.result is not None and output is not None
-    harness, tool = raw.tool.harness, raw.tool.name
-    name = str(output.harness_result_format)  # the format column of both CSVs
+    harness_tool_call, tool_call_result = call.harness_tool_call, call.result
+    assert harness_tool_call.result is not None and tool_call_result is not None
+    harness, tool = harness_tool_call.tool.harness, harness_tool_call.tool.name
+    name = str(tool_call_result.harness_result_format)  # the format column of both CSVs
     key = (harness, tool, name)
     tally.calls[key] += 1
     seen.formats.add(key)
     examples = tally.examples.setdefault(key, [])
     if len(examples) < MAX_EXAMPLES:
-        examples.append(call_key(raw))
-    tally.status[(harness, tool, name, output.execution_status.value)] += 1
+        examples.append(call_key(harness_tool_call))
+    tally.status[(harness, tool, name, tool_call_result.execution_status.value)] += 1
 
     converter = converter_for(harness)
-    raw_text = converter.extract_tool_result_raw_text(raw, raw.result)
-    tool_result_json = converter.extract_tool_result_json(raw, raw.result)
-    selected_formats = converter.select_formats(raw, raw.result, tool_result_json)
-    if selected_formats is None:
+    harness_tool_result_declaration = harness_tool_result_declaration_of(
+        harness_tool_call.tool
+    )
+    raw_text = converter.tool_result_raw_text_of(
+        harness_tool_call, harness_tool_call.result
+    )
+    tool_result_json = (
+        converter.tool_result_json_of(harness_tool_call, harness_tool_call.result)
+        if harness_tool_result_declaration.json_formats is not None
+        else None
+    )
+    selected_formats = harness_tool_result_declaration.formats_for_result(
+        tool_result_json,
+        is_marked_as_error=converter.is_marked_as_error(
+            harness_tool_call, harness_tool_call.result
+        ),
+    )
+    if selected_formats is UnmatchedFormat.SKIPPED:
         return
-    annotated = annotated_output_of(raw_text, tool_result_json, selected_formats)
+    if isinstance(selected_formats, UnmatchedFormat):
+        # A tool with JSON formats only has no list for a text result, so its raw text is the annotated output, with no notices to cut.
+        annotated = None if raw_text is None else (raw_text, [])
+    else:
+        annotated = annotated_output_of(raw_text, tool_result_json, selected_formats)
     if annotated is None:
         return
-    if output.harness_result_format is UnmatchedFormat.UNKNOWN:
+    if tool_call_result.harness_result_format is UnmatchedFormat.UNKNOWN:
         shape = (
             "json keys=" + ",".join(sorted(tool_result_json))[:70]
             if tool_result_json is not None
@@ -159,10 +195,12 @@ def audit_result(tally: Tally, call: ToolCall, seen: TrialSeen) -> None:
         tally.unknown_format[(harness, tool, shape)] += 1
         seen.unknown_shapes.add((harness, tool, shape))
         return
+    if isinstance(selected_formats, UnmatchedFormat):
+        return
     annotated_output, cut_names = annotated
     for cut_name in cut_names:
         tally.notices[(harness, tool, cut_name)] += 1
-    matches = all_matches(selected_formats, annotated_output)
+    matches = all_matches_of(selected_formats, annotated_output)
     if len(matches) > 1:
         tally.multi[(harness, tool, " > ".join(fmt.name for fmt, _ in matches))] += 1
     if matches:
@@ -173,24 +211,24 @@ def audit_result(tally: Tally, call: ToolCall, seen: TrialSeen) -> None:
         ):
             tally.roundtrip[(harness, tool, fmt.name)] += 1
         if harness == "claude-code":
-            check_claude_code(tally, raw, fmt, values)
-    if output.tool_output_text:
-        for part, pattern in harness_text_patterns(selected_formats):
-            if pattern.search(output.tool_output_text):
+            check_claude_code(tally, harness_tool_call, fmt, values)
+    if tool_call_result.tool_output_text:
+        for part, pattern in harness_text_patterns_of(selected_formats):
+            if pattern.search(tool_call_result.tool_output_text):
                 tally.harness_text_hits[(harness, tool, name, part[:40])] += 1
                 break
 
 
 @dataclass
 class TrialSeen:
-    """What one trial had at least once, for the trial counts."""
+    """Record of what one trial had at least once, kept for the trial counts."""
 
     formats: set[Key] = field(default_factory=set)
     unknown_shapes: set[Shape] = field(default_factory=set)
 
 
-def call_key(raw: RawToolCall) -> str:
-    key = raw.key
+def call_key(harness_tool_call: HarnessToolCall) -> str:
+    key = harness_tool_call.key
     return f"{key.trial_id}/{key.trajectory_id}#{key.step_id}.{key.call_index}"
 
 
@@ -212,13 +250,16 @@ def mask(text: str, limit: int = 70) -> str:
 
 
 def check_claude_code(
-    tally: Tally, raw: RawToolCall, fmt: HarnessResultFormat[Any], values: MatchedValues
+    tally: Tally,
+    harness_tool_call: HarnessToolCall,
+    fmt: HarnessResultFormat[Any],
+    values: MatchedValues,
 ) -> None:
     """Compare what the format gave with Claude Code's structured result, an independent source."""
-    structured = structured_result(raw.result or {})
+    structured = structured_result_of(harness_tool_call.result or {})
     if not structured:
         return
-    harness, tool = raw.tool.harness, raw.tool.name
+    harness, tool = harness_tool_call.tool.harness, harness_tool_call.tool.name
     text = fmt.tool_output_text_of(values)
 
     def record(check: str, same: bool) -> None:
@@ -241,11 +282,14 @@ def check_claude_code(
         record("format_text_vs_file_content", text.strip() == content.strip())
 
 
-def audit_links(tally: Tally, calls: list[ToolCall]) -> None:
+def audit_links(tally: Tally, calls: Sequence[ToolCall]) -> None:
     issued: set[str] = set()
     pending_paths: dict[str, tuple[str, str]] = {}
     for call in calls:
-        harness, tool = call.raw.tool.harness, call.raw.tool.name
+        harness, tool = (
+            call.harness_tool_call.tool.harness,
+            call.harness_tool_call.tool.name,
+        )
         action = call.action
         if isinstance(action, PollAction):
             for handle in action.handles:
@@ -260,12 +304,12 @@ def audit_links(tally: Tally, calls: list[ToolCall]) -> None:
                 tally.cross[
                     (*pending_paths.pop(path), "output_path", "used_in_command_later")
                 ] += 1
-        output = call.output
-        if output is None:
+        tool_call_result = call.result
+        if tool_call_result is None:
             continue
-        issued.update(handle.id for handle in output.handles)
-        if output.output_path:
-            pending_paths.setdefault(output.output_path, (harness, tool))
+        issued.update(handle.id for handle in tool_call_result.handles)
+        if tool_call_result.output_path:
+            pending_paths.setdefault(tool_call_result.output_path, (harness, tool))
     for owner in pending_paths.values():
         tally.cross[(*owner, "output_path", "not_read_later")] += 1
 
@@ -331,6 +375,7 @@ def _section(title: str, rows: Iterable[tuple[int, str]], limit: int = 40) -> li
 
 
 def write_audit_csv(rows: list[dict[str, str]], path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="") as f:
         writer = csv.DictWriter(f, CSV_COLUMNS, lineterminator="\n")
         writer.writeheader()
@@ -338,13 +383,13 @@ def write_audit_csv(rows: list[dict[str, str]], path: Path) -> None:
 
 
 def audit_rows(tally: Tally) -> list[dict[str, str]]:
-    """Declared formats in the catalog's order, then the other formats seen, sorted."""
+    """List the declared formats in the catalog's order, then the other formats seen, sorted."""
     rows: list[dict[str, str]] = []
     declared: set[Key] = set()
     for harness, tool, fmt in iter_declared_formats():
         key = (harness, tool, fmt.name)
         declared.add(key)
-        rows.append(_row(tally, key, format_kind(fmt)))
+        rows.append(_row(tally, key, format_kind_of(fmt)))
     for key in sorted(tally.calls):
         if key not in declared:
             kind = "" if key[2] in UNMATCHED_NAMES else "special"
@@ -378,7 +423,7 @@ def _row(tally: Tally, key: Key, kind: str) -> dict[str, str]:
 
 @dataclass
 class Tally:
-    """Counts of one or more trials, keyed by names, never by result text."""
+    """Tally of the counts of one trial or, once the main process merges them, of many, keyed by names and never by result text."""
 
     calls: Counter[Key] = field(default_factory=Counter)
     trials: Counter[Key] = field(default_factory=Counter)

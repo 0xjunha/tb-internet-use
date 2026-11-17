@@ -81,7 +81,7 @@ c1.action = RunCommandAction(
     ),
 )
 # The exit code is echo's, so it says nothing about either curl.
-c1.output = ToolCallResult(execution_status=FINISHED, exit_code=0, tool_output_text="curl: (28) ...\ndone")
+c1.result = ToolCallResult(execution_status=FINISHED, exit_code=0, tool_output_text="curl: (28) ...\ndone")
 
 c3.action = RunCommandAction(
     command_str="bash fetch.sh > fetch.log 2>&1 || pip install requests",
@@ -101,7 +101,7 @@ c3.action = RunCommandAction(
         ),
     ),
 )
-c3.output = ToolCallResult(execution_status=RUNNING, handles=(ExecutionHandle(COMMAND, "task-1"),))
+c3.result = ToolCallResult(execution_status=RUNNING, handles=(ExecutionHandle(COMMAND, "task-1"),))
 ```
 
 ## Step 2: expand tool calls

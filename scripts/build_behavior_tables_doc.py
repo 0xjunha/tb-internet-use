@@ -2,7 +2,7 @@
 
 It reads no trajectory.
 
-Usage: uv run python -I scripts/build_behavior_tables_doc.py
+Run it as `uv run python -I scripts/build_behavior_tables_doc.py`.
 """
 
 from tb_internet_use.behavior_tables import (

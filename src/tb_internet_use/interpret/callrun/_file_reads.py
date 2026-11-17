@@ -29,11 +29,11 @@ from tb_internet_use.parse.shell.programs import (
     gets_arguments_at_run_time,
     program_words,
 )
-from tb_internet_use.parse.toolcall.model import (
+from tb_internet_use.tool_call.model import (
     ReadFileAction,
     ToolCall,
     WriteFileAction,
-    action_steps_with_index,
+    indexed_action_steps_of,
     may_have_run,
 )
 
@@ -93,11 +93,15 @@ class TrialFileReads:
             if not may_have_run(call):
                 self._output_writes_of_call.append([])
                 continue
-            for step_index, step in action_steps_with_index(call.action):
+            for step_index, step in indexed_action_steps_of(call.action):
                 position = _RunOrderPosition(call_index, step_index or 0, -1)
                 if isinstance(step, ReadFileAction) and step.path:
                     self._reads.append(
-                        _FileRead(position, step.path, FileReader(call.raw.key, None))
+                        _FileRead(
+                            position,
+                            step.path,
+                            FileReader(call.harness_tool_call.key, None),
+                        )
                     )
                 elif isinstance(step, WriteFileAction) and step.path:
                     self._writes.append(
@@ -122,12 +126,12 @@ class TrialFileReads:
                     self._reads += _command_reads(
                         position,
                         ran_command,
-                        FileReader(call.raw.key, ran_command.command.id),
+                        FileReader(call.harness_tool_call.key, ran_command.command.id),
                     )
 
     def harness_output_file_readers(self, call_index: int) -> tuple[FileReader, ...]:
         """List the later calls that read the file where the harness saved a call's whole result."""
-        output = self._calls[call_index].output
+        output = self._calls[call_index].result
         if output is None or output.output_path is None:
             return ()
         return _unique_readers(

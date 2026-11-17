@@ -22,19 +22,19 @@ from tb_internet_use.parse.shell.programs import (
     gets_arguments_at_run_time,
     program_words,
 )
-from tb_internet_use.parse.toolcall.model import (
-    Action,
+from tb_internet_use.tool_call.model import (
+    ToolCallAction,
     ToolCallKey,
     WebFetchAction,
     WebFindAction,
     WebSearchAction,
-    action_steps_with_index,
+    indexed_action_steps_of,
 )
 
 
 def extract_candidate_requests(call_run: CallRun) -> tuple[CandidateRequest, ...]:
     """Extract the candidate requests of one call, from its commands in id order, then its code texts, then its web tool steps."""
-    call_key = call_run.call.raw.key
+    call_key = call_run.call.harness_tool_call.key
     ran_commands = [c for text in call_run.shell_texts for c in text.commands or ()]
     # The program that runs each code text, past programs that run the next program, e.g. python for `uv run python get.py`.
     program_name_of_command = {
@@ -51,7 +51,7 @@ def extract_candidate_requests(call_run: CallRun) -> tuple[CandidateRequest, ...
     ]
     web_tool_requests = [
         _web_tool_request(call_key, step_index, step)
-        for step_index, step in action_steps_with_index(call_run.call.action)
+        for step_index, step in indexed_action_steps_of(call_run.call.action)
     ]
     return tuple(
         request
@@ -109,7 +109,7 @@ def _command_request(
 
 
 def _web_tool_request(
-    call_key: ToolCallKey, step_index: int | None, step: Action
+    call_key: ToolCallKey, step_index: int | None, step: ToolCallAction
 ) -> CandidateRequest | None:
     """Make the candidate request of a web search, fetch or find step, or None for another action."""
     match step:

@@ -12,16 +12,16 @@ from tb_internet_use.interpret.request.model import (
 )
 from tb_internet_use.network.model import Host, HostKind, PrintingProgram
 from tb_internet_use.parse.program.model import ExitZeroMeans, RequestKind
-from tb_internet_use.parse.toolcall.model import (
-    Action,
+from tb_internet_use.tool_call.model import (
     ExecutionStatus,
     HarnessTool,
-    RawToolCall,
+    HarnessToolCall,
     RunCommandAction,
     RunToolScriptAction,
     ToolCall,
+    ToolCallAction,
     ToolCallKey,
-    ToolCallOutput,
+    ToolCallResult,
     WebFetchAction,
     WebFindAction,
     WebSearchAction,
@@ -29,15 +29,15 @@ from tb_internet_use.parse.toolcall.model import (
 )
 
 
-def _call(step_id: int, action: Action) -> ToolCall:
+def _call(step_id: int, action: ToolCallAction) -> ToolCall:
     key = ToolCallKey("trial", "main", step_id, 0)
-    output = ToolCallOutput(execution_status=ExecutionStatus.FINISHED)
+    output = ToolCallResult(execution_status=ExecutionStatus.FINISHED)
     return ToolCall(
-        RawToolCall(key, HarnessTool("h", "t"), "", {}, None), action, output
+        HarnessToolCall(key, HarnessTool("h", "t"), "", {}, None), action, output
     )
 
 
-def _requests(*actions: Action) -> tuple[CandidateRequest, ...]:
+def _requests(*actions: ToolCallAction) -> tuple[CandidateRequest, ...]:
     call_runs = expand_calls([_call(i, a) for i, a in enumerate(actions, 1)])
     return extract_candidate_requests(call_runs[-1])
 
@@ -104,10 +104,10 @@ def test_a_call_the_tool_did_not_run_keeps_its_candidate_requests():
     # A rejected request still counts as attempted, and the call's status tells that it did not run.
     call = replace(
         _call(1, RunCommandAction("curl https://a.org")),
-        output=ToolCallOutput(execution_status=ExecutionStatus.NOT_RUN),
+        result=ToolCallResult(execution_status=ExecutionStatus.NOT_RUN),
     )
     (request,) = extract_candidate_requests(expand_calls([call])[0])
-    assert (request.call, request.program_name) == (call.raw.key, "curl")
+    assert (request.call, request.program_name) == (call.harness_tool_call.key, "curl")
 
 
 def test_a_name_lookup_names_its_hosts():

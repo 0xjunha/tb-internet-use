@@ -18,7 +18,7 @@ from tb_internet_use.interpret.callrun._ran_texts import (
 from tb_internet_use.interpret.callrun.model import CallRun, RanCommand, RanShellText
 from tb_internet_use.interpret.callrun.variable_values import command_variable_values
 from tb_internet_use.parse.shell.model import ParsedShellText, ShellCommand
-from tb_internet_use.parse.toolcall.model import ToolCall
+from tb_internet_use.tool_call.model import ToolCall
 
 
 def expand_calls(calls: Sequence[ToolCall]) -> tuple[CallRun, ...]:
@@ -32,12 +32,12 @@ def expand_calls(calls: Sequence[ToolCall]) -> tuple[CallRun, ...]:
         _ran_shell_texts(parsed) for parsed in parsed_texts_of_calls
     ]
     file_reads = TrialFileReads(calls, shell_texts_of_calls)
-    call_of_key = {call.raw.key: call for call in calls}
+    call_of_key = {call.harness_tool_call.key: call for call in calls}
     call_runs: list[CallRun] = []
     for index, (call, parsed, shell_texts) in enumerate(
         zip(calls, parsed_texts_of_calls, shell_texts_of_calls, strict=True)
     ):
-        polls = poll_links.polls_of_call.get(call.raw.key, ())
+        polls = poll_links.polls_of_call.get(call.harness_tool_call.key, ())
         call_runs.append(
             CallRun(
                 call=call,

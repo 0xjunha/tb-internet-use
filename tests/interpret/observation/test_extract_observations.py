@@ -9,16 +9,16 @@ from tb_internet_use.interpret.observation.model import (
     ObservationKind,
     OutputLine,
 )
-from tb_internet_use.parse.toolcall.model import (
-    Action,
+from tb_internet_use.tool_call.model import (
     ExecutionStatus,
     HarnessTool,
-    RawToolCall,
+    HarnessToolCall,
     RunCommandAction,
     RunToolScriptAction,
     ToolCall,
+    ToolCallAction,
     ToolCallKey,
-    ToolCallOutput,
+    ToolCallResult,
     WebFetchAction,
 )
 
@@ -27,17 +27,17 @@ COMMAND = RunCommandAction("x")
 
 def _call(
     text: str | None,
-    action: Action = COMMAND,
+    action: ToolCallAction = COMMAND,
     http_status: int | None = None,
 ) -> ToolCall:
     key = ToolCallKey("trial", "main", 1, 0)
-    output = ToolCallOutput(
+    output = ToolCallResult(
         tool_output_text=text,
         execution_status=ExecutionStatus.FINISHED,
         http_status=http_status,
     )
     return ToolCall(
-        RawToolCall(key, HarnessTool("h", "t"), "", {}, None), action, output
+        HarnessToolCall(key, HarnessTool("h", "t"), "", {}, None), action, output
     )
 
 
@@ -118,7 +118,9 @@ def test_a_tool_script_without_steps_is_read_as_program_output():
 
 def test_no_result_gives_no_observation():
     call = _call(None)
-    assert extract_observations(ToolCall(call.raw, call.action, None)) == ()
+    assert (
+        extract_observations(ToolCall(call.harness_tool_call, call.action, None)) == ()
+    )
 
 
 def test_long_output_is_scanned_in_linear_time():

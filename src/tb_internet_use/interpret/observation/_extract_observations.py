@@ -18,13 +18,13 @@ from tb_internet_use.interpret.observation.model import (
 from tb_internet_use.network.hosts import host_from_name
 from tb_internet_use.network.package_names import normalized_package_names
 from tb_internet_use.parse.shell.programs import normalized_program_name
-from tb_internet_use.parse.toolcall.model import (
+from tb_internet_use.tool_call.model import (
     ToolCall,
     ToolCallKey,
     WebFetchAction,
     WebFindAction,
     WebSearchAction,
-    action_steps_with_index,
+    indexed_action_steps_of,
 )
 
 # The trailing number of a named group, which `line_pattern_tables` adds to keep names unique, e.g. 0 in host0.
@@ -38,15 +38,15 @@ def extract_observations(call: ToolCall) -> tuple[Observation, ...]:
 
     The result of a call made of one or more web tool actions and nothing else is page text, so its lines are read with the web tool result table.
     """
-    output = call.output
+    output = call.result
     if output is None:
         return ()
-    key = call.raw.key
+    key = call.harness_tool_call.key
     observations: list[Observation] = []
     if output.http_status is not None:
         observations.append(_http_status_observation(key, output.http_status))
     if output.tool_output_text:
-        steps = [step for _, step in action_steps_with_index(call.action)]
+        steps = [step for _, step in indexed_action_steps_of(call.action)]
         is_web_tool_result = bool(steps) and all(
             isinstance(step, (WebSearchAction, WebFetchAction, WebFindAction))
             for step in steps

@@ -3,7 +3,7 @@
 It rewrites only the count columns of the committed catalog and never the hand-filled ones.
 Every program and subcommand goes to `out/program_catalog_candidates.csv`, which `.gitignore` keeps out of the repo, since raw program names can hold hidden task content.
 
-Usage: nice -n 10 uv run python -I scripts/build_program_catalog.py <raw_trials_dir> [candidates_csv]
+Run it as `nice -n 10 uv run python -I scripts/build_program_catalog.py <raw_trials_dir> [candidates_csv]`.
 """
 
 import argparse
@@ -13,11 +13,14 @@ from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 from tb_internet_use.interpret.callrun import expand_calls
+from tb_internet_use.knowledge.tool_call_knowledge import ToolCallKnowledge
 from tb_internet_use.parse.program.arguments import parse_arguments
 from tb_internet_use.parse.program.catalog_loader import PROGRAM_CATALOG_CSV
 from tb_internet_use.parse.program.catalog_rows import matched_catalog_rows
 from tb_internet_use.parse.shell.programs import program_words
-from tb_internet_use.parse.toolcall import convert_trial
+from tb_internet_use.pipeline import read_trajectory
+from tb_internet_use.tool_call import convert_tool_calls
+from tb_internet_use.tool_call.model import UnreadableTrajectory
 
 DEFAULT_CANDIDATES_CSV = (
     Path(__file__).resolve().parents[1] / "out" / "program_catalog_candidates.csv"
@@ -78,7 +81,16 @@ def count_trial(
     """Count the commands of one trial per matching catalog row, and per program and first plain argument."""
     row_counts: Counter[CatalogKey] = Counter()
     candidates: Counter[tuple[CatalogKey, bool]] = Counter()
-    for call_run in expand_calls(convert_trial(trial_dir)):
+    harness_tool_calls = read_trajectory(trial_dir)
+    # A trial whose trajectory cannot be read counts as one without calls.
+    if isinstance(harness_tool_calls, UnreadableTrajectory):
+        harness_tool_calls = ()
+    calls = convert_tool_calls(
+        harness_tool_calls,
+        knowledge=ToolCallKnowledge(),
+        judgment_rule_use_counts=Counter(),
+    )
+    for call_run in expand_calls(calls):
         for text in call_run.shell_texts:
             for ran_command in text.commands or ():
                 words = program_words(ran_command.command)

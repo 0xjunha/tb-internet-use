@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 
 from tb_internet_use.network.model import Host, PrintingProgram
-from tb_internet_use.parse.toolcall.model import ToolCallKey
+from tb_internet_use.tool_call.model import ToolCallKey
 
 # Place of an observation in a call's result.
 type ObservationPlace = OutputLine | HttpStatusField
@@ -54,7 +54,7 @@ class OutputLine:
 
 @dataclass(frozen=True, slots=True)
 class HttpStatusField:
-    """Observation place in `ToolCallOutput.http_status`, the HTTP status a web fetch reports."""
+    """Observation place in `ToolCallResult.http_status`, the HTTP status a web fetch reports."""
 
 
 class ObservationKind(StrEnum):

@@ -21,7 +21,7 @@ from tb_internet_use.network.hosts import host_from_name, host_name_in_url
 from tb_internet_use.network.model import PrintingProgram
 from tb_internet_use.parse.program import program_catalog
 from tb_internet_use.parse.program.model import RequestKind
-from tb_internet_use.parse.toolcall.model import ToolCallKey
+from tb_internet_use.tool_call.model import ToolCallKey
 
 # A URL with an http or https scheme, ending before a space, a quote, a backtick, an angle bracket or a closing bracket.
 _URL = re.compile(r"""https?://[^\s'"<>`)\]}]+""")

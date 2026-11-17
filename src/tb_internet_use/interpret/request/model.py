@@ -8,7 +8,7 @@ from dataclasses import dataclass
 
 from tb_internet_use.network.model import Host, PrintingProgram
 from tb_internet_use.parse.program.model import ExitZeroMeans, RequestKind
-from tb_internet_use.parse.toolcall.model import ToolCallKey
+from tb_internet_use.tool_call.model import ToolCallKey
 
 # Source of a candidate request within its call, which is a shell command, code it ran or a web tool action.
 type RequestSource = FromCommand | FromCode | FromWebTool

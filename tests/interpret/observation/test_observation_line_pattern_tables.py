@@ -8,14 +8,14 @@ from tb_internet_use.interpret.observation.line_pattern_tables import (
 )
 from tb_internet_use.interpret.observation.model import Observation, ObservationKind
 from tb_internet_use.network.model import PrintingProgram
-from tb_internet_use.parse.toolcall.model import (
+from tb_internet_use.tool_call.model import (
     ExecutionStatus,
     HarnessTool,
-    RawToolCall,
+    HarnessToolCall,
     RunCommandAction,
     ToolCall,
     ToolCallKey,
-    ToolCallOutput,
+    ToolCallResult,
 )
 
 # (made-up line, kind, the field that the line fills, if any, as (name, value))
@@ -293,11 +293,11 @@ LINES_WITHOUT_OBSERVATION = [
 
 def _call(text: str) -> ToolCall:
     key = ToolCallKey("trial", "main", 1, 0)
-    output = ToolCallOutput(
+    output = ToolCallResult(
         tool_output_text=text, execution_status=ExecutionStatus.FINISHED
     )
     return ToolCall(
-        RawToolCall(key, HarnessTool("h", "t"), "", {}, None),
+        HarnessToolCall(key, HarnessTool("h", "t"), "", {}, None),
         RunCommandAction("x"),
         output,
     )

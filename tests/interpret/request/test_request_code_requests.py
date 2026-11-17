@@ -11,7 +11,7 @@ from tb_internet_use.interpret.request._code_requests import code_request
 from tb_internet_use.interpret.request.model import FromCode
 from tb_internet_use.network.model import PrintingProgram
 from tb_internet_use.parse.program.model import RequestKind
-from tb_internet_use.parse.toolcall.model import ToolCallKey
+from tb_internet_use.tool_call.model import ToolCallKey
 
 KEY = ToolCallKey("trial", "main", 1, 0)
 

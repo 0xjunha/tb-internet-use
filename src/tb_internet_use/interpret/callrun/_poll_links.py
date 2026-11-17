@@ -8,13 +8,13 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 from tb_internet_use.interpret.callrun.model import CommandTextStatus
-from tb_internet_use.parse.toolcall.model import (
+from tb_internet_use.tool_call.model import (
     ExecutionStatus,
     PollAction,
     RunCommandAction,
     ToolCall,
     ToolCallKey,
-    action_steps_with_index,
+    indexed_action_steps_of,
 )
 
 # Characters that typed input holds when it only presses keys, e.g. Enter or Ctrl-C.
@@ -50,9 +50,9 @@ def link_polls(calls: Sequence[ToolCall]) -> PollLinks:
     polls_of_call: defaultdict[ToolCallKey, dict[ToolCallKey, None]] = defaultdict(dict)
     starting_call_of_poll_step: dict[tuple[ToolCallKey, int | None], ToolCallKey] = {}
     for call in calls:
-        key = call.raw.key
+        key = call.harness_tool_call.key
         polled_handle_ids: set[str] = set()
-        for step_index, step in action_steps_with_index(call.action):
+        for step_index, step in indexed_action_steps_of(call.action):
             if not isinstance(step, PollAction):
                 continue
             for handle_id in _polled_handle_ids(call, step):
@@ -67,8 +67,8 @@ def link_polls(calls: Sequence[ToolCall]) -> PollLinks:
                         polls_of_call[earlier][key] = None
                 if typed_text(step) is not None:
                     typed_input_polls[handle_key].append(key)
-        if call.output is not None and not isinstance(call.action, PollAction):
-            for started in call.output.handles:
+        if call.result is not None and not isinstance(call.action, PollAction):
+            for started in call.result.handles:
                 if started.id not in polled_handle_ids:
                     handle_key = (key.trajectory_id, started.id)
                     latest_starting_call_of_handle[handle_key] = key
@@ -87,7 +87,7 @@ def command_text_status(
     Polls count only while the call's own result has not ended, and only a poll whose action names one handle, so its status is that command's.
     None for a call without a command text or a result.
     """
-    output = call.output
+    output = call.result
     if (
         output is None
         or not isinstance(call.action, RunCommandAction)
@@ -99,7 +99,7 @@ def command_text_status(
         and output.execution_status != ExecutionStatus.NOT_RUN
     ):
         for poll in polls:
-            poll_output = poll.output
+            poll_output = poll.result
             if (
                 isinstance(poll.action, PollAction)
                 and len(_polled_handle_ids(poll, poll.action)) == 1
@@ -107,9 +107,13 @@ def command_text_status(
                 and poll_output.execution_status in _ENDED_STATUSES
             ):
                 return CommandTextStatus(
-                    poll_output.execution_status, poll_output.exit_code, poll.raw.key
+                    poll_output.execution_status,
+                    poll_output.exit_code,
+                    poll.harness_tool_call.key,
                 )
-    return CommandTextStatus(output.execution_status, output.exit_code, call.raw.key)
+    return CommandTextStatus(
+        output.execution_status, output.exit_code, call.harness_tool_call.key
+    )
 
 
 def typed_text(poll: PollAction) -> str | None:
@@ -123,6 +127,6 @@ def _polled_handle_ids(call: ToolCall, poll: PollAction) -> tuple[str, ...]:
     """List the ids of the handles a poll names, or those its result names when the poll is the call's action and names none."""
     if poll.handles:
         return tuple(dict.fromkeys(handle.id for handle in poll.handles))
-    if poll is call.action and call.output is not None:
-        return tuple(dict.fromkeys(handle.id for handle in call.output.handles))
+    if poll is call.action and call.result is not None:
+        return tuple(dict.fromkeys(handle.id for handle in call.result.handles))
     return ()

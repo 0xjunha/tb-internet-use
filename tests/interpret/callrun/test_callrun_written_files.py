@@ -4,7 +4,7 @@ import pytest
 
 from tb_internet_use.interpret.callrun._written_files import WrittenFiles
 from tb_internet_use.parse.shell import parse_shell
-from tb_internet_use.parse.toolcall.model import (
+from tb_internet_use.tool_call.model import (
     EditFileAction,
     ToolCallKey,
     WriteFileAction,

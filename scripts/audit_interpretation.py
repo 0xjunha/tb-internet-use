@@ -1,8 +1,8 @@
-"""Run stages 8 to 10 on raw trials, count what they find and check invariants, to see a change's effect on the full data.
+"""Run `interpret_trial_before_linking` on raw trials, count what they find and check invariants, to see a change's effect on the full data.
 
 It prints counts, enum values and invariant names only, never text from a trajectory.
 
-Usage: nice -n 10 uv run python -I scripts/audit_interpretation.py <raw_trials_dir> [--sample N] [--out counts.json] [--compare old.json]
+Run it as `nice -n 10 uv run python -I scripts/audit_interpretation.py <raw_trials_dir> [--sample N] [--out counts.json] [--compare old.json]`.
 """
 
 import argparse
@@ -19,9 +19,11 @@ from tb_internet_use.interpret.request.model import (
     FromCode,
     FromCommand,
 )
+from tb_internet_use.knowledge.tool_call_knowledge import ToolCallKnowledge
 from tb_internet_use.parse.program.model import RequestKind
-from tb_internet_use.parse.toolcall import convert_trial
-from tb_internet_use.parse.toolcall.model import ToolCallKey
+from tb_internet_use.pipeline import read_trajectory
+from tb_internet_use.tool_call import convert_tool_calls
+from tb_internet_use.tool_call.model import ToolCallKey, UnreadableTrajectory
 from tb_internet_use.trial_interpretation import interpret_trial_before_linking
 
 # Data runs use at most 4 processes, to leave the machine usable.
@@ -63,10 +65,19 @@ def main() -> None:
 
 
 def count_trial(trial_dir: Path) -> Counter[str]:
-    """Run stages 8 to 10 on one trial and count what they find, with an exception counted instead of raised."""
+    """Run `interpret_trial_before_linking` on one trial and count what they find, with an exception counted instead of raised."""
     counts: Counter[str] = Counter({"trials": 1})
     try:
-        result = interpret_trial_before_linking(convert_trial(trial_dir))
+        harness_tool_calls = read_trajectory(trial_dir)
+        # A trial whose trajectory cannot be read counts as one without calls.
+        if isinstance(harness_tool_calls, UnreadableTrajectory):
+            harness_tool_calls = ()
+        calls = convert_tool_calls(
+            harness_tool_calls,
+            knowledge=ToolCallKnowledge(),
+            judgment_rule_use_counts=Counter(),
+        )
+        result = interpret_trial_before_linking(calls)
     except Exception as error:  # noqa: BLE001, one trial must not stop the run
         counts[f"exception {type(error).__name__}"] += 1
         return counts
@@ -79,9 +90,11 @@ def count_trial(trial_dir: Path) -> Counter[str]:
 
 
 def _call_run_counts(call_runs: tuple[CallRun, ...]) -> Counter[str]:
-    """Count the stage 8 results of one trial and the invariants they break."""
+    """Count the `CallRun` results of one trial and the invariants they break."""
     counts: Counter[str] = Counter()
-    index_of_key = {run.call.raw.key: index for index, run in enumerate(call_runs)}
+    index_of_key = {
+        run.call.harness_tool_call.key: index for index, run in enumerate(call_runs)
+    }
     command_ids_of_call = _command_ids_of_call(call_runs)
     for index, run in enumerate(call_runs):
         counts["calls"] += 1
@@ -133,12 +146,14 @@ def _call_run_counts(call_runs: tuple[CallRun, ...]) -> Counter[str]:
         status = run.command_text_status
         if status is not None:
             reporter = (
-                "own result" if status.reported_by == run.call.raw.key else "poll"
+                "own result"
+                if status.reported_by == run.call.harness_tool_call.key
+                else "poll"
             )
             counts[
                 f"8 command text status {status.execution_status} from {reporter}"
             ] += 1
-            if status.reported_by not in (run.call.raw.key, *run.polls):
+            if status.reported_by not in (run.call.harness_tool_call.key, *run.polls):
                 counts[
                     "invariant: status reported by neither the call nor its poll"
                 ] += 1
@@ -230,7 +245,7 @@ def _observation_counts(observations: tuple[Observation, ...]) -> Counter[str]:
 def _command_ids_of_call(call_runs: tuple[CallRun, ...]) -> dict[ToolCallKey, set[int]]:
     """Collect the command ids of each call of one trial, by call key."""
     return {
-        run.call.raw.key: {
+        run.call.harness_tool_call.key: {
             c.command.id for text in run.shell_texts for c in text.commands or ()
         }
         for run in call_runs

@@ -53,14 +53,18 @@ Two rules follow from this.
 
 The [pipeline example](docs/pipeline-example.md) follows six made-up tool calls through these steps.
 
-| # | Step | Question it answers | Output | Status |
-|---|---|---|---|---|
-| 0 | Collect trials | Which trials are there, and what is known about each (e.g. task, reward)? | `Trial` | Planned |
-| 1 | Convert tool calls | What did the trajectory record, in types that hide the harness? | `ToolCall` | Exists, to be regrouped |
-| 2 | Expand tool calls | What did each call actually run, and where does that output show up? | `ExpandedToolCall` | Exists, being redesigned |
-| 3 | Extract network requests | Which of what ran is a request, and for which target? | `NetworkRequest` | Partly exists |
-| 4 | Decide request results | How far did each request get, and on what evidence? | `NetworkRequestResult` | Partly exists |
-| 5 | Export rows | Which category is each request, and what do the rows say for each task? | Request rows and trial rows | Planned |
+| # | Step | Question it answers | Output | Judgment rules | Status |
+|---|---|---|---|---|---|
+| 0 | Collect trials | Which trials are there, and what is known about each (e.g. task, reward)? | `Trial` | 0 | Planned |
+| 1 | Convert tool calls | What did the trajectory record, in types that hide the harness? | `ToolCall` | 3 | Harness side rebuilt, shell text splitting to come |
+| 2 | Expand tool calls | What did each call actually run, and where does that output show up? | `ExpandedToolCall` | 9 | Exists, being redesigned |
+| 3 | Extract network requests | Which of what ran is a request, and for which target? | `NetworkRequest` | 1 | Partly exists |
+| 4 | Decide request results | How far did each request get, and on what evidence? | `NetworkRequestResult` | 8 | Partly exists |
+| 5 | Export rows | Which category is each request, and what do the rows say for each task? | Request rows and trial rows | 0 | Planned |
+
+A judgment rule is a choice that facts alone do not settle, e.g. whether a negative exit code means the command was killed.
+Judgment rules are kept apart from outside knowledge, one function each in the `judgment_rules.py` of the step, each marked provisional or decided, and all are provisional today.
+For a step that is not built yet, the number counts the places found so far.
 
 Steps 1 and 2 are built to know nothing about the internet, so they can serve other analyses of tool calls. Steps 3 to 5 are the internet analysis.
 

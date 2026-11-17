@@ -36,12 +36,12 @@ from tb_internet_use.parse.shell.programs import (
     runs_stdin_as_shell_text,
     shell_file_path,
 )
-from tb_internet_use.parse.toolcall.model import (
+from tb_internet_use.tool_call.model import (
     PollAction,
     RunCommandAction,
     ToolCall,
     ToolCallKey,
-    action_steps_with_index,
+    indexed_action_steps_of,
     may_have_run,
 )
 
@@ -81,9 +81,9 @@ def _parse_ran_texts(
     """
     records_writes = may_have_run(call)
     collector = _RanTextCollector(
-        call.raw.key, written_files, records_writes=records_writes
+        call.harness_tool_call.key, written_files, records_writes=records_writes
     )
-    for step_index, step in action_steps_with_index(call.action):
+    for step_index, step in indexed_action_steps_of(call.action):
         if isinstance(step, RunCommandAction):
             source = (
                 CallCommandText() if step_index is None else ScriptStepText(step_index)
@@ -91,12 +91,12 @@ def _parse_ran_texts(
             collector.add_text(source, step.command_str)
         elif isinstance(step, PollAction) and (text := typed_text(step)) is not None:
             started_by = poll_links.starting_call_of_poll_step.get(
-                (call.raw.key, step_index)
+                (call.harness_tool_call.key, step_index)
             )
             source = PollInputText(step_index, started_by)
             collector.add_text(source, text)
         elif records_writes:
-            written_files.record_tool_step(step, call.raw.key)
+            written_files.record_tool_step(step, call.harness_tool_call.key)
     return ParsedRanTexts(tuple(collector.shell_texts), tuple(collector.code_texts))
 
 

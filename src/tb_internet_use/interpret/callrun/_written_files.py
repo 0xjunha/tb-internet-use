@@ -10,9 +10,9 @@ from tb_internet_use.interpret.callrun._paths import can_name_same_file
 from tb_internet_use.parse.program.arguments import file_arguments, parse_arguments
 from tb_internet_use.parse.shell.model import FileDestination, ShellCommand
 from tb_internet_use.parse.shell.programs import program_words
-from tb_internet_use.parse.toolcall.model import (
-    Action,
+from tb_internet_use.tool_call.model import (
     EditFileAction,
+    ToolCallAction,
     ToolCallKey,
     WriteFileAction,
 )
@@ -36,7 +36,7 @@ class WrittenFiles:
         # The latest write of each path string, in the order of the writes.
         self._latest_write_of_path: dict[str, WrittenFile] = {}
 
-    def record_tool_step(self, step: Action, call_key: ToolCallKey) -> None:
+    def record_tool_step(self, step: ToolCallAction, call_key: ToolCallKey) -> None:
         """Record what a write or edit step writes, e.g. the content of a `WriteFileAction`."""
         if isinstance(step, WriteFileAction) and step.path:
             self._record_latest_write(step.path, step.content, call_key)

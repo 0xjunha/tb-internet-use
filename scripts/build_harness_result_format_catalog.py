@@ -1,21 +1,21 @@
-"""Write the harness result format catalog from the formats the converters declare.
+"""Write the harness result format catalog from the formats the harnesses declare in `knowledge/`.
 
 It reads no trajectory. Rows follow the order in which the formats are tried.
 A hand-filled `reviewed` value is kept while its row's template and labels stay the same.
 A hand-filled `note` is always kept.
 
-Usage: uv run python -I scripts/build_harness_result_format_catalog.py [output_csv]
+Run it as `uv run python -I scripts/build_harness_result_format_catalog.py [output_csv]`.
 """
 
 import argparse
 import csv
 from pathlib import Path
 
-from tb_internet_use.parse.toolcall.result_format_audit import (
+from tb_internet_use.knowledge.harness_result_format_audit import (
     CATALOG_COLUMNS,
     RESULT_FORMAT_CATALOG_CSV,
-    catalog_rows,
-    with_kept_reviews,
+    catalog_rows_from_declarations,
+    rows_with_kept_reviews_from,
 )
 
 DEFAULT_OUTPUT_CSV = RESULT_FORMAT_CATALOG_CSV
@@ -30,7 +30,7 @@ def main() -> None:
     if paths.output_csv.exists():
         with paths.output_csv.open(newline="") as f:
             previous = list(csv.DictReader(f))
-    rows = with_kept_reviews(catalog_rows(), previous)
+    rows = rows_with_kept_reviews_from(catalog_rows_from_declarations(), previous)
 
     with paths.output_csv.open("w", newline="") as f:
         writer = csv.DictWriter(f, CATALOG_COLUMNS, lineterminator="\n")
