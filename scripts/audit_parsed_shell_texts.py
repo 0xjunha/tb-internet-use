@@ -64,8 +64,6 @@ from trial_folders_and_csv_files import (
     PROCESS_COUNT,
     add_trial_choice_arguments,
     chosen_trial_dirs_from,
-    # This script does not use it. It stays until tests/tool_call/test_audit_parsed_shell_texts.py stops testing it through this script.
-    trial_ids_from_file_text,  # noqa: F401
     write_csv,
 )
 

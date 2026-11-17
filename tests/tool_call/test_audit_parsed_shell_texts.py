@@ -405,8 +405,3 @@ def test_a_trial_without_converted_calls_has_its_own_outcome(
 @pytest.mark.parametrize(("text", "kind"), FIRST_CHARACTER_KIND_CASES)
 def test_the_first_character_is_named_by_its_kind(text: str, kind: str):
     assert audit.first_character_kind_of(text) == kind
-
-
-def test_trial_ids_are_the_first_column_of_lines_that_are_not_comments():
-    file_text = "# trial_id\tharness\nt1\tcodex\tfirst\n\nt2\n#t3\n"
-    assert audit.trial_ids_from_file_text(file_text) == ["t1", "t2"]
