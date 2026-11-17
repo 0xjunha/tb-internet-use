@@ -83,7 +83,7 @@ The table shows only one situation, a shell command that exits with code 0 and p
 | mini-swe-agent | `bash` | `exited` | `{"output": "hello", "returncode": 0}` |
 | Muse Code | `bash` | `exited` | `{"terminal_status": "completed", "exit_code": 0, "output": "hello", "truncated": false}` |
 
-The formats are outside knowledge, declared per harness in [knowledge/declarations/tool_call/harness_result_formats/](../knowledge/declarations/tool_call/harness_result_formats/README.md). Every format of every tool is in the [result format catalog](../knowledge/declarations/tool_call/harness_result_formats/README.md#result-format-catalog), written from the code by [`build_harness_result_format_catalog.py`](../../../scripts/build_harness_result_format_catalog.py) and reviewed by hand. [`audit_results.py`](../../../scripts/audit_results.py) counts each format on the raw trials into the [result format audit](../knowledge/declarations/tool_call/harness_result_formats/README.md#result-format-audit).
+The formats are outside knowledge, declared per harness in [knowledge/declarations/tool_call/harness_result_formats/](../knowledge/declarations/tool_call/harness_result_formats/README.md). [`build_harness_result_format_table.py`](../../../scripts/build_harness_result_format_table.py) writes every format of every tool to a [table under `out/`](../knowledge/declarations/tool_call/harness_result_formats/README.md#table-of-declared-result-formats) for reading. A person records which formats were checked in the [review record](../knowledge/declarations/tool_call/harness_result_formats/README.md#review-record), a hand-filled CSV beside the declarations. [`audit_results.py`](../../../scripts/audit_results.py) counts each format on the raw trials into the [result format audit](../knowledge/declarations/tool_call/harness_result_formats/README.md#result-format-audit).
 
 ### What a result splits into
 
@@ -168,7 +168,7 @@ Both give `tool_output_text="hello"`, `exit_code=0`, status `finished`.
 
 `tool_output_text` is `""` when the tool showed no output, and `None` only when the trajectory holds no text of what it returned, e.g. an image, a PDF or a Cursor blob id.
 `handles` name what a later call can poll. A result with handles is usually `running`, but a `finished` Codex `exec` or `wait` result also names the sessions of commands its script left running, read from step results it printed as JSON.
-[`harness_result_format`](model.py) names the format, as in the catalog and the audit, for audits and evidence only. Later steps must not branch on it.
+[`harness_result_format`](model.py) names the format, as in the table of declared result formats and the audit, for audits and evidence only. Later steps must not branch on it.
 
 ## Judgment rules
 

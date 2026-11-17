@@ -381,7 +381,7 @@ def write_audit_csv(rows: list[dict[str, str]], path: Path) -> None:
 
 
 def audit_rows(tally: Tally) -> list[dict[str, str]]:
-    """List the declared formats in the catalog's order, then the unknown and skipped results seen per tool, sorted."""
+    """List the declared formats in the order of the table of declared result formats, then the unknown and skipped results seen per tool, sorted."""
     rows: list[dict[str, str]] = []
     declared: set[Key] = set()
     for harness, tool, fmt in iter_declared_formats():

@@ -1,12 +1,14 @@
-"""The declared result formats of every harness agree with the harness tool catalog, with their own order, and with the names that tie a converted result to its catalog and audit rows, and a tool has no format for a form it never returned."""
+"""The declared result formats of every harness agree with the harness tool catalog, with their review record, with their own order, and with the names that tie a converted result to its catalog and audit rows, and a tool has no format for a form it never returned."""
 
 import csv
 import inspect
 from collections import defaultdict
+from pathlib import Path
 from typing import Any
 
 import pytest
 
+from tb_internet_use.knowledge.declarations.tool_call import harness_result_formats
 from tb_internet_use.knowledge.harness_result_format_audit import (
     iter_declared_format_lists,
     iter_declared_formats,
@@ -33,6 +35,13 @@ def _catalog_tools() -> set[HarnessTool]:
     """List the tools with a row in the committed catalog, read from the CSV itself since a door only answers lookups."""
     with (TOOL_CALL_CATALOGS_DIR / HARNESS_TOOLS_CSV).open(newline="") as f:
         return {HarnessTool(row["harness"], row["tool"]) for row in csv.DictReader(f)}
+
+
+# The hand-filled review record of the declared result formats, one row per format.
+_REVIEWS_CSV = (
+    Path(harness_result_formats.__file__).parent / "harness_result_format_reviews.csv"
+)
+_REVIEWS_COLUMNS = ["harness", "tool", "format", "checked_against", "reviewed", "note"]
 
 
 # One simple value per placeholder type, to render a template into a result.
@@ -149,3 +158,28 @@ def test_a_form_that_a_tool_never_returned_in_the_trajectories_is_not_declared_f
         is_marked_as_error=False,
     )
     assert harness_result_format is UnmatchedFormat.UNKNOWN
+
+
+def test_review_record_has_one_row_per_declared_format_in_the_declared_order():
+    with _REVIEWS_CSV.open(newline="") as f:
+        reader = csv.DictReader(f)
+        rows = list(reader)
+    assert reader.fieldnames == _REVIEWS_COLUMNS
+    reviewed = [(r["harness"], r["tool"], r["format"]) for r in rows]
+    declared = [
+        (harness, tool, fmt.name) for harness, tool, fmt in iter_declared_formats()
+    ]
+    missing = [key for key in declared if key not in reviewed]
+    extra = [key for key in reviewed if key not in declared]
+    assert not missing and not extra, (
+        f"{_REVIEWS_CSV.name} lacks rows for {missing} and has rows for no declared format {extra}. Add or remove its rows by hand."
+    )
+    assert reviewed == declared, (
+        f"the rows of {_REVIEWS_CSV.name} are not in the order of the declared formats"
+    )
+    bad_reviewed = [
+        (r["harness"], r["tool"], r["format"], r["reviewed"])
+        for r in rows
+        if r["reviewed"] not in ("", "yes")
+    ]
+    assert not bad_reviewed, f"`reviewed` is neither empty nor `yes` in {bad_reviewed}"

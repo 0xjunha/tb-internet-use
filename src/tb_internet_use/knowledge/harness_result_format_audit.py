@@ -1,9 +1,8 @@
-"""Helper functions for scripts/audit_results.py and scripts/build_harness_result_format_catalog.py, not used in conversion."""
+"""Helper functions for scripts/audit_results.py and scripts/build_harness_result_format_table.py, not used in conversion."""
 
 import functools
 import re
 from collections.abc import Iterator
-from pathlib import Path
 from typing import Any
 
 from tb_internet_use.knowledge.declarations.tool_call.harness_result_formats import (
@@ -29,12 +28,8 @@ _HARNESS_TEXT_CUT = re.compile(
 )
 
 
-_DECLARATIONS_DIR = (
-    Path(__file__).parent / "declarations" / "tool_call" / "harness_result_formats"
-)
-RESULT_FORMAT_CATALOG_CSV = _DECLARATIONS_DIR / "harness_result_format_catalog.csv"
-# The columns of the result format catalog. Only `reviewed` and `note` are filled by hand.
-CATALOG_COLUMNS = [
+# The columns of the table of declared result formats.
+TABLE_COLUMNS = [
     "harness",
     "tool",
     "format",
@@ -44,21 +39,11 @@ CATALOG_COLUMNS = [
     "is_truncated",
     "no_tool_output_text",
     "handle_kind",
-    "reviewed",
-    "note",
 ]
-# A hand review stays only while these columns of its row stay the same.
-REVIEWED_LABELS = (
-    "template",
-    "status",
-    "is_truncated",
-    "no_tool_output_text",
-    "handle_kind",
-)
 
 
-def catalog_rows_from_declarations() -> list[dict[str, str]]:
-    """One catalog row per declared format, in the order the formats are tried, with `reviewed` and `note` empty."""
+def table_rows_from_declarations() -> list[dict[str, str]]:
+    """List one table row per declared format, in the order of `iter_declared_formats`."""
     return [
         {
             "harness": harness,
@@ -70,20 +55,18 @@ def catalog_rows_from_declarations() -> list[dict[str, str]]:
             "is_truncated": _truncation_label_of(fmt),
             "no_tool_output_text": "True" if fmt.no_tool_output_text else "",
             "handle_kind": handle_kind_label_of(fmt),
-            "reviewed": "",
-            "note": "",
         }
         for harness, tool, fmt in iter_declared_formats()
     ]
 
 
 def format_kind_of(fmt: HarnessResultFormat[Any]) -> str:
-    """`text` or `json`, for the catalog `kind` column."""
+    """`text` or `json`, for the `kind` column of the table."""
     return "text" if isinstance(fmt, HarnessTextResultFormat) else "json"
 
 
 def describe_format(fmt: HarnessResultFormat[Any]) -> str:
-    """The format in one line, for the catalog `template` column.
+    """The format in one line, for the `template` column of the table.
 
     A text format gives its template, with a carriage return written as `\\r` so that
     editors keep it, and a backslash as `\\\\`. A JSON format gives its present paths,
@@ -105,14 +88,14 @@ def describe_format(fmt: HarnessResultFormat[Any]) -> str:
 
 
 def _status_label_of(fmt: HarnessResultFormat[Any]) -> str:
-    """The status a format states, or `by <judgment rule>` for a format whose judgment rule decides it, for the catalog."""
+    """The status a format states, or `by <judgment rule>` for a format whose judgment rule decides it, for the table."""
     if fmt.status is None:
         return f"by {fmt.judgment_rule}"
     return fmt.status.value
 
 
 def _truncation_label_of(fmt: HarnessResultFormat[Any]) -> str:
-    """`True`, `False`, empty when the format does not tell, or what in the result tells, for the catalog."""
+    """`True`, `False`, empty when the format does not tell, or what in the result tells, for the table."""
     if fmt.is_truncated is not None:
         return str(fmt.is_truncated)
     if isinstance(fmt, HarnessTextResultFormat) and fmt.truncation_marker:
@@ -123,7 +106,7 @@ def _truncation_label_of(fmt: HarnessResultFormat[Any]) -> str:
 
 
 def handle_kind_label_of(fmt: HarnessResultFormat[Any]) -> str:
-    """The handle kind a format gives, or the JSON path whose value names it, for the catalog.
+    """The handle kind a format gives, or the JSON path whose value names it, for the table.
 
     Empty when the format reads no handle from the result, since such a format states no handle kind.
     """
@@ -156,27 +139,6 @@ def iter_declared_format_lists() -> Iterator[
         for tool, formats in lists:
             if formats is not None:
                 yield harness, tool, formats
-
-
-def rows_with_kept_reviews_from(
-    rows: list[dict[str, str]], previous_rows: list[dict[str, str]]
-) -> list[dict[str, str]]:
-    """The rows with the hand-filled values of the previous catalog.
-
-    A review covers the declaration it saw, so `reviewed` stays only while the row's labels
-    are unchanged. A `note` always stays, until it is removed by hand.
-    """
-    previous = {(r["harness"], r["tool"], r["format"]): r for r in previous_rows}
-    kept: list[dict[str, str]] = []
-    for row in rows:
-        old = previous.get((row["harness"], row["tool"], row["format"]))
-        unchanged = old is not None and all(
-            old.get(column, "") == row[column] for column in REVIEWED_LABELS
-        )
-        review = old.get("reviewed", "") if old and unchanged else ""
-        note = old.get("note", "") if old else ""
-        kept.append({**row, "reviewed": review, "note": note})
-    return kept
 
 
 def all_matches_of(

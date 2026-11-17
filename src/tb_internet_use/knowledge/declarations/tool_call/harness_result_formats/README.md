@@ -6,14 +6,14 @@ How each harness writes the results of its tools is outside knowledge for step 1
 |---|---|
 | `<harness>.py`, e.g. [devin.py](devin.py) | The notices, shared template parts and format lists of one harness, ending in `RESULT_FORMATS_BY_TOOL`, which maps each tool name to its `HarnessToolResultDeclaration` |
 | [`__init__.py`](__init__.py) | `RESULT_FORMATS_BY_HARNESS`, which maps each harness name to its `RESULT_FORMATS_BY_TOOL` |
+| [harness_result_format_reviews.csv](harness_result_format_reviews.csv) | The review record, one hand-filled row per declared format |
 | [harness_result_format_declaration.py](../../../harness_result_format_declaration.py) | The types formats are declared in and how a result is matched against them |
 
 Step 1 reaches them only through `ToolCallKnowledge.has_json_result_formats` and `ToolCallKnowledge.harness_result_format` in [tool_call_knowledge.py](../../../tool_call_knowledge.py). Terms, the two kinds of format and how one result is converted are in [Result formats](../../../../tool_call/README.md#result-formats).
 
-## Result format catalog
+## Table of declared result formats
 
-`harness_result_format_catalog.csv` lists every result format the harnesses declare, one row per (harness, tool, format), in the order the formats are tried.
-[build_harness_result_format_catalog.py](../../../../../../scripts/build_harness_result_format_catalog.py) writes it from the code alone, without reading any trajectory. Only `reviewed` and `note` are filled by hand. `reviewed` is kept as long as `template`, `status`, `is_truncated`, `no_tool_output_text` and `handle_kind` stay the same, and `note` is always kept. A test checks that the committed file matches the code.
+[build_harness_result_format_table.py](../../../../../../scripts/build_harness_result_format_table.py) writes `out/tool_call_knowledge/harness_result_formats.csv`, one row per (harness, tool, format). Rows follow the order of `iter_declared_formats` in [harness_result_format_audit.py](../../../harness_result_format_audit.py): per harness, the lists for results marked as errors, then the text lists, then the JSON lists, each in the order of its tools and its formats in the order they are tried. It reads only the Python declarations and no trajectory. The table is for reading the declarations side by side, and it is not committed, since the Python lines are the source and nothing reads the table back.
 
 A row is what the format declares. A format whose result text does not tell the status names the judgment rule of [judgment_rules.py](../../../../tool_call/judgment_rules.py) that decides it, and its `status` is `by <judgment rule>`, e.g. `by treat_bash_output_without_exit_code_line_as_finished`. A converter's `convert_result` may still change `status`, `is_truncated`, `no_tool_output_text` or the handles after the match, e.g. the status and handles of a Grok multi-wait, the status of a Codex Ctrl-C or a negative Devin exit code in a format that states a status, `is_truncated` from Claude Code's structured result, and no tool output text for a Codex script that printed only images. The status changes there are judgment rules too.
 
@@ -30,9 +30,25 @@ A row is what the format declares. A format whose result text does not tell the 
 - **`handle_kind`:** kind of the handles the format gives, empty when it gives none; `by <path>`, e.g.
   `by task.task_type`, means the value at that path of the result names the kind.
 
+## Review record
+
+`harness_result_format_reviews.csv` records which declared formats a person has checked. It has one row per (harness, tool, format), in the same order as the table under `out/`, since a reviewer reads that table next to this file. No script writes it. A test fails when its rows and the declared formats do not pair up one to one in that order, e.g. after a format is added, removed or renamed, so the row is added, removed or renamed by hand in the same change.
+
+To review a format:
+
+1. Read its row in the table under `out/`, or its line in `<harness>.py`.
+2. Check it against tool results of that tool in the trajectories, e.g. results that `audit_results.py` lists as its example calls.
+3. Write in `checked_against` what it was checked against, e.g. `8 sampled tool results in the trajectories (terminal-bench 2026-10-08)`, and write `yes` in `reviewed`.
+
+A review covers the declaration it saw. When a declared format changes, e.g. its template or its status, clear `reviewed` of its row by hand in the same change, since no script or test notices it.
+
+- **`checked_against`:** what the format was checked against, empty until someone checks it.
+- **`reviewed`:** `yes` once a person has reviewed the row, empty until then.
+- **`note`:** free text for the next reviewer, e.g. what still looks doubtful.
+
 ## Result format audit
 
-[audit_results.py](../../../../../../scripts/audit_results.py) counts what the declared formats match on the raw trials, with the checks in [harness_result_format_audit.py](../../../harness_result_format_audit.py). A run writes `out/tool_call_knowledge/harness_result_format_audit.csv`, one row per (harness, tool, format) with the same keys as the catalog, and prints a report. Neither is committed, since the counts come from the trajectories.
+[audit_results.py](../../../../../../scripts/audit_results.py) counts what the declared formats match on the raw trials, with the checks in [harness_result_format_audit.py](../../../harness_result_format_audit.py). A run writes `out/tool_call_knowledge/harness_result_format_audit.csv`, one row per (harness, tool, format) with the same keys as the table of declared result formats, and prints a report. Neither is committed, since the counts come from the trajectories.
 
 - **`kind`:** `text` or `json` for a declared format; empty for the
   `unknown_format` and `skipped_format` rows that count a tool's other results.

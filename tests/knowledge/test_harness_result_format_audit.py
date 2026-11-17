@@ -1,19 +1,11 @@
-"""Tests for the audit checks and catalog labels of result formats, with made-up annotations, and for the committed catalog."""
-
-import csv
-
-import pytest
+"""Tests for the audit checks of result formats and the labels of their table, with made-up annotations."""
 
 from tb_internet_use.knowledge.harness_result_format_audit import (
-    RESULT_FORMAT_CATALOG_CSV,
-    REVIEWED_LABELS,
     all_matches_of,
-    catalog_rows_from_declarations,
     describe_format,
     handle_kind_label_of,
     harness_text_patterns_of,
     render_text_format,
-    rows_with_kept_reviews_from,
 )
 from tb_internet_use.knowledge.harness_result_format_declaration import (
     HarnessJsonResultFormat,
@@ -39,12 +31,6 @@ FORMATS = HarnessResultFormatList[str](
     (BACKGROUND, EXITED),
     notices=(HarnessNotice("notice", "\n\n<note>\n{note:text}\n</note>", at="end"),),
 )
-
-
-def _without_hand_filled(rows: list[dict[str, str]]) -> list[dict[str, str]]:
-    return [
-        {k: v for k, v in row.items() if k not in ("reviewed", "note")} for row in rows
-    ]
 
 
 def test_render_text_format_puts_the_values_back():
@@ -117,34 +103,3 @@ def test_handle_kind_label_names_the_path_when_the_result_names_the_kind():
         handle_kind_by_name={"shell": ExecutionHandleKind.COMMAND},
     )
     assert handle_kind_label_of(by_name) == "by kind"
-
-
-@pytest.mark.parametrize("label", REVIEWED_LABELS)
-def test_a_review_stays_only_while_the_row_labels_stay(label: str):
-    row = {
-        "harness": "h",
-        "tool": "t",
-        "format": "f",
-        "template": "x",
-        "status": "finished",
-        "is_truncated": "",
-        "no_tool_output_text": "",
-        "handle_kind": "command",
-        "reviewed": "",
-    }
-    reviewed = {**row, "reviewed": "ok", "note": "n"}
-    assert rows_with_kept_reviews_from([row], [reviewed])[0]["reviewed"] == "ok"
-    changed = {**row, label: "changed"}
-    assert rows_with_kept_reviews_from([changed], [reviewed])[0]["reviewed"] == ""
-    assert (
-        rows_with_kept_reviews_from([changed], [reviewed])[0]["note"] == "n"
-    )  # a note stays
-    assert rows_with_kept_reviews_from([row], [])[0]["reviewed"] == ""
-
-
-def test_committed_catalog_matches_the_declared_formats():
-    with RESULT_FORMAT_CATALOG_CSV.open(newline="") as f:
-        committed = list(csv.DictReader(f))
-    assert _without_hand_filled(committed) == _without_hand_filled(
-        catalog_rows_from_declarations()
-    ), "rebuild it with scripts/build_harness_result_format_catalog.py"
