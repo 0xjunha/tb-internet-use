@@ -1,82 +1,75 @@
 # Terminal-Bench internet use analysis
 
-Analysis of internet use patterns of agents in Terminal-Bench trajectories.
+> **Work in progress.**
 
-Source: 15,813 readable ATIF trajectories out of 15,990 trials of Terminal-Bench 3.0/4.0 leaderboard runs
+This project finds how agents on the Terminal-Bench leaderboard use the internet, reading their trajectories alone. It shows which tasks depend on the internet and for what.
 
-## What it measures
+A trial is one run of an agent on one task. Its trajectory is the record of the agent's tool calls and their results, and the harness is the agent program that made them, e.g. Claude Code.
 
-Each internet request is placed by how far it got, as far as the trajectories show.
-Further analysis builds on this data.
+The source is 15,813 readable trajectories in ATIF format, out of 15,990 trials of Terminal-Bench 3.0/4.0 leaderboard runs.
+
+## What it answers
+
+For each task and each category of request (e.g. packages, fetched files, web search, page reads), it gives two shares of the task's trials:
+
+- the share of trials with at least one such request
+- the share of trials that received what such a request asked for
+
+Each share comes as a lower bound, which counts only what the trajectory confirms, and an upper bound, which also counts what it cannot rule out.
+Every request is kept as a row with its place in the trajectory and its evidence, so other questions can be answered from the same rows.
+
+## What counts
+
+| Term | Meaning |
+|---|---|
+| Internet use | A request that the agent's own call causes and that turning the internet off would block. So a request to localhost is a network request but not internet use, and a failed request still counts |
+| One request | One target that one command, code text or web tool call tries to get, e.g. two for `pip install A B` |
+| How far it got | The furthest level below that the trajectory shows, with why it stopped there: it failed, nothing further is visible, or nothing needed sending (e.g. pip prints `Requirement already satisfied`) |
 
 | Level | Meaning |
 |---|---|
-| Attempted | The agent sent a call containing an internet request, even if the harness rejected it |
+| Attempted | The agent sent a call containing a request, even if the harness rejected it |
 | Executed | The command or tool actually ran |
 | Reached | The request got to the remote server. An HTTP 403 counts, since the server responded |
 | Received | The agent got the requested content, such as a finished download or search results |
 
-## Evidence
+## How it reads a trajectory
 
-| Side | What it shows | Source |
-|---|---|---|
-| Request | What the agent ran | Shell commands, code written to files and run later, code in Codex `exec`, input sent to running processes, web tool arguments |
-| Receive | What came back | Tool call outputs, background output polled later, harness output files and redirected logs read later, completion notifications |
+The pipeline reads only the text of tool calls and their results. It runs nothing from a trajectory, and it has no network logs to check against.
+The hard part is that a request, or its output, is often not in the call that caused it.
+
+| | In the call itself | Elsewhere in the trajectory | Not in the trajectory |
+|---|---|---|---|
+| What ran | `curl https://example.org/x` | A script that an earlier call wrote | A task script or a binary |
+| Where its output shows | The call's result | A later poll, or a later read of a log file | Discarded, or never read |
+| What the pipeline does | Reads it | Follows it | Records it as unknown |
+
+Two rules follow from this.
+
+- What the trajectory does not show is recorded as unknown and never filled with a default such as "finished". This is why the results come as bounds.
+- Facts that no trajectory holds are outside knowledge, e.g. that `curl -o` takes a file name, or how a harness words a timeout. They are kept apart from the steps, in catalogs that a person fills and reviews. When a fact is missing, the answer is unknown. Each run lists its unknowns by how many trials they touch, which is the list of facts to add next.
 
 ## Pipeline
 
-Example: [pipeline example](docs/pipeline-example.md)
+The [pipeline example](docs/pipeline-example.md) follows six made-up tool calls through these steps.
 
-- `Collect` checks the inputs and records facts about every trial.
-- `Parse` records what the trajectories say, without deciding whether a call used the internet.
-- `Interpret` applies rules to decide what happened, so rules can change without touching the parser.
-- `Output` makes the results safe to share and reports them.
-
-Each trial flows through the stages in one pass: tool calls as the trajectory records them (5), the commands of each shell text on its own (6), labels of the programs those commands run (7), each call expanded into one record of everything it ran, including what its own text does not show, and of the calls that show its output (8), candidate requests (9) and observations (10) side by side, requests linked to their evidence (11), and how far each got (12).
-
-| # | Part | Input | Step | Status |
+| # | Step | Question it answers | Output | Status |
 |---|---|---|---|---|
-| 1 | Collect | The leaderboard snapshot and all trial files | Verify the trial list and file hashes against the leaderboard snapshot | Planned |
-| 2 | Collect | One trial's files | Record facts for every trial (e.g. task, leaderboard entry, reward, whether the trajectory is readable) | Planned |
-| 3 | Parse | — | Define common types for tool calls and their outputs, so later stages never need a harness's own names | Done |
-| 4 | Parse | Tool names in all trajectories | Catalog every tool in the trajectories and label it with a common type by hand | Done |
-| 5 | Parse | One trial's `trajectory.json` | Convert each harness's `trajectory.json` into these common types | Done (result format catalog review pending) |
-| 6 | Parse | One shell text | Split each shell text into commands, looking at that text alone, with when each runs, where its output goes and what the text's exit code says about it (e.g. after `\|\|`, piped into `tail`, redirected to a log) | Done |
-| 7 | Parse | Program names in all commands (6) | Catalog the programs that commands run and label by hand what each does when a command runs it (e.g. whether `tail` reads its files, whether `npx` runs the next program, whether `pip install` makes a request) | Done (program catalog review pending) |
-| 8 | Interpret | All calls of one trial (5), each text parsed by 6, and the program catalog (7) | Expand each call into one record of everything it actually ran, reading all calls of the trial for what its own text does not show: the files, heredocs, code and typed input its commands run, variable values, where its output ends up after pipes, and the later calls that show that output (e.g. written files, polls and log reads) | Done |
-| 9 | Interpret | One call's expanded run (8) and the program catalog (7) | From each call's expanded run, extract candidate requests with their kinds, targets, hosts and what their run can show, before any output is read (e.g. `curl -f` exits 0 only when the content arrived) | Done |
-| 10 | Interpret | One call's result (5) | Apart from requests, extract observations of network results from each call's output lines and result fields (e.g. a download line, an HTTP status) | Done |
-| 11 | Interpret | One trial's requests (9), observations (10) and call runs (8) | Join 9 and 10: link each request to the lines and call facts about it through the calls from 8 that show its output (e.g. lines several requests share, whether it ran, how much of its output is visible), and add requests only the output reveals | Planned |
-| 12 | Interpret | One linked request (11) | For each linked request, decide the furthest level shown, how strong its evidence is, and what stopped it or hid the rest, keeping the evidence | Planned |
-| 13 | Output | One result row | Redact credentials and omit hidden task lines before result rows are written | Planned |
-| 14 | Output | All result rows | Aggregate the rows for each research question | Planned |
-| 15 | Output | The aggregates (14) | Build the spreadsheet (e.g. tabs, formulas, charts) and check it against the aggregates | Planned |
+| 0 | Collect trials | Which trials are there, and what is known about each (e.g. task, reward)? | `Trial` | Planned |
+| 1 | Convert tool calls | What did the trajectory record, in types that hide the harness? | `ToolCall` | Exists, to be regrouped |
+| 2 | Expand tool calls | What did each call actually run, and where does that output show up? | `ExpandedToolCall` | Exists, being redesigned |
+| 3 | Extract network requests | Which of what ran is a request, and for which target? | `NetworkRequest` | Partly exists |
+| 4 | Decide request results | How far did each request get, and on what evidence? | `NetworkRequestResult` | Partly exists |
+| 5 | Export rows | Which category is each request, and what do the rows say for each task? | Request rows and trial rows | Planned |
 
-Stages 3 to 5 are described in [Tool call parsing](src/tb_internet_use/parse/toolcall/README.md), and stage 7 in [Program catalog](src/tb_internet_use/parse/program/catalogs/README.md).
-The behavior of programs, code and servers that stages 6 to 10 rely on is listed in [Behavior tables](docs/behavior-tables.md).
-Work left for later is listed in [TODO](TODO.md).
-
-### Code layout
-
-| Package | Stages | Entrypoint function |
-|---|---|---|
-| `parse/toolcall/` | 3 to 5 | `convert_trial(trial_dir) -> list[ToolCall]` |
-| `parse/shell/` | 6 | `parse_shell(text) -> ParsedShellText` |
-| `parse/program/` | 7, and shared by 8 and 9 | `program_catalog() -> Mapping[str, tuple[ProgramCatalogRow, ...]]` |
-| `interpret/callrun/` | 8 | `expand_calls(calls) -> tuple[CallRun, ...]` |
-| `network/` | 9, 10 | None, shared (host and package names) |
-| `interpret/request/` | 9 | `extract_candidate_requests(call_run) -> tuple[CandidateRequest, ...]` |
-| `interpret/observation/` | 10 | `extract_observations(call) -> tuple[Observation, ...]` |
-| `trial_interpretation.py` | 8 to 10 | `interpret_trial_before_linking(calls) -> TrialLinkingInputs` |
-| `behavior_tables.py` | 6 to 10, for review | `behavior_tables_markdown() -> str` |
+Steps 1 and 2 are built to know nothing about the internet, so they can serve other analyses of tool calls. Steps 3 to 5 are the internet analysis.
 
 ## Limits
 
-- Currently, only ATIF trajectories are used as inputs. Several agent harnesses have missing information in ATIF, and their counts are lower bounds:
+- Only ATIF trajectories are read. ATIF lacks some calls of several harnesses, so what is counted for them is less than what happened:
   - Devin, Grok Build: subagent and pre-compaction calls missing.
   - Cursor: subagents' inner calls missing.
-- Log reads through `grep`-style tools are not counted as `ReadFileAction`.
-- Codex `exec` steps are read from the script without running it. A call in a loop is one step, and an argument the script computes is left empty.
+- Requests made outside the trajectory, such as those of the image build or the verifier, are out of scope.
 
 ## Development
 
