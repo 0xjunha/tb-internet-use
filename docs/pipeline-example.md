@@ -1,8 +1,8 @@
 # Pipeline example
 
-> **Work in progress.** This example follows steps 1 to 5 of the six steps that the pipeline is being rebuilt into. The steps, the output type of each step and the `...Knowledge` classes are settled by name and not built yet. What the types hold is a draft, which covers every new field, the types nested in the fields and their values. It is settled when each step is built. The example of the previous layout is in this file's history.
+> **Work in progress.** This example follows the six steps that the pipeline is being rebuilt into. The Status column of the [pipeline table](../README.md#pipeline) says which steps are built. For a step that is not, the names of the step, its output type and its `...Knowledge` class are settled, and what the types hold is a draft, which covers every new field, the types nested in the fields and their values and is settled when the step is built. The example of the previous layout is in this file's history.
 
-Six made-up tool calls of one trial go through the [pipeline](../README.md#pipeline), from the trajectory to the exported rows. Step 0 collects the list of trials and has nothing to show for one trial.
+Six made-up tool calls of one trial go through the [pipeline](../README.md#pipeline), from the trajectory to the exported rows. Step 0 gives the trial itself its record, from the files beside the trajectory.
 
 ## What the steps have to find out
 
@@ -59,6 +59,34 @@ The trial's row answers the two questions of the README for each category, as a 
 
 Steps 1 and 2 are built to know nothing about the internet.
 Outside knowledge is the facts that no trajectory holds. Each step asks for it through one class of its own, e.g. `ToolCallKnowledge`, and gets a value or unknown.
+
+## Step 0: collect trials
+
+Each trial folder gets a `Trial`, also when its trajectory could not be read, since a trial without requests still counts in the share of trials of its task that have one.
+The values are those that the trial's `detail.json` (written by the service that ran the trial) and `status.json` (written by the script that collected the trials) hold, kept as written. Nothing outside the two files is asked, so the step has no `...Knowledge` class.
+
+| Field | Where it comes from in the made-up trial |
+|---|---|
+| `task_name`, `harness`, `harness_version`, `model_name` | `task_name` and `agent_info` of `detail.json` |
+| `reward` | `verifier_result.rewards.reward` of `detail.json`, as a float. It is None when the file has no verifier result |
+| `benchmark_version`, `leaderboard_row_id` | The one item of `memberships` of `status.json` |
+| `unreadable_trajectory` | Whether `read_trajectory` read the trajectory. It is None here, since the trajectory holds c1 to c6 |
+
+```python
+trial = Trial(
+    trial_id="t1",  # the name of the trial folder
+    benchmark_version="4-0-0",
+    task_name="terminal-bench/fetch-data",
+    leaderboard_row_id="row-1",
+    harness="claude-code",
+    harness_version="2.1.0",
+    model_name="model-a",
+    reward=0.0,
+    unreadable_trajectory=None,
+)
+```
+
+A trial whose trajectory file is missing gets `unreadable_trajectory=UnreadableTrajectory(MISSING)` with the same task and reward, and the later steps make no rows of requests for it.
 
 ## Step 1: convert tool calls
 
