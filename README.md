@@ -57,7 +57,7 @@ The [pipeline example](docs/pipeline-example.md) follows six made-up tool calls 
 |---|---|---|---|---|---|
 | 0 | Collect trials | Which trials are there, and what is known about each (e.g. task, reward)? | `Trial` | 0 | Built |
 | 1 | Convert tool calls | What did the trajectory record, in types that hide the harness? | `ToolCall` | 18 | Rebuilt, with shell text split into commands |
-| 2 | Expand tool calls | What did each call actually run, and where does that output show up? | `ExpandedToolCall` | 9 | Exists, being redesigned |
+| 2 | Expand tool calls | What did each call actually run, and where does that output show up? | `ExpandedToolCall` | 0 | Being rebuilt, types only. The old code still runs |
 | 3 | Extract network requests | Which of what ran is a request, and for which target? | `NetworkRequest` | 1 | Partly exists |
 | 4 | Decide request results | How far did each request get, and on what evidence? | `NetworkRequestResult` | 8 | Partly exists |
 | 5 | Export rows | Which category is each request, and what do the rows say for each task? | Request rows and trial rows | 0 | Planned |
