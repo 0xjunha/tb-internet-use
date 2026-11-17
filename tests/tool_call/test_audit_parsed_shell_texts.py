@@ -75,6 +75,10 @@ def _claude_code_bash_call(call_index: int, args: dict[str, Any]) -> HarnessTool
     )
 
 
+def _read_trajectory_raising(trial_dir: Path) -> Never:
+    raise ValueError(trial_dir.name)
+
+
 # (made-up action, the check that one of its values breaks), one case per half of each check.
 VIOLATING_ACTIONS = [
     pytest.param(
@@ -252,6 +256,18 @@ FIRST_CHARACTER_KIND_CASES = [
 ]
 
 
+# (made-up `read_trajectory`, outcome of the trial), one case per outcome without converted calls.
+TRIAL_OUTCOME_CASES = [
+    pytest.param(lambda trial_dir: (), "converted without tool calls", id="no calls"),
+    pytest.param(
+        lambda trial_dir: UnreadableTrajectory(UnreadableTrajectoryReason.MISSING),
+        "unreadable missing",
+        id="unreadable",
+    ),
+    pytest.param(_read_trajectory_raising, "exception ValueError", id="exception"),
+]
+
+
 def test_shell_texts_of_a_script_split_as_convert_tool_calls_splits_them_break_no_check():
     # The assignments sit in a later step, so their positions are checked from the first id of that step.
     script = RunToolScriptAction(
@@ -268,6 +284,16 @@ def test_shell_texts_of_a_script_split_as_convert_tool_calls_splits_them_break_n
         script, judgment_rule_use_counts=Counter()
     )
     assert _violation_counts_of(split_script) == Counter()
+
+
+def test_a_for_loop_without_commands_in_its_body_breaks_no_check():
+    # The loop body gives no command, so the items of p take the id of c, 0, as their next id and as the id after the loop.
+    action = _run_command_action_from("for p in A B; do X=$p; done; c")
+    assert isinstance(action.parsed_shell_text, ParsedShellText)
+    assert action.parsed_shell_text.variable_assignments[0] == VariableAssignment(
+        "p", "A", 0, 0
+    )
+    assert _violation_counts_of(action) == Counter()
 
 
 def test_an_assignment_after_the_last_command_breaks_no_check():
@@ -365,22 +391,6 @@ def test_a_violating_call_reaches_the_violation_counts_of_the_total(
     )
     assert total.violation_counts == Counter({check: 1})
     assert total.violation_examples == [(check, "violating", "main:1:0")]
-
-
-def _read_trajectory_raising(trial_dir: Path) -> Never:
-    raise ValueError(trial_dir.name)
-
-
-# (made-up `read_trajectory`, outcome of the trial), one case per outcome without converted calls.
-TRIAL_OUTCOME_CASES = [
-    pytest.param(lambda trial_dir: (), "converted without tool calls", id="no calls"),
-    pytest.param(
-        lambda trial_dir: UnreadableTrajectory(UnreadableTrajectoryReason.MISSING),
-        "unreadable missing",
-        id="unreadable",
-    ),
-    pytest.param(_read_trajectory_raising, "exception ValueError", id="exception"),
-]
 
 
 @pytest.mark.parametrize(("read_trajectory", "outcome"), TRIAL_OUTCOME_CASES)
