@@ -1,6 +1,8 @@
 """Harness-agnostic common types for tool calls in ATIF trajectories.
 
 Each harness names its tools and writes its results in its own way, e.g. a shell call is `Bash` in Claude Code and `exec_command` in Codex. Later steps read these types, so they work the same for every harness.
+
+The command string of a `RunCommandAction` is also split into its simple commands, with when each runs and where its output goes, as shell grammar alone shows them. Text inside `bash -c '...'` is not split here, since that needs a fact about bash. It stays one word of the outer command, and `expand_tool_calls` splits it.
 """
 
 from collections.abc import Iterable, Mapping
@@ -29,6 +31,15 @@ type ToolCallAction = (
 
 # The format that produced a ToolCallResult. str() gives the name that the table of declared result formats and the result format audit use.
 type FormatMatch = MatchedFormat | UnmatchedFormat
+
+# Destination of a command's stdout or stderr.
+type OutputDestination = (
+    ResultDestination
+    | FileDestination
+    | PipeDestination
+    | CaptureDestination
+    | DiscardDestination
+)
 
 
 class ExecutionStatus(StrEnum):
@@ -101,7 +112,118 @@ def strings_from_values(values: Any) -> tuple[str, ...]:
 class RunCommandAction:
     """Run a string in a shell in one go. It can chain several commands."""
 
-    command_str: str | None = None  # None when the trajectory has none
+    # None when the trajectory has none.
+    command_str: str | None = None
+    # None when `command_str` is None.
+    parsed_shell_text: ParsedShellText | UnreadableShellText | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class UnreadableShellText:
+    """Shell text that `parse_shell_text` could not split, standing where a `ParsedShellText` would. It has a syntax error and gave no command, e.g. a text of closing brackets only."""
+
+
+@dataclass(frozen=True, slots=True)
+class ParsedShellText:
+    """Parse result of one shell text, returned by `parse_shell_text` and read by `expand_tool_calls`."""
+
+    commands: tuple[ShellCommand, ...]
+    variable_assignments: tuple[VariableAssignment, ...]  # in text order
+
+
+@dataclass(frozen=True, slots=True)
+class ResultDestination:
+    """Output destination for the call's own result."""
+
+
+@dataclass(frozen=True, slots=True)
+class FileDestination:
+    """Output destination for a file, e.g. `> fetch.log` or `>> fetch.log`."""
+
+    path: str  # without quotes, e.g. fetch.log or $LOG/out
+    appends: bool  # True for `>>`, which keeps what the file holds
+
+
+@dataclass(frozen=True, slots=True)
+class PipeDestination:
+    """Output destination for another command's stdin, e.g. the next stage of a pipeline."""
+
+    reader_id: int  # the first command that reads it
+
+
+@dataclass(frozen=True, slots=True)
+class CaptureDestination:
+    """Output destination for a `$(...)` or `<(...)`, which hands it to the enclosing command."""
+
+
+@dataclass(frozen=True, slots=True)
+class DiscardDestination:
+    """Output destination that throws output away, e.g. `> /dev/null`."""
+
+
+@dataclass(frozen=True, slots=True)
+class ShellCommand:
+    """One simple command in a shell text, with when it runs and where its output goes, as shell grammar alone shows them."""
+
+    # Unique within one call. 0-based.
+    # The ids continue across the command strings of one call, e.g. the steps of a Codex `exec` script, and a command that `expand_tool_calls` adds from a file or an argument gets the id after the largest one of the call.
+    id: int
+    # The command name, then its arguments, without quotes, e.g. `("sudo", "bash", "-c", "curl u")` for `sudo bash -c 'curl u'`.
+    words: tuple[str, ...]
+    # 0-based indexes of the words that hold `$A`, `${A}`, `$(...)`, backticks, `<(...)`, `>(...)` or `$((...))` outside single quotes, kept as written in `words`. A glob such as `*.sh` and a brace list such as `{a,b}` are not among them.
+    # The indexes are `(2,)` for `pip install "$PKG"`, for example.
+    expansion_word_indexes: tuple[int, ...] = ()
+    # Text that a heredoc or herestring gives to stdin.
+    stdin_text: str | None = None
+    # File that a `<` redirect gives to stdin, as written.
+    stdin_file_path: str | None = None
+    stdout: OutputDestination = ResultDestination()
+    stderr: OutputDestination = ResultDestination()
+    # All must hold for it to run.
+    runs_if: tuple[RunCondition, ...] = ()
+    # It may run any number of times, including none.
+    in_loop_body: bool = False
+    # It runs only if the function is called.
+    in_function_body: bool = False
+    # It runs only if its pattern matches.
+    in_case_branch: bool = False
+    # If the whole text exits 0, this command exited 0.
+    # This holds for b in `a; b`, for a and b in `a && b` and for neither in `a || b`.
+    succeeded_if_text_exits_zero: bool = False
+    # The text has a syntax error, a brace list or lines that stayed joined after the line repairs, so the fields above may be wrong.
+    # A result that rests on them is then not given as confirmed. A text with a syntax error that gives no command at all is an `UnreadableShellText` instead.
+    structure_may_be_wrong: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class RunCondition:
+    """Run condition of a command, met when its deciding commands ended with the required outcome.
+
+    In `a || b`, b has `RunCondition((id of a,), ExitOutcome.FAILURE)`.
+    """
+
+    deciding_command_ids: tuple[int, ...]  # empty when unknown, e.g. after `!`
+    required_outcome_of_deciding_commands: ExitOutcome
+
+
+class ExitOutcome(StrEnum):
+    """Exit outcome of a command, by whether its exit code is 0."""
+
+    SUCCESS = "success"  # exit code 0
+    FAILURE = "failure"  # any other exit code
+
+
+@dataclass(frozen=True, slots=True)
+class VariableAssignment:
+    """Value that `NAME=value` or a for loop gives to a variable."""
+
+    name: str
+    # None when the text computes the value as it runs, e.g. `A=$(date)`.
+    value: str | None
+    # The id the next command of the text gets, so commands from this id on come after it.
+    next_command_id: int
+    # For an item of a for loop, the id the first command after the loop gets. None for `NAME=value`.
+    next_command_id_after_for_loop: int | None
 
 
 @dataclass(frozen=True, slots=True)

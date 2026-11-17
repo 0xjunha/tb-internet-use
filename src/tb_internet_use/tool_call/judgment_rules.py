@@ -1,12 +1,12 @@
-"""Decide the statuses and exit codes of tool call results that the result text does not state, one named rule per situation.
+"""Decide what the trajectory does not settle about tool calls, one named rule per situation, i.e. the statuses and exit codes that a result text does not state and how far a misread shell text is repaired.
 
 Each rule is a judgment, not a reading of the trajectory, so it lives here where it can be found and changed.
 A declared result format names the rule that decides its status, and `convert_tool_calls` calls it for every result of that format.
-A harness converter calls a rule itself when the situation is more than one format, e.g. a Codex `write_stdin` call that sent Ctrl-C.
+A harness converter calls a rule itself when the situation is more than one format, e.g. a Codex `write_stdin` call that sent Ctrl-C, and so does `parse_shell_text`.
 For example, Devin writes `Exit code: -1` for a command it stopped, and only a rule says that this means the command was killed.
 
 Each rule adds one to `use_counts` under its own function name every time it decides something, so that audits can show how much of the output leans on each rule.
-The counts are for tracking and never go into a `ToolCallResult`.
+The counts are for tracking and never go into a `ToolCallResult` or a `ParsedShellText`.
 
 A rule is provisional until the user decides it. The last paragraph of each docstring marks it `Provisional.` or `Decided.`
 """
@@ -276,3 +276,20 @@ def treat_cut_off_web_search_as_finished(
     """
     use_counts[treat_cut_off_web_search_as_finished.__name__] += 1
     return replace(tool_call_result, execution_status=ExecutionStatus.FINISHED)
+
+
+def treat_lines_joined_after_three_repairs_as_left_joined(
+    repair_count: int, *, use_counts: Counter[str]
+) -> bool:
+    """Leave the lines of a shell text that tree-sitter-bash still joins after three repairs as they are, instead of repairing on.
+
+    It rests on tree-sitter-bash 0.25.1, which reads the line after a pipeline of three or more stages as more words of its last stage, e.g. `d` after `a | b | c` as `c d`.
+    `parse_shell_text` repairs that by putting `;` at the end of each joined line and parsing again, and the new parse can join other lines.
+    It asks this rule once it has repaired a text `repair_count` times, which is three, and lines are still joined.
+    On `True` it marks every command of the text with `structure_may_be_wrong`, and on `False` it repairs on until no line is joined or a repair no longer lowers the number of joined lines.
+    A use is such a text.
+
+    Provisional. It keeps the choice of the earlier code, which repaired a text at most three times.
+    """
+    use_counts[treat_lines_joined_after_three_repairs_as_left_joined.__name__] += 1
+    return True

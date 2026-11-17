@@ -7,6 +7,7 @@ The step "Convert tool calls" of the [pipeline](../../../README.md#pipeline), wh
 | [Data model](#data-model) | [model.py](model.py) |
 | [Tool call labeling](#tool-call-labeling) | [knowledge/](../knowledge/README.md) |
 | [Conversion](#conversion), [Result formats](#result-formats) | [_convert_tool_calls.py](_convert_tool_calls.py), [_convert_tool_call_action.py](_convert_tool_call_action.py), [_convert_tool_call_result.py](_convert_tool_call_result.py), [harnesses/](harnesses/), [judgment_rules.py](judgment_rules.py) |
+| [Shell texts](#shell-texts) | [parse_shell_text.py](parse_shell_text.py) |
 
 ## Data model
 
@@ -30,7 +31,7 @@ A tool that touches the task environment gets the type for what it does, the sam
 
 | `ToolCallAction` | What the tool does | e.g. |
 |---|---|---|
-| `RunCommandAction` | Runs a string in a shell | Claude Code `Bash`, Codex `exec_command` |
+| `RunCommandAction` | Runs a string in a shell. `parsed_shell_text` is to hold that string split into commands and is not filled yet | Claude Code `Bash`, Codex `exec_command` |
 | `RunToolScriptAction` | Runs code that calls harness tools, with one step per tool call found in the code | Codex `exec` |
 | `WriteFileAction` | Writes a whole file | Claude Code `Write` |
 | `EditFileAction` | Replaces text in a file | Grok Build `search_replace` |
@@ -43,6 +44,17 @@ A tool that touches the task environment gets the type for what it does, the sam
 | `PollAction` | Reads from, writes to or stops a command, script or subagent started earlier | Codex `write_stdin`, Claude Code `TaskStop`, `SendMessage` |
 | `OtherAction` | Only handles the harness's own state, e.g. a plan, a to-do list, a wait or a question to the user | Codex `update_plan`, Devin `todo_write` |
 | `UnknownAction` | A tool without a row in the catalog, e.g. a broken or disabled name, or a call that could not be converted | |
+
+### Shell texts
+
+[`parse_shell_text`](parse_shell_text.py) is a reading function: it splits a shell text such as `cd /app && curl -s u > log` into its simple commands by bash grammar alone, without outside knowledge.
+Text that a command runs, e.g. `curl u` in `bash -c 'curl u'`, stays one word of that command, since knowing that `bash -c` runs it is knowledge about programs.
+
+| Type | Content |
+|---|---|
+| `ParsedShellText` | The commands of one text and its variable assignments, e.g. `U=a.org` in `U=a.org; curl $U` |
+| `UnreadableShellText` | A text with a syntax error that gives no command at all, e.g. `)))` |
+| `ShellCommand` | One simple command: its words, when it runs (`runs_if`, loop, function or case body), where its stdin comes from and its stdout and stderr go, and whether a syntax error, a brace list or joined lines may have made these wrong |
 
 ## Tool call labeling
 
@@ -172,8 +184,8 @@ Both give `tool_output_text="hello"`, `exit_code=0`, status `finished`.
 
 ## Judgment rules
 
-A judgment rule is a choice that the trajectory does not settle, here a status or exit code that the result text does not state. The seventeen of this step are in [judgment_rules.py](judgment_rules.py), and all are provisional, since they keep the choice of the earlier code.
-A declared result format names the rule that decides its status with `judgment_rule="<function name>"`, and a harness converter calls a rule itself when the situation is more than one format.
+A judgment rule is a choice that the trajectory does not settle, here a status or exit code that the result text does not state, or how far to repair a shell text that tree-sitter-bash misreads. The eighteen of this step are in [judgment_rules.py](judgment_rules.py), and all are provisional, since they keep the choice of the earlier code.
+A declared result format names the rule that decides its status with `judgment_rule="<function name>"`, and a harness converter calls a rule itself when the situation is more than one format. `parse_shell_text` calls the rule about joined lines itself.
 Each use of a rule is counted in the `judgment_rule_use_counts` of `convert_tool_calls`, and [audit_tool_call_knowledge.py](../../../scripts/audit_tool_call_knowledge.py) writes the sums over the trials to `out/tool_call_knowledge/judgment_rule_uses.csv`.
 
 | Function | Where it is applied | Choice |
@@ -195,3 +207,4 @@ Each use of a rule is counted in the `judgment_rule_use_counts` of `convert_tool
 | `treat_shell_id_with_exit_code_as_running` | Cursor CLI `shellToolCall` formats `background` and `background_requested` | A shell result with a shell id is a command still running, and its exit code is not read |
 | `treat_stop_request_for_ended_work_as_finished` | Muse Code `work_stop` format `already_ended` | Work that had already ended when asked to stop finished |
 | `treat_cut_off_web_search_as_finished` | Claude Code `WebSearch` format `cut_off` | A search cut off before any result is a finished search |
+| `treat_lines_joined_after_three_repairs_as_left_joined` | [parse_shell_text.py](parse_shell_text.py), for a shell text whose lines tree-sitter-bash still joins after three repairs, e.g. `d` after `a \| b \| c` read as more words of `c` | Leave the lines joined and mark every command of the text with `structure_may_be_wrong` |

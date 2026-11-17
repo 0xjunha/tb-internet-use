@@ -15,6 +15,7 @@ from tb_internet_use.tool_call.judgment_rules import (
     treat_failed_file_tool_call_as_not_run,
     treat_failed_task_without_exit_code_as_killed,
     treat_get_output_without_exit_code_as_running,
+    treat_lines_joined_after_three_repairs_as_left_joined,
     treat_negative_exit_code_as_killed,
     treat_script_syntax_error_as_not_run,
     treat_shell_id_with_exit_code_as_running,
@@ -129,4 +130,14 @@ def test_a_finished_bash_output_without_exit_code_line_gets_exit_code_0_and_coun
     ) == _exited(0)
     assert use_counts == Counter(
         {"treat_bash_output_without_exit_code_line_as_exit_code_0": 1}
+    )
+
+
+def test_lines_joined_after_three_repairs_are_left_joined_and_counted():
+    use_counts: Counter[str] = Counter()
+    assert treat_lines_joined_after_three_repairs_as_left_joined(
+        3, use_counts=use_counts
+    )
+    assert use_counts == Counter(
+        {"treat_lines_joined_after_three_repairs_as_left_joined": 1}
     )
