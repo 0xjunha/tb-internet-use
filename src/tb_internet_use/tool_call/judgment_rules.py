@@ -100,7 +100,7 @@ def treat_bash_output_without_exit_code_line_as_exit_code_0(
     """Give exit code 0 to a finished command whose result has no `Exit code` line.
 
     It rests on Claude Code `Bash`, which writes no `Exit code` line for a command it did not judge an error, whose code is 0 or the 1 of grep, find, diff and the like.
-    The caller decides that the result is such a command, that its structured result says it was not interrupted and that it names no meaning for code 1.
+    The caller decides that the result is such a command, that its structured result says it was not interrupted and that it has no `returnCodeInterpretation`, whose exit code `ToolCallKnowledge` gives.
     A use is a result that gets exit code 0 this way.
 
     Provisional. It keeps the choice of the earlier code.

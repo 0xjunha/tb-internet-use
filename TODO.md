@@ -3,7 +3,6 @@
 ## Stage 5: convert tool calls
 
 - **Results that every format accepts.** A few result formats take any text as a plain result, e.g. Claude Code `Bash` output, so an unexpected result there can never become `unknown_format`. Decide whether to mark these formats in the tool catalog, and whether each audit should report the common first lines inside them.
-- **Missing Claude Code exit codes.** Claude Code writes `Exit code N` only when it judges a result an error, so `grep` that exits 1 has no header. The structured result keeps it in `returnCodeInterpretation`. Check why many calls have no exit code, and whether the structured result can fill it.
 - **Codex `exec` steps.** One `exec` script has one result for all its steps. Decide whether to split the output per step when a script has one step that prints its own result, how to count steps inside loops and conditions, how to resolve `web__run` turn references such as `turn0view0` to URLs, and what to do with runtime session ids.
 
 ## Stage 8: expand calls

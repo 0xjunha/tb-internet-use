@@ -1,6 +1,6 @@
 # Harness tool catalog
 
-The harness tool catalog is outside knowledge for step 1, kept in the two CSVs of this folder. They are labeled and reviewed manually, and the conversion reads them only through `ToolCallKnowledge` in [tool_call_knowledge.py](../../tool_call_knowledge.py).
+The harness tool catalog is outside knowledge for step 1, kept in the three CSVs of this folder. They are labeled and reviewed manually, and the conversion reads them only through `ToolCallKnowledge` in [tool_call_knowledge.py](../../tool_call_knowledge.py).
 
 [`harness_tools.csv`](harness_tools.csv) maps each harness tool name found in ATIF trajectories to one of the `ToolCallAction` types in [model.py](../../../tool_call/model.py), one row per tool.
 
@@ -12,15 +12,22 @@ The harness tool catalog is outside knowledge for step 1, kept in the two CSVs o
 - **`action_field`:** Field of the tool's `ToolCallAction` type that the argument fills.
 - **`handle_kind`:** Only on a row whose `action_field` is `handles`. The kind of target the argument names, e.g. `script` for the `cell_id` of Codex `wait`. Empty when the argument alone does not tell, e.g. the `task_ids` of Grok Build `get_command_or_subagent_output`, which name a command or a subagent.
 
-Both files end with the same three columns.
+[`harness_return_code_interpretations.csv`](harness_return_code_interpretations.csv) maps a text that a harness tool writes in place of an exit code to that exit code, one row per text in the data. Claude Code writes an `Exit code N` line in a `Bash` result only when it judges the command failed. For exit code 1 of grep, find, diff and the like, which is no failure, it writes no such line and puts a text such as `No matches found` into `returnCodeInterpretation` of the structured result instead.
+
+- **`return_code_interpretation`:** The text as the harness writes it, e.g. `Files differ`.
+- **`exit_code`:** The exit code the text stands for, an integer.
+
+A text without a row leaves the exit code of the result unknown and is counted as an unknown input. It does not get the exit code 0 that a result without the text gets.
+
+All three files end with the same three columns.
 
 - **`checked_against`:** What the row was checked against, e.g. `8 sampled tool calls in the trajectories (terminal-bench 2026-10-08)` for a label that rests on calls read beside their trajectory.
 - **`reviewed`:** `yes` once a person has reviewed the row, empty until then.
-- **`note`:** Free text, e.g. what the handles of an argument name, or why a tool stays `OtherAction` although some of its calls touch the task environment.
+- **`note`:** Free text, e.g. what the handles of an argument name, why a tool stays `OtherAction` although some of its calls touch the task environment, or which programs a return code interpretation is written for.
 
-A row the conversion cannot use raises `ValueError` when the catalog is loaded, e.g. an `action_type` that names no class or an `action_field` that the class does not have. A tool without a row becomes `UnknownAction` and is counted as an unknown input.
+A row the conversion cannot use raises `ValueError` when the catalog is loaded, e.g. an `action_type` that names no class, an `action_field` that the class does not have or an `exit_code` that is no integer. A tool without a row becomes `UnknownAction` and is counted as an unknown input.
 
-[audit_tool_call_knowledge.py](../../../../../scripts/audit_tool_call_knowledge.py) runs the conversion on raw trials and lists, under `out/tool_call_knowledge/`, how often each row was used, the tools without a row, and every argument in the data with its value types. These listings depend on the dataset, so they stay out of the catalog, and no script writes the two CSVs.
+[audit_tool_call_knowledge.py](../../../../../scripts/audit_tool_call_knowledge.py) runs the conversion on raw trials and lists, under `out/tool_call_knowledge/`, how often each row was used, the tools and the return code interpretations without a row, and every argument in the data with its value types. These listings depend on the dataset, so they stay out of the catalog, and no script writes the three CSVs.
 
 ## Deferred tools
 

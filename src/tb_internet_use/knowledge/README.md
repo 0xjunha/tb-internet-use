@@ -16,9 +16,10 @@ Knowledge that a CSV cannot hold, e.g. a result format with a template and a fun
 |---|---|---|---|
 | [catalogs/tool_call/harness_tools.csv](catalogs/tool_call/harness_tools.csv) | `ToolCallKnowledge` in [tool_call_knowledge.py](tool_call_knowledge.py) | One tool of one harness | Which `ToolCallAction` type is a call of the tool, and does the tool stop something started earlier? |
 | [catalogs/tool_call/harness_tool_arguments.csv](catalogs/tool_call/harness_tool_arguments.csv) | `ToolCallKnowledge` | One argument of a harness tool that fills an action field | Which field of the action does the argument fill, and which kind of target do its handles name? |
+| [catalogs/tool_call/harness_return_code_interpretations.csv](catalogs/tool_call/harness_return_code_interpretations.csv) | `ToolCallKnowledge` | One text that a harness tool writes in place of an exit code | Which exit code does the text stand for? |
 | [declarations/tool_call/harness_result_formats/](declarations/tool_call/harness_result_formats/README.md) | `ToolCallKnowledge` | The result formats of one harness tool | Which formats can a result of the tool have, and what does each say about the call? |
 
-The columns of both CSVs are described in the [harness tool catalog](catalogs/tool_call/README.md).
+The columns of the three CSVs are described in the [harness tool catalog](catalogs/tool_call/README.md).
 
 A declared result format is counted like a catalog row. `ToolCallKnowledge.harness_result_format` counts the format a result matched as a use of the row `(harness, tool, format)`, and a result that matched none as an unknown input `(harness, tool, unknown_format)` or `(harness, tool, skipped_format)`, both under the source name `harness_result_formats`.
 

@@ -18,6 +18,7 @@ from tb_internet_use.knowledge.harness_result_format_declaration import (
 )
 from tb_internet_use.knowledge.tool_call_knowledge import (
     HARNESS_RESULT_FORMATS_DECLARATIONS,
+    HARNESS_RETURN_CODE_INTERPRETATIONS_CSV,
     HARNESS_TOOL_ARGUMENTS_CSV,
     HARNESS_TOOLS_CSV,
     ToolCallKnowledge,
@@ -27,6 +28,7 @@ from tb_internet_use.tool_call.model import (
     ExecutionStatus,
     HarnessTool,
     HarnessToolLabel,
+    UnknownHarnessReturnCodeInterpretation,
     UnknownHarnessToolLabel,
     UnmatchedFormat,
 )
@@ -35,11 +37,16 @@ _TOOLS_HEADER = "harness,tool,action_type,stops_execution,checked_against,review
 _ARGUMENTS_HEADER = (
     "harness,tool,argument,action_field,handle_kind,checked_against,reviewed,note"
 )
+_RETURN_CODE_INTERPRETATIONS_HEADER = (
+    "harness,tool,return_code_interpretation,exit_code,checked_against,reviewed,note"
+)
 # The values of the three columns that no code reads.
 _REVIEW_COLUMNS = ",a manual,yes,"
 
 _TOOL_ROWS = ("h,stop,PollAction,yes", "h,list,OtherAction,")
 _ARGUMENT_ROWS = ("h,stop,id,handles,command", "h,stop,text,input,")
+# The exit code is not 1, so that a door that gives 1 without reading the row fails.
+_RETURN_CODE_INTERPRETATION_ROWS = ("h,list,Nothing listed,2",)
 
 # (tool rows, argument rows, a part of the error message)
 _ROWS_THAT_CANNOT_LOAD = [
@@ -64,6 +71,12 @@ _ROWS_THAT_CANNOT_LOAD = [
         ["h,t,a,handles,command", "h,t,b,handles,script"],
         "differ in handle_kind",
     ),
+]
+# (return code interpretation rows, a part of the error message), with the tool rows of `_TOOL_ROWS`
+_RETURN_CODE_INTERPRETATION_ROWS_THAT_CANNOT_LOAD = [
+    (["h,other,Nothing listed,1"], "has no row in harness_tools.csv"),
+    (["h,list,Nothing listed,one"], "invalid literal for int"),
+    (["h,list,Nothing listed,"], "invalid literal for int"),
 ]
 
 EXITED = HarnessTextResultFormat(
@@ -101,12 +114,20 @@ RESULT_FORMAT_CASES = [
 
 
 def _write_catalogs(
-    tmp_path: Path, tool_rows: list[str], argument_rows: list[str]
+    tmp_path: Path,
+    tool_rows: list[str],
+    argument_rows: list[str],
+    return_code_interpretation_rows: list[str] | None = None,
 ) -> Path:
-    """Write the two harness tool CSVs into a folder and return the folder."""
+    """Write the three harness tool CSVs into a folder and return the folder, with no return code interpretation rows unless given."""
     for file_name, header, rows in (
         (HARNESS_TOOLS_CSV, _TOOLS_HEADER, tool_rows),
         (HARNESS_TOOL_ARGUMENTS_CSV, _ARGUMENTS_HEADER, argument_rows),
+        (
+            HARNESS_RETURN_CODE_INTERPRETATIONS_CSV,
+            _RETURN_CODE_INTERPRETATIONS_HEADER,
+            return_code_interpretation_rows or [],
+        ),
     ):
         lines = [header, *(row + _REVIEW_COLUMNS for row in rows)]
         (tmp_path / file_name).write_text("\n".join(lines) + "\n")
@@ -189,6 +210,72 @@ def test_row_that_convert_tool_calls_cannot_use_raises_when_the_catalogs_load(
     tmp_path, tool_rows, argument_rows, message
 ):
     catalogs_dir = _write_catalogs(tmp_path, tool_rows, argument_rows)
+
+    with pytest.raises(ValueError, match=message):
+        ToolCallKnowledge(catalogs_dir=catalogs_dir)
+
+
+def test_return_code_interpretation_is_answered_with_its_exit_code_or_unknown_and_counted(
+    tmp_path,
+):
+    catalogs_dir = _write_catalogs(
+        tmp_path,
+        list(_TOOL_ROWS),
+        list(_ARGUMENT_ROWS),
+        list(_RETURN_CODE_INTERPRETATION_ROWS),
+    )
+    knowledge = ToolCallKnowledge(catalogs_dir=catalogs_dir)
+
+    known = knowledge.exit_code_of_harness_return_code_interpretation(
+        HarnessTool("h", "list"), "Nothing listed"
+    )
+    knowledge.exit_code_of_harness_return_code_interpretation(
+        HarnessTool("h", "list"), "Nothing listed"
+    )
+    unknown_text = knowledge.exit_code_of_harness_return_code_interpretation(
+        HarnessTool("h", "list"), "Something else"
+    )
+    # The row belongs to one tool, so the same text of another tool is unknown.
+    unknown_tool = knowledge.exit_code_of_harness_return_code_interpretation(
+        HarnessTool("h", "stop"), "Nothing listed"
+    )
+
+    assert known == 2
+    assert unknown_text == unknown_tool == UnknownHarnessReturnCodeInterpretation()
+    assert knowledge.uses == KnowledgeUses(
+        row_use_counts=Counter(
+            {
+                (
+                    HARNESS_RETURN_CODE_INTERPRETATIONS_CSV,
+                    ("h", "list", "Nothing listed"),
+                ): 2
+            }
+        ),
+        unknown_input_counts=Counter(
+            {
+                (
+                    HARNESS_RETURN_CODE_INTERPRETATIONS_CSV,
+                    ("h", "list", "Something else"),
+                ): 1,
+                (
+                    HARNESS_RETURN_CODE_INTERPRETATIONS_CSV,
+                    ("h", "stop", "Nothing listed"),
+                ): 1,
+            }
+        ),
+    )
+
+
+@pytest.mark.parametrize(
+    ("return_code_interpretation_rows", "message"),
+    _RETURN_CODE_INTERPRETATION_ROWS_THAT_CANNOT_LOAD,
+)
+def test_return_code_interpretation_row_that_convert_tool_calls_cannot_use_raises_when_the_catalogs_load(
+    tmp_path, return_code_interpretation_rows, message
+):
+    catalogs_dir = _write_catalogs(
+        tmp_path, list(_TOOL_ROWS), [], return_code_interpretation_rows
+    )
 
     with pytest.raises(ValueError, match=message):
         ToolCallKnowledge(catalogs_dir=catalogs_dir)

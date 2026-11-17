@@ -46,7 +46,7 @@ A tool that touches the task environment gets the type for what it does, the sam
 
 ## Tool call labeling
 
-What each harness tool does is outside knowledge, which no trajectory holds. It is kept in the [harness tool catalog](../knowledge/catalogs/tool_call/README.md), two hand-filled CSVs under [knowledge/](../knowledge/README.md): one row per harness tool, and one row per argument that fills an action field.
+What each harness tool does is outside knowledge, which no trajectory holds. It is kept in the [harness tool catalog](../knowledge/catalogs/tool_call/README.md), hand-filled CSVs under [knowledge/](../knowledge/README.md): one row per harness tool, one row per argument that fills an action field, and one row per text that a tool writes in place of an exit code, e.g. `No matches found` in a Claude Code `Bash` result.
 
 | Step | Method |
 |---|---|
@@ -156,7 +156,7 @@ Both give `tool_output_text="hello"`, `exit_code=0`, status `finished`.
 4. `ToolCallKnowledge.harness_result_format`: the declared format the result has, or an `UnmatchedFormat`. It picks the tool's JSON list when there is a JSON object, its list for results marked as errors when it has one and the result is marked, else its text list, then cuts the notices and tries the formats in order. It counts the format or the unmatched result.
 5. [`result_from_matched_or_unmatched_format`](_convert_tool_call_result.py): build `ToolCallResult` from the format that matched, or keep the raw text when none did.
    A format whose result text does not tell the status names a rule of [judgment_rules.py](judgment_rules.py) in place of a status, e.g. Claude Code `Bash` output without an `Exit code` line, and the rule decides it.
-6. The converter's own `convert_result` may then add what formats cannot express, e.g. Claude Code's structured result fields, or apply a rule of [judgment_rules.py](judgment_rules.py), e.g. exit code 130 after a Codex Ctrl-C read as killed.
+6. The converter's own `convert_result` may then add what formats cannot express, e.g. Claude Code's structured result fields, or apply a rule of [judgment_rules.py](judgment_rules.py), e.g. exit code 130 after a Codex Ctrl-C read as killed. Claude Code `Bash` asks `ToolCallKnowledge.exit_code_of_harness_return_code_interpretation` which exit code a `returnCodeInterpretation` such as `No matches found` stands for, and a text without a row leaves the exit code unknown.
 
 ### Outcomes
 
@@ -179,7 +179,7 @@ Each use of a rule is counted in the `judgment_rule_use_counts` of `convert_tool
 | Function | Where it is applied | Choice |
 |---|---|---|
 | `treat_bash_output_without_exit_code_line_as_finished` | Claude Code `Bash` formats `bare_output`, `persisted_output` and `persisted_output_partial` | Output without an `Exit code` line is a finished command |
-| `treat_bash_output_without_exit_code_line_as_exit_code_0` | [claude_code.py](harnesses/claude_code.py) | Such a command that its structured result does not call interrupted or give a meaning for code 1 exited 0 |
+| `treat_bash_output_without_exit_code_line_as_exit_code_0` | [claude_code.py](harnesses/claude_code.py) | Such a command that its structured result does not call interrupted or give a `returnCodeInterpretation` exited 0 |
 | `treat_script_syntax_error_as_not_run` | Codex `exec` format `failed_syntax` | A script that failed with a `SyntaxError` ran nothing |
 | `treat_web_search_call_without_content_as_finished` | Codex `web_search_call` format `no_content` | A `web_search_call` result without content is a finished search |
 | `treat_failed_file_tool_call_as_not_run` | The failure formats of Claude Code `Read`, Grok Build `read_file` and `search_replace` and Cursor CLI `readToolCall` and `editToolCall` | A file tool call that gives a reason it failed did no work |

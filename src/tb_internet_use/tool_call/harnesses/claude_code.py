@@ -15,8 +15,10 @@ from tb_internet_use.tool_call.judgment_rules import (
 from tb_internet_use.tool_call.model import (
     ExecutionHandleKind,
     ExecutionStatus,
+    HarnessTool,
     HarnessToolCall,
     ToolCallResult,
+    UnknownHarnessReturnCodeInterpretation,
     UnmatchedFormat,
     handles_from_ids,
     join_texts,
@@ -91,6 +93,8 @@ class ClaudeCodeConverter(HarnessToolCallConverter):
             return _result_from_structured_bash(
                 tool_call_result,
                 structured_result,
+                harness_tool_call.tool,
+                knowledge=knowledge,
                 judgment_rule_use_counts=judgment_rule_use_counts,
             )
         if name == "Read":
@@ -179,7 +183,9 @@ def _extra_of(tool_result: Mapping[str, Any]) -> Mapping[str, Any]:
 def _result_from_structured_bash(
     tool_call_result: ToolCallResult,
     structured_result: Mapping[str, Any],
+    tool: HarnessTool,
     *,
+    knowledge: ToolCallKnowledge,
     judgment_rule_use_counts: Counter[str],
 ) -> ToolCallResult:
     """Prefer the structured stdout, task id and saved-output path over what the text showed."""
@@ -192,6 +198,8 @@ def _result_from_structured_bash(
         tool_call_result = _result_with_exit_code_from_structured_bash(
             tool_call_result,
             structured_result,
+            tool,
+            knowledge=knowledge,
             judgment_rule_use_counts=judgment_rule_use_counts,
         )
     # stdout is the whole tool output, since its stderr only holds the cwd notice.
@@ -209,19 +217,29 @@ def _result_from_structured_bash(
 def _result_with_exit_code_from_structured_bash(
     tool_call_result: ToolCallResult,
     structured_result: Mapping[str, Any],
+    tool: HarnessTool,
     *,
+    knowledge: ToolCallKnowledge,
     judgment_rule_use_counts: Counter[str],
 ) -> ToolCallResult:
     """Give an exit code to a finished command that Claude Code did not judge an error, which its result text leaves out.
 
     Grep, find, diff and the like exit 1 without an error.
-    Claude Code then names that meaning in `returnCodeInterpretation`, and writes it only for code 1.
+    Claude Code then names that meaning in `returnCodeInterpretation`, e.g. `No matches found`, and `knowledge` tells which exit code the text stands for.
+    Any value of the key other than null is looked up, so that an empty text or a value that is no text finds no row and is counted as an unknown input instead of getting 0.
+    A text that `knowledge` does not know leaves the exit code unknown.
     An interrupted command keeps no exit code, and any other gets 0 by a judgment rule.
     """
     if structured_result.get("interrupted"):
         return tool_call_result
-    if structured_result.get("returnCodeInterpretation"):
-        return replace(tool_call_result, exit_code=1)
+    return_code_interpretation = structured_result.get("returnCodeInterpretation")
+    if return_code_interpretation is not None:
+        exit_code = knowledge.exit_code_of_harness_return_code_interpretation(
+            tool, str(return_code_interpretation)
+        )
+        if isinstance(exit_code, UnknownHarnessReturnCodeInterpretation):
+            return tool_call_result
+        return replace(tool_call_result, exit_code=exit_code)
     return treat_bash_output_without_exit_code_line_as_exit_code_0(
         tool_call_result, use_counts=judgment_rule_use_counts
     )

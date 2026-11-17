@@ -1,17 +1,28 @@
 """Test the conversion of Claude Code tool calls by the Claude Code converter, with made-up results shaped as in the trajectories."""
 
 import json
+import shutil
 from collections import Counter
+from pathlib import Path
 from typing import Any
 
 import pytest
 
-from tb_internet_use.knowledge.tool_call_knowledge import ToolCallKnowledge
+from tb_internet_use.knowledge.tool_call_knowledge import (
+    HARNESS_RETURN_CODE_INTERPRETATIONS_CSV,
+    HARNESS_TOOL_ARGUMENTS_CSV,
+    HARNESS_TOOLS_CSV,
+    TOOL_CALL_CATALOGS_DIR,
+    ToolCallKnowledge,
+)
 from tb_internet_use.tool_call import convert_tool_calls
 from tb_internet_use.tool_call._convert_tool_calls import convert_one_tool_call
 from tb_internet_use.tool_call.harnesses.claude_code import (
     ClaudeCodeConverter,
     _join_content_items,
+)
+from tb_internet_use.tool_call.judgment_rules import (
+    treat_bash_output_without_exit_code_line_as_exit_code_0,
 )
 from tb_internet_use.tool_call.model import (
     EditFileAction,
@@ -36,6 +47,7 @@ from tb_internet_use.tool_call.model import (
 
 S = ExecutionStatus
 CONVERTER = ClaudeCodeConverter()
+EXIT_CODE_0_RULE = treat_bash_output_without_exit_code_line_as_exit_code_0.__name__
 
 
 def _harness_tool_call(
@@ -104,6 +116,24 @@ def _bash(
             "Bash", {"command": "x"}, _result(block, structured_result, is_error)
         )
     ).result
+
+
+def _counted_bash_result_of(
+    block: str,
+    structured_result: dict[str, Any],
+    *,
+    knowledge: ToolCallKnowledge,
+    judgment_rule_use_counts: Counter[str],
+) -> ToolCallResult:
+    """Convert one `Bash` call with the given door and judgment rule counter, so that a test can read what they counted."""
+    tool_call = convert_one_tool_call(
+        _harness_tool_call("Bash", {"command": "x"}, _result(block, structured_result)),
+        CONVERTER,
+        knowledge=knowledge,
+        judgment_rule_use_counts=judgment_rule_use_counts,
+    )
+    assert tool_call.result is not None
+    return tool_call.result
 
 
 IMAGE = {"type": "image", "source": {}}
@@ -657,6 +687,14 @@ ACTION_CASES: list[tuple[str, dict[str, Any], ToolCallAction]] = [
 ]
 
 
+# The text of `returnCodeInterpretation` in the structured result of a `Bash` call and the exit code it stands for, one row per row of `harness_return_code_interpretations.csv`.
+RETURN_CODE_INTERPRETATION_CASES = [
+    ("Bash", "No matches found", 1),
+    ("Bash", "Files differ", 1),
+    ("Bash", "Some directories were inaccessible", 1),
+]
+
+
 @pytest.mark.parametrize(("tool", "args", "expected"), ACTION_CASES)
 def test_a_call_of_each_tool_converts_to_the_action_of_its_arguments(
     tool: str, args: dict[str, Any], expected: ToolCallAction
@@ -687,16 +725,131 @@ def test_bash_body_without_header_is_exit_zero_and_structured_stdout_wins():
     assert tool_call_result.harness_result_format == MatchedFormat("bare_output")
 
 
-def test_bash_exit_code_without_header_needs_the_structured_result():
-    no_match = {"stdout": "", "interrupted": False}
-    tool_call_result = _bash(
+@pytest.mark.parametrize(
+    ("tool", "return_code_interpretation", "exit_code"),
+    RETURN_CODE_INTERPRETATION_CASES,
+)
+def test_bash_return_code_interpretation_gives_the_exit_code_of_its_catalog_row(
+    tool: str, return_code_interpretation: str, exit_code: int
+):
+    knowledge = ToolCallKnowledge()
+    judgment_rule_use_counts: Counter[str] = Counter()
+    structured_result = {
+        "stdout": "",
+        "interrupted": False,
+        "returnCodeInterpretation": return_code_interpretation,
+    }
+
+    tool_call_result = _counted_bash_result_of(
         "(Bash completed with no output)",
-        {**no_match, "returnCodeInterpretation": "No matches found"},
+        structured_result,
+        knowledge=knowledge,
+        judgment_rule_use_counts=judgment_rule_use_counts,
     )
-    assert tool_call_result is not None and (
-        tool_call_result.exit_code,
-        tool_call_result.tool_output_text,
-    ) == (1, "")
+
+    assert (tool_call_result.exit_code, tool_call_result.tool_output_text) == (
+        exit_code,
+        "",
+    )
+    row_key = (
+        HARNESS_RETURN_CODE_INTERPRETATIONS_CSV,
+        ("claude-code", tool, return_code_interpretation),
+    )
+    assert knowledge.uses.row_use_counts[row_key] == 1
+    assert judgment_rule_use_counts[EXIT_CODE_0_RULE] == 0
+
+
+def test_bash_return_code_interpretation_gives_the_exit_code_the_door_answers(
+    tmp_path: Path,
+):
+    # A made-up row whose exit code is not 1, so that a converter that gives 1 without asking the door fails.
+    for file_name in (HARNESS_TOOLS_CSV, HARNESS_TOOL_ARGUMENTS_CSV):
+        shutil.copy(TOOL_CALL_CATALOGS_DIR / file_name, tmp_path / file_name)
+    (tmp_path / HARNESS_RETURN_CODE_INTERPRETATIONS_CSV).write_text(
+        "harness,tool,return_code_interpretation,exit_code,checked_against,reviewed,note\n"
+        "claude-code,Bash,Made-up meaning,2,,,\n"
+    )
+
+    tool_call_result = _counted_bash_result_of(
+        "(Bash completed with no output)",
+        {
+            "stdout": "",
+            "interrupted": False,
+            "returnCodeInterpretation": "Made-up meaning",
+        },
+        knowledge=ToolCallKnowledge(catalogs_dir=tmp_path),
+        judgment_rule_use_counts=Counter(),
+    )
+
+    assert tool_call_result.exit_code == 2
+
+
+@pytest.mark.parametrize(
+    ("return_code_interpretation", "looked_up_text"),
+    [
+        ("Made-up meaning", "Made-up meaning"),
+        # An empty text and a value that is no text never occur in the data, and are looked up rather than read as no interpretation.
+        ("", ""),
+        (0, "0"),
+    ],
+)
+def test_bash_return_code_interpretation_without_a_row_leaves_the_exit_code_unknown(
+    return_code_interpretation: object, looked_up_text: str
+):
+    knowledge = ToolCallKnowledge()
+    judgment_rule_use_counts: Counter[str] = Counter()
+    structured_result = {
+        "stdout": "",
+        "interrupted": False,
+        "returnCodeInterpretation": return_code_interpretation,
+    }
+
+    tool_call_result = _counted_bash_result_of(
+        "(Bash completed with no output)",
+        structured_result,
+        knowledge=knowledge,
+        judgment_rule_use_counts=judgment_rule_use_counts,
+    )
+
+    # It must not fall through to the rule that gives exit code 0.
+    assert (tool_call_result.execution_status, tool_call_result.exit_code) == (
+        S.FINISHED,
+        None,
+    )
+    assert judgment_rule_use_counts[EXIT_CODE_0_RULE] == 0
+    assert knowledge.uses.unknown_input_counts == Counter(
+        {
+            (
+                HARNESS_RETURN_CODE_INTERPRETATIONS_CSV,
+                ("claude-code", "Bash", looked_up_text),
+            ): 1
+        }
+    )
+
+
+def test_bash_exit_code_without_header_needs_the_structured_result():
+    knowledge = ToolCallKnowledge()
+    judgment_rule_use_counts: Counter[str] = Counter()
+    # Without a return code interpretation, or with null in its place, the judgment rule gives 0.
+    for structured_result in (
+        {"stdout": "shown", "interrupted": False},
+        {"stdout": "shown", "interrupted": False, "returnCodeInterpretation": None},
+    ):
+        tool_call_result = _counted_bash_result_of(
+            "shown",
+            structured_result,
+            knowledge=knowledge,
+            judgment_rule_use_counts=judgment_rule_use_counts,
+        )
+        assert tool_call_result.exit_code == 0
+    assert judgment_rule_use_counts[EXIT_CODE_0_RULE] == 2
+    assert not any(
+        source == HARNESS_RETURN_CODE_INTERPRETATIONS_CSV
+        for source, _ in [
+            *knowledge.uses.row_use_counts,
+            *knowledge.uses.unknown_input_counts,
+        ]
+    )
     tool_call_result = _bash("shown")  # no structured result, so 0 and 1 look the same
     assert tool_call_result is not None and (
         tool_call_result.execution_status,

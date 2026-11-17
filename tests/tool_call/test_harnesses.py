@@ -13,6 +13,7 @@ from tb_internet_use.knowledge.harness_result_format_audit import (
     iter_declared_formats,
 )
 from tb_internet_use.knowledge.tool_call_knowledge import (
+    HARNESS_RETURN_CODE_INTERPRETATIONS_CSV,
     HARNESS_TOOL_ARGUMENTS_CSV,
     HARNESS_TOOLS_CSV,
     TOOL_CALL_CATALOGS_DIR,
@@ -94,6 +95,13 @@ def _action_case_keys_of(harness: str) -> frozenset[tuple[str, str]]:
     )
 
 
+def _return_code_interpretation_case_keys_of(
+    harness: str,
+) -> frozenset[tuple[str, str, int]]:
+    """Read the tool, the text and the exit code of every row of `RETURN_CODE_INTERPRETATION_CASES` in the test file of a harness."""
+    return frozenset(_test_module_of(harness).RETURN_CODE_INTERPRETATION_CASES)
+
+
 def _action_case_tools_of(harness: str) -> frozenset[str]:
     """Read the tool of every row of `ACTION_CASES` in the test file of a harness."""
     return frozenset(tool for tool, _, _ in _test_module_of(harness).ACTION_CASES)
@@ -137,6 +145,18 @@ def test_every_argument_row_of_the_catalog_has_a_case_in_the_test_file_of_its_ha
         if (row["tool"], row["argument"]) not in _action_case_keys_of(row["harness"])
     ]
     assert not missing, "argument rows without a row in ACTION_CASES"
+
+
+def test_every_return_code_interpretation_row_of_the_catalog_has_a_case_with_its_exit_code():
+    missing = [
+        (row["harness"], row["tool"], row["return_code_interpretation"])
+        for row in _catalog_rows(HARNESS_RETURN_CODE_INTERPRETATIONS_CSV)
+        if (row["tool"], row["return_code_interpretation"], int(row["exit_code"]))
+        not in _return_code_interpretation_case_keys_of(row["harness"])
+    ]
+    assert not missing, (
+        "return code interpretation rows without a row in RETURN_CODE_INTERPRETATION_CASES"
+    )
 
 
 def test_every_poll_tool_of_the_catalog_has_a_case_that_states_its_terminate():

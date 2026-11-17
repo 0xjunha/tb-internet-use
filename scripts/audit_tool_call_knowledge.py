@@ -1,4 +1,4 @@
-"""Run `convert_tool_calls` on raw trials and list which rows of the harness tool catalog and which declared result formats were used, which harness tools have no row, which results have no format, which arguments the tool calls have and how often each judgment rule was used.
+"""Run `convert_tool_calls` on raw trials and list which rows of the harness tool catalog and which declared result formats were used, which harness tools and return code interpretations have no row, which results have no format, which arguments the tool calls have and how often each judgment rule was used.
 
 It writes four CSVs under `out/tool_call_knowledge/`, which `.gitignore` keeps out of the repo, since tool and argument names come from trajectories and can hold hidden task content.
 They hold counts and names only, never result text.
@@ -6,13 +6,13 @@ They hold counts and names only, never result text.
 | File | One row |
 |---|---|
 | `row_uses.csv` | A catalog row or a declared result format that answered a lookup, with its lookups and trials |
-| `unknown_inputs.csv` | A key that a lookup found no row for, e.g. a harness tool without a row or the `unknown_format` results of a tool |
+| `unknown_inputs.csv` | A key that a lookup found no row for, e.g. a harness tool without a row, a return code interpretation without a row or the `unknown_format` results of a tool |
 | `harness_tool_arguments_in_data.csv` | An argument of a harness tool in the trajectories, with its calls, trials, value types and the action field the catalog maps it to |
 | `judgment_rule_uses.csv` | A judgment rule of `tool_call/judgment_rules.py`, with its uses and trials, and 0 for a rule that was never used |
 
-A lookup of a harness tool is one tool call or one step of a Codex `exec` script, and a lookup of a result format is one tool call with a result whose format the converter asks for.
+A lookup of a harness tool is one tool call or one step of a Codex `exec` script, a lookup of a result format is one tool call with a result whose format the converter asks for, and a lookup of a return code interpretation is one Claude Code `Bash` result that matched a format without an `Exit code` line, whose structured result does not call it interrupted and has a `returnCodeInterpretation` other than null.
 An argument row counts once for every lookup of its tool by a call or a script step that has that argument, so its count is the third file's `call_count` of the argument plus the Codex `exec` script steps that have it.
-The `source` column of the first two files names the catalog file or the declarations folder that the row belongs to, e.g. `harness_tools.csv` or `harness_result_formats`.
+The `source` column of the first two files names the catalog file or the declarations folder that the row belongs to, e.g. `harness_tools.csv`, `harness_return_code_interpretations.csv` or `harness_result_formats`.
 A row key is written as a JSON array of its key column values.
 The first two files list the keys of the most trials first, and a row that no lookup used is in neither.
 

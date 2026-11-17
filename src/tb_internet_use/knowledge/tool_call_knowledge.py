@@ -26,6 +26,7 @@ from tb_internet_use.tool_call.model import (
     HarnessTool,
     HarnessToolLabel,
     PollAction,
+    UnknownHarnessReturnCodeInterpretation,
     UnknownHarnessToolLabel,
     UnmatchedFormat,
 )
@@ -33,6 +34,7 @@ from tb_internet_use.tool_call.model import (
 TOOL_CALL_CATALOGS_DIR = Path(__file__).parent / "catalogs" / "tool_call"
 HARNESS_TOOLS_CSV = "harness_tools.csv"
 HARNESS_TOOL_ARGUMENTS_CSV = "harness_tool_arguments.csv"
+HARNESS_RETURN_CODE_INTERPRETATIONS_CSV = "harness_return_code_interpretations.csv"
 # The name of the folder of the harness result format declarations, which the counts of their uses carry.
 HARNESS_RESULT_FORMATS_DECLARATIONS = "harness_result_formats"
 _HANDLES_FIELD = "handles"
@@ -91,6 +93,21 @@ class ToolCallKnowledge:
                 (row.handle_kind for _, row in argument_rows if row.handle_kind), None
             ),
         )
+
+    def exit_code_of_harness_return_code_interpretation(
+        self, tool: HarnessTool, return_code_interpretation: str
+    ) -> int | UnknownHarnessReturnCodeInterpretation:
+        """Answer which exit code a text that a harness tool writes in place of an exit code stands for, or `UnknownHarnessReturnCodeInterpretation` for a text without a row.
+
+        Such a text is e.g. `No matches found`, which Claude Code writes in the structured result of a `Bash` call for the exit code 1 of grep.
+        A lookup counts the row `(harness, tool, text)`, or the same key as an unknown input.
+        """
+        row = self._catalogs.harness_return_code_interpretations.lookup(
+            (tool.harness, tool.name, return_code_interpretation), self.uses
+        )
+        if row is None:
+            return UnknownHarnessReturnCodeInterpretation()
+        return row.exit_code
 
     def has_json_result_formats(self, tool: HarnessTool) -> bool:
         """Tell whether a harness tool has declared formats for results that are JSON objects, so that a converter reads a JSON object out of the trajectory only for such a tool.
@@ -152,7 +169,7 @@ def harness_tool_result_declaration_of(
 
 @functools.cache
 def _load_tool_call_catalogs(catalogs_dir: Path) -> _ToolCallCatalogs:
-    """Load the two harness tool CSVs of a folder once per process, raising ValueError on a row that `convert_tool_calls` cannot use."""
+    """Load the three harness tool CSVs of a folder once per process, raising ValueError on a row that `convert_tool_calls` cannot use."""
     harness_tools = load_catalog(
         catalogs_dir / HARNESS_TOOLS_CSV,
         key_columns=("harness", "tool"),
@@ -170,10 +187,19 @@ def _load_tool_call_catalogs(catalogs_dir: Path) -> _ToolCallCatalogs:
         tool = HarnessTool(row_key[0], row_key[1])
         row_keys_by_tool.setdefault(tool, []).append(row_key)
     _check_handle_kinds_agree(harness_tool_arguments, row_keys_by_tool)
+    harness_return_code_interpretations = load_catalog(
+        catalogs_dir / HARNESS_RETURN_CODE_INTERPRETATIONS_CSV,
+        key_columns=("harness", "tool", "return_code_interpretation"),
+        row_from_columns=functools.partial(
+            _harness_return_code_interpretation_row_from_columns,
+            harness_tools=harness_tools,
+        ),
+    )
     return _ToolCallCatalogs(
         harness_tools,
         harness_tool_arguments,
         {tool: tuple(row_keys) for tool, row_keys in row_keys_by_tool.items()},
+        harness_return_code_interpretations,
     )
 
 
@@ -185,6 +211,7 @@ class _ToolCallCatalogs:
     harness_tool_arguments: Catalog[_HarnessToolArgumentRow]
     # The keys of the argument rows of each tool, so the door can look up the rows of the arguments a call has.
     argument_row_keys_by_tool: Mapping[HarnessTool, tuple[KnowledgeRowKey, ...]]
+    harness_return_code_interpretations: Catalog[_HarnessReturnCodeInterpretationRow]
 
 
 @dataclass(frozen=True, slots=True)
@@ -201,6 +228,13 @@ class _HarnessToolArgumentRow:
 
     action_field: str  # a field of the action class of the tool
     handle_kind: ExecutionHandleKind | None  # None when the column is empty
+
+
+@dataclass(frozen=True, slots=True)
+class _HarnessReturnCodeInterpretationRow:
+    """Checked value of one row of `harness_return_code_interpretations.csv`, kept in its catalog and given by the door as the answer."""
+
+    exit_code: int
 
 
 def _harness_tool_row_from_columns(columns: Mapping[str, str]) -> _HarnessToolRow:
@@ -258,3 +292,14 @@ def _check_handle_kinds_agree(
         }
         if len(handle_kinds) > 1:
             raise ValueError(f"the handles arguments of {tool} differ in handle_kind")
+
+
+def _harness_return_code_interpretation_row_from_columns(
+    columns: Mapping[str, str], *, harness_tools: Catalog[_HarnessToolRow]
+) -> _HarnessReturnCodeInterpretationRow:
+    """Read one row of `harness_return_code_interpretations.csv`, raising ValueError on a tool without a row and on an `exit_code` that is no integer."""
+    tool_key = (columns["harness"], columns["tool"])
+    # This lookup checks the file and answers no question of a step, so its count is dropped.
+    if harness_tools.lookup(tool_key, KnowledgeUses()) is None:
+        raise ValueError(f"the tool {tool_key} has no row in {HARNESS_TOOLS_CSV}")
+    return _HarnessReturnCodeInterpretationRow(int(columns["exit_code"]))

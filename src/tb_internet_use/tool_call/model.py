@@ -351,6 +351,11 @@ class UnknownHarnessToolLabel:
     """Answer of the harness tool catalog for a harness tool without a row, which `convert_tool_calls` turns into an `UnknownAction`."""
 
 
+@dataclass(frozen=True, slots=True)
+class UnknownHarnessReturnCodeInterpretation:
+    """Answer of `harness_return_code_interpretations.csv` for a text without a row, for which `convert_tool_calls` gives no exit code."""
+
+
 # The `action_type` of a tool whose converter decides the `ToolCallAction` class per call.
 DEFERRED = "Deferred"
 # The member classes of `ToolCallAction` by name, e.g. `RunCommandAction`.

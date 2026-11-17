@@ -73,7 +73,7 @@ _DEVIN_DIFF_HEAD = (
 JUDGMENT_RULE_CASES: list[
     tuple[str, str, dict[str, Any], tuple[ExecutionStatus, int | None], dict[str, int]]
 ] = [
-    # A structured result that is neither interrupted nor names a meaning for code 1 lets the second rule give 0.
+    # A structured result that is neither interrupted nor has a `returnCodeInterpretation` lets the second rule give 0.
     (
         "claude-code",
         "Bash",
