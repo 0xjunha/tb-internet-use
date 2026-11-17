@@ -8,7 +8,12 @@ import pytest
 
 from tb_internet_use.trial import collect_trials
 from tb_internet_use.trial._collect_trials import collect_one_trial
-from tb_internet_use.trial.model import Trial, TrialFileTexts
+from tb_internet_use.trial.model import (
+    Trial,
+    TrialFileTexts,
+    UnreadableTrajectory,
+    UnreadableTrajectoryReason,
+)
 
 TRIAL_OF_THE_FIXTURES = Trial(
     "t1",
@@ -19,6 +24,7 @@ TRIAL_OF_THE_FIXTURES = Trial(
     "2.1.0",
     "model-a",
     1.0,
+    None,
 )
 TRIAL_OF_THE_FIXTURES_WITHOUT_A_REWARD = dataclasses.replace(
     TRIAL_OF_THE_FIXTURES, reward=None
@@ -43,7 +49,8 @@ def test_collects_every_field_from_the_detail_and_status_files(
 ):
     assert (
         collect_one_trial(
-            _trial_file_texts_from(detail_file_contents, status_file_contents)
+            _trial_file_texts_from(detail_file_contents, status_file_contents),
+            None,
         )
         == TRIAL_OF_THE_FIXTURES
     )
@@ -57,7 +64,8 @@ def test_trial_that_ended_with_an_error_without_a_verifier_result_has_no_reward(
 
     assert (
         collect_one_trial(
-            _trial_file_texts_from(detail_file_contents, status_file_contents)
+            _trial_file_texts_from(detail_file_contents, status_file_contents),
+            None,
         )
         == TRIAL_OF_THE_FIXTURES_WITHOUT_A_REWARD
     )
@@ -70,7 +78,8 @@ def test_trial_without_a_verifier_result_or_an_error_has_no_reward(
 
     assert (
         collect_one_trial(
-            _trial_file_texts_from(detail_file_contents, status_file_contents)
+            _trial_file_texts_from(detail_file_contents, status_file_contents),
+            None,
         )
         == TRIAL_OF_THE_FIXTURES_WITHOUT_A_REWARD
     )
@@ -83,7 +92,8 @@ def test_trial_that_ended_with_an_error_keeps_the_reward_of_its_verifier(
 
     assert (
         collect_one_trial(
-            _trial_file_texts_from(detail_file_contents, status_file_contents)
+            _trial_file_texts_from(detail_file_contents, status_file_contents),
+            None,
         )
         == TRIAL_OF_THE_FIXTURES
     )
@@ -95,7 +105,7 @@ def test_tells_two_benchmark_versions_of_one_task_apart(
     status_file_contents["memberships"] = [{"version": "3-0-0", "row_id": "row-2"}]
 
     assert collect_one_trial(
-        _trial_file_texts_from(detail_file_contents, status_file_contents)
+        _trial_file_texts_from(detail_file_contents, status_file_contents), None
     ) == dataclasses.replace(
         TRIAL_OF_THE_FIXTURES, benchmark_version="3-0-0", leaderboard_row_id="row-2"
     )
@@ -124,7 +134,8 @@ def test_collects_each_trial_from_its_own_files_in_the_order_of_their_texts(
                 other_detail_file_contents, other_status_file_contents, "t2"
             ),
             _trial_file_texts_from(detail_file_contents, status_file_contents, "t1"),
-        ]
+        ],
+        {},
     )
 
     assert trials == (
@@ -137,8 +148,48 @@ def test_collects_each_trial_from_its_own_files_in_the_order_of_their_texts(
             "0.5.0",
             "model-b",
             0.0,
+            None,
         ),
         TRIAL_OF_THE_FIXTURES,
+    )
+
+
+def test_trial_whose_trajectory_could_not_be_read_keeps_its_task_harness_and_reward(
+    detail_file_contents, status_file_contents
+):
+    unreadable_trajectory = UnreadableTrajectory(UnreadableTrajectoryReason.MISSING)
+
+    assert collect_one_trial(
+        _trial_file_texts_from(detail_file_contents, status_file_contents),
+        unreadable_trajectory,
+    ) == dataclasses.replace(
+        TRIAL_OF_THE_FIXTURES, unreadable_trajectory=unreadable_trajectory
+    )
+
+
+def test_gives_only_the_trial_of_its_id_the_reason_its_trajectory_could_not_be_read(
+    detail_file_contents, status_file_contents
+):
+    unreadable_trajectory = UnreadableTrajectory(
+        UnreadableTrajectoryReason.INVALID_JSON
+    )
+
+    trials = collect_trials(
+        [
+            _trial_file_texts_from(detail_file_contents, status_file_contents, trial_id)
+            for trial_id in ("t1", "t2", "t3")
+        ],
+        {"t2": unreadable_trajectory},
+    )
+
+    assert trials == (
+        TRIAL_OF_THE_FIXTURES,
+        dataclasses.replace(
+            TRIAL_OF_THE_FIXTURES,
+            trial_id="t2",
+            unreadable_trajectory=unreadable_trajectory,
+        ),
+        dataclasses.replace(TRIAL_OF_THE_FIXTURES, trial_id="t3"),
     )
 
 
@@ -155,6 +206,6 @@ def test_error_of_either_file_carries_the_id_of_its_trial(
         trial_file_texts = dataclasses.replace(trial_file_texts, status_text="{")
 
     with pytest.raises(ValueError) as error:
-        collect_one_trial(trial_file_texts)
+        collect_one_trial(trial_file_texts, None)
 
     assert error.value.__notes__ == ["trial_id: t7"]

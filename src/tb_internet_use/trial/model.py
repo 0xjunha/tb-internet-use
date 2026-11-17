@@ -27,6 +27,9 @@ class Trial:
     model_name: str
     # None when the detail file has no verifier result.
     reward: float | None
+    # None when the trajectory file could be read, also when it holds no tool call.
+    # A trial that has one has no requests in the output, which does not mean that it made none.
+    unreadable_trajectory: UnreadableTrajectory | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,7 +65,7 @@ class TrialLeaderboardMembership:
 class UnreadableTrajectory:
     """Result of reading a trial whose trajectory file gives no tool calls, returned in place of the calls so that the trial is not taken for one without calls.
 
-    It sits here and not beside `parse_trajectory`, which returns it, since whether the trajectory can be read is a fact about the trial and a step never imports from a later step.
+    It sits here and not beside `parse_trajectory`, which returns it, since a `Trial` holds it and a step never imports from a later step.
     """
 
     reason: UnreadableTrajectoryReason
