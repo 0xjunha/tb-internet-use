@@ -1,4 +1,4 @@
-"""Run `convert_tool_calls` on raw trials and list which rows of the tool call catalogs and which declared result formats were used, which harness tools have no row, which results have no format, which arguments the tool calls have and how often each judgment rule was used.
+"""Run `convert_tool_calls` on raw trials and list which rows of the harness tool catalog and which declared result formats were used, which harness tools have no row, which results have no format, which arguments the tool calls have and how often each judgment rule was used.
 
 It writes four CSVs under `out/tool_call_knowledge/`, which `.gitignore` keeps out of the repo, since tool and argument names come from trajectories and can hold hidden task content.
 They hold counts and names only, never result text.
@@ -11,7 +11,7 @@ They hold counts and names only, never result text.
 | `judgment_rule_uses.csv` | A judgment rule of `tool_call/judgment_rules.py`, with its uses and trials, and 0 for a rule that was never used |
 
 A lookup of a harness tool is one tool call or one step of a Codex `exec` script, and a lookup of a result format is one tool call with a result whose format the converter asks for.
-An argument row counts once for every lookup of its tool, whether or not the call has that argument, so the calls that have an argument are in the third file.
+An argument row counts once for every lookup of its tool by a call or a script step that has that argument, so its count is the third file's `call_count` of the argument plus the Codex `exec` script steps that have it.
 The `source` column of the first two files names the catalog file or the declarations folder that the row belongs to, e.g. `harness_tools.csv` or `harness_result_formats`.
 A row key is written as a JSON array of its key column values.
 The first two files list the keys of the most trials first, and a row that no lookup used is in neither.
@@ -34,15 +34,13 @@ from tb_internet_use.knowledge.catalog import (
     KnowledgeUses,
     KnowledgeUsesTotal,
 )
-from tb_internet_use.knowledge.tool_call_knowledge import (
-    HarnessToolLabel,
-    ToolCallKnowledge,
-)
+from tb_internet_use.knowledge.tool_call_knowledge import ToolCallKnowledge
 from tb_internet_use.pipeline import read_trajectory
 from tb_internet_use.tool_call import convert_tool_calls, judgment_rules
 from tb_internet_use.tool_call.model import (
     HarnessTool,
     HarnessToolCall,
+    HarnessToolLabel,
     UnreadableTrajectory,
 )
 
@@ -78,35 +76,27 @@ def main() -> None:
     trial_dirs = sorted(p for p in arguments.raw_trials_dir.iterdir() if p.is_dir())
     if arguments.limit is not None:
         trial_dirs = trial_dirs[: arguments.limit]
-    total = KnowledgeUsesTotal()
-    argument_value_call_counts: Counter[ArgumentValueKey] = Counter()
-    argument_trial_counts: Counter[ArgumentKey] = Counter()
-    judgment_rule_use_counts: Counter[str] = Counter()
-    judgment_rule_trial_counts: Counter[str] = Counter()
-    trial_outcomes: Counter[str] = Counter()
+    total = TrialAuditTotal()
     with ProcessPoolExecutor(_PROCESS_COUNT) as pool:
-        for audit in pool.map(audit_trial, trial_dirs, chunksize=20):
-            trial_outcomes[audit.outcome] += 1
-            total.add_trial(audit.uses)
-            judgment_rule_use_counts.update(audit.judgment_rule_use_counts)
-            # keys() adds one per rule, so this counts trials and not uses.
-            judgment_rule_trial_counts.update(audit.judgment_rule_use_counts.keys())
-            argument_value_call_counts.update(audit.argument_value_call_counts)
-            # A set adds one per argument, so this counts trials and not calls.
-            argument_trial_counts.update(
-                {key[:3] for key in audit.argument_value_call_counts}
-            )
+        for trial_audit in pool.map(audit_trial, trial_dirs, chunksize=20):
+            total.add_trial(trial_audit)
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     _write_csv(
         OUT_DIR / "row_uses.csv",
         ("source", "row_key", "lookup_count", "trial_count"),
-        _lookup_rows(total.row_use_counts, total.row_trial_counts),
+        _lookup_rows(
+            total.knowledge_uses_total.row_use_counts,
+            total.knowledge_uses_total.row_trial_counts,
+        ),
     )
     _write_csv(
         OUT_DIR / "unknown_inputs.csv",
         ("source", "key_asked", "lookup_count", "trial_count"),
-        _lookup_rows(total.unknown_input_counts, total.unknown_input_trial_counts),
+        _lookup_rows(
+            total.knowledge_uses_total.unknown_input_counts,
+            total.knowledge_uses_total.unknown_input_trial_counts,
+        ),
     )
     _write_csv(
         OUT_DIR / "harness_tool_arguments_in_data.csv",
@@ -119,18 +109,20 @@ def main() -> None:
             "value_types",
             "action_field",
         ),
-        _argument_rows(argument_value_call_counts, argument_trial_counts),
+        _argument_rows(total.argument_value_call_counts, total.argument_trial_counts),
     )
     _write_csv(
         OUT_DIR / "judgment_rule_uses.csv",
         ("judgment_rule", "use_count", "trial_count"),
-        judgment_rule_rows(judgment_rule_use_counts, judgment_rule_trial_counts),
+        judgment_rule_rows(
+            total.judgment_rule_use_counts, total.judgment_rule_trial_counts
+        ),
     )
-    print(f"trials: {dict(sorted(trial_outcomes.items()))}")
+    print(f"trials: {dict(sorted(total.outcome_counts.items()))}")
     print(
-        f"rows used: {len(total.row_use_counts)}, "
-        f"unknown inputs: {len(total.unknown_input_counts)}, "
-        f"arguments in data: {len(argument_trial_counts)}"
+        f"rows used: {len(total.knowledge_uses_total.row_use_counts)}, "
+        f"unknown inputs: {len(total.knowledge_uses_total.unknown_input_counts)}, "
+        f"arguments in data: {len(total.argument_trial_counts)}"
     )
     print(f"written under {OUT_DIR}")
 
@@ -164,13 +156,45 @@ class TrialAudit:
 
     # `converted`, `unreadable` with the reason, or `exception` with the type name.
     outcome: str
-    uses: KnowledgeUses = field(default_factory=KnowledgeUses)
+    knowledge_uses: KnowledgeUses = field(default_factory=KnowledgeUses)
     # The number of calls that had the argument with a value of the type.
     argument_value_call_counts: Counter[ArgumentValueKey] = field(
         default_factory=Counter
     )
     # The number of uses of each judgment rule, by its function name.
     judgment_rule_use_counts: Counter[str] = field(default_factory=Counter)
+
+
+@dataclass(slots=True)
+class TrialAuditTotal:
+    """Sum of the `TrialAudit` of many trials, built by `main` to write the CSVs."""
+
+    # The number of trials of each outcome, e.g. `converted`.
+    outcome_counts: Counter[str] = field(default_factory=Counter)
+    knowledge_uses_total: KnowledgeUsesTotal = field(default_factory=KnowledgeUsesTotal)
+    argument_value_call_counts: Counter[ArgumentValueKey] = field(
+        default_factory=Counter
+    )
+    # The number of trials that have a call with the argument.
+    argument_trial_counts: Counter[ArgumentKey] = field(default_factory=Counter)
+    judgment_rule_use_counts: Counter[str] = field(default_factory=Counter)
+    # The number of trials that used the judgment rule at least once.
+    judgment_rule_trial_counts: Counter[str] = field(default_factory=Counter)
+
+    def add_trial(self, trial_audit: TrialAudit) -> None:
+        """Add what one trial counted, counting the trial once for each argument and each judgment rule it has."""
+        self.outcome_counts[trial_audit.outcome] += 1
+        self.knowledge_uses_total.add_trial(trial_audit.knowledge_uses)
+        self.judgment_rule_use_counts.update(trial_audit.judgment_rule_use_counts)
+        # keys() adds one per rule, so this counts trials and not uses.
+        self.judgment_rule_trial_counts.update(
+            trial_audit.judgment_rule_use_counts.keys()
+        )
+        self.argument_value_call_counts.update(trial_audit.argument_value_call_counts)
+        # A set adds one per argument, so this counts trials and not calls.
+        self.argument_trial_counts.update(
+            {key[:3] for key in trial_audit.argument_value_call_counts}
+        )
 
 
 def judgment_rule_rows(
@@ -191,10 +215,15 @@ def _argument_value_call_counts(
 ) -> Counter[ArgumentValueKey]:
     """Count the calls of one trial per harness tool, argument name and JSON type of the argument value."""
     counts: Counter[ArgumentValueKey] = Counter()
-    for call in harness_tool_calls:
-        for argument, value in call.args.items():
+    for harness_tool_call in harness_tool_calls:
+        for argument, value in harness_tool_call.args.items():
             type_name = _JSON_TYPE_NAMES[type(value)]
-            counts[call.tool.harness, call.tool.name, argument, type_name] += 1
+            counts[
+                harness_tool_call.tool.harness,
+                harness_tool_call.tool.name,
+                argument,
+                type_name,
+            ] += 1
     return counts
 
 
@@ -231,7 +260,7 @@ def _argument_rows(
     knowledge = ToolCallKnowledge()
     for argument_key, type_counts in sorted(call_counts_by_type.items()):
         harness, tool, argument = argument_key
-        label = knowledge.harness_tool_label(HarnessTool(harness, tool))
+        label = knowledge.harness_tool_label(HarnessTool(harness, tool), (argument,))
         action_field = (
             label.action_field_by_argument_name.get(argument, "")
             if isinstance(label, HarnessToolLabel)

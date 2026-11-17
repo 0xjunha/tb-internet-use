@@ -79,10 +79,14 @@ def test_subagent_calls_are_yielded_once():
         "steps": [{"step_id": 1}, {"step_id": 2}],
         "subagent_trajectories": [{"steps": [{"step_id": 1, "tool_calls": [_call()]}]}],
     }
-    calls = list(_walk_trajectory(trajectory, "t", "muse-code", "main", False))
+    harness_tool_calls = list(
+        _walk_trajectory(trajectory, "t", "muse-code", "main", False)
+    )
 
-    assert [call.key.trajectory_id for call in calls] == ["main/sub0"]
-    assert calls[0].is_subagent is True
+    assert [
+        harness_tool_call.key.trajectory_id for harness_tool_call in harness_tool_calls
+    ] == ["main/sub0"]
+    assert harness_tool_calls[0].is_subagent is True
 
 
 def test_sidechain_step_is_subagent():
@@ -92,9 +96,16 @@ def test_sidechain_step_is_subagent():
             {"step_id": 2, "tool_calls": [_call()], "extra": {"is_sidechain": True}},
         ]
     }
-    calls = list(_walk_trajectory(trajectory, "t", "claude-code", "main", False))
+    harness_tool_calls = list(
+        _walk_trajectory(trajectory, "t", "claude-code", "main", False)
+    )
 
-    assert [call.is_subagent for call in calls] == [False, True]
+    assert [
+        harness_tool_call.is_subagent for harness_tool_call in harness_tool_calls
+    ] == [
+        False,
+        True,
+    ]
 
 
 def test_reads_the_calls_of_a_trajectory_text():
@@ -108,14 +119,14 @@ def test_reads_the_calls_of_a_trajectory_text():
         "agent": {"name": "codex"},
         "steps": [step],
     }
-    calls = parse_trajectory(json.dumps(trajectory), "trial-1")
+    harness_tool_calls = parse_trajectory(json.dumps(trajectory), "trial-1")
 
-    assert not isinstance(calls, UnreadableTrajectory)
-    [call] = calls
-    assert call.key == ToolCallKey("trial-1", "main", 3, 0)
-    assert call.tool.harness == "codex"
-    assert call.args == {}
-    assert call.result == {"source_call_id": "a", "content": "ok"}
+    assert not isinstance(harness_tool_calls, UnreadableTrajectory)
+    [harness_tool_call] = harness_tool_calls
+    assert harness_tool_call.key == ToolCallKey("trial-1", "main", 3, 0)
+    assert harness_tool_call.tool.harness == "codex"
+    assert harness_tool_call.args == {}
+    assert harness_tool_call.result == {"source_call_id": "a", "content": "ok"}
 
 
 def test_reads_every_call_key_and_pairing_of_a_v1_8_trial():
@@ -147,12 +158,12 @@ def test_reads_every_call_key_and_pairing_of_a_v1_8_trial():
             {"steps": [step(1, [_call("u")], [])]},
         ],
     }
-    calls = parse_trajectory(json.dumps(trajectory), "trial-1")
+    harness_tool_calls = parse_trajectory(json.dumps(trajectory), "trial-1")
 
-    assert not isinstance(calls, UnreadableTrajectory)
+    assert not isinstance(harness_tool_calls, UnreadableTrajectory)
     assert [
         (c.key.trajectory_id, c.key.step_id, c.key.call_index, c.tool_call_id)
-        for c in calls
+        for c in harness_tool_calls
     ] == [
         ("main", 1, 0, "a"),
         ("main", 1, 1, "b"),
@@ -161,12 +172,12 @@ def test_reads_every_call_key_and_pairing_of_a_v1_8_trial():
         ("main/sub0/sub0", 1, 0, "t"),
         ("main/sub1", 1, 0, "u"),
     ]
-    assert [c.result for c in calls[:3]] == [
+    assert [c.result for c in harness_tool_calls[:3]] == [
         {"source_call_id": "zz"},
         {"source_call_id": "b"},
         {"content": "3"},
     ]
-    assert [c.is_subagent for c in calls] == [False] * 3 + [True] * 3
+    assert [c.is_subagent for c in harness_tool_calls] == [False] * 3 + [True] * 3
 
 
 def test_trajectory_without_calls_is_empty_and_not_unreadable():
@@ -213,9 +224,12 @@ def test_call_keeps_its_tool_name_and_arguments():
         "agent": {"name": "codex"},
         "steps": [{"step_id": 1, "tool_calls": [call]}],
     }
-    calls = parse_trajectory(json.dumps(trajectory), "trial-1")
-    assert isinstance(calls, tuple)
-    assert (calls[0].tool.name, calls[0].args) == ("bash", {"command": "ls"})
+    harness_tool_calls = parse_trajectory(json.dumps(trajectory), "trial-1")
+    assert isinstance(harness_tool_calls, tuple)
+    assert (harness_tool_calls[0].tool.name, harness_tool_calls[0].args) == (
+        "bash",
+        {"command": "ls"},
+    )
 
 
 def test_result_without_an_id_does_not_pair_with_a_call_whose_id_is_null():

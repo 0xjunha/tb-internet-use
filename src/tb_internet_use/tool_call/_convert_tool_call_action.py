@@ -39,7 +39,9 @@ def convert_tool_call_action(
     A tool labeled `DEFERRED` gets its action from the converter of its harness.
     Any other tool gets it from the label and the arguments, and the converter then fills what the label cannot express.
     """
-    label = knowledge.harness_tool_label(harness_tool_call.tool)
+    label = knowledge.harness_tool_label(
+        harness_tool_call.tool, harness_tool_call.args.keys()
+    )
     if isinstance(label, UnknownHarnessToolLabel):
         return UnknownAction()
     if label.action_type == DEFERRED:

@@ -11,7 +11,7 @@ import csv
 from pathlib import Path
 
 from tb_internet_use.knowledge.harness_result_format_audit import (
-    TABLE_COLUMNS,
+    DECLARED_RESULT_FORMAT_TABLE_COLUMNS,
     table_rows_from_declarations,
 )
 
@@ -31,7 +31,9 @@ def main() -> None:
     rows = table_rows_from_declarations()
     paths.output_csv.parent.mkdir(parents=True, exist_ok=True)
     with paths.output_csv.open("w", newline="") as f:
-        writer = csv.DictWriter(f, TABLE_COLUMNS, lineterminator="\n")
+        writer = csv.DictWriter(
+            f, DECLARED_RESULT_FORMAT_TABLE_COLUMNS, lineterminator="\n"
+        )
         writer.writeheader()
         writer.writerows(rows)
     print(f"table written: {paths.output_csv} ({len(rows)} rows)")

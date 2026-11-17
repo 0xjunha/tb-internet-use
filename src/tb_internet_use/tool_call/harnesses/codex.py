@@ -68,7 +68,7 @@ class CodexConverter(HarnessToolCallConverter):
     def tool_result_raw_text_of(
         self, harness_tool_call: HarnessToolCall, tool_result: dict[str, Any]
     ) -> str | None:
-        """For exec and wait, the text items of the Python list Codex writes, joined."""
+        """Read the result text, which for exec and wait is the text items of the Python list Codex writes, joined."""
         text = super().tool_result_raw_text_of(harness_tool_call, tool_result)
         items = (
             _script_items_from_content(text)
@@ -82,7 +82,7 @@ class CodexConverter(HarnessToolCallConverter):
     def tool_result_json_of(
         self, harness_tool_call: HarnessToolCall, tool_result: dict[str, Any]
     ) -> JsonObject | None:
-        """For `web_search_call`, the result entry of the trajectory itself, since Codex keeps no output of a web search and the entry is all there is to match.
+        """Read the JSON object of the result, which for `web_search_call` is the result entry of the trajectory itself, since Codex keeps no output of a web search and the entry is all there is to match.
 
         The entry stays even when it is empty, unlike a decoded raw text, since `{}` is what such a result looks like.
         """
@@ -154,7 +154,7 @@ class CodexConverter(HarnessToolCallConverter):
         code: str,
         knowledge: ToolCallKnowledge,
     ) -> tuple[ToolCallAction, ...]:
-        """The ToolCallActions of the tool calls in an exec script, in order."""
+        """List the ToolCallActions of the tool calls in an exec script, in order."""
         return tuple(
             action
             for name, argument in parse_codex_exec_script(code)
@@ -170,11 +170,9 @@ class CodexConverter(HarnessToolCallConverter):
         argument: Any,
         knowledge: ToolCallKnowledge,
     ) -> list[ToolCallAction]:
-        """The ToolCallActions of one tool call in a script, UnknownAction when none can be read.
+        """List the ToolCallActions of one tool call in a script, or UnknownAction when none can be read.
 
-        A tool with a label gets its ToolCallAction as a top-level call of that name. This
-        covers a tool only scripts call, such as `clock__curr_time`, which has a row in
-        the catalog like any tool.
+        A tool with a label gets its ToolCallAction as a top-level call of that name. This covers a tool only scripts call, such as `clock__curr_time`, which has a row in the catalog like any tool.
         """
         actions: list[ToolCallAction]
         if name == "apply_patch":
@@ -189,15 +187,14 @@ class CodexConverter(HarnessToolCallConverter):
             return [UnknownAction()]
         else:
             tool = HarnessTool(harness_tool_call.tool.harness, name)
-            label = knowledge.harness_tool_label(tool)
+            args = argument if isinstance(argument, dict) else {}
+            label = knowledge.harness_tool_label(tool, args.keys())
             if (
                 isinstance(label, UnknownHarnessToolLabel)
                 or label.action_type == DEFERRED
             ):
                 return [UnknownAction()]
-            args = argument if isinstance(argument, dict) else {}
-            # The exec call itself, as if it were a call of the step's tool, so that
-            # refine_action treats the step like a top-level call.
+            # The exec call itself, as if it were a call of the step's tool, so that refine_action treats the step like a top-level call.
             step = replace(harness_tool_call, tool=tool, args=args, result=None)
             action = action_from_label(label, args)
             actions = [self.refine_action(step, action, None, label)]
@@ -235,8 +232,10 @@ def _has_ctrl_c_input(harness_tool_call: HarnessToolCall) -> bool:
 def _has_printed_media(
     harness_tool_call: HarnessToolCall, tool_result: dict[str, Any]
 ) -> bool:
-    """Whether an exec or wait script printed images or audio. When it printed no text,
-    as when convert_result asks, that is all it printed."""
+    """Tell whether an exec or wait script printed images or audio.
+
+    When it printed no text, as when convert_result asks, that is all it printed.
+    """
     content = tool_result.get("content")
     if harness_tool_call.tool.name not in _SCRIPT_TOOLS or not isinstance(content, str):
         return False
@@ -245,10 +244,9 @@ def _has_printed_media(
 
 
 def _script_items_from_content(content: str) -> tuple[dict[str, Any], ...] | None:
-    """The content items of an exec or wait result, which Codex writes as a Python list.
+    """Read the content items of an exec or wait result, which Codex writes as a Python list.
 
-    The first item holds the script's state and wall time, and the rest is what the
-    script printed. None for a result that is plain text.
+    The first item holds the script's state and wall time, and the rest is what the script printed. None for a result that is plain text.
     """
     if not content.startswith("[{"):
         return None
@@ -266,7 +264,7 @@ def _is_text(item: dict[str, Any]) -> bool:
 
 
 def _running_session_ids_from_text(text: str | None) -> list[Any]:
-    """The sessions of commands still running, from step results a script printed as JSON.
+    """List the sessions of commands still running, from step results a script printed as JSON.
 
     A step result with a session_id and no exit_code is a command the script left running.
     """

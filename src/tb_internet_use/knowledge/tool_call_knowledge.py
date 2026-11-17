@@ -1,7 +1,7 @@
-"""Answer the questions of `convert_tool_calls` about harness tools from the tool call catalogs and the harness result format declarations, counting every use of a row and every input without one."""
+"""Answer the questions of `convert_tool_calls` about harness tools from the harness tool catalog and the harness result format declarations, counting every use of a row and every input without one."""
 
 import functools
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, fields
 from pathlib import Path
 
@@ -61,11 +61,13 @@ class ToolCallKnowledge:
         self._result_formats_by_harness = result_formats_by_harness
 
     def harness_tool_label(
-        self, tool: HarnessTool
+        self, tool: HarnessTool, argument_names: Collection[str]
     ) -> HarnessToolLabel | UnknownHarnessToolLabel:
-        """Answer what a harness tool does and which action field each of its arguments fills, or `UnknownHarnessToolLabel` for a tool without a row.
+        """Answer what a harness tool does and which action field each argument that one call of it has fills, or `UnknownHarnessToolLabel` for a tool without a row.
 
-        A lookup counts the tool row and every argument row of the tool, since each is part of the answer whether or not a call has that argument.
+        `argument_names` are the names of the arguments of the call in the trajectory.
+        A lookup counts the tool row once and the row of each argument the call has, so the count of an argument row is the number of calls that carried that argument.
+        An argument without a row fills no field and is not counted as an unknown input.
         """
         catalogs = self._catalogs
         tool_row = catalogs.harness_tools.lookup((tool.harness, tool.name), self.uses)
@@ -74,7 +76,8 @@ class ToolCallKnowledge:
         argument_rows = [
             (row_key[-1], row)
             for row_key in catalogs.argument_row_keys_by_tool.get(tool, ())
-            if (row := catalogs.harness_tool_arguments.lookup(row_key, self.uses))
+            if row_key[-1] in argument_names
+            and (row := catalogs.harness_tool_arguments.lookup(row_key, self.uses))
             is not None
         ]
         return HarnessToolLabel(
@@ -114,20 +117,22 @@ class ToolCallKnowledge:
         harness_tool_result_declaration = harness_tool_result_declaration_of(
             tool, result_formats_by_harness=self._result_formats_by_harness
         )
-        found = harness_tool_result_declaration.harness_result_format_of(
-            tool_result_raw_text,
-            tool_result_json,
-            is_marked_as_error=is_marked_as_error,
+        matched_or_unmatched_format = (
+            harness_tool_result_declaration.harness_result_format_of(
+                tool_result_raw_text,
+                tool_result_json,
+                is_marked_as_error=is_marked_as_error,
+            )
         )
-        if isinstance(found, UnmatchedFormat):
-            row_key = (tool.harness, tool.name, str(found))
+        if isinstance(matched_or_unmatched_format, UnmatchedFormat):
+            row_key = (tool.harness, tool.name, str(matched_or_unmatched_format))
             self.uses.unknown_input_counts[
                 HARNESS_RESULT_FORMATS_DECLARATIONS, row_key
             ] += 1
         else:
-            row_key = (tool.harness, tool.name, found.format.name)
+            row_key = (tool.harness, tool.name, matched_or_unmatched_format.format.name)
             self.uses.row_use_counts[HARNESS_RESULT_FORMATS_DECLARATIONS, row_key] += 1
-        return found
+        return matched_or_unmatched_format
 
 
 def harness_tool_result_declaration_of(
@@ -178,7 +183,7 @@ class _ToolCallCatalogs:
 
     harness_tools: Catalog[_HarnessToolRow]
     harness_tool_arguments: Catalog[_HarnessToolArgumentRow]
-    # The keys of the argument rows of each tool, so the door can look up every row that is part of a label.
+    # The keys of the argument rows of each tool, so the door can look up the rows of the arguments a call has.
     argument_row_keys_by_tool: Mapping[HarnessTool, tuple[KnowledgeRowKey, ...]]
 
 

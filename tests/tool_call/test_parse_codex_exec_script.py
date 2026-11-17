@@ -27,6 +27,8 @@ from tb_internet_use.tool_call.parse_codex_exec_script import (
         ),
         ('tools.x({"cmd": "ls"})', {"cmd": "ls"}),
         ('const c = "ls";\ntools.x({cmd: c})', {"cmd": "ls"}),
+        # Without a semicolon the name that starts the next statement ends the value.
+        ('const c = "ls"\ntools.x({cmd: c})', {"cmd": "ls"}),
         (
             'const cmd = `ls`; tools.x({cmd, workdir: "/w"})',
             {"cmd": "ls", "workdir": "/w"},
@@ -111,6 +113,33 @@ def test_a_slash_is_a_division_or_a_regex_by_what_comes_before(code: str):
     assert parse_codex_exec_script(code + ' tools.x({cmd: "a/b"})') == [
         ("x", {"cmd": "a/b"})
     ]
+
+
+# A slash after one of these names starts a regex, e.g. `return /"/.test(s)`, where a division would leave the quote to open a string.
+@pytest.mark.parametrize(
+    "keyword",
+    [
+        "return",
+        "typeof",
+        "instanceof",
+        "in",
+        "of",
+        "new",
+        "delete",
+        "void",
+        "throw",
+        "case",
+        "do",
+        "else",
+        "yield",
+        "await",
+    ],
+)
+def test_a_slash_after_a_keyword_that_comes_before_a_value_starts_a_regex(
+    keyword: str,
+):
+    code = f'const f = (s) => {{ {keyword} /"/.test(s); }}; tools.x({{cmd: "a/b"}})'
+    assert parse_codex_exec_script(code) == [("x", {"cmd": "a/b"})]
 
 
 @pytest.mark.parametrize(

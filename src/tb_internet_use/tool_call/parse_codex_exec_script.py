@@ -250,8 +250,7 @@ def _value_from_tokens(
 ) -> tuple[Any, int]:
     """Read the literal value of the expression at tokens[i], and the index after it."""
     value, j = _literal_from_tokens(tokens, i, consts)
-    # Anything but a closer, or a name that starts the next statement, continues
-    # the expression, e.g. "a" + b or a template that tags the value.
+    # Anything but a closer, or a name that starts the next statement, continues the expression, e.g. "a" + b or a template that tags the value.
     after = tokens[j] if j < len(tokens) else None
     if (
         after

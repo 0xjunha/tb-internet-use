@@ -1,23 +1,40 @@
 """Tests for tool_call/harnesses/__init__.py, which picks the converter of each harness, against the harness tool catalog and with made-up results."""
 
 import csv
+import functools
+import importlib.util
 import json
 from collections import Counter
+from pathlib import Path
+from types import ModuleType
 from typing import Any
 
+from tb_internet_use.knowledge.harness_result_format_audit import (
+    iter_declared_formats,
+)
 from tb_internet_use.knowledge.tool_call_knowledge import (
-    DEFERRED,
+    HARNESS_TOOL_ARGUMENTS_CSV,
     HARNESS_TOOLS_CSV,
     TOOL_CALL_CATALOGS_DIR,
-    HarnessToolLabel,
     ToolCallKnowledge,
 )
 from tb_internet_use.tool_call import convert_tool_calls
 from tb_internet_use.tool_call.harnesses import CONVERTERS, converter_for
+from tb_internet_use.tool_call.harnesses.claude_code import ClaudeCodeConverter
+from tb_internet_use.tool_call.harnesses.codex import CodexConverter
+from tb_internet_use.tool_call.harnesses.cursor_cli import CursorCliConverter
+from tb_internet_use.tool_call.harnesses.grok_build import GrokBuildConverter
+from tb_internet_use.tool_call.harnesses.harness_tool_call_converter import (
+    HarnessToolCallConverter,
+)
+from tb_internet_use.tool_call.harnesses.muse_code import MuseCodeConverter
 from tb_internet_use.tool_call.model import (
+    DEFERRED,
     ExecutionStatus,
     HarnessTool,
     HarnessToolCall,
+    HarnessToolLabel,
+    PollAction,
     RunToolScriptAction,
     ToolCallKey,
     ToolCallResult,
@@ -25,13 +42,15 @@ from tb_internet_use.tool_call.model import (
 )
 
 
-def _catalog_tools() -> list[HarnessTool]:
-    """List the tools with a row in the committed catalog, read from the CSV itself since a door only answers lookups."""
-    with (TOOL_CALL_CATALOGS_DIR / HARNESS_TOOLS_CSV).open(newline="") as f:
-        return [HarnessTool(row["harness"], row["tool"]) for row in csv.DictReader(f)]
+def _catalog_rows(csv_name: str) -> list[dict[str, str]]:
+    """Read the rows of one committed catalog CSV, from the file itself since a door only answers lookups."""
+    with (TOOL_CALL_CATALOGS_DIR / csv_name).open(newline="") as f:
+        return list(csv.DictReader(f))
 
 
-CATALOG_TOOLS = _catalog_tools()
+CATALOG_TOOLS = [
+    HarnessTool(row["harness"], row["tool"]) for row in _catalog_rows(HARNESS_TOOLS_CSV)
+]
 # The action of each Deferred tool for a call without arguments.
 DEFERRED_ACTION_WITHOUT_ARGUMENTS = {
     HarnessTool("codex", "exec"): RunToolScriptAction(),
@@ -45,6 +64,39 @@ MUSE_REMINDER = (
     "Use bash tools like head, tail, cat, sed, or grep to inspect and search the full output.\n"
     "</system-reminder>"
 )
+
+
+@functools.cache
+def _test_module_of(harness: str) -> ModuleType:
+    """Load the test file of a harness, e.g. `test_harness_grok_build.py` for `grok-build`, to read its case tables."""
+    file = Path(__file__).parent / f"test_harness_{harness.replace('-', '_')}.py"
+    spec = importlib.util.spec_from_file_location(f"{file.stem}_cases", file)
+    assert spec is not None and spec.loader is not None, file
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _result_format_case_keys_of(harness: str) -> frozenset[tuple[str, str]]:
+    """Read the tool and the expected format name of every row of `RESULT_FORMAT_CASES` in the test file of a harness."""
+    return frozenset(
+        (tool, str(expected.harness_result_format))
+        for tool, _, expected in _test_module_of(harness).RESULT_FORMAT_CASES
+    )
+
+
+def _action_case_keys_of(harness: str) -> frozenset[tuple[str, str]]:
+    """Read the tool and every argument name of every row of `ACTION_CASES` in the test file of a harness."""
+    return frozenset(
+        (tool, argument)
+        for tool, args, _ in _test_module_of(harness).ACTION_CASES
+        for argument in args
+    )
+
+
+def _action_case_tools_of(harness: str) -> frozenset[str]:
+    """Read the tool of every row of `ACTION_CASES` in the test file of a harness."""
+    return frozenset(tool for tool, _, _ in _test_module_of(harness).ACTION_CASES)
 
 
 def _harness_tool_call(
@@ -68,8 +120,53 @@ def _converted_result(
     return tool_call.result
 
 
+def test_every_declared_result_format_has_a_case_in_the_test_file_of_its_harness():
+    missing = [
+        (harness, tool, harness_result_format.name)
+        for harness, tool, harness_result_format in iter_declared_formats()
+        if (tool, harness_result_format.name)
+        not in _result_format_case_keys_of(harness)
+    ]
+    assert not missing, "declared result formats without a row in RESULT_FORMAT_CASES"
+
+
+def test_every_argument_row_of_the_catalog_has_a_case_in_the_test_file_of_its_harness():
+    missing = [
+        (row["harness"], row["tool"], row["argument"])
+        for row in _catalog_rows(HARNESS_TOOL_ARGUMENTS_CSV)
+        if (row["tool"], row["argument"]) not in _action_case_keys_of(row["harness"])
+    ]
+    assert not missing, "argument rows without a row in ACTION_CASES"
+
+
+def test_every_poll_tool_of_the_catalog_has_a_case_that_states_its_terminate():
+    # A `stops_execution` that flips would change only `terminate`, which every poll case states.
+    missing = [
+        (row["harness"], row["tool"])
+        for row in _catalog_rows(HARNESS_TOOLS_CSV)
+        if row["action_type"] == PollAction.__name__
+        and row["tool"] not in _action_case_tools_of(row["harness"])
+    ]
+    assert not missing, "poll tools without a row in ACTION_CASES"
+
+
 def test_every_harness_of_the_catalog_has_a_converter():
     assert set(CONVERTERS) == {tool.harness for tool in CATALOG_TOOLS}
+
+
+def test_each_harness_gets_the_converter_of_its_own_class():
+    converter_classes = {
+        harness: type(converter_for(harness)) for harness in CONVERTERS
+    }
+    assert converter_classes == {
+        "claude-code": ClaudeCodeConverter,
+        "codex": CodexConverter,
+        "cursor-cli": CursorCliConverter,
+        "devin": HarnessToolCallConverter,
+        "grok-build": GrokBuildConverter,
+        "mini-swe-agent": HarnessToolCallConverter,
+        "muse-code": MuseCodeConverter,
+    }
 
 
 def test_every_deferred_tool_gets_its_action_even_without_arguments():
@@ -77,7 +174,7 @@ def test_every_deferred_tool_gets_its_action_even_without_arguments():
     deferred_tools = {
         tool
         for tool in CATALOG_TOOLS
-        if isinstance(label := knowledge.harness_tool_label(tool), HarnessToolLabel)
+        if isinstance(label := knowledge.harness_tool_label(tool, ()), HarnessToolLabel)
         and label.action_type == DEFERRED
     }
     assert deferred_tools == set(DEFERRED_ACTION_WITHOUT_ARGUMENTS)

@@ -39,7 +39,9 @@ _NOTICES = (
 
 # Formats several tools share, a rejected call and a safety-classifier stop.
 _TOOL_USE_ERROR = Text(
-    "tool_use_error", "<tool_use_error>{reason:text}</tool_use_error>", S.NOT_RUN
+    "tool_use_error",
+    "<tool_use_error>{reason:text}</tool_use_error>",
+    judgment_rule="treat_tool_failure_message_as_not_run",
 )
 # The interrupted call was already running and "may have partially or fully completed".
 _INTERRUPTED_CLASSIFIER = Text(
@@ -101,16 +103,17 @@ _BASH_OK = HarnessResultFormatList[str](
             S.RUNNING,
             fixed_handle_kind=ExecutionHandleKind.COMMAND,
         ),
+        # The text says only that the output was too large and where it was saved, not how the command ended, so the status comes from the rule of `bare_output`.
         Text(
             "persisted_output",
             _PERSISTED_HEAD + "{tool_output:text}\n</persisted-output>",
-            S.FINISHED,
+            judgment_rule="treat_bash_output_without_exit_code_line_as_finished",
             is_truncated=True,
         ),
         Text(
             "persisted_output_partial",
             _PERSISTED_PARTIAL_HEAD + "{tool_output:text}\n</persisted-output>",
-            S.FINISHED,
+            judgment_rule="treat_bash_output_without_exit_code_line_as_finished",
             is_truncated=True,
         ),
         # Not judged an error, so no header. The exit code is 0, or 1 for grep, find, diff and the like.
@@ -356,13 +359,13 @@ _WEB_SEARCH = HarnessResultFormatList[str](
         Text(
             "cut_off",
             "The search was cut off before any results arrived. Try again.",
-            S.FINISHED,
+            judgment_rule="treat_cut_off_web_search_as_finished",
         ),
         Text("results", _SEARCH_HEAD + "{tool_output:text}" + _SEARCH_FOOT, S.FINISHED),
     )
 )
 
-_TASK_KINDS = {
+_HANDLE_KIND_BY_TASK_TYPE = {
     "local_bash": ExecutionHandleKind.COMMAND,
     "local_agent": ExecutionHandleKind.SUBAGENT,
 }
@@ -373,7 +376,7 @@ _TASK_STOP = HarnessResultFormatList[JsonObject](
             S.KILLED,
             {"handle": "task_id", "handle_kind_name": "task_type"},
             present_paths=("task_id", "message"),
-            handle_kind_by_name=_TASK_KINDS,
+            handle_kind_by_name=_HANDLE_KIND_BY_TASK_TYPE,
         ),
     )
 )
@@ -396,7 +399,7 @@ _TASK_STOP_TEXT = HarnessResultFormatList[str](
     )
 )
 
-_TASK_FIELDS = {
+_TASK_VALUE_PATHS = {
     "tool_output": "task.output",
     "exit_code": "task.exitCode",
     "handle": "task.task_id",
@@ -407,9 +410,9 @@ _TASK_OUTPUT = HarnessResultFormatList[JsonObject](
         Json(
             f"task_{state}",
             status,
-            _TASK_FIELDS,
+            _TASK_VALUE_PATHS,
             condition=JsonCondition("task.status", "==", state),
-            handle_kind_by_name=_TASK_KINDS,
+            handle_kind_by_name=_HANDLE_KIND_BY_TASK_TYPE,
         )
         for state, status in (
             ("running", S.RUNNING),

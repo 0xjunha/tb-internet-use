@@ -74,12 +74,14 @@ _RUN_TERMINAL_COMMAND = HarnessResultFormatList[str](
             fixed_handle_kind=ExecutionHandleKind.COMMAND,
         ),
         Text(
-            "rejected", "Tool `run_terminal_command` failed: {reason:text}", S.NOT_RUN
+            "rejected",
+            "Tool `run_terminal_command` failed: {reason:text}",
+            judgment_rule="treat_tool_failure_message_as_not_run",
         ),
         Text(
             "rejected_arguments",
             "Failed to parse arguments for tool `run_terminal_command`: {reason:text}",
-            S.NOT_RUN,
+            judgment_rule="treat_tool_failure_message_as_not_run",
         ),
     ),
     notices=_NOTICES,
@@ -95,12 +97,12 @@ _MISSING = Text(
     "Error: {path:line} does not exist.",
     judgment_rule="treat_failed_file_tool_call_as_not_run",
 )
-# What Grok writes in place of an empty task output.
+# What Grok Build writes in place of an empty task output.
 _EMPTY = "(no output)"
 
 
 def _task_head_template_for(status: str, *, with_exit_code: bool = False) -> str:
-    """A task's poll result up to its output."""
+    """Build the template of a task's poll result up to its output."""
     exit_line = "Exit Code: {exit_code:int}\n" if with_exit_code else ""
     return (
         _TASK
@@ -117,7 +119,7 @@ _FAILED_SIGNALED = _task_head_template_for("failed")
 _RUNNING = _task_head_template_for("running")
 _CANCELLED = _task_head_template_for("cancelled")
 _TIMED_OUT = _task_head_template_for("timed_out")
-_MULTI_WAIT = Text(
+_WAIT_ON_SEVERAL_TASKS = Text(
     "multi_wait",
     "=== Multi-wait ({mode:line_without_brackets}) ===\n{tool_output:text}",
     S.UNKNOWN,
@@ -215,11 +217,11 @@ _GET_OUTPUT = HarnessResultFormatList[str](
             S.TIMED_OUT,
             fixed_handle_kind=ExecutionHandleKind.COMMAND,
         ),
-        _MULTI_WAIT,
+        _WAIT_ON_SEVERAL_TASKS,
         Text(
             "rejected",
             "Tool `get_command_or_subagent_output` failed: {reason:text}",
-            S.NOT_RUN,
+            judgment_rule="treat_tool_failure_message_as_not_run",
         ),
         Text(
             "unknown_task",
@@ -345,7 +347,7 @@ _SEARCH_REPLACE = HarnessResultFormatList[str](
         Text(
             "rejected_arguments",
             "Failed to parse arguments for tool `search_replace`: {reason:text}",
-            S.NOT_RUN,
+            judgment_rule="treat_tool_failure_message_as_not_run",
         ),
     ),
     notices=_NOTICES,

@@ -22,20 +22,20 @@ S = ExecutionStatus
 Json = HarnessJsonResultFormat
 Text = HarnessTextResultFormat
 
-_SHELL_FIELDS = {
+_SHELL_VALUE_PATHS = {
     "tool_output": "output",
     "exit_code": "exit_code",
     "is_truncated": "truncated",
 }
-# Muse starts the output with this note when it replaced bytes that are not UTF-8.
+# Muse Code starts the output with this note when it replaced bytes that are not UTF-8.
 _REPLACED_BYTES_NOTE = re.compile(
     r"\[unified exec output: \d+ invalid UTF-8 bytes? replaced with U\+FFFD\]\n?"
 )
 
 
-def _shell_output_text_of(values: MatchedValues) -> str:
-    """The output, without the note Muse puts before it when it replaced invalid UTF-8 bytes."""
-    output = json_tool_output_text_of(values)
+def _shell_output_text_of(matched_values: MatchedValues) -> str:
+    """Give the output without the note Muse Code puts before it when it replaced invalid UTF-8 bytes."""
+    output = json_tool_output_text_of(matched_values)
     note = _REPLACED_BYTES_NOTE.match(output)
     return output[note.end() :] if note else output
 
@@ -44,14 +44,14 @@ def _shell_output_text_of(values: MatchedValues) -> str:
 _SHELL_EXITED = Json(
     "exited",
     S.FINISHED,
-    _SHELL_FIELDS,
+    _SHELL_VALUE_PATHS,
     condition=JsonCondition("terminal_status", "==", "completed"),
     text_from_matched_values=_shell_output_text_of,
 )
 _SHELL_FAILED = Json(
     "failed",
     S.FINISHED,
-    _SHELL_FIELDS,
+    _SHELL_VALUE_PATHS,
     present_paths=("exit_code",),
     condition=JsonCondition("terminal_status", "==", "failed"),
     text_from_matched_values=_shell_output_text_of,
@@ -75,7 +75,7 @@ _BASH = HarnessResultFormatList[JsonObject](
         Json(
             "signaled",
             S.KILLED,
-            _SHELL_FIELDS,
+            _SHELL_VALUE_PATHS,
             absent_paths=("exit_code",),
             condition=JsonCondition(
                 "terminal_reason", "startswith", "process exited with signal"
@@ -92,15 +92,19 @@ _BASH_INPUT = HarnessResultFormatList[JsonObject](
         Json(
             "cancelled",
             S.KILLED,
-            _SHELL_FIELDS,
+            _SHELL_VALUE_PATHS,
             condition=JsonCondition("terminal_status", "==", "cancelled"),
             text_from_matched_values=_shell_output_text_of,
         ),
         _SHELL_BACKGROUND,
     )
 )
-# Any tool's call that Muse refused.
-_REJECTED = Text("rejected", "tool failed: {reason:text}", S.NOT_RUN)
+# Any tool's call that Muse Code refused.
+_REJECTED = Text(
+    "rejected",
+    "tool failed: {reason:text}",
+    judgment_rule="treat_tool_failure_message_as_not_run",
+)
 _SHELL_TEXT = HarnessResultFormatList[str]((_REJECTED,))
 
 _WORK_STOP = HarnessResultFormatList[JsonObject](
@@ -114,8 +118,8 @@ _WORK_STOP = HarnessResultFormatList[JsonObject](
         ),
         Json(
             "already_ended",
-            S.FINISHED,
-            {"handle": "work_id"},
+            value_paths={"handle": "work_id"},
+            judgment_rule="treat_stop_request_for_ended_work_as_finished",
             condition=JsonCondition("status", "==", "already_terminal"),
             fixed_handle_kind=ExecutionHandleKind.COMMAND,
         ),

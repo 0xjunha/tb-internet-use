@@ -9,7 +9,6 @@ import pytest
 from tb_internet_use.knowledge.catalog import KnowledgeUses
 from tb_internet_use.knowledge.tool_call_knowledge import (
     HARNESS_RESULT_FORMATS_DECLARATIONS,
-    HarnessToolLabel,
     ToolCallKnowledge,
 )
 from tb_internet_use.tool_call import convert_tool_calls
@@ -19,19 +18,16 @@ from tb_internet_use.tool_call.harnesses.harness_tool_call_converter import (
     HarnessToolCallConverter,
 )
 from tb_internet_use.tool_call.model import (
-    DeleteFileAction,
     ExecutionHandle,
     ExecutionHandleKind,
     ExecutionStatus,
     HarnessTool,
     HarnessToolCall,
-    ListFilesAction,
+    HarnessToolLabel,
     PollAction,
     ReadFileAction,
     RunCommandAction,
     RunToolScriptAction,
-    SearchFilesAction,
-    StartSubagentAction,
     ToolCallAction,
     ToolCallKey,
     ToolCallResult,
@@ -44,18 +40,18 @@ from tb_internet_use.tool_call.model import (
 S = ExecutionStatus
 
 
-def _claude_code_result(text: str, structured: dict[str, Any] | None = None):
-    """A Claude Code result as Harbor writes it, with the original text and, when given, the structured result in the metadata."""
+def _claude_code_result(text: str, structured_result: dict[str, Any] | None = None):
+    """Give a Claude Code result as Harbor writes it, with the original text and, when given, the structured result in the metadata."""
     metadata: dict[str, Any] = {
         "raw_tool_result": {"type": "tool_result", "content": text}
     }
-    if structured is not None:
-        metadata["tool_use_result"] = structured
+    if structured_result is not None:
+        metadata["tool_use_result"] = structured_result
     return {"content": text, "extra": {"tool_result_metadata": metadata}}
 
 
 def _codex_script_result(state: str, printed: str) -> dict[str, Any]:
-    """A Codex `exec` result, a Python list of the state of the script and what it printed."""
+    """Give a Codex `exec` result, a Python list of the state of the script and what it printed."""
     items = [
         {"type": "input_text", "text": state + "\nWall time 0.1 seconds\nOutput:\n"},
         {"type": "input_text", "text": printed},
@@ -67,6 +63,10 @@ _GROK_FAILED_TASK = (
     "=== Task call1 ===\nCommand: sleep 5\nStatus: failed\nDuration: 1.0s\n"
 )
 _GROK_TASK_OUTPUT = "Output File: /t.log\n\n=== Output ===\npartial\n"
+_DEVIN_DIFF_HEAD = (
+    "[Changes since your last read, shown as a unified diff: '+' lines are new, '-' lines were "
+    "replaced/removed in place, ' ' lines are unchanged context; '@@' line numbers index into the full output.]\n"
+)
 
 # Made-up results whose status or exit code the result text does not state, one or more per judgment rule.
 # (harness, tool, result, expected status and exit code, expected judgment rule uses)
@@ -91,6 +91,21 @@ JUDGMENT_RULE_CASES: list[
         _claude_code_result("hello"),
         (S.FINISHED, None),
         {"treat_bash_output_without_exit_code_line_as_finished": 1},
+    ),
+    # A result that only says where the too large output was saved has no `Exit code` line either.
+    (
+        "claude-code",
+        "Bash",
+        _claude_code_result(
+            "<persisted-output>\nOutput too large (3.1KB). Full output saved to: /tmp/p.txt\n\n"
+            "Preview (first 2KB):\nhead\n</persisted-output>",
+            {"stdout": "head", "interrupted": False},
+        ),
+        (S.FINISHED, 0),
+        {
+            "treat_bash_output_without_exit_code_line_as_finished": 1,
+            "treat_bash_output_without_exit_code_line_as_exit_code_0": 1,
+        },
     ),
     (
         "claude-code",
@@ -127,7 +142,6 @@ JUDGMENT_RULE_CASES: list[
         (S.RUNNING, None),
         {"treat_get_output_without_exit_code_as_running": 1},
     ),
-    # The format names the rule, and the Devin converter, which applies it again, finds no code left to count.
     (
         "devin",
         "exec",
@@ -164,79 +178,62 @@ JUDGMENT_RULE_CASES: list[
         (S.FINISHED, 2),
         {},
     ),
-]
-
-_SUBAGENT = ExecutionHandle(ExecutionHandleKind.SUBAGENT, "a1")
-# (harness, tool, arguments of a call, action of the call), one case per tool that reads, searches, lists or deletes files or that starts or polls a subagent.
-_FILE_AND_SUBAGENT_TOOL_CASES = [
-    ("codex", "view_image", {"path": "/app/plot.png"}, ReadFileAction("/app/plot.png")),
     (
-        "cursor-cli",
-        "grepToolCall",
-        {"pattern": "x", "path": "/app/run.log"},
-        SearchFilesAction(("/app/run.log",)),
-    ),
-    ("devin", "grep", {"pattern": "x", "path": "/app"}, SearchFilesAction(("/app",))),
-    (
-        "grok-build",
-        "grep",
-        {"pattern": "x", "path": "/app"},
-        SearchFilesAction(("/app",)),
-    ),
-    # A search that names no path keeps its type.
-    ("grok-build", "grep", {"pattern": "x"}, SearchFilesAction()),
-    (
-        "muse-code",
-        "search",
-        {"pattern": "x", "paths": ["/app/a", "/app/b"]},
-        SearchFilesAction(("/app/a", "/app/b")),
+        "claude-code",
+        "Edit",
+        _claude_code_result(
+            "<tool_use_error>File has not been read yet.</tool_use_error>"
+        ),
+        (S.NOT_RUN, None),
+        {"treat_tool_failure_message_as_not_run": 1},
     ),
     (
-        "cursor-cli",
-        "globToolCall",
-        {"globPattern": "*.log", "targetDirectory": "/app"},
-        ListFilesAction("/app"),
+        "codex",
+        "exec_command",
+        {"content": "exec_command failed: no such shell"},
+        (S.NOT_RUN, None),
+        {"treat_tool_failure_message_as_not_run": 1},
     ),
     (
         "devin",
-        "find_file_by_name",
-        {"pattern": "*.log", "path": "/app"},
-        ListFilesAction("/app"),
+        "read",
+        {"content": "Tool 'read' validation failed: a required argument is missing"},
+        (S.NOT_RUN, None),
+        {"treat_tool_failure_message_as_not_run": 1},
     ),
-    ("grok-build", "list_dir", {"target_directory": "/app"}, ListFilesAction("/app")),
+    (
+        "devin",
+        "get_output",
+        {"content": _DEVIN_DIFF_HEAD + "@@ -1 +1,2 @@\n a\n+b\n"},
+        (S.RUNNING, None),
+        {"treat_get_output_without_exit_code_as_running": 1},
+    ),
+    # The exit code beside the shell id is not read.
     (
         "cursor-cli",
-        "deleteToolCall",
-        {"path": "/app/a.txt"},
-        DeleteFileAction("/app/a.txt"),
+        "shellToolCall",
+        {
+            "content": '{"success": {"shellId": "3", "exitCode": 0, "interleavedOutput": "started"}}'
+        },
+        (S.RUNNING, None),
+        {"treat_shell_id_with_exit_code_as_running": 1},
     ),
-    ("claude-code", "Agent", {"prompt": "p"}, StartSubagentAction()),
-    ("cursor-cli", "taskToolCall", {"prompt": "p"}, StartSubagentAction()),
-    ("devin", "run_subagent", {"task": "p"}, StartSubagentAction()),
-    ("muse-code", "subagent_spawn", {"objective": "p"}, StartSubagentAction()),
-    ("muse-code", "workflow", {"script": "s"}, StartSubagentAction()),
-    # `recipient` names the same subagent as `to`, and the message text fills no field.
+    (
+        "muse-code",
+        "work_stop",
+        {"content": '{"status": "already_terminal", "work_id": "w1"}'},
+        (S.FINISHED, None),
+        {"treat_stop_request_for_ended_work_as_finished": 1},
+    ),
     (
         "claude-code",
-        "SendMessage",
-        {
-            "to": "a1",
-            "recipient": "a1",
-            "message": "go on with the build",
-            "content": "go on…",
-            "summary": "s",
-        },
-        PollAction((_SUBAGENT,)),
+        "WebSearch",
+        _claude_code_result(
+            "The search was cut off before any results arrived. Try again."
+        ),
+        (S.FINISHED, None),
+        {"treat_cut_off_web_search_as_finished": 1},
     ),
-    ("devin", "read_subagent", {"agent_id": "a1"}, PollAction((_SUBAGENT,))),
-    ("codex", "wait_agent", {"timeout_ms": 1000}, PollAction()),
-    (
-        "codex",
-        "interrupt_agent",
-        {"target": "a1"},
-        PollAction((_SUBAGENT,), None, True),
-    ),
-    ("muse-code", "subagent_status", {"subagent_id": "a1"}, PollAction((_SUBAGENT,))),
 ]
 
 
@@ -310,14 +307,14 @@ def test_maps_labeled_args_and_ignores_the_rest():
     assert _converted(harness_tool_call).action == RunCommandAction("ls")
 
 
-def test_parses_output_when_the_trajectory_has_a_result():
+def test_converts_the_result_when_the_trajectory_has_one():
     harness_tool_call = _harness_tool_call(
         "claude-code", "Bash", result={"content": "ok"}
     )
     assert _converted(harness_tool_call).result == ToolCallResult(tool_output_text="ok")
 
 
-def test_output_is_none_without_a_result():
+def test_result_is_none_without_one_in_the_trajectory():
     assert _converted(_harness_tool_call("claude-code", "Bash")).result is None
 
 
@@ -371,23 +368,6 @@ def test_empty_stdin_input_means_the_poll_only_reads():
     assert action.input is None
 
 
-def test_non_integer_offset_is_dropped():
-    harness_tool_call = _harness_tool_call(
-        "claude-code", "Read", {"file_path": "/a", "offset": "bad", "limit": 3}
-    )
-    assert _converted(harness_tool_call).action == ReadFileAction("/a", None, 3)
-
-
-@pytest.mark.parametrize(
-    ("harness", "tool", "args", "action"), _FILE_AND_SUBAGENT_TOOL_CASES
-)
-def test_file_or_subagent_tool_gets_the_action_of_its_catalog_rows(
-    harness, tool, args, action
-):
-    harness_tool_call = _harness_tool_call(harness, tool, args)
-    assert _converted(harness_tool_call, converter_for(harness)).action == action
-
-
 def test_two_arguments_of_one_field_join_their_values_or_make_the_call_unknown():
     # `handles` holds several values, so it takes the targets of both arguments.
     harness_tool_call = _harness_tool_call(
@@ -396,6 +376,13 @@ def test_two_arguments_of_one_field_join_their_values_or_make_the_call_unknown()
     action = _converted(harness_tool_call).action
     assert isinstance(action, PollAction)
     assert [handle.id for handle in action.handles] == ["a1", "a2"]
+    # Two arguments that name the same target give one handle, as in every such call of the trajectories.
+    harness_tool_call = _harness_tool_call(
+        "claude-code", "SendMessage", {"to": "a1", "recipient": "a1"}
+    )
+    action = _converted(harness_tool_call).action
+    assert isinstance(action, PollAction)
+    assert [handle.id for handle in action.handles] == ["a1"]
     # `path` holds one value, so two arguments must agree on it.
     harness_tool_call = _harness_tool_call(
         "claude-code", "Write", {"file_path": "/a", "path": "/a"}
@@ -407,7 +394,7 @@ def test_two_arguments_of_one_field_join_their_values_or_make_the_call_unknown()
     assert _converted(harness_tool_call).action == UnknownAction()
 
 
-def test_refine_action_gets_the_action_the_output_and_the_label():
+def test_refine_action_gets_the_action_the_result_and_the_label():
     harness_tool_call = _harness_tool_call(
         "claude-code", "TaskStop", {"task_id": "task-1"}, {"content": "done"}
     )
@@ -416,7 +403,7 @@ def test_refine_action_gets_the_action_the_output_and_the_label():
     assert action == PollAction((handle,), "done", True)
 
 
-def test_deferred_tool_uses_deferred_action_with_the_output():
+def test_deferred_tool_uses_deferred_action_with_the_result():
     harness_tool_call = _harness_tool_call(
         "codex", "exec", {"input": "code"}, {"content": "done"}
     )
@@ -493,18 +480,20 @@ def test_converter_for_an_unknown_harness_raises():
 
 def test_convert_tool_calls_counts_each_judgment_rule_that_a_converter_applies():
     use_counts: Counter[str] = Counter()
-    # A Devin format that reads -1 as an exit code, so that only the rule makes it killed.
-    killed = {"content": "foo\nExit code: -1"}
-    exited = {"content": "foo\nExit code: 0"}
+    head = "Chunk ID: c1\nWall time: 0.1 seconds\nProcess exited with code {}\nOriginal token count: 0\nOutput:\n"
+    # A Codex format that reads 130 as an exit code, so that only the rule of the converter makes it killed.
+    killed = {"content": head.format(130)}
+    exited = {"content": head.format(0)}
+    ctrl_c = {"session_id": 7, "chars": "\x03"}
     raws = [
-        _harness_tool_call("devin", "get_output", {"shell_id": "s1"}, killed),
-        _harness_tool_call("devin", "get_output", {"shell_id": "s1"}, exited),
-        _harness_tool_call("devin", "get_output", {"shell_id": "s1"}, killed),
+        _harness_tool_call("codex", "write_stdin", ctrl_c, killed),
+        _harness_tool_call("codex", "write_stdin", ctrl_c, exited),
+        _harness_tool_call("codex", "write_stdin", ctrl_c, killed),
     ]
     convert_tool_calls(
         raws, knowledge=ToolCallKnowledge(), judgment_rule_use_counts=use_counts
     )
-    assert use_counts == Counter({"treat_negative_exit_code_as_killed": 2})
+    assert use_counts == Counter({"treat_exit_code_130_after_ctrl_c_as_killed": 2})
 
 
 @pytest.mark.parametrize(

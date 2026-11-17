@@ -15,7 +15,7 @@ from tb_internet_use.knowledge.harness_result_format_declaration import (
     strip_line_numbers,
 )
 from tb_internet_use.tool_call._convert_tool_call_result import (
-    result_from_harness_result_format,
+    result_from_matched_or_unmatched_format,
 )
 from tb_internet_use.tool_call.model import (
     ExecutionHandle,
@@ -48,26 +48,77 @@ def _converted(
     format_list: HarnessResultFormatList[Any],
 ):
     """Match a tool result against one list, as the JSON list for a JSON object and as the text list otherwise, and build its `ToolCallResult`."""
-    tool_result_formats = (
+    harness_tool_result_declaration = (
         HarnessToolResultDeclaration(text_formats=format_list)
         if tool_result_json is None
         else HarnessToolResultDeclaration(json_formats=format_list)
     )
-    harness_result_format = tool_result_formats.harness_result_format_of(
-        tool_result_raw_text, tool_result_json, is_marked_as_error=False
+    matched_or_unmatched_format = (
+        harness_tool_result_declaration.harness_result_format_of(
+            tool_result_raw_text, tool_result_json, is_marked_as_error=False
+        )
     )
-    return result_from_harness_result_format(
-        tool_result_raw_text, harness_result_format, judgment_rule_use_counts=Counter()
+    return result_from_matched_or_unmatched_format(
+        tool_result_raw_text,
+        matched_or_unmatched_format,
+        judgment_rule_use_counts=Counter(),
     )
 
 
-def _json_tool_call_result(fmt: HarnessJsonResultFormat, tool_result_json: JsonObject):
-    """Parse a JSON tool result with a list that holds only `fmt`."""
+def _json_tool_call_result(
+    harness_result_format: HarnessJsonResultFormat, tool_result_json: JsonObject
+):
+    """Convert a JSON tool result with a list that holds only `harness_result_format`."""
     return _converted(
         json.dumps(tool_result_json),
         tool_result_json,
-        HarnessResultFormatList[JsonObject]((fmt,)),
+        HarnessResultFormatList[JsonObject]((harness_result_format,)),
     )
+
+
+JSON_FORMATS = HarnessResultFormatList[dict](
+    (
+        Json(
+            "timed_out",
+            S.TIMED_OUT,
+            {"tool_output": "output"},
+            condition=JsonCondition("error", "contains", "timed out"),
+        ),
+        Json(
+            "killed",
+            S.KILLED,
+            {"tool_output": "output", "exit_code": "code"},
+            absent_paths=("error",),
+            condition=JsonCondition("code", "<", 0),
+        ),
+        Json(
+            "saved",
+            S.FINISHED,
+            {"tool_output": ("head", "tail"), "output_path": "saved.path"},
+            present_paths=("saved",),
+            is_truncated=True,
+        ),
+        Json(
+            "exited",
+            S.FINISHED,
+            {"tool_output": "output", "exit_code": "code", "is_truncated": "cut"},
+            present_paths=("output", "code"),
+            absent_paths=("error", "saved"),
+        ),
+    )
+)
+
+
+def _counted_result_of(harness_result_format: HarnessTextResultFormat, raw_text: str):
+    """Build the result of a text that `harness_result_format` matches, with the judgment rule uses it counted."""
+    use_counts: Counter[str] = Counter()
+    matched_or_unmatched_format = HarnessToolResultDeclaration(
+        text_formats=HarnessResultFormatList[str]((harness_result_format,))
+    ).harness_result_format_of(raw_text, None, is_marked_as_error=False)
+    tool_call_result = result_from_matched_or_unmatched_format(
+        raw_text, matched_or_unmatched_format, judgment_rule_use_counts=use_counts
+    )
+    return tool_call_result, use_counts
 
 
 def test_text_format_matches_start_to_end_and_fills_fields():
@@ -142,7 +193,7 @@ def test_tool_with_formats_but_no_text_is_unknown_not_skipped():
 
 
 def test_skipped_format_keeps_the_content_with_unknown_status():
-    tool_call_result = result_from_harness_result_format(
+    tool_call_result = result_from_matched_or_unmatched_format(
         "anything", UnmatchedFormat.SKIPPED, judgment_rule_use_counts=Counter()
     )
     assert (
@@ -191,42 +242,13 @@ def test_format_with_no_tool_output_text_gives_none_not_empty():
 
 def test_partly_numbered_listing_keeps_content_lines_that_are_only_digits():
     assert strip_line_numbers("1→a\n42\n3→c", "→", every_line=False) == "a\n42\nc"
-    fmt = Text("listing", "{tool_output:partly_numbered_arrow}", S.FINISHED)
-    tool_call_result = _converted("1→a\n42", None, HarnessResultFormatList[str]((fmt,)))
-    assert tool_call_result.tool_output_text == "a\n42"
-
-
-JSON_FORMATS = HarnessResultFormatList[dict](
-    (
-        Json(
-            "timed_out",
-            S.TIMED_OUT,
-            {"tool_output": "output"},
-            condition=JsonCondition("error", "contains", "timed out"),
-        ),
-        Json(
-            "killed",
-            S.KILLED,
-            {"tool_output": "output", "exit_code": "code"},
-            absent_paths=("error",),
-            condition=JsonCondition("code", "<", 0),
-        ),
-        Json(
-            "saved",
-            S.FINISHED,
-            {"tool_output": ("head", "tail"), "output_path": "saved.path"},
-            present_paths=("saved",),
-            is_truncated=True,
-        ),
-        Json(
-            "exited",
-            S.FINISHED,
-            {"tool_output": "output", "exit_code": "code", "is_truncated": "cut"},
-            present_paths=("output", "code"),
-            absent_paths=("error", "saved"),
-        ),
+    harness_result_format = Text(
+        "listing", "{tool_output:partly_numbered_arrow}", S.FINISHED
     )
-)
+    tool_call_result = _converted(
+        "1→a\n42", None, HarnessResultFormatList[str]((harness_result_format,))
+    )
+    assert tool_call_result.tool_output_text == "a\n42"
 
 
 def test_json_format_is_chosen_by_keys_and_condition():
@@ -275,14 +297,14 @@ def test_json_fields_follow_paths_and_join_text_parts():
     assert (tool_call_result.exit_code, tool_call_result.is_truncated) == (4, True)
 
 
-def test_output_names_the_format_and_handles():
-    fmt = Json(
+def test_result_names_the_format_and_handles():
+    harness_result_format = Json(
         "running",
         S.RUNNING,
         {"handles": "ids"},
         fixed_handle_kind=ExecutionHandleKind.SUBAGENT,
     )
-    tool_call_result = _json_tool_call_result(fmt, {"ids": ["a", 2]})
+    tool_call_result = _json_tool_call_result(harness_result_format, {"ids": ["a", 2]})
     assert tool_call_result.harness_result_format == MatchedFormat("running")
     assert [(h.kind, h.id) for h in tool_call_result.handles] == [
         (ExecutionHandleKind.SUBAGENT, "a"),
@@ -291,36 +313,42 @@ def test_output_names_the_format_and_handles():
 
 
 def test_a_text_placeholder_named_handles_gives_one_handle():
-    fmt = Text(
+    harness_result_format = Text(
         "running",
         "IDs {handles:id}",
         S.RUNNING,
         fixed_handle_kind=ExecutionHandleKind.COMMAND,
     )
-    tool_call_result = _converted("IDs ab", None, HarnessResultFormatList[str]((fmt,)))
+    tool_call_result = _converted(
+        "IDs ab", None, HarnessResultFormatList[str]((harness_result_format,))
+    )
     assert [h.id for h in tool_call_result.handles] == ["ab"]
 
 
 def test_json_handles_may_come_from_several_paths():
-    fmt = Json(
+    harness_result_format = Json(
         "running",
         S.RUNNING,
         {"handles": ("session", "work")},
         present_paths=("session",),
         fixed_handle_kind=ExecutionHandleKind.COMMAND,
     )
-    tool_call_result = _json_tool_call_result(fmt, {"session": 4, "work": "w1"})
+    tool_call_result = _json_tool_call_result(
+        harness_result_format, {"session": 4, "work": "w1"}
+    )
     assert [h.id for h in tool_call_result.handles] == ["4", "w1"]
 
 
 def test_empty_or_wrongly_typed_values_fill_no_field():
-    fmt = Json(
+    harness_result_format = Json(
         "done",
         S.FINISHED,
         {"handle": "id", "exit_code": "code", "output_path": "path"},
         fixed_handle_kind=ExecutionHandleKind.COMMAND,
     )
-    tool_call_result = _json_tool_call_result(fmt, {"id": "", "code": True, "path": ""})
+    tool_call_result = _json_tool_call_result(
+        harness_result_format, {"id": "", "code": True, "path": ""}
+    )
     assert (
         tool_call_result.handles,
         tool_call_result.exit_code,
@@ -329,28 +357,34 @@ def test_empty_or_wrongly_typed_values_fill_no_field():
 
 
 def test_text_from_matched_values_builds_the_text_from_the_placeholders():
-    fmt = Text(
+    harness_result_format = Text(
         "two",
         "{a:line}|{b:line}",
         S.FINISHED,
         text_from_matched_values=lambda f: f["b"] + f["a"],
     )
-    tool_call_result = _converted("x|y", None, HarnessResultFormatList[str]((fmt,)))
+    tool_call_result = _converted(
+        "x|y", None, HarnessResultFormatList[str]((harness_result_format,))
+    )
     assert tool_call_result.tool_output_text == "yx"
 
 
 def test_json_handle_kind_can_come_from_a_result_value():
-    fmt = Json(
+    harness_result_format = Json(
         "done",
         S.FINISHED,
         {"handle": "id", "handle_kind_name": "kind"},
         handle_kind_by_name={"agent": ExecutionHandleKind.SUBAGENT},
     )
-    tool_call_result = _json_tool_call_result(fmt, {"id": "t", "kind": "agent"})
+    tool_call_result = _json_tool_call_result(
+        harness_result_format, {"id": "t", "kind": "agent"}
+    )
     assert tool_call_result.handles == (
         ExecutionHandle(ExecutionHandleKind.SUBAGENT, "t"),
     )
-    tool_call_result = _json_tool_call_result(fmt, {"id": "t", "kind": "other"})
+    tool_call_result = _json_tool_call_result(
+        harness_result_format, {"id": "t", "kind": "other"}
+    )
     assert tool_call_result.handles == (
         ExecutionHandle(ExecutionHandleKind.UNKNOWN, "t"),
     )
@@ -366,7 +400,7 @@ def test_a_notice_shaped_block_inside_the_tool_output_is_kept():
 
 
 def test_json_nulls_give_no_handle_and_no_text_part():
-    fmt = Json(
+    harness_result_format = Json(
         "background",
         S.RUNNING,
         {"tool_output": ("head", "tail"), "handles": ("session_id", "work_id")},
@@ -378,34 +412,28 @@ def test_json_nulls_give_no_handle_and_no_text_part():
         "session_id": None,
         "work_id": "w1",
     }
-    tool_call_result = _json_tool_call_result(fmt, tool_result_json)
+    tool_call_result = _json_tool_call_result(harness_result_format, tool_result_json)
     assert tool_call_result.tool_output_text == '{"k": 1}'
     assert [h.id for h in tool_call_result.handles] == ["w1"]
 
 
 def test_matched_values_of_another_json_type_fill_no_exit_code_and_a_text_output_path():
-    fmt = Json("done", S.FINISHED, {"exit_code": "code", "output_path": "path"})
-    tool_call_result = _json_tool_call_result(fmt, {"code": [1], "path": 7})
+    harness_result_format = Json(
+        "done", S.FINISHED, {"exit_code": "code", "output_path": "path"}
+    )
+    tool_call_result = _json_tool_call_result(
+        harness_result_format, {"code": [1], "path": 7}
+    )
     assert (tool_call_result.exit_code, tool_call_result.output_path) == (None, "7")
 
 
-def _counted_result_of(fmt: HarnessTextResultFormat, raw_text: str):
-    """Build the result of a text that `fmt` matches, with the judgment rule uses it counted."""
-    use_counts: Counter[str] = Counter()
-    harness_result_format = HarnessToolResultDeclaration(
-        text_formats=HarnessResultFormatList[str]((fmt,))
-    ).harness_result_format_of(raw_text, None, is_marked_as_error=False)
-    tool_call_result = result_from_harness_result_format(
-        raw_text, harness_result_format, judgment_rule_use_counts=use_counts
-    )
-    return tool_call_result, use_counts
-
-
 def test_a_format_that_names_a_judgment_rule_gets_its_status_from_the_rule_and_counts_it():
-    fmt = Text(
+    harness_result_format = Text(
         "page", "{tool_output:text}", judgment_rule="treat_web_fetch_text_as_finished"
     )
-    tool_call_result, use_counts = _counted_result_of(fmt, "some page")
+    tool_call_result, use_counts = _counted_result_of(
+        harness_result_format, "some page"
+    )
     assert (
         tool_call_result.execution_status,
         tool_call_result.tool_output_text,
@@ -421,12 +449,14 @@ def test_a_format_that_states_its_status_counts_no_judgment_rule():
 
 
 def test_a_negative_exit_code_line_is_killed_by_the_rule_its_format_names():
-    fmt = Text(
+    harness_result_format = Text(
         "killed",
         "{tool_output:text}\nExit code: {exit_code:negative_int}",
         judgment_rule="treat_negative_exit_code_as_killed",
     )
-    tool_call_result, use_counts = _counted_result_of(fmt, "out\nExit code: -1")
+    tool_call_result, use_counts = _counted_result_of(
+        harness_result_format, "out\nExit code: -1"
+    )
     assert (
         tool_call_result.execution_status,
         tool_call_result.exit_code,
@@ -434,4 +464,4 @@ def test_a_negative_exit_code_line_is_killed_by_the_rule_its_format_names():
     ) == (S.KILLED, None, "out")
     assert use_counts == Counter({"treat_negative_exit_code_as_killed": 1})
     # A code without a minus sign does not fit the format.
-    assert fmt.match("out\nExit code: 1") is None
+    assert harness_result_format.match("out\nExit code: 1") is None

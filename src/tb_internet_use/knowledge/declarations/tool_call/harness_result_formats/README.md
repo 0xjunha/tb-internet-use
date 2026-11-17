@@ -15,20 +15,14 @@ Step 1 reaches them only through `ToolCallKnowledge.has_json_result_formats` and
 
 [build_harness_result_format_table.py](../../../../../../scripts/build_harness_result_format_table.py) writes `out/tool_call_knowledge/harness_result_formats.csv`, one row per (harness, tool, format). Rows follow the order of `iter_declared_formats` in [harness_result_format_audit.py](../../../harness_result_format_audit.py): per harness, the lists for results marked as errors, then the text lists, then the JSON lists, each in the order of its tools and its formats in the order they are tried. It reads only the Python declarations and no trajectory. The table is for reading the declarations side by side, and it is not committed, since the Python lines are the source and nothing reads the table back.
 
-A row is what the format declares. A format whose result text does not tell the status names the judgment rule of [judgment_rules.py](../../../../tool_call/judgment_rules.py) that decides it, and its `status` is `by <judgment rule>`, e.g. `by treat_bash_output_without_exit_code_line_as_finished`. A converter's `convert_result` may still change `status`, `is_truncated`, `no_tool_output_text` or the handles after the match, e.g. the status and handles of a Grok multi-wait, the status of a Codex Ctrl-C or a negative Devin exit code in a format that states a status, `is_truncated` from Claude Code's structured result, and no tool output text for a Codex script that printed only images. The status changes there are judgment rules too.
+A row is what the format declares. A format whose result text does not tell the status names the judgment rule of [judgment_rules.py](../../../../tool_call/judgment_rules.py) that decides it, and its `status` is `by <judgment rule>`, e.g. `by treat_bash_output_without_exit_code_line_as_finished`. A converter's `convert_result` may still change `status`, `is_truncated`, `no_tool_output_text` or the handles after the match, e.g. the status and handles of a Grok Build wait on several tasks, the status of a Codex Ctrl-C, `is_truncated` from Claude Code's structured result, and no tool output text for a Codex script that printed only images. The status changes there are judgment rules too.
 
 - **`kind`:** `text` or `json`.
 - **`status`:** the status of every result of the format, or `by <judgment rule>` when a rule of `judgment_rules.py` decides it.
-- **`template`:** the template of a text format, or the present paths, absent paths and
-  condition of a JSON format. A carriage return is written as `\r`, so that editors keep
-  it, and a backslash as `\\`.
-- **`is_truncated`:** `True` or `False` for every result of the format, empty when the
-  format does not tell, `when <marker>` when a marker in the tool output tells, or
-  `by <path>` when the value at that path of the result tells.
-- **`no_tool_output_text`:** `True` when the trajectory holds no text of what the tool
-  returned, e.g. an image, so `tool_output_text` is None.
-- **`handle_kind`:** kind of the handles the format gives, empty when it gives none; `by <path>`, e.g.
-  `by task.task_type`, means the value at that path of the result names the kind.
+- **`template`:** the template of a text format, or the present paths, absent paths and condition of a JSON format. A carriage return is written as `\r`, so that editors keep it, and a backslash as `\\`.
+- **`is_truncated`:** `True` or `False` for every result of the format, empty when the format does not tell, `when <marker>` when a marker in the tool output tells, or `by <path>` when the value at that path of the result tells.
+- **`no_tool_output_text`:** `True` when the trajectory holds no text of what the tool returned, e.g. an image, so `tool_output_text` is None.
+- **`handle_kind`:** kind of the handles the format gives, empty when it gives none. `by <path>`, e.g. `by task.task_type`, means the value at that path of the result names the kind.
 
 ## Review record
 
@@ -50,14 +44,8 @@ A review covers the declaration it saw. When a declared format changes, e.g. its
 
 [audit_results.py](../../../../../../scripts/audit_results.py) counts what the declared formats match on the raw trials, with the checks in [harness_result_format_audit.py](../../../harness_result_format_audit.py). A run writes `out/tool_call_knowledge/harness_result_format_audit.csv`, one row per (harness, tool, format) with the same keys as the table of declared result formats, and prints a report. Neither is committed, since the counts come from the trajectories.
 
-- **`kind`:** `text` or `json` for a declared format; empty for the
-  `unknown_format` and `skipped_format` rows that count a tool's other results.
-- **`call_count`, `trial_count`, `example_calls`:** how often it matched and where
-  (`trial/trajectory#step.index`), never result text.
-- **`roundtrip_mismatches`:** text formats whose matched values, put back into the
-  template, do not give the annotated output again.
-- **`harness_text_hits`:** results whose `tool_output_text` still holds harness text of
-  the tool's templates, i.e. a template part between the tool output and multiline
-  placeholders, searched with its placeholders as regexes.
-- **`multi_match`:** results that matched this format and another format of the list,
-  in either order; expected where a general form follows a specific one.
+- **`kind`:** `text` or `json` for a declared format; empty for the `unknown_format` and `skipped_format` rows that count a tool's other results.
+- **`call_count`, `trial_count`, `example_calls`:** how often it matched and where (`trial/trajectory#step.index`), never result text.
+- **`roundtrip_mismatches`:** text formats whose matched values, put back into the template, do not give the annotated output again.
+- **`harness_text_hits`:** results whose `tool_output_text` still holds harness text of the tool's templates, i.e. a template part between the tool output and multiline placeholders, searched with its placeholders as regexes.
+- **`multi_match`:** results that matched this format and another format of the list, in either order; expected where a general format follows a specific one.

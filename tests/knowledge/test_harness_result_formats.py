@@ -1,4 +1,4 @@
-"""The declared result formats of every harness agree with the harness tool catalog, with their review record, with their own order, and with the names that tie a converted result to its catalog and audit rows, and a tool has no format for a form it never returned."""
+"""The declared result formats of every harness agree with the harness tool catalog, with their review record, with their own order, with a hand-written table of the judgment rule each names, and with the names that tie a converted result to its rows in the table of declared result formats and in the result format audit, and a tool has no format for results it never returned."""
 
 import csv
 import inspect
@@ -16,7 +16,6 @@ from tb_internet_use.knowledge.harness_result_format_audit import (
 )
 from tb_internet_use.knowledge.harness_result_format_declaration import (
     PLACEHOLDER_REGEX,
-    PLACEHOLDER_TYPE_PATTERNS,
     HarnessTextResultFormat,
 )
 from tb_internet_use.knowledge.tool_call_knowledge import (
@@ -61,8 +60,8 @@ _SAMPLE_BY_TYPE = {
 }
 
 
-# Made-up results of forms that tools of other harnesses or other tools of the same harness have, but that these tools never returned in the trajectories, as (harness, tool, raw text, JSON object).
-_RESULTS_OF_FORMS_NEVER_SEEN = (
+# Made-up results of formats that tools of other harnesses or other tools of the same harness have, but that these tools never returned in the trajectories, as (harness, tool, raw text, JSON object).
+_RESULTS_OF_FORMATS_NEVER_SEEN = (
     ("claude-code", "Write", "Refusing to write through symlink: /a hint", None),
     ("codex", "exec_command", "write_stdin failed: no session", None),
     ("codex", "write_stdin", "exec_command failed: no shell", None),
@@ -73,16 +72,112 @@ _RESULTS_OF_FORMS_NEVER_SEEN = (
 )
 
 
+# The judgment rule that each declared format names in place of a status, written by hand so that a format cannot gain, lose or change its rule unseen.
+# Each judgment rule with the formats that name it, as (harness, tool, format).
+FORMATS_BY_JUDGMENT_RULE: dict[str, list[tuple[str, str, str]]] = {
+    "treat_bash_output_without_exit_code_line_as_finished": [
+        ("claude-code", "Bash", "persisted_output"),
+        ("claude-code", "Bash", "persisted_output_partial"),
+        ("claude-code", "Bash", "bare_output"),
+    ],
+    "treat_failed_file_tool_call_as_not_run": [
+        ("claude-code", "Read", "unchanged"),
+        ("claude-code", "Read", "pdf_tool_missing"),
+        ("claude-code", "Read", "pdf_too_many_pages"),
+        ("claude-code", "Read", "pdf_too_large"),
+        ("claude-code", "Read", "image_too_large"),
+        ("claude-code", "Read", "directory"),
+        ("claude-code", "Read", "missing"),
+        ("claude-code", "Read", "too_large"),
+        ("cursor-cli", "readToolCall", "too_large"),
+        ("cursor-cli", "readToolCall", "error"),
+        ("cursor-cli", "editToolCall", "error"),
+        ("grok-build", "read_file", "missing"),
+        ("grok-build", "read_file", "directory"),
+        ("grok-build", "read_file", "binary"),
+        ("grok-build", "read_file", "too_large"),
+        ("grok-build", "read_file", "range_too_large"),
+        ("grok-build", "search_replace", "not_found"),
+        ("grok-build", "search_replace", "not_unique"),
+        ("grok-build", "search_replace", "same_strings"),
+        ("grok-build", "search_replace", "missing"),
+    ],
+    "treat_tool_failure_message_as_not_run": [
+        ("claude-code", "Bash", "tool_use_error"),
+        ("claude-code", "Read", "tool_use_error"),
+        ("claude-code", "Write", "tool_use_error"),
+        ("claude-code", "Edit", "tool_use_error"),
+        ("claude-code", "TaskStop", "tool_use_error"),
+        ("codex", "exec_command", "rejected"),
+        ("codex", "exec_command", "rejected_command"),
+        ("codex", "write_stdin", "rejected_stdin"),
+        ("codex", "wait", "rejected_arguments"),
+        ("devin", "exec", "rejected"),
+        ("devin", "get_output", "rejected"),
+        ("devin", "kill_shell", "rejected"),
+        ("devin", "read", "rejected"),
+        ("devin", "write", "rejected"),
+        ("devin", "edit", "rejected"),
+        ("devin", "webfetch", "rejected"),
+        ("grok-build", "run_terminal_command", "rejected"),
+        ("grok-build", "run_terminal_command", "rejected_arguments"),
+        ("grok-build", "get_command_or_subagent_output", "rejected"),
+        ("grok-build", "search_replace", "rejected_arguments"),
+        ("muse-code", "bash", "rejected"),
+        ("muse-code", "bash_input", "rejected"),
+        ("muse-code", "read_file", "rejected"),
+        ("muse-code", "edit_file", "rejected"),
+    ],
+    "treat_web_fetch_text_as_finished": [("claude-code", "WebFetch", "page")],
+    "treat_cut_off_web_search_as_finished": [("claude-code", "WebSearch", "cut_off")],
+    "treat_script_syntax_error_as_not_run": [("codex", "exec", "failed_syntax")],
+    "treat_web_search_call_without_content_as_finished": [
+        ("codex", "web_search_call", "no_content")
+    ],
+    "treat_shell_id_with_exit_code_as_running": [
+        ("cursor-cli", "shellToolCall", "background"),
+        ("cursor-cli", "shellToolCall", "background_requested"),
+    ],
+    "treat_negative_exit_code_as_killed": [
+        ("devin", "exec", "killed"),
+        ("devin", "get_output", "killed_silent_twice"),
+    ],
+    "treat_get_output_without_exit_code_as_running": [
+        ("devin", "get_output", "running_incremental"),
+        ("devin", "get_output", "running"),
+    ],
+    "treat_written_input_as_running_target": [("devin", "write_to_process", "written")],
+    "treat_failed_task_without_exit_code_as_killed": [
+        ("grok-build", "get_command_or_subagent_output", "failed_signaled_empty"),
+        ("grok-build", "get_command_or_subagent_output", "failed_signaled"),
+    ],
+    "treat_accepted_stop_request_as_killed": [("muse-code", "work_stop", "accepted")],
+    "treat_stop_request_for_ended_work_as_finished": [
+        ("muse-code", "work_stop", "already_ended")
+    ],
+}
+
+
 def _declared() -> dict[tuple[str, str], dict[str, list[Any]]]:
-    """Distinct declared formats by (harness, tool) and name. One tool may have several lists."""
+    """Group the distinct declared formats by (harness, tool) and name. One tool may have several lists."""
     names: dict[tuple[str, str], dict[str, list[Any]]] = defaultdict(
         lambda: defaultdict(list)
     )
-    for harness, tool, fmt in iter_declared_formats():
-        same_name = names[(harness, tool)][fmt.name]
-        if fmt not in same_name:  # a format shared by two lists is one format
-            same_name.append(fmt)
+    for harness, tool, harness_result_format in iter_declared_formats():
+        same_name = names[(harness, tool)][harness_result_format.name]
+        if (
+            harness_result_format not in same_name
+        ):  # a format shared by two lists is one format
+            same_name.append(harness_result_format)
     return names
+
+
+def _rendered(harness_result_format: HarnessTextResultFormat) -> str:
+    matched_values = {
+        p[1]: _SAMPLE_BY_TYPE[p[2]]
+        for p in PLACEHOLDER_REGEX.finditer(harness_result_format.template)
+    }
+    return render_text_format(harness_result_format, matched_values)
 
 
 def test_one_name_means_one_format_within_a_tool():
@@ -104,16 +199,29 @@ def test_no_declared_name_is_a_reserved_value():
 
 def test_every_judgment_rule_a_format_names_is_a_function_of_judgment_rules():
     unknown_rules = [
-        (harness, tool, fmt.name, fmt.judgment_rule)
-        for harness, tool, fmt in iter_declared_formats()
-        if fmt.judgment_rule is not None
-        and not inspect.isfunction(getattr(judgment_rules, fmt.judgment_rule, None))
+        (harness, tool, harness_result_format.name, harness_result_format.judgment_rule)
+        for harness, tool, harness_result_format in iter_declared_formats()
+        if harness_result_format.judgment_rule is not None
+        and not inspect.isfunction(
+            getattr(judgment_rules, harness_result_format.judgment_rule, None)
+        )
     ]
     assert not unknown_rules
 
 
-def test_every_placeholder_type_has_a_sample():
-    assert set(_SAMPLE_BY_TYPE) == set(PLACEHOLDER_TYPE_PATTERNS)
+def test_each_format_names_the_judgment_rule_of_the_hand_written_table():
+    expected = {
+        harness_tool_format: judgment_rule
+        for judgment_rule, harness_tool_formats in FORMATS_BY_JUDGMENT_RULE.items()
+        for harness_tool_format in harness_tool_formats
+    }
+    assert len(expected) == sum(map(len, FORMATS_BY_JUDGMENT_RULE.values()))
+    declared = {
+        (harness, tool, harness_result_format.name): harness_result_format.judgment_rule
+        for harness, tool, harness_result_format in iter_declared_formats()
+        if harness_result_format.judgment_rule is not None
+    }
+    assert declared == expected
 
 
 def test_tools_with_declared_formats_are_in_the_catalog():
@@ -124,40 +232,35 @@ def test_tools_with_declared_formats_are_in_the_catalog():
     assert declared - _catalog_tools() == set()
 
 
-def _rendered(fmt: HarnessTextResultFormat) -> str:
-    values = {
-        p[1]: _SAMPLE_BY_TYPE[p[2]] for p in PLACEHOLDER_REGEX.finditer(fmt.template)
-    }
-    return render_text_format(fmt, values)
-
-
 def test_every_text_format_is_the_first_match_of_its_own_template():
     # A general format before a more specific one would take its results.
     shadowed: list[tuple[str, str, str, Any]] = []
-    for harness, tool, formats in iter_declared_format_lists():
-        for fmt in formats.formats:
-            if not isinstance(fmt, HarnessTextResultFormat):
+    for harness, tool, format_list in iter_declared_format_lists():
+        for harness_result_format in format_list.formats:
+            if not isinstance(harness_result_format, HarnessTextResultFormat):
                 continue
-            found = formats.match(_rendered(fmt))
-            if found is None or found[0].name != fmt.name:
-                shadowed.append((harness, tool, fmt.name, found and found[0].name))
+            found = format_list.match(_rendered(harness_result_format))
+            if found is None or found[0].name != harness_result_format.name:
+                shadowed.append(
+                    (harness, tool, harness_result_format.name, found and found[0].name)
+                )
     assert not shadowed
 
 
 @pytest.mark.parametrize(
-    ("harness", "tool", "raw_text", "tool_result_json"), _RESULTS_OF_FORMS_NEVER_SEEN
+    ("harness", "tool", "raw_text", "tool_result_json"), _RESULTS_OF_FORMATS_NEVER_SEEN
 )
-def test_a_form_that_a_tool_never_returned_in_the_trajectories_is_not_declared_for_it(
+def test_a_format_that_a_tool_never_returned_in_the_trajectories_is_not_declared_for_it(
     harness: str, tool: str, raw_text: str | None, tool_result_json: Any
 ):
     # Only formats that occur in the data are declared, so such a result is unknown and not a guess.
-    harness_result_format = ToolCallKnowledge().harness_result_format(
+    matched_or_unmatched_format = ToolCallKnowledge().harness_result_format(
         HarnessTool(harness, tool),
         raw_text,
         tool_result_json,
         is_marked_as_error=False,
     )
-    assert harness_result_format is UnmatchedFormat.UNKNOWN
+    assert matched_or_unmatched_format is UnmatchedFormat.UNKNOWN
 
 
 def test_review_record_has_one_row_per_declared_format_in_the_declared_order():
@@ -167,7 +270,8 @@ def test_review_record_has_one_row_per_declared_format_in_the_declared_order():
     assert reader.fieldnames == _REVIEWS_COLUMNS
     reviewed = [(r["harness"], r["tool"], r["format"]) for r in rows]
     declared = [
-        (harness, tool, fmt.name) for harness, tool, fmt in iter_declared_formats()
+        (harness, tool, harness_result_format.name)
+        for harness, tool, harness_result_format in iter_declared_formats()
     ]
     missing = [key for key in declared if key not in reviewed]
     extra = [key for key in reviewed if key not in declared]

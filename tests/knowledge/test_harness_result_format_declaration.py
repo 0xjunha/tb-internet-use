@@ -77,11 +77,11 @@ PICKING_CASES = [
     ("tool_result_formats", "tool_result_json", "is_marked_as_error", "picked"),
     PICKING_CASES,
 )
-def test_formats_for_result_picks_the_list_by_the_kind_of_result(
+def test_format_list_for_result_picks_the_list_by_the_kind_of_result(
     tool_result_formats, tool_result_json, is_marked_as_error, picked
 ):
     assert (
-        tool_result_formats.formats_for_result(
+        tool_result_formats.format_list_for_result(
             tool_result_json, is_marked_as_error=is_marked_as_error
         )
         is picked
@@ -91,9 +91,9 @@ def test_formats_for_result_picks_the_list_by_the_kind_of_result(
 def test_numbered_listing_placeholder_strips_line_numbers_and_a_bare_final_number():
     listing = Text("listing", "{tool_output:numbered_tab}", S.FINISHED)
     raw_text = "1\tfirst\n2\t\n3\tlast\n4"
-    values = listing.match(raw_text)
-    assert values is not None and values["tool_output"] == raw_text
-    assert listing.tool_output_text_of(values) == "first\n\nlast\n"
+    matched_values = listing.match(raw_text)
+    assert matched_values is not None and matched_values["tool_output"] == raw_text
+    assert listing.tool_output_text_of(matched_values) == "first\n\nlast\n"
     assert listing.match("not numbered") is None
 
 
@@ -103,9 +103,11 @@ def test_strip_line_numbers_handles_padding_and_other_separators():
 
 
 def test_a_json_null_counts_as_present():
-    fmt = Json("done", S.FINISHED, present_paths=("a",), absent_paths=("b.c",))
-    assert fmt.match({"a": None, "b": {}}) is not None
-    assert fmt.match({"a": 1, "b": {"c": None}}) is None
+    harness_result_format = Json(
+        "done", S.FINISHED, present_paths=("a",), absent_paths=("b.c",)
+    )
+    assert harness_result_format.match({"a": None, "b": {}}) is not None
+    assert harness_result_format.match({"a": 1, "b": {"c": None}}) is None
 
 
 def test_json_condition_ops():
@@ -120,18 +122,22 @@ def test_json_condition_ops():
 
 
 def test_uint_placeholder_rejects_a_negative_number():
-    fmt = Text("killed", "code -{signal:uint}", S.KILLED)
-    assert fmt.match("code -3") == {"signal": "3"}
-    assert fmt.match("code --3") is None
+    harness_result_format = Text("killed", "code -{signal:uint}", S.KILLED)
+    assert harness_result_format.match("code -3") == {"signal": "3"}
+    assert harness_result_format.match("code --3") is None
 
 
 def test_json_text_that_is_not_a_string_is_written_as_json():
-    fmt = Json(
+    harness_result_format = Json(
         "results", S.FINISHED, {"tool_output": "items"}, present_paths=("items",)
     )
     assert (
-        fmt.tool_output_text_of(fmt.match({"items": [{"url": "u"}]}) or {})
-        == '[{"url": "u"}]'
+        harness_result_format.tool_output_text_of(
+            harness_result_format.match({"items": [{"url": "u", "title": "café"}]})
+            or {}
+        )
+        # A letter that is not ASCII stays as it is, as the trajectory shows it.
+        == '[{"url": "u", "title": "café"}]'
     )
 
 
@@ -187,19 +193,6 @@ def test_a_format_that_misstates_its_handle_kind_cannot_be_built(build_format):
 def test_a_format_must_state_either_a_status_or_a_judgment_rule(build_format):
     with pytest.raises(ValueError, match="either a `status` or a `judgment_rule`"):
         build_format()
-
-
-def test_a_format_builds_with_a_judgment_rule_in_place_of_a_status():
-    text = Text("page", "{tool_output:text}", judgment_rule="r")
-    json_format = Json("accepted", judgment_rule="r")
-    assert (text.status, text.judgment_rule) == (None, "r")
-    assert (json_format.status, json_format.judgment_rule) == (None, "r")
-
-
-def test_negative_int_placeholder_takes_only_a_number_with_a_minus_sign():
-    fmt = Text("killed", "code {exit_code:negative_int}", judgment_rule="r")
-    assert fmt.match("code -1") == {"exit_code": "-1"}
-    assert fmt.match("code 1") is None
 
 
 def test_a_format_that_gives_handles_builds_with_one_stated_kind():

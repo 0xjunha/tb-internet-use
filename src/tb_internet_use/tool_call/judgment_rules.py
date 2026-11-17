@@ -24,22 +24,18 @@ _SIGINT_EXIT_CODE = 130
 def treat_negative_exit_code_as_killed(
     tool_call_result: ToolCallResult, *, use_counts: Counter[str]
 ) -> ToolCallResult:
-    """Read a negative exit code as a killed command and drop the code, whatever the format of the result.
+    """Read a negative exit code as a killed command and drop the code.
 
     It rests on Devin, which writes -1 and never another negative code for a command it stopped, e.g. one that killed its own shell.
     That -1 is no real exit code or signal number.
-    The Devin formats that end in a negative `Exit code` line name this rule, and the Devin converter applies it to the result of any other format too.
-    A use is a result with a negative exit code.
+    A use is a result of the Devin formats that end in a negative `Exit code` line, `killed` of `exec` and `killed_silent_twice` of `get_output`.
 
     Provisional. It keeps the choice of the earlier code.
     """
-    if tool_call_result.exit_code is not None and tool_call_result.exit_code < 0:
-        # A format that names this rule fits only a negative code, so it always gets here.
-        use_counts[treat_negative_exit_code_as_killed.__name__] += 1
-        return replace(
-            tool_call_result, execution_status=ExecutionStatus.KILLED, exit_code=None
-        )
-    return tool_call_result
+    use_counts[treat_negative_exit_code_as_killed.__name__] += 1
+    return replace(
+        tool_call_result, execution_status=ExecutionStatus.KILLED, exit_code=None
+    )
 
 
 def treat_exit_code_130_after_ctrl_c_as_killed(
@@ -89,7 +85,8 @@ def treat_bash_output_without_exit_code_line_as_finished(
 
     It rests on Claude Code `Bash`, which writes `Exit code N` before the output only in a result it marked as an error.
     A result without the line may still come from a command that was stopped, since nothing in the text says how it ended.
-    A use is a result of the format `bare_output`.
+    The same holds for a result that only says the output was too large and names the file it was saved to.
+    A use is a result of the format `bare_output`, `persisted_output` or `persisted_output_partial`.
 
     Provisional. It keeps the choice of the earlier code.
     """
@@ -145,7 +142,7 @@ def treat_failed_file_tool_call_as_not_run(
 ) -> ToolCallResult:
     """Read a file tool call whose result gives a reason it failed as a call that did no work.
 
-    It rests on the file tools that read or change a file, i.e. Claude Code `Read`, Grok Build `read_file` and `search_replace` and Cursor `readToolCall` and `editToolCall`, whose results give a reason such as `File does not exist.` without saying whether the tool touched anything.
+    It rests on the file tools that read or change a file, i.e. Claude Code `Read`, Grok Build `read_file` and `search_replace` and Cursor CLI `readToolCall` and `editToolCall`, whose results give a reason such as `File does not exist.` without saying whether the tool touched anything.
     A use is a result of one of their failure formats, e.g. `missing`, `too_large` or `not_unique`.
 
     Provisional. It keeps the choice of the earlier code.
@@ -159,8 +156,8 @@ def treat_get_output_without_exit_code_as_running(
 ) -> ToolCallResult:
     """Read a poll result that shows output without an `Exit code` line as a command still running.
 
-    It rests on Devin `get_output`, whose result ends in an `Exit code` line once the command has exited, so any other text is taken as output of a command that has not.
-    A use is a result of the format `running`.
+    It rests on Devin `get_output`, whose result ends in an `Exit code` line once the command has exited, so any other text, whole or as a diff since the last read, is taken as output of a command that has not.
+    A use is a result of the format `running` or `running_incremental`.
 
     Provisional. It keeps the choice of the earlier code.
     """
@@ -201,7 +198,7 @@ def treat_accepted_stop_request_as_killed(
 ) -> ToolCallResult:
     """Read an accepted request to stop background work as work that was killed.
 
-    It rests on Muse `work_stop`, whose result has the `status` `accepted` and does not say whether the work then stopped.
+    It rests on Muse Code `work_stop`, whose result has the `status` `accepted` and does not say whether the work then stopped.
     A use is a result of the format `accepted`.
 
     Provisional. It keeps the choice of the earlier code.
@@ -222,3 +219,60 @@ def treat_failed_task_without_exit_code_as_killed(
     """
     use_counts[treat_failed_task_without_exit_code_as_killed.__name__] += 1
     return replace(tool_call_result, execution_status=ExecutionStatus.KILLED)
+
+
+def treat_tool_failure_message_as_not_run(
+    tool_call_result: ToolCallResult, *, use_counts: Counter[str]
+) -> ToolCallResult:
+    """Read a result whose text says only that the tool call failed as a call that did no work.
+
+    It rests on the messages in which a harness reports a failed call without saying whether the tool started, i.e. Claude Code `<tool_use_error>`, Muse Code `tool failed`, Codex `exec_command failed` and `write_stdin failed`, Grok Build ``Tool `...` failed`` and the failures to parse or validate the arguments of Codex `wait`, of Grok Build tools and of Devin tools, e.g. Devin `Tool 'exec' validation failed`.
+    A use is a result of one of their formats, e.g. `tool_use_error`, `rejected`, `rejected_stdin` or `rejected_arguments`.
+
+    Provisional. It keeps the choice of the earlier code.
+    """
+    use_counts[treat_tool_failure_message_as_not_run.__name__] += 1
+    return replace(tool_call_result, execution_status=ExecutionStatus.NOT_RUN)
+
+
+def treat_shell_id_with_exit_code_as_running(
+    tool_call_result: ToolCallResult, *, use_counts: Counter[str]
+) -> ToolCallResult:
+    """Read a shell result that names a shell id beside an exit code as a command still running in the background.
+
+    It rests on Cursor CLI `shellToolCall`, whose result for a command sent to the background holds a `shellId` and also an `exitCode`, which is 0 in every such result of the trajectories, while later waits on the same shell can still report it running.
+    So the code may belong to starting the command rather than to the command, and the result does not say which, so its formats do not read the code.
+    A use is a result of the format `background` or `background_requested`.
+
+    Provisional. It keeps the choice of the earlier code.
+    """
+    use_counts[treat_shell_id_with_exit_code_as_running.__name__] += 1
+    return replace(tool_call_result, execution_status=ExecutionStatus.RUNNING)
+
+
+def treat_stop_request_for_ended_work_as_finished(
+    tool_call_result: ToolCallResult, *, use_counts: Counter[str]
+) -> ToolCallResult:
+    """Read a request to stop background work that had already ended as work that finished.
+
+    It rests on Muse Code `work_stop`, whose result has the `status` `already_terminal` and does not say how the work ended, e.g. whether it exited or was stopped earlier.
+    A use is a result of the format `already_ended`.
+
+    Provisional. It keeps the choice of the earlier code.
+    """
+    use_counts[treat_stop_request_for_ended_work_as_finished.__name__] += 1
+    return replace(tool_call_result, execution_status=ExecutionStatus.FINISHED)
+
+
+def treat_cut_off_web_search_as_finished(
+    tool_call_result: ToolCallResult, *, use_counts: Counter[str]
+) -> ToolCallResult:
+    """Read a web search cut off before any result arrived as a finished search.
+
+    It rests on Claude Code `WebSearch`, whose result says that the search was cut off before any results arrived, without saying whether the search reached the provider or what stopped it.
+    A use is a result of the format `cut_off`.
+
+    Provisional. It keeps the choice of the earlier code.
+    """
+    use_counts[treat_cut_off_web_search_as_finished.__name__] += 1
+    return replace(tool_call_result, execution_status=ExecutionStatus.FINISHED)

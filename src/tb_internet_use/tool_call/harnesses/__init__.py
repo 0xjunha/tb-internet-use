@@ -3,7 +3,6 @@
 from tb_internet_use.tool_call.harnesses.claude_code import ClaudeCodeConverter
 from tb_internet_use.tool_call.harnesses.codex import CodexConverter
 from tb_internet_use.tool_call.harnesses.cursor_cli import CursorCliConverter
-from tb_internet_use.tool_call.harnesses.devin import DevinConverter
 from tb_internet_use.tool_call.harnesses.grok_build import GrokBuildConverter
 from tb_internet_use.tool_call.harnesses.harness_tool_call_converter import (
     HarnessToolCallConverter,
@@ -14,7 +13,8 @@ CONVERTERS: dict[str, HarnessToolCallConverter] = {
     "claude-code": ClaudeCodeConverter(),
     "codex": CodexConverter(),
     "cursor-cli": CursorCliConverter(),
-    "devin": DevinConverter(),
+    # Every part of Devin conversion is shared, so it needs no converter of its own.
+    "devin": HarnessToolCallConverter(),
     "grok-build": GrokBuildConverter(),
     # Every part of mini-swe-agent conversion is shared, so it needs no converter of its own.
     "mini-swe-agent": HarnessToolCallConverter(),

@@ -19,28 +19,32 @@ from tb_internet_use.tool_call.model import (
 S = ExecutionStatus
 Json = HarnessJsonResultFormat
 
-_SHELL_DONE = {
+_SHELL_DONE_VALUE_PATHS = {
     "tool_output": "success.interleavedOutput",
     "exit_code": "success.exitCode",
 }
-_SHELL_FAILED = {
+_SHELL_FAILED_VALUE_PATHS = {
     "tool_output": "failure.interleavedOutput",
     "exit_code": "failure.exitCode",
 }
 _SHELL_TOOL_CALL = HarnessResultFormatList[JsonObject](
     (
         Json("not_spawned", S.NOT_RUN, present_paths=("spawnError",)),
+        # The results of the two background formats also hold an `exitCode`, which they do not read.
         Json(
             "background",
-            S.RUNNING,
-            {"tool_output": "success.interleavedOutput", "handle": "success.shellId"},
+            value_paths={
+                "tool_output": "success.interleavedOutput",
+                "handle": "success.shellId",
+            },
+            judgment_rule="treat_shell_id_with_exit_code_as_running",
             present_paths=("success.shellId", "success.interleavedOutput"),
             fixed_handle_kind=ExecutionHandleKind.COMMAND,
         ),
         Json(
             "background_requested",
-            S.RUNNING,
-            {"tool_output": "success.stdout", "handle": "success.shellId"},
+            value_paths={"tool_output": "success.stdout", "handle": "success.shellId"},
+            judgment_rule="treat_shell_id_with_exit_code_as_running",
             present_paths=("success.shellId",),
             absent_paths=("success.interleavedOutput",),
             fixed_handle_kind=ExecutionHandleKind.COMMAND,
@@ -48,28 +52,34 @@ _SHELL_TOOL_CALL = HarnessResultFormatList[JsonObject](
         Json(
             "exited_saved",
             S.FINISHED,
-            {**_SHELL_DONE, "output_path": "success.outputLocation.filePath"},
+            {
+                **_SHELL_DONE_VALUE_PATHS,
+                "output_path": "success.outputLocation.filePath",
+            },
             present_paths=("success.exitCode", "success.outputLocation"),
             is_truncated=True,
         ),
         Json(
             "exited",
             S.FINISHED,
-            _SHELL_DONE,
+            _SHELL_DONE_VALUE_PATHS,
             present_paths=("success.exitCode",),
             absent_paths=("success.shellId", "success.outputLocation"),
         ),
         Json(
             "failed_saved",
             S.FINISHED,
-            {**_SHELL_FAILED, "output_path": "failure.outputLocation.filePath"},
+            {
+                **_SHELL_FAILED_VALUE_PATHS,
+                "output_path": "failure.outputLocation.filePath",
+            },
             present_paths=("failure.exitCode", "failure.outputLocation"),
             is_truncated=True,
         ),
         Json(
             "failed",
             S.FINISHED,
-            _SHELL_FAILED,
+            _SHELL_FAILED_VALUE_PATHS,
             present_paths=("failure.exitCode",),
             absent_paths=("failure.outputLocation",),
         ),
@@ -201,8 +211,8 @@ _WEB_SEARCH_TOOL_CALL = HarnessResultFormatList[JsonObject](
 )
 
 
-def _content_text_of(values: MatchedValues) -> str | None:
-    items = values.get("tool_output")
+def _content_text_of(matched_values: MatchedValues) -> str | None:
+    items = matched_values.get("tool_output")
     if not isinstance(items, list):
         return None
     texts: list[str] = []

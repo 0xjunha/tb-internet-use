@@ -1,16 +1,20 @@
-"""Claude Code converter tests, with made-up results shaped as in the trajectories."""
+"""Test the conversion of Claude Code tool calls by the Claude Code converter, with made-up results shaped as in the trajectories."""
 
 import json
 from collections import Counter
 from typing import Any
 
+import pytest
+
 from tb_internet_use.knowledge.tool_call_knowledge import ToolCallKnowledge
+from tb_internet_use.tool_call import convert_tool_calls
 from tb_internet_use.tool_call._convert_tool_calls import convert_one_tool_call
 from tb_internet_use.tool_call.harnesses.claude_code import (
     ClaudeCodeConverter,
     _join_content_items,
 )
 from tb_internet_use.tool_call.model import (
+    EditFileAction,
     ExecutionHandle,
     ExecutionHandleKind,
     ExecutionStatus,
@@ -18,9 +22,16 @@ from tb_internet_use.tool_call.model import (
     HarnessToolCall,
     MatchedFormat,
     PollAction,
+    ReadFileAction,
+    RunCommandAction,
+    StartSubagentAction,
+    ToolCallAction,
     ToolCallKey,
     ToolCallResult,
     UnmatchedFormat,
+    WebFetchAction,
+    WebSearchAction,
+    WriteFileAction,
 )
 
 S = ExecutionStatus
@@ -48,15 +59,35 @@ def _converted(harness_tool_call: HarnessToolCall):
     )
 
 
+def _action_of_call_without_result(tool: str, args: dict[str, Any]) -> ToolCallAction:
+    """Convert one call of Claude Code without a result through `convert_tool_calls`, which picks the converter of the harness, and give its action."""
+    [tool_call] = convert_tool_calls(
+        [
+            HarnessToolCall(
+                ToolCallKey("t", "main", 1, 0),
+                HarnessTool("claude-code", tool),
+                "id",
+                args,
+                None,
+            )
+        ],
+        knowledge=ToolCallKnowledge(),
+        judgment_rule_use_counts=Counter(),
+    )
+    return tool_call.action
+
+
 def _result(
-    block: Any, structured: dict[str, Any] | None = None, is_error: bool | None = None
+    block: Any,
+    structured_result: dict[str, Any] | None = None,
+    is_error: bool | None = None,
 ) -> dict[str, Any]:
-    """A result as Harbor writes it in the trajectory, with the original block kept in the metadata and blocks appended to content."""
+    """Give a result as Harbor writes it in the trajectory, with the original block kept in the metadata and blocks appended to content."""
     metadata: dict[str, Any] = {
         "raw_tool_result": {"type": "tool_result", "content": block}
     }
-    if structured is not None:
-        metadata["tool_use_result"] = structured
+    if structured_result is not None:
+        metadata["tool_use_result"] = structured_result
     extra: dict[str, Any] = {"tool_result_metadata": metadata}
     if is_error is not None:
         extra["tool_result_is_error"] = is_error
@@ -64,11 +95,13 @@ def _result(
 
 
 def _bash(
-    block: str, structured: dict[str, Any] | None = None, is_error: bool | None = None
+    block: str,
+    structured_result: dict[str, Any] | None = None,
+    is_error: bool | None = None,
 ):
     return _converted(
         _harness_tool_call(
-            "Bash", {"command": "x"}, _result(block, structured, is_error)
+            "Bash", {"command": "x"}, _result(block, structured_result, is_error)
         )
     ).result
 
@@ -91,9 +124,556 @@ def _bash_format_and_text(result: dict[str, Any]) -> tuple[object, str | None]:
     return tool_call_result.harness_result_format, tool_call_result.tool_output_text
 
 
+_FRESH = " (file state is current in your context — no need to Read it back)"
+_TOOL_USE_ERROR = (
+    "<tool_use_error>File has not been read yet. Read it first.</tool_use_error>"
+)
+_CLASSIFIER = (
+    "the response that made this tool call was stopped by a safety classifier."
+)
+_PERSISTED_HEAD = "<persisted-output>\nOutput too large (3.1KB). Full output saved to: /tmp/p.txt\n\nPreview (first 2KB):\n"
+_BINARY_SAVED = (
+    "\n\n[Binary content (application/pdf, 1.2 MB) also saved to /tmp/page.pdf]"
+)
+_BACKGROUND = "Command running in background with ID: b1. Output is being written to: /tmp/b1.output."
+_TIMED_OUT_BACKGROUND = "Command did not complete within its 120s timeout and was moved to the background (ID: b1). Output is being written to: /tmp/b1.output."
+_NOTIFY = " You will be notified when it completes. To check interim output, use Read on that file path."
+_B1 = (ExecutionHandle(ExecutionHandleKind.COMMAND, "b1"),)
+
+
+def _format(name: str) -> MatchedFormat:
+    return MatchedFormat(name)
+
+
+def _not_run_result(format_name: str) -> ToolCallResult:
+    return ToolCallResult("", S.NOT_RUN, harness_result_format=_format(format_name))
+
+
+def _finished_result(format_name: str, text: str | None = "") -> ToolCallResult:
+    return ToolCallResult(text, S.FINISHED, harness_result_format=_format(format_name))
+
+
+def _background_result(format_name: str, text: str = "") -> ToolCallResult:
+    return ToolCallResult(
+        text,
+        S.RUNNING,
+        handles=_B1,
+        output_path="/tmp/b1.output",
+        harness_result_format=_format(format_name),
+    )
+
+
+def _task_output(status: str, task_type: str, **task: Any) -> dict[str, Any]:
+    """Give a `TaskOutput` result whose structured result holds the task `t1`."""
+    structured_result = {
+        "retrieval_status": "success",
+        "task": {"task_id": "t1", "task_type": task_type, "status": status, **task},
+    }
+    return _result("<retrieval_status>success</retrieval_status>", structured_result)
+
+
+# One made-up result per declared result format of Claude Code, built from the format, and the `ToolCallResult` it converts to.
+# A `Bash` result marked as an error is held against the formats for such results.
+# (tool, result in the trajectory, expected result)
+RESULT_FORMAT_CASES: list[tuple[str, dict[str, Any], ToolCallResult]] = [
+    (
+        "Bash",
+        _result(_TOOL_USE_ERROR, is_error=True),
+        _not_run_result("tool_use_error"),
+    ),
+    (
+        "Bash",
+        _result("Exit code 143\nCommand timed out after 2m\nhead", is_error=True),
+        ToolCallResult("head", S.TIMED_OUT, harness_result_format=_format("timed_out")),
+    ),
+    (
+        "Bash",
+        _result("Exit code 143\nCommand timed out after 2m 0.0s", is_error=True),
+        ToolCallResult(
+            "", S.TIMED_OUT, harness_result_format=_format("timed_out_silent")
+        ),
+    ),
+    (
+        "Bash",
+        _result("Exit code 2\nboom", is_error=True),
+        ToolCallResult("boom", S.FINISHED, 2, harness_result_format=_format("exited")),
+    ),
+    (
+        "Bash",
+        _result("Exit code 1", is_error=True),
+        ToolCallResult(
+            "", S.FINISHED, 1, harness_result_format=_format("exited_silent")
+        ),
+    ),
+    (
+        "Bash",
+        _result(
+            "Permission to use Bash with command rm -rf x has been denied.",
+            is_error=True,
+        ),
+        _not_run_result("refused_permission"),
+    ),
+    (
+        "Bash",
+        _result(
+            "Dangerous rm operation detected: '/x' This is blocked.", is_error=True
+        ),
+        _not_run_result("refused_dangerous"),
+    ),
+    (
+        "Bash",
+        _result(
+            "This Bash command contains multiple operations. Split them.", is_error=True
+        ),
+        _not_run_result("refused_multiple"),
+    ),
+    # The classifier stopped a call that was running and may have completed.
+    (
+        "Bash",
+        _result("Interrupted: " + _CLASSIFIER, is_error=True),
+        ToolCallResult(
+            "", S.UNKNOWN, harness_result_format=_format("interrupted_classifier")
+        ),
+    ),
+    (
+        "Bash",
+        _result(
+            "The user doesn't want to proceed with this tool use. The tool use was rejected.",
+            is_error=True,
+        ),
+        _not_run_result("refused_user"),
+    ),
+    ("Bash", _result("(Bash completed with no output)"), _finished_result("no_output")),
+    ("Bash", _result(_BACKGROUND + _NOTIFY), _background_result("background")),
+    (
+        "Bash",
+        _result(
+            _BACKGROUND
+            + " If it exits while you are still working you will be notified, but it is terminated when you give your final response."
+        ),
+        _background_result("background_v3"),
+    ),
+    (
+        "Bash",
+        _result("early line\n" + _BACKGROUND + _NOTIFY),
+        _background_result("background_after_output", "early line"),
+    ),
+    (
+        "Bash",
+        _result(_TIMED_OUT_BACKGROUND + _NOTIFY),
+        _background_result("background_timeout"),
+    ),
+    (
+        "Bash",
+        _result(
+            _TIMED_OUT_BACKGROUND
+            + " You will be notified when it completes. If it is still running after 10 minutes, check on it."
+        ),
+        _background_result("background_timeout_v2"),
+    ),
+    (
+        "Bash",
+        _result(_PERSISTED_HEAD + "head\n</persisted-output>"),
+        ToolCallResult(
+            "head",
+            S.FINISHED,
+            output_path="/tmp/p.txt",
+            is_truncated=True,
+            harness_result_format=_format("persisted_output"),
+        ),
+    ),
+    (
+        "Bash",
+        _result(
+            "<persisted-output>\nOutput exceeded the 64MB persist limit; only the first 64MB were saved to: /tmp/p.txt\n\n"
+            "Preview (first 2KB):\nhead\n</persisted-output>"
+        ),
+        ToolCallResult(
+            "head",
+            S.FINISHED,
+            output_path="/tmp/p.txt",
+            is_truncated=True,
+            harness_result_format=_format("persisted_output_partial"),
+        ),
+    ),
+    # Without a structured result, 0 and the 1 of grep look the same, so no exit code.
+    ("Bash", _result("hello"), _finished_result("bare_output", "hello")),
+    ("Read", _result(_TOOL_USE_ERROR), _not_run_result("tool_use_error")),
+    (
+        "Read",
+        _result("Interrupted: " + _CLASSIFIER),
+        ToolCallResult(
+            "", S.UNKNOWN, harness_result_format=_format("interrupted_classifier")
+        ),
+    ),
+    (
+        "Read",
+        _result(
+            "<system-reminder>Warning: the file exists but the contents are empty.</system-reminder>"
+        ),
+        _finished_result("warning"),
+    ),
+    (
+        "Read",
+        _result(
+            "Wasted call — file unchanged since your last Read. Refer to that earlier tool_result instead."
+        ),
+        _not_run_result("unchanged"),
+    ),
+    ("Read", _result("PDF file read: /d.pdf (102.8KB)"), _finished_result("pdf", None)),
+    (
+        "Read",
+        _result("PDF pages extracted: 2 page(s) from /d.pdf (102.8KB)"),
+        _finished_result("pdf_pages", None),
+    ),
+    (
+        "Read",
+        _result("pdftoppm is not installed. Install poppler-utils."),
+        _not_run_result("pdf_tool_missing"),
+    ),
+    (
+        "Read",
+        _result(
+            "This PDF has 300 pages, which is too many to read at once. Use the pages parameter."
+        ),
+        _not_run_result("pdf_too_many_pages"),
+    ),
+    (
+        "Read",
+        _result("PDF file exceeds maximum allowed size of 32MB."),
+        _not_run_result("pdf_too_large"),
+    ),
+    (
+        "Read",
+        _result("Unable to resize image below the size limit."),
+        _not_run_result("image_too_large"),
+    ),
+    (
+        "Read",
+        _result("EISDIR: illegal operation on a directory, read"),
+        _not_run_result("directory"),
+    ),
+    (
+        "Read",
+        _result("File does not exist. Current working directory: /app"),
+        _not_run_result("missing"),
+    ),
+    (
+        "Read",
+        _result(
+            "File content (30000 tokens) exceeds maximum allowed tokens (25000). Use offset."
+        ),
+        _not_run_result("too_large"),
+    ),
+    ("Read", _result("1\ta\n2\tb"), _finished_result("listing", "a\nb")),
+    (
+        "Read",
+        _result([{"type": "image", "source": {"type": "base64", "data": "AAAA"}}]),
+        _finished_result("image", None),
+    ),
+    ("Write", _result(_TOOL_USE_ERROR), _not_run_result("tool_use_error")),
+    (
+        "Write",
+        _result("Not run: " + _CLASSIFIER),
+        _not_run_result("not_run_classifier"),
+    ),
+    (
+        "Write",
+        _result("File created successfully at: /f.py" + _FRESH),
+        _finished_result("created_fresh"),
+    ),
+    (
+        "Write",
+        _result("File created successfully at: /f.py"),
+        _finished_result("created"),
+    ),
+    (
+        "Write",
+        _result("The file /f.py has been updated successfully." + _FRESH),
+        _finished_result("updated_fresh"),
+    ),
+    (
+        "Write",
+        _result("The file /f.py has been updated successfully."),
+        _finished_result("updated"),
+    ),
+    ("Edit", _result(_TOOL_USE_ERROR), _not_run_result("tool_use_error")),
+    (
+        "Edit",
+        _result("Refusing to write through symlink: /l Edit the target instead."),
+        _not_run_result("refused_symlink"),
+    ),
+    (
+        "Edit",
+        _result("The file /f has been updated successfully." + _FRESH),
+        _finished_result("updated_fresh"),
+    ),
+    (
+        "Edit",
+        _result("The file /f has been updated successfully."),
+        _finished_result("updated"),
+    ),
+    (
+        "Edit",
+        _result(
+            "The file /f has been updated successfully. (note: the file ends without a newline)"
+        ),
+        _finished_result("updated_note"),
+    ),
+    (
+        "Edit",
+        _result(
+            "The file /f has been updated. All occurrences were successfully replaced."
+            + _FRESH
+        ),
+        _finished_result("replaced_all_fresh"),
+    ),
+    (
+        "Edit",
+        _result(
+            "The file /f has been updated. All occurrences were successfully replaced."
+        ),
+        _finished_result("replaced_all"),
+    ),
+    (
+        "Edit",
+        _result(
+            "The file /f has been updated. All occurrences were successfully replaced. (note: the file ends without a newline)"
+        ),
+        _finished_result("replaced_all_note"),
+    ),
+    (
+        "WebFetch",
+        _result("No response from model"),
+        _finished_result("no_model_response"),
+    ),
+    (
+        "WebFetch",
+        _result("No response from model" + _BINARY_SAVED),
+        ToolCallResult(
+            "",
+            S.FINISHED,
+            output_path="/tmp/page.pdf",
+            harness_result_format=_format("no_model_response_binary_saved"),
+        ),
+    ),
+    # A fetch that got an error status or no connection ended on its own.
+    (
+        "WebFetch",
+        _result(
+            "The server returned HTTP 404 Not Found\n\nThe response body was not retrieved. Try another URL."
+        ),
+        ToolCallResult(
+            "",
+            S.FINISHED,
+            http_status=404,
+            harness_result_format=_format("http_error_body_not_retrieved"),
+        ),
+    ),
+    ("WebFetch", _result("API Error: 500 upstream"), _finished_result("api_error")),
+    (
+        "WebFetch",
+        _result("connect ECONNREFUSED 1.2.3.4:443"),
+        _finished_result("connection_error"),
+    ),
+    (
+        "WebFetch",
+        _result("Summary of the page." + _BINARY_SAVED),
+        ToolCallResult(
+            "Summary of the page.",
+            S.FINISHED,
+            output_path="/tmp/page.pdf",
+            harness_result_format=_format("page_binary_saved"),
+        ),
+    ),
+    (
+        "WebFetch",
+        _result("A page about tests."),
+        _finished_result("page", "A page about tests."),
+    ),
+    (
+        "WebSearch",
+        _result(
+            _PERSISTED_HEAD
+            + 'Web search results for query: "q"\n\nLinks: []\n\nsummary\n</persisted-output>'
+        ),
+        ToolCallResult(
+            "Links: []\n\nsummary",
+            S.FINISHED,
+            output_path="/tmp/p.txt",
+            is_truncated=True,
+            harness_result_format=_format("persisted_results"),
+        ),
+    ),
+    (
+        "WebSearch",
+        _result("The search was cut off before any results arrived. Try again."),
+        _finished_result("cut_off"),
+    ),
+    (
+        "WebSearch",
+        _result(
+            'Web search results for query: "q"\n\nLinks: []\n\nsummary\n\n'
+            "REMINDER: You MUST include the sources above in your response to the user using markdown hyperlinks."
+        ),
+        _finished_result("results", "Links: []\n\nsummary"),
+    ),
+    (
+        "TaskOutput",
+        _task_output("running", "local_bash", output="partial"),
+        ToolCallResult(
+            "partial",
+            S.RUNNING,
+            handles=(ExecutionHandle(ExecutionHandleKind.COMMAND, "t1"),),
+            harness_result_format=_format("task_running"),
+        ),
+    ),
+    (
+        "TaskOutput",
+        _task_output("completed", "local_agent", output="all good", exitCode=0),
+        ToolCallResult(
+            "all good",
+            S.FINISHED,
+            0,
+            handles=(ExecutionHandle(ExecutionHandleKind.SUBAGENT, "t1"),),
+            harness_result_format=_format("task_completed"),
+        ),
+    ),
+    (
+        "TaskOutput",
+        _task_output("failed", "local_bash", output="err", exitCode=1),
+        ToolCallResult(
+            "err",
+            S.FINISHED,
+            1,
+            handles=(ExecutionHandle(ExecutionHandleKind.COMMAND, "t1"),),
+            harness_result_format=_format("task_failed"),
+        ),
+    ),
+    ("TaskStop", _result(_TOOL_USE_ERROR), _not_run_result("tool_use_error")),
+    (
+        "TaskStop",
+        _result(
+            _PERSISTED_HEAD
+            + '{"message":"Successfully stopped task: t9 (python3 server.py)","task_id":"t9"'
+        ),
+        ToolCallResult(
+            "",
+            S.KILLED,
+            handles=(ExecutionHandle(ExecutionHandleKind.COMMAND, "t9"),),
+            output_path="/tmp/p.txt",
+            is_truncated=True,
+            harness_result_format=_format("persisted_stopped"),
+        ),
+    ),
+    (
+        "TaskStop",
+        _result("Task t2 is owned by a1; agent a2 cannot stop it."),
+        _not_run_result("not_owner"),
+    ),
+    (
+        "TaskStop",
+        _result(
+            '{"message":"Successfully stopped task: t1 (sleep 99)","task_id":"t1","task_type":"local_bash","command":"sleep 99"}'
+        ),
+        ToolCallResult(
+            "",
+            S.KILLED,
+            handles=(ExecutionHandle(ExecutionHandleKind.COMMAND, "t1"),),
+            harness_result_format=_format("stopped"),
+        ),
+    ),
+]
+
+
+# A made-up call of each tool with argument rows in the harness tool catalog, or whose action is a poll, and the `ToolCallAction` it converts to without a result.
+# Every argument row has a case, and every `PollAction` states its `terminate`.
+# (tool, arguments in the trajectory, expected action)
+ACTION_CASES: list[tuple[str, dict[str, Any], ToolCallAction]] = [
+    ("Bash", {"command": "ls /app", "timeout": 5000}, RunCommandAction("ls /app")),
+    (
+        "Edit",
+        {"file_path": "/app/a.py", "old_string": "x = 1", "new_string": "x = 2"},
+        EditFileAction("/app/a.py", "x = 1", "x = 2"),
+    ),
+    (
+        "Read",
+        {"file_path": "/app/a.py", "offset": 10, "limit": 20},
+        ReadFileAction("/app/a.py", 10, 20),
+    ),
+    (
+        "Write",
+        {"file_path": "/app/a.txt", "content": "hi"},
+        WriteFileAction("/app/a.txt", "hi"),
+    ),
+    # Some calls name the same two arguments `path` and `file_text`.
+    (
+        "Write",
+        {"path": "/app/b.txt", "file_text": "yo"},
+        WriteFileAction("/app/b.txt", "yo"),
+    ),
+    (
+        "WebFetch",
+        {"url": "https://example.org/a", "prompt": "sum it up"},
+        WebFetchAction(("https://example.org/a",)),
+    ),
+    ("WebSearch", {"query": "pytest fixtures"}, WebSearchAction(("pytest fixtures",))),
+    (
+        "mcp__playwright__browser_navigate",
+        {"url": "https://example.org/b"},
+        WebFetchAction(("https://example.org/b",)),
+    ),
+    ("Agent", {"prompt": "find the bug"}, StartSubagentAction()),
+    # The message text fills no field.
+    (
+        "SendMessage",
+        {"to": "a1", "message": "go on with the build"},
+        PollAction(
+            (ExecutionHandle(ExecutionHandleKind.SUBAGENT, "a1"),), terminate=False
+        ),
+    ),
+    (
+        "SendMessage",
+        {"recipient": "a2"},
+        PollAction(
+            (ExecutionHandle(ExecutionHandleKind.SUBAGENT, "a2"),), terminate=False
+        ),
+    ),
+    # A row without a handle kind leaves the kind unknown until a result names it.
+    (
+        "TaskOutput",
+        {"task_id": "b1"},
+        PollAction(
+            (ExecutionHandle(ExecutionHandleKind.UNKNOWN, "b1"),), terminate=False
+        ),
+    ),
+    (
+        "TaskStop",
+        {"task_id": "b1"},
+        PollAction(
+            (ExecutionHandle(ExecutionHandleKind.UNKNOWN, "b1"),), terminate=True
+        ),
+    ),
+]
+
+
+@pytest.mark.parametrize(("tool", "args", "expected"), ACTION_CASES)
+def test_a_call_of_each_tool_converts_to_the_action_of_its_arguments(
+    tool: str, args: dict[str, Any], expected: ToolCallAction
+):
+    assert _action_of_call_without_result(tool, args) == expected
+
+
+@pytest.mark.parametrize(("tool", "result", "expected"), RESULT_FORMAT_CASES)
+def test_a_result_of_each_declared_format_converts_to_its_fields(
+    tool: str, result: dict[str, Any], expected: ToolCallResult
+):
+    assert _converted_result(tool, {}, result) == expected
+
+
 def test_bash_body_without_header_is_exit_zero_and_structured_stdout_wins():
-    structured = {"stdout": "full stdout\n", "stderr": "", "interrupted": False}
-    tool_call_result = _bash("shown", structured)
+    structured_result = {"stdout": "full stdout\n", "stderr": "", "interrupted": False}
+    tool_call_result = _bash("shown", structured_result)
     assert tool_call_result is not None
     assert (
         tool_call_result.execution_status,
@@ -127,21 +707,6 @@ def test_bash_exit_code_without_header_needs_the_structured_result():
     )
     tool_call_result = _bash("shown", {"stdout": "shown", "interrupted": True})
     assert tool_call_result is not None and tool_call_result.exit_code is None
-
-
-def test_bash_background_notice_names_the_task_and_its_output_file():
-    block = (
-        "Command running in background with ID: b1a2c3d4e. Output is being written to: /tmp/b1a2c3d4e.output."
-        " You will be notified when it completes. To check interim output, use Read on that file path."
-    )
-    tool_call_result = _bash(block)
-    assert tool_call_result is not None
-    assert tool_call_result.execution_status is S.RUNNING
-    assert tool_call_result.handles == (
-        ExecutionHandle(ExecutionHandleKind.COMMAND, "b1a2c3d4e"),
-    )
-    assert tool_call_result.output_path == "/tmp/b1a2c3d4e.output"
-    assert tool_call_result.tool_output_text == ""
 
 
 def test_bash_structured_result_gives_the_task_and_the_saved_output():
@@ -212,20 +777,6 @@ def test_trailing_notices_are_cut_from_bash_and_write_results():
     assert tool_call_result.harness_result_format == MatchedFormat("created")
 
 
-def test_bash_background_notice_after_partial_output_is_recognized():
-    block = (
-        "early line\n"
-        "Command running in background with ID: abc123xyz."
-        " Output is being written to: /tmp/abc123xyz.output."
-        " You will be notified when it completes. To check interim output, use Read on that file path."
-    )
-    tool_call_result = _bash(block)
-    assert tool_call_result is not None
-    assert tool_call_result.execution_status is S.RUNNING
-    assert tool_call_result.handles[0].id == "abc123xyz"
-    assert tool_call_result.tool_output_text == "early line"
-
-
 def test_bash_error_output_cut_by_claude_code_is_truncated_and_keeps_the_marker():
     text = "head\n... [120 characters truncated] ...\ntail"
     tool_call_result = _bash("Exit code 1\n" + text, is_error=True)
@@ -260,53 +811,7 @@ def test_structured_result_that_is_not_an_object_is_ignored():
     assert tool_call_result is not None and tool_call_result.tool_output_text == "shown"
 
 
-def test_bash_exit_header_and_timeout():
-    tool_call_result = _bash("Exit code 2\nboom", is_error=True)
-    assert tool_call_result is not None
-    assert (
-        tool_call_result.execution_status,
-        tool_call_result.exit_code,
-        tool_call_result.tool_output_text,
-    ) == (
-        S.FINISHED,
-        2,
-        "boom",
-    )
-    tool_call_result = _bash(
-        "Exit code 143\nCommand timed out after 2m 0.0s", is_error=True
-    )
-    assert tool_call_result is not None
-    assert (
-        tool_call_result.execution_status,
-        tool_call_result.exit_code,
-        tool_call_result.tool_output_text,
-    ) == (
-        S.TIMED_OUT,
-        None,
-        "",
-    )
-
-
-def test_bash_refusals_are_not_run_and_an_unlabeled_error_body_is_unknown_format():
-    for block in (
-        "Permission to use Bash with command rm -rf x has been denied.",
-        "Dangerous rm operation detected: '/x' This is blocked.",
-        "This Bash command contains multiple operations. Split them.",
-        "<tool_use_error>InputValidationError: bad</tool_use_error>",
-    ):
-        tool_call_result = _bash(block, is_error=True)
-        assert (
-            tool_call_result is not None
-            and tool_call_result.execution_status is S.NOT_RUN
-        ), block
-    # The classifier stopped a call that was running and may have completed.
-    tool_call_result = _bash(
-        "Interrupted: the response that made this tool call was stopped by a safety classifier.",
-        is_error=True,
-    )
-    assert (
-        tool_call_result is not None and tool_call_result.execution_status is S.UNKNOWN
-    )
+def test_an_error_body_that_no_format_names_is_unknown_format():
     tool_call_result = _bash("something else went wrong", is_error=True)
     assert tool_call_result is not None
     assert (
@@ -318,30 +823,14 @@ def test_bash_refusals_are_not_run_and_an_unlabeled_error_body_is_unknown_format
     )
 
 
-def test_read_listing_without_structured_result_loses_line_numbers():
-    tool_call_result = _converted(
-        _harness_tool_call("Read", {"file_path": "/a"}, _result("1\ta\n2\tb\n3"))
-    ).result
-    assert tool_call_result is not None
-    assert (
-        tool_call_result.tool_output_text,
-        tool_call_result.execution_status,
-        tool_call_result.harness_result_format,
-    ) == (
-        "a\nb\n",
-        S.FINISHED,
-        MatchedFormat("listing"),
-    )
-
-
 def test_read_structured_file_content_is_the_text():
-    structured = {
+    structured_result = {
         "type": "text",
         "file": {"filePath": "/a", "content": "a\r\nb\n", "numLines": 2},
     }
     tool_call_result = _converted(
         _harness_tool_call(
-            "Read", {"file_path": "/a"}, _result("1\ta\n2\tb\n3", structured)
+            "Read", {"file_path": "/a"}, _result("1\ta\n2\tb\n3", structured_result)
         )
     ).result
     assert (
@@ -350,61 +839,33 @@ def test_read_structured_file_content_is_the_text():
 
 
 def test_read_cut_at_the_token_cap_is_truncated():
-    structured = {
+    structured_result = {
         "type": "text",
         "file": {"filePath": "/a", "content": "a\n", "truncatedByTokenCap": True},
     }
     tool_call_result = _converted(
-        _harness_tool_call("Read", {"file_path": "/a"}, _result("1\ta\n", structured))
+        _harness_tool_call(
+            "Read", {"file_path": "/a"}, _result("1\ta\n", structured_result)
+        )
     ).result
     assert tool_call_result is not None and tool_call_result.is_truncated is True
 
 
-def test_read_image_items_give_no_text_and_finished():
-    block = [{"type": "image", "source": {"type": "base64", "data": "AAAA"}}]
-    tool_call_result = _converted(
-        _harness_tool_call("Read", {"file_path": "/i.png"}, _result(block))
-    ).result
-    assert tool_call_result is not None
-    assert (
-        tool_call_result.tool_output_text,
-        tool_call_result.execution_status,
-        tool_call_result.harness_result_format,
-    ) == (
-        None,
-        S.FINISHED,
-        MatchedFormat("image"),
-    )
-
-
-def test_read_pdf_has_no_text_and_an_unchanged_file_is_not_read():
-    def read(block: str):
-        return _converted(
-            _harness_tool_call("Read", {"file_path": "/d.pdf"}, _result(block))
-        ).result
-
-    tool_call_result = read("PDF file read: /d.pdf (102.8KB)")
-    assert tool_call_result is not None and (
-        tool_call_result.tool_output_text,
-        tool_call_result.execution_status,
-    ) == (
-        None,
-        S.FINISHED,
-    )
-    tool_call_result = read(
-        "Wasted call — file unchanged since your last Read. Refer to that earlier tool_result instead."
-    )
-    assert tool_call_result is not None and (
-        tool_call_result.tool_output_text,
-        tool_call_result.execution_status,
-    ) == (
-        "",
-        S.NOT_RUN,
-    )
-
-
-def test_harbor_json_items_without_a_metadata_block_are_decoded():
-    content = '{"type": "text", "text": "File created successfully at: /f.py"}'
+@pytest.mark.parametrize(
+    "first_item",
+    [
+        {"type": "text", "text": ""},
+        IMAGE,
+        {"type": "tool_reference", "tool_name": "Read"},
+        {"type": "document", "source": {}},
+    ],
+)
+def test_harbor_json_items_without_a_metadata_block_are_decoded(
+    first_item: dict[str, Any],
+):
+    # Content of Harbor items, one per paragraph, is read as items of every type Harbor writes, and only text items give text.
+    text_item = {"type": "text", "text": "File created successfully at: /f.py"}
+    content = json.dumps(first_item) + "\n\n" + json.dumps(text_item)
     tool_call_result = _converted(
         _harness_tool_call("Write", {"file_path": "/f.py"}, {"content": content})
     ).result
@@ -418,18 +879,8 @@ def test_harbor_json_items_without_a_metadata_block_are_decoded():
     )
 
 
-def test_failed_file_tool_is_not_run():
-    block = "<tool_use_error>File has not been read yet. Read it first before writing to it.</tool_use_error>"
-    tool_call_result = _converted(
-        _harness_tool_call("Edit", {"file_path": "/f"}, _result(block, is_error=True))
-    ).result
-    assert (
-        tool_call_result is not None and tool_call_result.execution_status is S.NOT_RUN
-    )
-
-
 def test_task_output_uses_the_structured_task():
-    structured = {
+    structured_result = {
         "retrieval_status": "success",
         "task": {
             "task_id": "t1",
@@ -439,29 +890,31 @@ def test_task_output_uses_the_structured_task():
             "exitCode": 0,
         },
     }
-    call = _converted(
+    tool_call = _converted(
         _harness_tool_call(
             "TaskOutput",
             {"task_id": "t1"},
-            _result("<retrieval_status>success</retrieval_status>", structured),
+            _result("<retrieval_status>success</retrieval_status>", structured_result),
         )
     )
-    assert call.result is not None
+    assert tool_call.result is not None
     assert (
-        call.result.execution_status,
-        call.result.tool_output_text,
-        call.result.exit_code,
+        tool_call.result.execution_status,
+        tool_call.result.tool_output_text,
+        tool_call.result.exit_code,
     ) == (
         S.FINISHED,
         "all good",
         0,
     )
-    assert call.result.handles == (ExecutionHandle(ExecutionHandleKind.SUBAGENT, "t1"),)
-    assert call.action == PollAction(call.result.handles)
+    assert tool_call.result.handles == (
+        ExecutionHandle(ExecutionHandleKind.SUBAGENT, "t1"),
+    )
+    assert tool_call.action == PollAction(tool_call.result.handles)
 
 
 def test_task_stop_is_a_terminate_whose_target_is_killed():
-    call = _converted(
+    tool_call = _converted(
         _harness_tool_call(
             "TaskStop",
             {"task_id": "t1"},
@@ -471,31 +924,12 @@ def test_task_stop_is_a_terminate_whose_target_is_killed():
             ),
         )
     )
-    assert call.result is not None and call.result.execution_status is S.KILLED
-    assert call.action == PollAction(
+    assert (
+        tool_call.result is not None and tool_call.result.execution_status is S.KILLED
+    )
+    assert tool_call.action == PollAction(
         (ExecutionHandle(ExecutionHandleKind.COMMAND, "t1"),), None, True
     )
-
-
-def test_web_tools_that_reached_the_server_are_finished_even_on_errors():
-    for block, name, http_status in (
-        (
-            "The server returned HTTP 404 Not Found\n\nThe response body was not retrieved. Try another URL.",
-            "http_error_body_not_retrieved",
-            404,
-        ),
-        ("connect ECONNREFUSED 1.2.3.4:443", "connection_error", None),
-    ):
-        tool_call_result = _converted(
-            _harness_tool_call("WebFetch", {"url": "u"}, _result(block))
-        ).result
-        assert tool_call_result is not None
-        assert (
-            tool_call_result.execution_status,
-            tool_call_result.harness_result_format,
-            tool_call_result.tool_output_text,
-            tool_call_result.http_status,
-        ) == (S.FINISHED, MatchedFormat(name), "", http_status)
 
 
 def test_other_tools_have_skipped_format():
@@ -511,46 +945,6 @@ def test_other_tools_have_skipped_format():
         S.UNKNOWN,
         UnmatchedFormat.SKIPPED,
         "Async agent launched",
-    )
-
-
-def test_task_stop_wrapped_as_persisted_output_is_still_a_kill():
-    block = (
-        "<persisted-output>\nOutput too large (3.1KB). Full output saved to: /tmp/p.txt\n\nPreview (first 2KB):\n"
-        '{"message":"Successfully stopped task: t9 (python3 server.py)","task_id":"t9"'
-    )
-    tool_call_result = _converted(
-        _harness_tool_call("TaskStop", {"task_id": "t9"}, _result(block))
-    ).result
-    assert tool_call_result is not None
-    assert (
-        tool_call_result.execution_status,
-        tool_call_result.tool_output_text,
-        tool_call_result.output_path,
-        tool_call_result.is_truncated,
-    ) == (S.KILLED, "", "/tmp/p.txt", True)
-    assert tool_call_result.handles == (
-        ExecutionHandle(ExecutionHandleKind.COMMAND, "t9"),
-    )
-
-
-def test_web_search_wrapped_as_persisted_output_loses_its_inner_header():
-    block = (
-        "<persisted-output>\nOutput too large (5.0KB). Full output saved to: /tmp/w.txt\n\nPreview (first 2KB):\n"
-        'Web search results for query: "q"\n\nLinks: []\n\nsummary\n</persisted-output>'
-    )
-    tool_call_result = _converted(
-        _harness_tool_call("WebSearch", {"query": "q"}, _result(block))
-    ).result
-    assert tool_call_result is not None
-    assert (
-        tool_call_result.harness_result_format,
-        tool_call_result.tool_output_text,
-        tool_call_result.is_truncated,
-    ) == (
-        MatchedFormat("persisted_results"),
-        "Links: []\n\nsummary",
-        True,
     )
 
 
@@ -578,7 +972,7 @@ def test_bash_background_notice_that_warns_about_the_final_response_is_running()
 
 
 def test_web_fetch_takes_the_http_status_from_the_structured_result():
-    structured = {
+    structured_result = {
         "bytes": 10,
         "code": 200,
         "codeText": "OK",
@@ -586,7 +980,9 @@ def test_web_fetch_takes_the_http_status_from_the_structured_result():
     }
     tool_call_result = _converted(
         _harness_tool_call(
-            "WebFetch", {"url": "u"}, _result("No response from model", structured)
+            "WebFetch",
+            {"url": "u"},
+            _result("No response from model", structured_result),
         )
     ).result
     assert tool_call_result is not None
@@ -594,19 +990,6 @@ def test_web_fetch_takes_the_http_status_from_the_structured_result():
         "",
         200,
     )
-
-
-def test_web_fetch_without_a_model_response_has_no_text_even_with_a_saved_binary():
-    saved = "\n\n[Binary content (application/pdf, 1.2 MB) also saved to /tmp/page.pdf]"
-    for block in ("No response from model", "No response from model" + saved):
-        tool_call_result = _converted(
-            _harness_tool_call("WebFetch", {"url": "u"}, _result(block))
-        ).result
-        assert tool_call_result is not None
-        assert (
-            tool_call_result.tool_output_text,
-            tool_call_result.execution_status,
-        ) == ("", S.FINISHED)
 
 
 def test_content_items_join_their_texts_with_a_blank_line():
@@ -645,6 +1028,11 @@ def test_only_a_read_without_text_and_with_an_image_is_an_image_read():
         "Read", {"file_path": "/a"}, _result([IMAGE, text_item])
     )
     assert read_with_text.harness_result_format == MatchedFormat("listing")
+    # The only item of a result is matched as JSON only when the result has no text.
+    read_of_one_text_item = _converted_result(
+        "Read", {"file_path": "/a"}, _result([text_item])
+    )
+    assert read_of_one_text_item.harness_result_format == MatchedFormat("listing")
 
 
 def test_harbor_image_item_without_a_metadata_block_is_an_image_read():
@@ -705,8 +1093,8 @@ def test_structured_result_without_stdout_gives_empty_text():
 
 
 def test_structured_file_content_that_is_no_string_is_ignored():
-    structured = {"type": "text", "file": {"filePath": "/a", "content": ["a"]}}
-    result = _result("1\ta\n2\tb", structured)
+    structured_result = {"type": "text", "file": {"filePath": "/a", "content": ["a"]}}
+    result = _result("1\ta\n2\tb", structured_result)
     tool_call_result = _converted_result("Read", {"file_path": "/a"}, result)
     assert tool_call_result.tool_output_text == "a\nb"
 

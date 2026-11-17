@@ -48,7 +48,7 @@ class ClaudeCodeConverter(HarnessToolCallConverter):
         `content` is read only when that is missing.
         Text from `raw_tool_result` loses its edge whitespace, and content items are joined.
         """
-        return _original_text_of(tool_result)[0]
+        return _raw_text_and_content_items_of(tool_result)[0]
 
     def tool_result_json_of(
         self, harness_tool_call: HarnessToolCall, tool_result: dict[str, Any]
@@ -78,7 +78,7 @@ class ClaudeCodeConverter(HarnessToolCallConverter):
         judgment_rule_use_counts: Counter[str],
     ) -> ToolCallResult:
         name = harness_tool_call.tool.name
-        structured = structured_result_of(tool_result)
+        structured_result = structured_result_of(tool_result)
         tool_call_result = super().convert_result(
             harness_tool_call,
             tool_result,
@@ -87,18 +87,20 @@ class ClaudeCodeConverter(HarnessToolCallConverter):
         )
         if isinstance(tool_call_result.harness_result_format, UnmatchedFormat):
             return tool_call_result
-        if name == "Bash" and structured:
+        if name == "Bash" and structured_result:
             return _result_from_structured_bash(
                 tool_call_result,
-                structured,
+                structured_result,
                 judgment_rule_use_counts=judgment_rule_use_counts,
             )
         if name == "Read":
             return _result_from_structured_read(
-                tool_call_result, structured.get("file") or {}
+                tool_call_result, structured_result.get("file") or {}
             )
         if name == "WebFetch":
-            return _result_from_structured_web_fetch(tool_call_result, structured)
+            return _result_from_structured_web_fetch(
+                tool_call_result, structured_result
+            )
         return tool_call_result
 
 
@@ -106,13 +108,13 @@ def _only_content_item_of_result_without_text(
     tool_result: Mapping[str, Any],
 ) -> dict[str, Any] | None:
     """Find the one content item of a result that has no text, or None for a result with text or with another number of items."""
-    raw_text, items = _original_text_of(tool_result)
+    raw_text, items = _raw_text_and_content_items_of(tool_result)
     if raw_text is None and len(items) == 1:
         return items[0]
     return None
 
 
-def _original_text_of(
+def _raw_text_and_content_items_of(
     tool_result: Mapping[str, Any],
 ) -> tuple[str | None, list[dict[str, Any]]]:
     """Read Claude Code's own result text and the content items it had, e.g. one image item."""
@@ -161,8 +163,8 @@ def _join_content_items(items: Any) -> str | None:
 
 def structured_result_of(tool_result: Mapping[str, Any]) -> dict[str, Any]:
     """Read Claude Code's structured result (`tool_use_result`), which most calls carry, or {} without one."""
-    structured = _metadata_of(tool_result).get("tool_use_result")
-    return structured if isinstance(structured, dict) else {}
+    structured_result = _metadata_of(tool_result).get("tool_use_result")
+    return structured_result if isinstance(structured_result, dict) else {}
 
 
 def _metadata_of(tool_result: Mapping[str, Any]) -> Mapping[str, Any]:
@@ -176,24 +178,24 @@ def _extra_of(tool_result: Mapping[str, Any]) -> Mapping[str, Any]:
 
 def _result_from_structured_bash(
     tool_call_result: ToolCallResult,
-    structured: Mapping[str, Any],
+    structured_result: Mapping[str, Any],
     *,
     judgment_rule_use_counts: Counter[str],
 ) -> ToolCallResult:
     """Prefer the structured stdout, task id and saved-output path over what the text showed."""
-    saved_to = structured.get("persistedOutputPath")
-    task_id = structured.get("backgroundTaskId")
+    saved_to = structured_result.get("persistedOutputPath")
+    task_id = structured_result.get("backgroundTaskId")
     if (
         tool_call_result.exit_code is None
         and tool_call_result.execution_status is S.FINISHED
     ):
         tool_call_result = _result_with_exit_code_from_structured_bash(
             tool_call_result,
-            structured,
+            structured_result,
             judgment_rule_use_counts=judgment_rule_use_counts,
         )
     # stdout is the whole tool output, since its stderr only holds the cwd notice.
-    stdout = structured.get("stdout") or ""
+    stdout = structured_result.get("stdout") or ""
     return replace(
         tool_call_result,
         tool_output_text=stdout,
@@ -206,7 +208,7 @@ def _result_from_structured_bash(
 
 def _result_with_exit_code_from_structured_bash(
     tool_call_result: ToolCallResult,
-    structured: Mapping[str, Any],
+    structured_result: Mapping[str, Any],
     *,
     judgment_rule_use_counts: Counter[str],
 ) -> ToolCallResult:
@@ -216,9 +218,9 @@ def _result_with_exit_code_from_structured_bash(
     Claude Code then names that meaning in `returnCodeInterpretation`, and writes it only for code 1.
     An interrupted command keeps no exit code, and any other gets 0 by a judgment rule.
     """
-    if structured.get("interrupted"):
+    if structured_result.get("interrupted"):
         return tool_call_result
-    if structured.get("returnCodeInterpretation"):
+    if structured_result.get("returnCodeInterpretation"):
         return replace(tool_call_result, exit_code=1)
     return treat_bash_output_without_exit_code_line_as_exit_code_0(
         tool_call_result, use_counts=judgment_rule_use_counts
@@ -238,10 +240,10 @@ def _result_from_structured_read(
 
 
 def _result_from_structured_web_fetch(
-    tool_call_result: ToolCallResult, structured: Mapping[str, Any]
+    tool_call_result: ToolCallResult, structured_result: Mapping[str, Any]
 ) -> ToolCallResult:
     """Take the HTTP status from the structured result, which has it even when the text does not."""
-    code = structured.get("code")
+    code = structured_result.get("code")
     if isinstance(code, int) and not isinstance(code, bool):
         return replace(tool_call_result, http_status=code)
     return tool_call_result

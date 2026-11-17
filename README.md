@@ -56,7 +56,7 @@ The [pipeline example](docs/pipeline-example.md) follows six made-up tool calls 
 | # | Step | Question it answers | Output | Judgment rules | Status |
 |---|---|---|---|---|---|
 | 0 | Collect trials | Which trials are there, and what is known about each (e.g. task, reward)? | `Trial` | 0 | Planned |
-| 1 | Convert tool calls | What did the trajectory record, in types that hide the harness? | `ToolCall` | 13 | Harness side rebuilt, shell text splitting to come |
+| 1 | Convert tool calls | What did the trajectory record, in types that hide the harness? | `ToolCall` | 17 | Harness side rebuilt, shell text splitting to come |
 | 2 | Expand tool calls | What did each call actually run, and where does that output show up? | `ExpandedToolCall` | 9 | Exists, being redesigned |
 | 3 | Extract network requests | Which of what ran is a request, and for which target? | `NetworkRequest` | 1 | Partly exists |
 | 4 | Decide request results | How far did each request get, and on what evidence? | `NetworkRequestResult` | 8 | Partly exists |
@@ -72,7 +72,7 @@ Steps 1 and 2 are built to know nothing about the internet, so they can serve ot
 
 - Only ATIF trajectories are read. ATIF lacks some calls of several harnesses, so what is counted for them is less than what happened:
   - Devin, Grok Build: subagent and pre-compaction calls missing.
-  - Cursor: subagents' inner calls missing.
+  - Cursor CLI: subagents' inner calls missing.
 - Requests made outside the trajectory, such as those of the image build or the verifier, are out of scope.
 
 ## Development

@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     # The door is passed in and named in annotations only, so that `convert_tool_calls` never loads `knowledge/` itself.
     from tb_internet_use.knowledge.tool_call_knowledge import ToolCallKnowledge
 
-# Muse ends a truncated shell output with this reminder, which names the full output's file.
+# Muse Code ends a truncated shell output with this reminder, which names the full output's file.
 _SAVED_OUTPUT_REMINDER = re.compile(
     r"(?P<tool_output>[\s\S]*?)\n<system-reminder>\nFull output saved to: (?P<output_path>[^\n]*?)\n"
     r"Full output is longer than the visible window\.\n"

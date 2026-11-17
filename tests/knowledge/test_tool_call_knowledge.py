@@ -20,14 +20,14 @@ from tb_internet_use.knowledge.tool_call_knowledge import (
     HARNESS_RESULT_FORMATS_DECLARATIONS,
     HARNESS_TOOL_ARGUMENTS_CSV,
     HARNESS_TOOLS_CSV,
-    HarnessToolLabel,
     ToolCallKnowledge,
-    UnknownHarnessToolLabel,
 )
 from tb_internet_use.tool_call.model import (
     ExecutionHandleKind,
     ExecutionStatus,
     HarnessTool,
+    HarnessToolLabel,
+    UnknownHarnessToolLabel,
     UnmatchedFormat,
 )
 
@@ -113,17 +113,33 @@ def _write_catalogs(
     return tmp_path
 
 
-def test_label_of_a_tool_merges_its_rows_of_both_csvs(tmp_path):
+def test_label_of_a_tool_merges_its_row_with_the_rows_of_the_arguments_of_the_call(
+    tmp_path,
+):
     catalogs_dir = _write_catalogs(tmp_path, list(_TOOL_ROWS), list(_ARGUMENT_ROWS))
     knowledge = ToolCallKnowledge(catalogs_dir=catalogs_dir)
 
-    assert knowledge.harness_tool_label(HarnessTool("h", "stop")) == HarnessToolLabel(
+    # An argument without a row, here `wait`, fills no field.
+    assert knowledge.harness_tool_label(
+        HarnessTool("h", "stop"), ("id", "text", "wait")
+    ) == HarnessToolLabel(
         action_type="PollAction",
         action_field_by_argument_name={"id": "handles", "text": "input"},
         stops_execution=True,
         argument_handle_kind=ExecutionHandleKind.COMMAND,
     )
-    assert knowledge.harness_tool_label(HarnessTool("h", "list")) == HarnessToolLabel(
+    # A call without the `handles` argument gets no handle kind, since it has no handle to give one.
+    assert knowledge.harness_tool_label(
+        HarnessTool("h", "stop"), ("text",)
+    ) == HarnessToolLabel(
+        action_type="PollAction",
+        action_field_by_argument_name={"text": "input"},
+        stops_execution=True,
+        argument_handle_kind=None,
+    )
+    assert knowledge.harness_tool_label(
+        HarnessTool("h", "list"), ()
+    ) == HarnessToolLabel(
         action_type="OtherAction",
         action_field_by_argument_name={},
         stops_execution=False,
@@ -131,21 +147,25 @@ def test_label_of_a_tool_merges_its_rows_of_both_csvs(tmp_path):
     )
 
 
-def test_tool_without_a_row_is_unknown_and_every_lookup_is_counted(tmp_path):
+def test_tool_without_a_row_is_unknown_and_an_argument_row_counts_only_the_calls_with_its_argument(
+    tmp_path,
+):
     catalogs_dir = _write_catalogs(tmp_path, list(_TOOL_ROWS), list(_ARGUMENT_ROWS))
     knowledge = ToolCallKnowledge(catalogs_dir=catalogs_dir)
 
-    answer = knowledge.harness_tool_label(HarnessTool("h", "new"))
-    knowledge.harness_tool_label(HarnessTool("h", "stop"))
-    knowledge.harness_tool_label(HarnessTool("h", "stop"))
+    answer = knowledge.harness_tool_label(HarnessTool("h", "new"), ("id",))
+    knowledge.harness_tool_label(HarnessTool("h", "stop"), ("id", "text"))
+    knowledge.harness_tool_label(HarnessTool("h", "stop"), ("id",))
+    # A call without either argument counts the tool row only, and its argument without a row counts nothing.
+    knowledge.harness_tool_label(HarnessTool("h", "stop"), ("wait",))
 
     assert answer == UnknownHarnessToolLabel()
     assert knowledge.uses == KnowledgeUses(
         row_use_counts=Counter(
             {
-                (HARNESS_TOOLS_CSV, ("h", "stop")): 2,
+                (HARNESS_TOOLS_CSV, ("h", "stop")): 3,
                 (HARNESS_TOOL_ARGUMENTS_CSV, ("h", "stop", "id")): 2,
-                (HARNESS_TOOL_ARGUMENTS_CSV, ("h", "stop", "text")): 2,
+                (HARNESS_TOOL_ARGUMENTS_CSV, ("h", "stop", "text")): 1,
             }
         ),
         unknown_input_counts=Counter({(HARNESS_TOOLS_CSV, ("h", "new")): 1}),
@@ -157,7 +177,7 @@ def test_each_door_counts_only_its_own_lookups(tmp_path):
     first = ToolCallKnowledge(catalogs_dir=catalogs_dir)
     second = ToolCallKnowledge(catalogs_dir=catalogs_dir)
 
-    first.harness_tool_label(HarnessTool("h", "list"))
+    first.harness_tool_label(HarnessTool("h", "list"), ())
 
     assert second.uses == KnowledgeUses()
 
@@ -187,7 +207,7 @@ def test_result_format_is_answered_and_counted_as_a_row_use_or_an_unknown_input(
 ):
     knowledge = ToolCallKnowledge(result_formats_by_harness=RESULT_FORMATS_BY_HARNESS)
 
-    answer = knowledge.harness_result_format(
+    matched_or_unmatched_format = knowledge.harness_result_format(
         HarnessTool("h", tool_name),
         raw_text,
         tool_result_json,
@@ -195,15 +215,15 @@ def test_result_format_is_answered_and_counted_as_a_row_use_or_an_unknown_input(
     )
 
     if isinstance(found, UnmatchedFormat):
-        assert answer is found
+        assert matched_or_unmatched_format is found
         assert knowledge.uses == KnowledgeUses(
             unknown_input_counts=Counter(
                 {(HARNESS_RESULT_FORMATS_DECLARATIONS, ("h", tool_name, str(found))): 1}
             )
         )
     else:
-        assert isinstance(answer, MatchedHarnessResultFormat)
-        assert answer.format.name == found
+        assert isinstance(matched_or_unmatched_format, MatchedHarnessResultFormat)
+        assert matched_or_unmatched_format.format.name == found
         assert knowledge.uses == KnowledgeUses(
             row_use_counts=Counter(
                 {(HARNESS_RESULT_FORMATS_DECLARATIONS, ("h", tool_name, found)): 1}
@@ -214,11 +234,11 @@ def test_result_format_is_answered_and_counted_as_a_row_use_or_an_unknown_input(
 def test_matched_result_format_carries_its_matched_values():
     knowledge = ToolCallKnowledge(result_formats_by_harness=RESULT_FORMATS_BY_HARNESS)
 
-    answer = knowledge.harness_result_format(
+    matched_or_unmatched_format = knowledge.harness_result_format(
         HarnessTool("h", "shell"), "exit 3\nhi", None, is_marked_as_error=False
     )
 
-    assert answer == MatchedHarnessResultFormat(
+    assert matched_or_unmatched_format == MatchedHarnessResultFormat(
         EXITED, {"exit_code": "3", "tool_output": "hi"}
     )
 

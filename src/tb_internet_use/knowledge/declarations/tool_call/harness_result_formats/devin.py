@@ -57,7 +57,7 @@ _OMITTED = "… {omitted:int} lines omitted …\n"
 
 
 def _file_view_template_for(suffix: str = "") -> str:
-    """A file view's opening tag. A second view in one template takes a suffix, since placeholder names must differ."""
+    """Build the template of a file view's opening tag. A second view in one template takes a suffix, since placeholder names must differ."""
     return (
         f'<file-view path="{{path{suffix}:line}}" start_line="{{start{suffix}:int}}" '
         f'end_line="{{end{suffix}:int}}" total_lines="{{total{suffix}:int}}">\n'
@@ -73,8 +73,8 @@ _LIVE_HEAD_VIEW = (
 _LIVE_TAIL_VIEW = _file_view_template_for("2") + "{tail:numbered_pipe}\n</file-view>\n"
 
 
-def _preview_text_of(values: MatchedValues) -> str:
-    listings = (str(values.get(name, "")) for name in ("head", "tail"))
+def _preview_text_of(matched_values: MatchedValues) -> str:
+    listings = (str(matched_values.get(name, "")) for name in ("head", "tail"))
     return join_text_parts(strip_line_numbers(listing, "|") for listing in listings)
 
 
@@ -165,7 +165,11 @@ _EXEC = HarnessResultFormatList[str](
             S.RUNNING,
             fixed_handle_kind=ExecutionHandleKind.COMMAND,
         ),
-        Text("rejected", "Tool 'exec' validation failed: {reason:text}", S.NOT_RUN),
+        Text(
+            "rejected",
+            "Tool 'exec' validation failed: {reason:text}",
+            judgment_rule="treat_tool_failure_message_as_not_run",
+        ),
         Text(
             "rejected_env",
             "`env` can only be set when starting a new shell; {reason:text}",
@@ -187,9 +191,9 @@ _DIFF_HEAD = (
 )
 
 
-def _tool_output_text_from_diff(values: MatchedValues) -> str:
+def _tool_output_text_from_diff(matched_values: MatchedValues) -> str:
     kept: list[str] = []
-    for line in str(values["diff"]).split("\n"):
+    for line in str(matched_values["diff"]).split("\n"):
         if line[:1] in ("+", " "):
             kept.append(line[1:])
         elif not line.startswith(("@@", "-")):
@@ -218,7 +222,7 @@ _GET_OUTPUT = HarnessResultFormatList[str](
         Text(
             "running_incremental",
             _DIFF_HEAD + "{diff:text}",
-            S.RUNNING,
+            judgment_rule="treat_get_output_without_exit_code_as_running",
             text_from_matched_values=_tool_output_text_from_diff,
         ),
         Text(
@@ -235,7 +239,9 @@ _GET_OUTPUT = HarnessResultFormatList[str](
         ),
         Text("running_silent", "No output yet (still running)", S.RUNNING),
         Text(
-            "rejected", "Tool 'get_output' validation failed: {reason:text}", S.NOT_RUN
+            "rejected",
+            "Tool 'get_output' validation failed: {reason:text}",
+            judgment_rule="treat_tool_failure_message_as_not_run",
         ),
         Text(
             "running",
@@ -256,7 +262,9 @@ _KILL_SHELL = HarnessResultFormatList[str](
             fixed_handle_kind=ExecutionHandleKind.COMMAND,
         ),
         Text(
-            "rejected", "Tool 'kill_shell' validation failed: {reason:text}", S.NOT_RUN
+            "rejected",
+            "Tool 'kill_shell' validation failed: {reason:text}",
+            judgment_rule="treat_tool_failure_message_as_not_run",
         ),
     )
 )
@@ -285,7 +293,11 @@ _READ = HarnessResultFormatList[str](
             S.FINISHED,
             no_tool_output_text=True,
         ),
-        Text("rejected", "Tool 'read' validation failed: {reason:text}", S.NOT_RUN),
+        Text(
+            "rejected",
+            "Tool 'read' validation failed: {reason:text}",
+            judgment_rule="treat_tool_failure_message_as_not_run",
+        ),
     )
 )
 
@@ -316,7 +328,11 @@ _WRITE = HarnessResultFormatList[str](
             is_truncated=True,
         ),
         _UPDATED,
-        Text("rejected", "Tool 'write' validation failed: {reason:text}", S.NOT_RUN),
+        Text(
+            "rejected",
+            "Tool 'write' validation failed: {reason:text}",
+            judgment_rule="treat_tool_failure_message_as_not_run",
+        ),
     )
 )
 
@@ -324,7 +340,11 @@ _EDIT = HarnessResultFormatList[str](
     (
         _UPDATED_TRUNCATED_NOTE,
         _UPDATED,
-        Text("rejected", "Tool 'edit' validation failed: {reason:text}", S.NOT_RUN),
+        Text(
+            "rejected",
+            "Tool 'edit' validation failed: {reason:text}",
+            judgment_rule="treat_tool_failure_message_as_not_run",
+        ),
     )
 )
 
@@ -346,7 +366,11 @@ _WEBFETCH = HarnessResultFormatList[str](
             "HTTP request failed with status: {http_status:int}",
             S.FINISHED,
         ),
-        Text("rejected", "Tool 'webfetch' validation failed: {reason:text}", S.NOT_RUN),
+        Text(
+            "rejected",
+            "Tool 'webfetch' validation failed: {reason:text}",
+            judgment_rule="treat_tool_failure_message_as_not_run",
+        ),
     )
 )
 

@@ -64,8 +64,8 @@ Tools whose `ToolCallAction` varies by call are labeled [`Deferred`](../knowledg
 | Step | Code | Produces |
 |---|---|---|
 | Read the text of a trajectory file, pair calls with results | [`parse_trajectory.py`](parse_trajectory.py) | `HarnessToolCall`, or `UnreadableTrajectory` when the file is missing or is not JSON |
-| Build the action from the label of the tool and the arguments | [`_convert_tool_call_action.py`](_convert_tool_call_action.py), with the label from [`tool_call_knowledge.py`](../knowledge/tool_call_knowledge.py) | `ToolCallAction`, `UnknownAction` for a tool without a row or for a call whose two arguments give a field of one value different values |
 | Match the result against the harness's declared result formats | [`_convert_tool_call_result.py`](_convert_tool_call_result.py), one [`HarnessToolCallConverter`](harnesses/harness_tool_call_converter.py) per harness in [harnesses/](harnesses/), with the formats from [`tool_call_knowledge.py`](../knowledge/tool_call_knowledge.py) | `ToolCallResult` |
+| Build the action from the label of the tool and the arguments, with the result at hand | [`_convert_tool_call_action.py`](_convert_tool_call_action.py), with the label from [`tool_call_knowledge.py`](../knowledge/tool_call_knowledge.py) | `ToolCallAction`, `UnknownAction` for a tool without a row or for a call whose two arguments give a field of one value different values |
 | Fill what the action type and argument fields of a label cannot express, e.g. the handles a result names, the terminate of a stop tool, Deferred tools | `HarnessToolCallConverter.refine_action`, `action_of_deferred_tool` | `ToolCallAction` |
 
 ## Result formats
@@ -96,7 +96,7 @@ annotated output = annotation + tool output
 |---|---|---|
 | Tool output | What the tool itself produced | `ToolCallResult.tool_output_text` |
 | Annotation | What the harness wrote about the call, e.g. an exit code line | Execution status, exit code, HTTP status, handles, output path, truncation |
-| Notice | A message the harness may add at the start or end of any result, e.g. Grok's completion notifications | Cut before matching, fills no field. Still in `harness_tool_call.result` for later steps |
+| Notice | A message the harness may add at the start or end of any result, e.g. Grok Build's completion notifications | Cut before matching, fills no field. Still in `harness_tool_call.result` for later steps |
 
 A truncation marker, which a harness leaves inside a tool output it cut, stays in the tool output and sets `is_truncated`.
 
@@ -146,7 +146,7 @@ annotated output
 
 Both give `tool_output_text="hello"`, `exit_code=0`, status `finished`.
 
-### How one result is parsed
+### How one result is converted
 
 [`convert_tool_call_result`](_convert_tool_call_result.py) hands a call with a result to [`HarnessToolCallConverter.convert_result`](harnesses/harness_tool_call_converter.py), which runs these steps in order. A harness overrides a hook when its trajectory differs.
 
@@ -154,7 +154,7 @@ Both give `tool_output_text="hello"`, `exit_code=0`, status `finished`.
 2. `tool_result_json_of`: the JSON object, asked only for a tool that `ToolCallKnowledge.has_json_result_formats` says has JSON formats. A harness may hold a result without text as a JSON object from the trajectory, e.g. the one image item of a Claude Code `Read` of an image file, or the empty result entry of a Codex `web_search_call`.
 3. `is_marked_as_error`: whether the harness marked the result as an error, which only Claude Code reads.
 4. `ToolCallKnowledge.harness_result_format`: the declared format the result has, or an `UnmatchedFormat`. It picks the tool's JSON list when there is a JSON object, its list for results marked as errors when it has one and the result is marked, else its text list, then cuts the notices and tries the formats in order. It counts the format or the unmatched result.
-5. [`result_from_harness_result_format`](_convert_tool_call_result.py): build `ToolCallResult` from the format that matched, or keep the raw text when none did.
+5. [`result_from_matched_or_unmatched_format`](_convert_tool_call_result.py): build `ToolCallResult` from the format that matched, or keep the raw text when none did.
    A format whose result text does not tell the status names a rule of [judgment_rules.py](judgment_rules.py) in place of a status, e.g. Claude Code `Bash` output without an `Exit code` line, and the rule decides it.
 6. The converter's own `convert_result` may then add what formats cannot express, e.g. Claude Code's structured result fields, or apply a rule of [judgment_rules.py](judgment_rules.py), e.g. exit code 130 after a Codex Ctrl-C read as killed.
 
@@ -166,28 +166,32 @@ Both give `tool_output_text="hello"`, `exit_code=0`, status `finished`.
 | The tool has formats, none matched | The raw text as is | `unknown`, never `finished` by default | `UnmatchedFormat.UNKNOWN` |
 | The tool has no formats | The raw text as is | `unknown` | `UnmatchedFormat.SKIPPED` |
 
-`tool_output_text` is `""` when the tool showed no output, and `None` only when the trajectory holds no text of what it returned, e.g. an image, a PDF or a Cursor blob id.
+`tool_output_text` is `""` when the tool showed no output, and `None` only when the trajectory holds no text of what it returned, e.g. an image, a PDF or a Cursor CLI blob id.
 `handles` name what a later call can poll. A result with handles is usually `running`, but a `finished` Codex `exec` or `wait` result also names the sessions of commands its script left running, read from step results it printed as JSON.
 [`harness_result_format`](model.py) names the format, as in the table of declared result formats and the audit, for audits and evidence only. Later steps must not branch on it.
 
 ## Judgment rules
 
-A judgment rule is a choice that the trajectory does not settle, here a status or exit code that the result text does not state. The thirteen of this step are in [judgment_rules.py](judgment_rules.py), and all are provisional, since they keep the choice of the earlier code.
+A judgment rule is a choice that the trajectory does not settle, here a status or exit code that the result text does not state. The seventeen of this step are in [judgment_rules.py](judgment_rules.py), and all are provisional, since they keep the choice of the earlier code.
 A declared result format names the rule that decides its status with `judgment_rule="<function name>"`, and a harness converter calls a rule itself when the situation is more than one format.
 Each use of a rule is counted in the `judgment_rule_use_counts` of `convert_tool_calls`, and [audit_tool_call_knowledge.py](../../../scripts/audit_tool_call_knowledge.py) writes the sums over the trials to `out/tool_call_knowledge/judgment_rule_uses.csv`.
 
 | Function | Where it is applied | Choice |
 |---|---|---|
-| `treat_bash_output_without_exit_code_line_as_finished` | Claude Code `Bash` format `bare_output` | Output without an `Exit code` line is a finished command |
+| `treat_bash_output_without_exit_code_line_as_finished` | Claude Code `Bash` formats `bare_output`, `persisted_output` and `persisted_output_partial` | Output without an `Exit code` line is a finished command |
 | `treat_bash_output_without_exit_code_line_as_exit_code_0` | [claude_code.py](harnesses/claude_code.py) | Such a command that its structured result does not call interrupted or give a meaning for code 1 exited 0 |
 | `treat_script_syntax_error_as_not_run` | Codex `exec` format `failed_syntax` | A script that failed with a `SyntaxError` ran nothing |
 | `treat_web_search_call_without_content_as_finished` | Codex `web_search_call` format `no_content` | A `web_search_call` result without content is a finished search |
-| `treat_failed_file_tool_call_as_not_run` | The failure formats of Claude Code `Read`, Grok Build `read_file` and `search_replace` and Cursor `readToolCall` and `editToolCall` | A file tool call that gives a reason it failed did no work |
-| `treat_get_output_without_exit_code_as_running` | Devin `get_output` format `running` | Output without an `Exit code` line is from a command still running |
+| `treat_failed_file_tool_call_as_not_run` | The failure formats of Claude Code `Read`, Grok Build `read_file` and `search_replace` and Cursor CLI `readToolCall` and `editToolCall` | A file tool call that gives a reason it failed did no work |
+| `treat_get_output_without_exit_code_as_running` | Devin `get_output` formats `running` and `running_incremental` | Output without an `Exit code` line is from a command still running |
 | `treat_web_fetch_text_as_finished` | Claude Code `WebFetch` format `page` | Page text is a finished fetch |
-| `treat_negative_exit_code_as_killed` | Devin `exec` format `killed`, `get_output` format `killed_silent_twice` and [devin.py](harnesses/devin.py) for any other format | A negative exit code, which only Devin writes as -1 for a command it stopped, means the command was killed |
+| `treat_negative_exit_code_as_killed` | Devin `exec` format `killed` and `get_output` format `killed_silent_twice` | A negative exit code, which only Devin writes as -1 for a command it stopped, means the command was killed |
 | `treat_written_input_as_running_target` | Devin `write_to_process` format `written` | A process that got input is still running |
-| `treat_accepted_stop_request_as_killed` | Muse `work_stop` format `accepted` | Work whose stop request was accepted was killed |
+| `treat_accepted_stop_request_as_killed` | Muse Code `work_stop` format `accepted` | Work whose stop request was accepted was killed |
 | `treat_failed_task_without_exit_code_as_killed` | Grok Build `get_command_or_subagent_output` formats `failed_signaled` and `failed_signaled_empty` | A failed task without an `Exit Code` line was killed |
 | `treat_exit_code_130_after_ctrl_c_as_killed` | [codex.py](harnesses/codex.py) | Exit code 130 after a Codex `write_stdin` that sent Ctrl-C means the process was killed |
 | `treat_wait_on_several_tasks_as_their_shared_status` | [grok_build.py](harnesses/grok_build.py) | A Grok Build wait on several tasks gets the status of the state they all share, and unknown when the states differ |
+| `treat_tool_failure_message_as_not_run` | Claude Code `tool_use_error`, Muse Code `rejected`, Codex `exec_command` formats `rejected` and `rejected_command`, `write_stdin` format `rejected_stdin` and `wait` format `rejected_arguments`, Grok Build `rejected` and `rejected_arguments`, Devin `rejected` of `exec`, `get_output`, `kill_shell`, `read`, `write`, `edit` and `webfetch` | A call whose result says only that it failed did no work |
+| `treat_shell_id_with_exit_code_as_running` | Cursor CLI `shellToolCall` formats `background` and `background_requested` | A shell result with a shell id is a command still running, and its exit code is not read |
+| `treat_stop_request_for_ended_work_as_finished` | Muse Code `work_stop` format `already_ended` | Work that had already ended when asked to stop finished |
+| `treat_cut_off_web_search_as_finished` | Claude Code `WebSearch` format `cut_off` | A search cut off before any result is a finished search |

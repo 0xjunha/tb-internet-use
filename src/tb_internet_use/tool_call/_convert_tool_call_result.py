@@ -48,9 +48,9 @@ def convert_tool_call_result(
     )
 
 
-def result_from_harness_result_format(
+def result_from_matched_or_unmatched_format(
     tool_result_raw_text: str | None,
-    harness_result_format: MatchedHarnessResultFormat | UnmatchedFormat,
+    matched_or_unmatched_format: MatchedHarnessResultFormat | UnmatchedFormat,
     *,
     judgment_rule_use_counts: Counter[str],
 ) -> ToolCallResult:
@@ -58,65 +58,71 @@ def result_from_harness_result_format(
 
     A format that names a rule of `judgment_rules.py` gets its status from that rule, which counts the use in `judgment_rule_use_counts`.
     """
-    if isinstance(harness_result_format, UnmatchedFormat):
+    if isinstance(matched_or_unmatched_format, UnmatchedFormat):
         return _result_from_unmatched_format(
-            tool_result_raw_text, harness_result_format
+            tool_result_raw_text, matched_or_unmatched_format
         )
     return _result_from_matched_format(
-        harness_result_format.format,
-        harness_result_format.matched_values,
+        matched_or_unmatched_format.format,
+        matched_or_unmatched_format.matched_values,
         judgment_rule_use_counts=judgment_rule_use_counts,
     )
 
 
 def _result_from_unmatched_format(
-    tool_result_raw_text: str | None, harness_result_format: UnmatchedFormat
+    tool_result_raw_text: str | None, unmatched_format: UnmatchedFormat
 ) -> ToolCallResult:
-    """A ToolCallResult that keeps the raw text as `tool_output_text`, for a result no format parsed."""
+    """Build the `ToolCallResult` of a result that no format matched, keeping its raw text as `tool_output_text`."""
     return ToolCallResult(
         tool_output_text=tool_result_raw_text,
-        harness_result_format=harness_result_format,
+        harness_result_format=unmatched_format,
     )
 
 
 def _result_from_matched_format(
-    fmt: HarnessResultFormat[Any],
-    values: MatchedValues,
+    harness_result_format: HarnessResultFormat[Any],
+    matched_values: MatchedValues,
     *,
     judgment_rule_use_counts: Counter[str],
 ) -> ToolCallResult:
     """Turn a matched format and its matched values into common types, with the status the format states or the one its judgment rule decides."""
     tool_call_result = ToolCallResult(
-        tool_output_text=fmt.tool_output_text_of(values),
+        tool_output_text=harness_result_format.tool_output_text_of(matched_values),
         # A format without a status names a judgment rule, which building the format checks, and the rule decides the status below.
-        execution_status=ExecutionStatus.UNKNOWN if fmt.status is None else fmt.status,
-        exit_code=_int_from_matched_values(values, "exit_code"),
-        http_status=_int_from_matched_values(values, "http_status"),
-        handles=_handles_from_matched_values(fmt.handle_kind_of(values), values),
-        output_path=str(values["output_path"]) if values.get("output_path") else None,
-        is_truncated=fmt.is_truncated_of(values),
-        harness_result_format=MatchedFormat(fmt.name),
+        execution_status=ExecutionStatus.UNKNOWN
+        if harness_result_format.status is None
+        else harness_result_format.status,
+        exit_code=_int_from_matched_values(matched_values, "exit_code"),
+        http_status=_int_from_matched_values(matched_values, "http_status"),
+        handles=_handles_from_matched_values(
+            harness_result_format.handle_kind_of(matched_values), matched_values
+        ),
+        output_path=str(matched_values["output_path"])
+        if matched_values.get("output_path")
+        else None,
+        is_truncated=harness_result_format.is_truncated_of(matched_values),
+        harness_result_format=MatchedFormat(harness_result_format.name),
     )
-    if fmt.judgment_rule is None:
+    if harness_result_format.judgment_rule is None:
         return tool_call_result
     # A test checks that every rule a declared format names is a function of `judgment_rules.py`.
-    judgment_rule = getattr(judgment_rules, fmt.judgment_rule)
+    judgment_rule = getattr(judgment_rules, harness_result_format.judgment_rule)
     return judgment_rule(tool_call_result, use_counts=judgment_rule_use_counts)
 
 
-def _int_from_matched_values(values: MatchedValues, name: str) -> int | None:
-    value = values.get(name)
+def _int_from_matched_values(matched_values: MatchedValues, name: str) -> int | None:
+    value = matched_values.get(name)
     if value is None or isinstance(value, bool):
         return None
     return int(value) if isinstance(value, (int, str)) else None
 
 
 def _handles_from_matched_values(
-    kind: ExecutionHandleKind | None, values: MatchedValues
+    kind: ExecutionHandleKind | None, matched_values: MatchedValues
 ) -> tuple[ExecutionHandle, ...]:
     if kind is None:
         # A format without a handle kind gives no handle, which building the format checks.
         return ()
-    return handles_from_ids(kind, values.get("handle")) + handles_from_ids(
-        kind, values.get("handles")
+    return handles_from_ids(kind, matched_values.get("handle")) + handles_from_ids(
+        kind, matched_values.get("handles")
     )

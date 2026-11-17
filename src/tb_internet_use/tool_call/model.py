@@ -27,7 +27,7 @@ type ToolCallAction = (
 )
 
 
-# The format that produced a ToolCallResult. str() gives the name the catalog and audit CSVs use.
+# The format that produced a ToolCallResult. str() gives the name that the table of declared result formats and the result format audit use.
 type FormatMatch = MatchedFormat | UnmatchedFormat
 
 
@@ -92,7 +92,7 @@ def may_have_run(call: ToolCall) -> bool:
 
 
 def strings_from_values(values: Any) -> tuple[str, ...]:
-    """Turn a list of values or one value into the strings of an ToolCallAction field, in order and without missing, empty or repeated ones."""
+    """Turn a list of values or one value into the strings of a ToolCallAction field, in order and without missing, empty or repeated ones."""
     listed = values if isinstance(values, list) else [values]
     return tuple(dict.fromkeys(str(v) for v in listed if v not in (None, "")))
 
@@ -108,13 +108,10 @@ class RunCommandAction:
 class RunToolScriptAction:
     """Run code that calls harness tools, e.g. Codex `exec`. The trajectory has one result for all of it."""
 
-    code: str | None = None  # None when the trajectory has none
-    # The ToolCallActions of the tool calls found in the code, in order.
-    # One call can have several steps, e.g. a patch that changes several files.
-    #
-    # A step field is empty when the script builds the argument at run time,
-    # e.g. `tools.exec_command({cmd: "ls /app"})` gives `RunCommandAction("ls /app")`,
-    # but `tools.exec_command({cmd: "ls " + dir})` gives `RunCommandAction(None)`.
+    # The code of the script, None when the trajectory has none.
+    code: str | None = None
+    # The ToolCallActions of the tool calls found in the code, in order. One call can have several steps, e.g. a patch that changes several files.
+    # A step field is empty when the script builds the argument at run time, e.g. `tools.exec_command({cmd: "ls /app"})` gives `RunCommandAction("ls /app")`, but `tools.exec_command({cmd: "ls " + dir})` gives `RunCommandAction(None)`.
     steps: tuple[ToolCallAction, ...] = ()
 
 
@@ -252,7 +249,8 @@ class HarnessToolCall:
     tool: HarnessTool
     # From the trajectory. It can be empty or repeated, so it is not a key.
     tool_call_id: str
-    args: dict[str, Any]  # the arguments in the trajectory
+    # The arguments in the trajectory.
+    args: dict[str, Any]
     # The result object in the trajectory, or None when the call has none.
     result: dict[str, Any] | None
     is_subagent: bool = False
@@ -285,13 +283,16 @@ class ToolCallResult:
     # When no format matched, the raw text as is.
     tool_output_text: str | None = None
     execution_status: ExecutionStatus = ExecutionStatus.UNKNOWN
-    exit_code: int | None = None  # real exit codes only
+    # Real exit codes only.
+    exit_code: int | None = None
     # The HTTP status a web fetch reports. A fetch has no exit code to hold it.
     http_status: int | None = None
     # For a PollAction, the target the result named. Otherwise the commands, scripts or subagents this call started.
     handles: tuple[ExecutionHandle, ...] = ()
-    output_path: str | None = None  # file holding the full output
-    is_truncated: bool | None = None  # None when the trajectory says nothing
+    # The file holding the full output.
+    output_path: str | None = None
+    # None when the trajectory says nothing.
+    is_truncated: bool | None = None
     # The harness result format that produced the fields above, see knowledge/harness_result_format_declaration.py.
     #   MatchedFormat(name)      the format that matched
     #   UnmatchedFormat.UNKNOWN  the tool has formats, but none matched
@@ -333,21 +334,21 @@ class UnreadableTrajectoryReason(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class HarnessToolLabel:
-    """Answer of the tool call catalogs about one harness tool, read by `convert_tool_calls` to build the `ToolCallAction` of a call of that tool."""
+    """Answer of the harness tool catalog about one harness tool and the arguments of one call of it, read by `convert_tool_calls` to build the `ToolCallAction` of that call."""
 
     # The name of a `ToolCallAction` member class, or `DEFERRED`.
     action_type: str
-    # The action field each argument fills, by argument name. An argument that fills none is absent.
+    # The action field each argument of the call fills, by argument name. An argument that fills none is absent.
     action_field_by_argument_name: Mapping[str, str]
     # Whether the tool stops a command, script or subagent started earlier.
     stops_execution: bool
-    # The kind of target that the handles in its arguments name, None when the catalog gives none.
+    # The kind of target that the handles in the arguments of the call name, None when the catalog gives none or the call has no such argument.
     argument_handle_kind: ExecutionHandleKind | None
 
 
 @dataclass(frozen=True, slots=True)
 class UnknownHarnessToolLabel:
-    """Answer of the tool call catalogs for a harness tool without a row, which `convert_tool_calls` turns into an `UnknownAction`."""
+    """Answer of the harness tool catalog for a harness tool without a row, which `convert_tool_calls` turns into an `UnknownAction`."""
 
 
 # The `action_type` of a tool whose converter decides the `ToolCallAction` class per call.

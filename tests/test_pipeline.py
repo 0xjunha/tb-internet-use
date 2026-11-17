@@ -23,17 +23,25 @@ def _trial_dir(tmp_path: Path, trajectory_bytes: bytes | None) -> Path:
 def test_reads_the_calls_of_the_trajectory_file_with_the_folder_name_as_trial_id(
     tmp_path,
 ):
-    call = {"tool_call_id": "a", "function_name": "bash", "arguments": {}}
+    trajectory_tool_call = {
+        "tool_call_id": "a",
+        "function_name": "bash",
+        "arguments": {},
+    }
     trajectory = {
         "schema_version": "ATIF-v1.7",
         "agent": {"name": "codex"},
-        "steps": [{"step_id": 3, "tool_calls": [call]}],
+        "steps": [{"step_id": 3, "tool_calls": [trajectory_tool_call]}],
     }
 
-    calls = read_trajectory(_trial_dir(tmp_path, json.dumps(trajectory).encode()))
+    harness_tool_calls = read_trajectory(
+        _trial_dir(tmp_path, json.dumps(trajectory).encode())
+    )
 
-    assert not isinstance(calls, UnreadableTrajectory)
-    assert [call.key for call in calls] == [ToolCallKey("trial-1", "main", 3, 0)]
+    assert not isinstance(harness_tool_calls, UnreadableTrajectory)
+    assert [harness_tool_call.key for harness_tool_call in harness_tool_calls] == [
+        ToolCallKey("trial-1", "main", 3, 0)
+    ]
 
 
 def test_folder_without_a_trajectory_file_is_unreadable_as_missing(tmp_path):

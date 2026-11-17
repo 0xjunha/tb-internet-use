@@ -1,4 +1,4 @@
-"""Muse Code converter tests, with made-up results shaped as in the trajectories."""
+"""Test the conversion of Muse Code tool calls by the Muse Code converter, with made-up results shaped as in the trajectories."""
 
 import json
 from collections import Counter
@@ -11,12 +11,14 @@ from tb_internet_use.knowledge.harness_result_format_declaration import (
     template_regex_of,
 )
 from tb_internet_use.knowledge.tool_call_knowledge import ToolCallKnowledge
+from tb_internet_use.tool_call import convert_tool_calls
 from tb_internet_use.tool_call._convert_tool_calls import convert_one_tool_call
 from tb_internet_use.tool_call.harnesses.muse_code import (
     _SAVED_OUTPUT_REMINDER,
     MuseCodeConverter,
 )
 from tb_internet_use.tool_call.model import (
+    EditFileAction,
     ExecutionHandle,
     ExecutionHandleKind,
     ExecutionStatus,
@@ -24,8 +26,16 @@ from tb_internet_use.tool_call.model import (
     HarnessToolCall,
     MatchedFormat,
     PollAction,
+    ReadFileAction,
+    RunCommandAction,
+    SearchFilesAction,
+    StartSubagentAction,
+    ToolCallAction,
     ToolCallKey,
+    ToolCallResult,
     UnmatchedFormat,
+    WebSearchAction,
+    WriteFileAction,
 )
 
 S = ExecutionStatus
@@ -37,6 +47,303 @@ TRUNCATION_REMINDER_TEXT = (
     "Use bash tools like head, tail, cat, sed, or grep to inspect and search the full output.\n"
     "</system-reminder>"
 )
+
+
+def _format(name: str) -> MatchedFormat:
+    return MatchedFormat(name)
+
+
+def _command_handles(*handle_ids: str) -> tuple[ExecutionHandle, ...]:
+    return tuple(ExecutionHandle(ExecutionHandleKind.COMMAND, i) for i in handle_ids)
+
+
+def _shell(terminal_status: str, output: str, **fields: Any) -> dict[str, Any]:
+    """Give a shell result object of `bash` or `bash_input` with made-up values."""
+    return {
+        "terminal_status": terminal_status,
+        "output": output,
+        "truncated": False,
+        **fields,
+    }
+
+
+_BACKGROUND = {
+    "execution_state": "background_running",
+    "session_id": 4,
+    "work_id": "w1",
+    "output": "partial",
+    "truncated": False,
+}
+_READ_HEAD = "Read text file `/f` (lines 1-2 of 9)"
+
+# One made-up result per declared result format of Muse Code, built from the format, and the `ToolCallResult` it converts to.
+# (tool, result text or the object of the JSON text in the trajectory, expected result)
+RESULT_FORMAT_CASES: list[tuple[str, str | dict[str, Any], ToolCallResult]] = [
+    (
+        "bash",
+        "tool failed: unmanaged shell backgrounding is not allowed",
+        ToolCallResult("", S.NOT_RUN, harness_result_format=_format("rejected")),
+    ),
+    (
+        "bash_input",
+        "tool failed: no session 4",
+        ToolCallResult("", S.NOT_RUN, harness_result_format=_format("rejected")),
+    ),
+    (
+        "read_file",
+        _READ_HEAD + "\n1|a\n2|b",
+        ToolCallResult("a\nb", S.FINISHED, harness_result_format=_format("listing")),
+    ),
+    (
+        "read_file",
+        _READ_HEAD + "\n(2 line(s) above)\n3|c\n4|d",
+        ToolCallResult(
+            "c\nd", S.FINISHED, harness_result_format=_format("listing_after")
+        ),
+    ),
+    (
+        "read_file",
+        _READ_HEAD + "\n1|a\n2|b\n(more lines below)",
+        ToolCallResult(
+            "a\nb", S.FINISHED, harness_result_format=_format("listing_before")
+        ),
+    ),
+    (
+        "read_file",
+        _READ_HEAD + "\n(0 line(s) above)\n1|a\n2|b\n(more lines below)",
+        ToolCallResult(
+            "a\nb", S.FINISHED, harness_result_format=_format("listing_between")
+        ),
+    ),
+    (
+        "read_file",
+        "Read text file `/f` (lines 10-9 of 9)\n(9 line(s) above)",
+        ToolCallResult(
+            "", S.FINISHED, harness_result_format=_format("listing_nothing_below")
+        ),
+    ),
+    (
+        "read_file",
+        "Read text file `/f` (empty file)",
+        ToolCallResult("", S.FINISHED, harness_result_format=_format("header_only")),
+    ),
+    (
+        "read_file",
+        "Read image file `/i.png` as model-visible image output.\nmedia_type: image/png\nsource_bytes: 10",
+        ToolCallResult(None, S.FINISHED, harness_result_format=_format("image")),
+    ),
+    (
+        "read_file",
+        "tool failed: path is a directory",
+        ToolCallResult("", S.NOT_RUN, harness_result_format=_format("rejected")),
+    ),
+    (
+        "write_file",
+        "wrote 12 bytes to /f note: created the parent folder",
+        ToolCallResult("", S.FINISHED, harness_result_format=_format("written_note")),
+    ),
+    (
+        "write_file",
+        "wrote 12 bytes to /f",
+        ToolCallResult("", S.FINISHED, harness_result_format=_format("written")),
+    ),
+    (
+        "edit_file",
+        "edited\nchanged lines: line 3\n",
+        ToolCallResult("", S.FINISHED, harness_result_format=_format("edited")),
+    ),
+    (
+        "edit_file",
+        "tool failed: no exact match found",
+        ToolCallResult("", S.NOT_RUN, harness_result_format=_format("rejected")),
+    ),
+    (
+        "bash",
+        _shell("completed", "ok", exit_code=0),
+        ToolCallResult(
+            "ok",
+            S.FINISHED,
+            0,
+            is_truncated=False,
+            harness_result_format=_format("exited"),
+        ),
+    ),
+    (
+        "bash",
+        _shell("failed", "err", exit_code=2),
+        ToolCallResult(
+            "err",
+            S.FINISHED,
+            2,
+            is_truncated=False,
+            harness_result_format=_format("failed"),
+        ),
+    ),
+    (
+        "bash",
+        _shell("failed", "", terminal_reason="process exited with signal: 9 (SIGKILL)"),
+        ToolCallResult(
+            "", S.KILLED, is_truncated=False, harness_result_format=_format("signaled")
+        ),
+    ),
+    (
+        "bash",
+        _BACKGROUND,
+        ToolCallResult(
+            "partial",
+            S.RUNNING,
+            handles=_command_handles("4", "w1"),
+            is_truncated=False,
+            harness_result_format=_format("background"),
+        ),
+    ),
+    (
+        "bash_input",
+        _shell("completed", "ok", exit_code=0),
+        ToolCallResult(
+            "ok",
+            S.FINISHED,
+            0,
+            is_truncated=False,
+            harness_result_format=_format("exited"),
+        ),
+    ),
+    (
+        "bash_input",
+        _shell("failed", "err", exit_code=1),
+        ToolCallResult(
+            "err",
+            S.FINISHED,
+            1,
+            is_truncated=False,
+            harness_result_format=_format("failed"),
+        ),
+    ),
+    (
+        "bash_input",
+        _shell("cancelled", "", terminal_reason="terminated by bash_input"),
+        ToolCallResult(
+            "", S.KILLED, is_truncated=False, harness_result_format=_format("cancelled")
+        ),
+    ),
+    (
+        "bash_input",
+        _BACKGROUND,
+        ToolCallResult(
+            "partial",
+            S.RUNNING,
+            handles=_command_handles("4", "w1"),
+            is_truncated=False,
+            harness_result_format=_format("background"),
+        ),
+    ),
+    (
+        "work_stop",
+        {"status": "accepted", "request_id": "r", "work_id": "w1"},
+        ToolCallResult(
+            "",
+            S.KILLED,
+            handles=_command_handles("w1"),
+            harness_result_format=_format("accepted"),
+        ),
+    ),
+    (
+        "work_stop",
+        {"status": "already_terminal", "work_id": "w1"},
+        ToolCallResult(
+            "",
+            S.FINISHED,
+            handles=_command_handles("w1"),
+            harness_result_format=_format("already_ended"),
+        ),
+    ),
+    (
+        "web_search",
+        {"query": "q", "results": [{"url": "u"}]},
+        ToolCallResult(
+            '[{"url": "u"}]', S.FINISHED, harness_result_format=_format("results")
+        ),
+    ),
+    (
+        "monitor",
+        {"work_id": "w2", "status": "started"},
+        ToolCallResult(
+            "",
+            S.RUNNING,
+            handles=_command_handles("w2"),
+            harness_result_format=_format("started"),
+        ),
+    ),
+]
+
+
+# A made-up call of each tool with argument rows in the harness tool catalog, or whose action is a poll, and the `ToolCallAction` it converts to without a result.
+# Every argument row has a case, and every `PollAction` states its `terminate`.
+# (tool, arguments in the trajectory, expected action)
+ACTION_CASES: list[tuple[str, dict[str, Any], ToolCallAction]] = [
+    ("bash", {"command": "ls /app"}, RunCommandAction("ls /app")),
+    (
+        "monitor",
+        {"command": "tail -f /app/run.log"},
+        RunCommandAction("tail -f /app/run.log"),
+    ),
+    (
+        "read_file",
+        {"path": "/app/a.py", "offset": 10, "limit": 20},
+        ReadFileAction("/app/a.py", 10, 20),
+    ),
+    (
+        "write_file",
+        {"path": "/app/a.txt", "content": "hi"},
+        WriteFileAction("/app/a.txt", "hi"),
+    ),
+    (
+        "edit_file",
+        {"path": "/app/a.py", "find": "x = 1", "replace": "x = 2"},
+        EditFileAction("/app/a.py", "x = 1", "x = 2"),
+    ),
+    (
+        "search",
+        {"pattern": "error", "paths": ["/app/a", "/app/b"]},
+        SearchFilesAction(("/app/a", "/app/b")),
+    ),
+    (
+        "web_search",
+        {"query": "pytest fixtures"},
+        WebSearchAction(("pytest fixtures",)),
+    ),
+    ("subagent_spawn", {"objective": "find the bug"}, StartSubagentAction()),
+    ("workflow", {"script": "run two agents"}, StartSubagentAction()),
+    (
+        "bash_input",
+        {"session_id": "s1"},
+        PollAction(
+            (ExecutionHandle(ExecutionHandleKind.COMMAND, "s1"),), terminate=False
+        ),
+    ),
+    (
+        "bash_input",
+        {"session_id": "s1", "terminate": True},
+        PollAction(
+            (ExecutionHandle(ExecutionHandleKind.COMMAND, "s1"),), terminate=True
+        ),
+    ),
+    (
+        "subagent_status",
+        {"subagent_id": "a1"},
+        PollAction(
+            (ExecutionHandle(ExecutionHandleKind.SUBAGENT, "a1"),), terminate=False
+        ),
+    ),
+    # The row gives no handle kind, so the kind stays unknown until a result names it.
+    (
+        "work_stop",
+        {"work_id": "w1"},
+        PollAction(
+            (ExecutionHandle(ExecutionHandleKind.UNKNOWN, "w1"),), terminate=True
+        ),
+    ),
+]
 
 
 def _harness_tool_call(
@@ -61,79 +368,40 @@ def _converted(harness_tool_call: HarnessToolCall):
     )
 
 
-def test_bash_states():
-    tool_call_result = _converted(
-        _harness_tool_call(
-            "bash",
-            {"command": "x"},
-            {
-                "terminal_status": "completed",
-                "exit_code": 0,
-                "output": "ok",
-                "truncated": False,
-            },
-        )
-    ).result
-    assert tool_call_result is not None and (
-        tool_call_result.execution_status,
-        tool_call_result.exit_code,
-        tool_call_result.tool_output_text,
-        tool_call_result.is_truncated,
-    ) == (S.FINISHED, 0, "ok", False)
-    tool_call_result = _converted(
-        _harness_tool_call(
-            "bash",
-            {"command": "x"},
-            {
-                "terminal_status": "failed",
-                "terminal_reason": "process exited with signal: 9 (SIGKILL)",
-                "output": "",
-                "truncated": False,
-            },
-        )
-    ).result
-    assert tool_call_result is not None and (
-        tool_call_result.execution_status,
-        tool_call_result.exit_code,
-    ) == (
-        S.KILLED,
-        None,
+def _action_of_call_without_result(tool: str, args: dict[str, Any]) -> ToolCallAction:
+    """Convert one call of Muse Code without a result through `convert_tool_calls`, which picks the converter of the harness, and give its action."""
+    [tool_call] = convert_tool_calls(
+        [
+            HarnessToolCall(
+                ToolCallKey("t", "main", 1, 0),
+                HarnessTool("muse-code", tool),
+                "id",
+                args,
+                None,
+            )
+        ],
+        knowledge=ToolCallKnowledge(),
+        judgment_rule_use_counts=Counter(),
     )
-    tool_call_result = _converted(
-        _harness_tool_call(
-            "bash",
-            {"command": "x"},
-            {
-                "execution_state": "background_running",
-                "session_id": 4,
-                "output": "partial",
-                "truncated": False,
-            },
-        )
-    ).result
-    assert (
-        tool_call_result is not None and tool_call_result.execution_status is S.RUNNING
-    )
-    assert tool_call_result.handles == (
-        ExecutionHandle(ExecutionHandleKind.COMMAND, "4"),
-    )
+    return tool_call.action
 
 
-def test_bash_text_failure_is_not_run():
-    tool_call_result = _converted(
-        _harness_tool_call(
-            "bash",
-            {"command": "x &"},
-            "tool failed: unmanaged shell backgrounding is not allowed",
-        )
-    ).result
-    assert (
-        tool_call_result is not None and tool_call_result.execution_status is S.NOT_RUN
-    )
+@pytest.mark.parametrize(("tool", "args", "expected"), ACTION_CASES)
+def test_a_call_of_each_tool_converts_to_the_action_of_its_arguments(
+    tool: str, args: dict[str, Any], expected: ToolCallAction
+):
+    assert _action_of_call_without_result(tool, args) == expected
+
+
+@pytest.mark.parametrize(("tool", "content", "expected"), RESULT_FORMAT_CASES)
+def test_a_result_of_each_declared_format_converts_to_its_fields(
+    tool: str, content: str | dict[str, Any], expected: ToolCallResult
+):
+    assert _converted(_harness_tool_call(tool, {}, content)).result == expected
 
 
 def test_bash_input_cancelled_is_killed_and_polls_the_session():
-    call = _converted(
+    tool_call = _converted(
         _harness_tool_call(
             "bash_input",
             {"session_id": 4, "terminate": True},
@@ -145,117 +413,28 @@ def test_bash_input_cancelled_is_killed_and_polls_the_session():
             },
         )
     )
-    assert call.result is not None and call.result.execution_status is S.KILLED
-    assert call.action == PollAction(
+    assert (
+        tool_call.result is not None and tool_call.result.execution_status is S.KILLED
+    )
+    assert tool_call.action == PollAction(
         (ExecutionHandle(ExecutionHandleKind.COMMAND, "4"),), None, True
     )
 
 
 def test_work_stop_is_a_terminate():
-    call = _converted(
+    tool_call = _converted(
         _harness_tool_call(
             "work_stop",
             {"work_id": "w1"},
             {"status": "accepted", "request_id": "r", "work_id": "w1"},
         )
     )
-    assert call.result is not None and call.result.execution_status is S.KILLED
-    assert call.action == PollAction(
+    assert (
+        tool_call.result is not None and tool_call.result.execution_status is S.KILLED
+    )
+    assert tool_call.action == PollAction(
         (ExecutionHandle(ExecutionHandleKind.COMMAND, "w1"),), None, True
     )
-
-
-def test_read_file_listing_variants():
-    content = "Read text file `/f` (lines 1-2 of 9)\n(0 line(s) above)\n1|a\n2|b\n(more lines below)"
-    tool_call_result = _converted(
-        _harness_tool_call("read_file", {"path": "/f"}, content)
-    ).result
-    assert tool_call_result is not None and (
-        tool_call_result.tool_output_text,
-        tool_call_result.harness_result_format,
-    ) == (
-        "a\nb",
-        MatchedFormat("listing_between"),
-    )
-    tool_call_result = _converted(
-        _harness_tool_call(
-            "read_file",
-            {"path": "/i"},
-            "Read image file `/i.png` as model-visible image output.\nmedia_type: image/png\nsource_bytes: 10",
-        )
-    ).result
-    assert tool_call_result is not None and (
-        tool_call_result.tool_output_text,
-        tool_call_result.execution_status,
-    ) == (
-        None,
-        S.FINISHED,
-    )
-
-
-def test_write_and_edit():
-    tool_call_result = _converted(
-        _harness_tool_call("write_file", {"path": "/f"}, "wrote 12 bytes to /f")
-    ).result
-    assert (
-        tool_call_result is not None and tool_call_result.execution_status is S.FINISHED
-    )
-    tool_call_result = _converted(
-        _harness_tool_call(
-            "edit_file", {"path": "/f"}, "edited\nchanged lines: line 3\n"
-        )
-    ).result
-    assert tool_call_result is not None and (
-        tool_call_result.execution_status,
-        tool_call_result.tool_output_text,
-    ) == (
-        S.FINISHED,
-        "",
-    )
-    tool_call_result = _converted(
-        _harness_tool_call(
-            "edit_file", {"path": "/f"}, "tool failed: no exact match found"
-        )
-    ).result
-    assert (
-        tool_call_result is not None and tool_call_result.execution_status is S.NOT_RUN
-    )
-
-
-def test_web_search_results_are_kept_as_json_text():
-    tool_call_result = _converted(
-        _harness_tool_call(
-            "web_search", {"query": "q"}, {"query": "q", "results": [{"url": "u"}]}
-        )
-    ).result
-    assert tool_call_result is not None and (
-        tool_call_result.execution_status,
-        tool_call_result.tool_output_text,
-    ) == (
-        S.FINISHED,
-        '[{"url": "u"}]',
-    )
-
-
-def test_background_shell_names_the_session_and_the_work_as_commands():
-    tool_call_result = _converted(
-        _harness_tool_call(
-            "bash",
-            {"command": "x"},
-            {
-                "execution_state": "background_running",
-                "session_id": 4,
-                "work_id": "w1",
-                "output": "",
-                "truncated": False,
-            },
-        )
-    ).result
-    assert tool_call_result is not None
-    assert [(h.kind, h.id) for h in tool_call_result.handles] == [
-        (ExecutionHandleKind.COMMAND, "4"),
-        (ExecutionHandleKind.COMMAND, "w1"),
-    ]
 
 
 def test_bash_output_loses_the_note_about_replaced_bytes():

@@ -1,4 +1,4 @@
-"""Helper functions for scripts/audit_results.py and scripts/build_harness_result_format_table.py, not used in conversion."""
+"""Describe the declared result formats and check how they match results, for scripts/audit_results.py and scripts/build_harness_result_format_table.py and never for conversion."""
 
 import functools
 import re
@@ -20,16 +20,14 @@ from tb_internet_use.knowledge.harness_result_format_declaration import (
     template_regex_of,
 )
 
-# Where a template is cut into harness text, at the tool output and at every
-# multiline placeholder. What these take is not harness text, so a harness text
-# pattern never spans one of them.
+# Where a template is cut into harness text, at the tool output and at every multiline placeholder. What these take is not harness text, so a harness text pattern never spans one of them.
 _HARNESS_TEXT_CUT = re.compile(
     rf"\{{tool_output:\w+\}}|\{{\w+:(?:{'|'.join(MULTILINE_PLACEHOLDER_TYPES)})\}}"
 )
 
 
 # The columns of the table of declared result formats.
-TABLE_COLUMNS = [
+DECLARED_RESULT_FORMAT_TABLE_COLUMNS = [
     "harness",
     "tool",
     "format",
@@ -48,81 +46,98 @@ def table_rows_from_declarations() -> list[dict[str, str]]:
         {
             "harness": harness,
             "tool": tool,
-            "format": fmt.name,
-            "kind": format_kind_of(fmt),
-            "template": describe_format(fmt),
-            "status": _status_label_of(fmt),
-            "is_truncated": _truncation_label_of(fmt),
-            "no_tool_output_text": "True" if fmt.no_tool_output_text else "",
-            "handle_kind": handle_kind_label_of(fmt),
+            "format": harness_result_format.name,
+            "kind": format_kind_of(harness_result_format),
+            "template": template_label_of(harness_result_format),
+            "status": _status_label_of(harness_result_format),
+            "is_truncated": _truncation_label_of(harness_result_format),
+            "no_tool_output_text": "True"
+            if harness_result_format.no_tool_output_text
+            else "",
+            "handle_kind": handle_kind_label_of(harness_result_format),
         }
-        for harness, tool, fmt in iter_declared_formats()
+        for harness, tool, harness_result_format in iter_declared_formats()
     ]
 
 
-def format_kind_of(fmt: HarnessResultFormat[Any]) -> str:
-    """`text` or `json`, for the `kind` column of the table."""
-    return "text" if isinstance(fmt, HarnessTextResultFormat) else "json"
+def format_kind_of(harness_result_format: HarnessResultFormat[Any]) -> str:
+    """Name the kind of a format, `text` or `json`, for the `kind` column of the table."""
+    return (
+        "text" if isinstance(harness_result_format, HarnessTextResultFormat) else "json"
+    )
 
 
-def describe_format(fmt: HarnessResultFormat[Any]) -> str:
-    """The format in one line, for the `template` column of the table.
+def template_label_of(harness_result_format: HarnessResultFormat[Any]) -> str:
+    """Label a format in one line, by its template or its JSON rules, for the `template` column of the table.
 
-    A text format gives its template, with a carriage return written as `\\r` so that
-    editors keep it, and a backslash as `\\\\`. A JSON format gives its present paths,
-    absent paths and condition.
+    A text format gives its template, with a carriage return written as `\\r` so that editors keep it, and a backslash as `\\\\`. A JSON format gives its present paths, absent paths and condition.
     """
-    if isinstance(fmt, HarnessTextResultFormat):
-        return fmt.template.replace("\\", "\\\\").replace("\r", "\\r")
-    if not isinstance(fmt, HarnessJsonResultFormat):
-        raise TypeError(f"unknown result format kind {type(fmt).__name__}")
+    if isinstance(harness_result_format, HarnessTextResultFormat):
+        return harness_result_format.template.replace("\\", "\\\\").replace("\r", "\\r")
+    if not isinstance(harness_result_format, HarnessJsonResultFormat):
+        raise TypeError(
+            f"unknown result format kind {type(harness_result_format).__name__}"
+        )
     rules: list[str] = []
-    if fmt.present_paths:
-        rules.append(f"present={','.join(fmt.present_paths)}")
-    if fmt.absent_paths:
-        rules.append(f"absent={','.join(fmt.absent_paths)}")
-    if fmt.condition:
-        condition = fmt.condition
+    if harness_result_format.present_paths:
+        rules.append(f"present={','.join(harness_result_format.present_paths)}")
+    if harness_result_format.absent_paths:
+        rules.append(f"absent={','.join(harness_result_format.absent_paths)}")
+    if harness_result_format.condition:
+        condition = harness_result_format.condition
         rules.append(f"{condition.path} {condition.op} {condition.value!r}")
     return " ".join(rules)
 
 
-def _status_label_of(fmt: HarnessResultFormat[Any]) -> str:
-    """The status a format states, or `by <judgment rule>` for a format whose judgment rule decides it, for the table."""
-    if fmt.status is None:
-        return f"by {fmt.judgment_rule}"
-    return fmt.status.value
+def _status_label_of(harness_result_format: HarnessResultFormat[Any]) -> str:
+    """Label the status a format states, or `by <judgment rule>` for a format whose judgment rule decides it, for the table."""
+    if harness_result_format.status is None:
+        return f"by {harness_result_format.judgment_rule}"
+    return harness_result_format.status.value
 
 
-def _truncation_label_of(fmt: HarnessResultFormat[Any]) -> str:
-    """`True`, `False`, empty when the format does not tell, or what in the result tells, for the table."""
-    if fmt.is_truncated is not None:
-        return str(fmt.is_truncated)
-    if isinstance(fmt, HarnessTextResultFormat) and fmt.truncation_marker:
-        return f"when {fmt.truncation_marker}"
-    if isinstance(fmt, HarnessJsonResultFormat) and "is_truncated" in fmt.value_paths:
-        return f"by {fmt.value_paths['is_truncated']}"
+def _truncation_label_of(harness_result_format: HarnessResultFormat[Any]) -> str:
+    """Label whether a format is truncated, `True`, `False`, empty when the format does not tell, or what in the result tells, for the table."""
+    if harness_result_format.is_truncated is not None:
+        return str(harness_result_format.is_truncated)
+    if (
+        isinstance(harness_result_format, HarnessTextResultFormat)
+        and harness_result_format.truncation_marker
+    ):
+        return f"when {harness_result_format.truncation_marker}"
+    if (
+        isinstance(harness_result_format, HarnessJsonResultFormat)
+        and "is_truncated" in harness_result_format.value_paths
+    ):
+        return f"by {harness_result_format.value_paths['is_truncated']}"
     return ""
 
 
-def handle_kind_label_of(fmt: HarnessResultFormat[Any]) -> str:
-    """The handle kind a format gives, or the JSON path whose value names it, for the table.
+def handle_kind_label_of(harness_result_format: HarnessResultFormat[Any]) -> str:
+    """Label the handle kind a format gives, or the JSON path whose value names it, for the table.
 
     Empty when the format reads no handle from the result, since such a format states no handle kind.
     """
-    if isinstance(fmt, HarnessJsonResultFormat) and fmt.handle_kind_by_name:
-        return f"by {fmt.value_paths['handle_kind_name']}"
-    if not isinstance(fmt, HarnessTextResultFormat | HarnessJsonResultFormat):
-        raise TypeError(f"unknown result format kind {type(fmt).__name__}")
-    kind = fmt.fixed_handle_kind
+    if (
+        isinstance(harness_result_format, HarnessJsonResultFormat)
+        and harness_result_format.handle_kind_by_name
+    ):
+        return f"by {harness_result_format.value_paths['handle_kind_name']}"
+    if not isinstance(
+        harness_result_format, HarnessTextResultFormat | HarnessJsonResultFormat
+    ):
+        raise TypeError(
+            f"unknown result format kind {type(harness_result_format).__name__}"
+        )
+    kind = harness_result_format.fixed_handle_kind
     return "" if kind is None else kind.value
 
 
 def iter_declared_formats() -> Iterator[tuple[str, str, HarnessResultFormat[Any]]]:
-    """Every declared format with its harness and tool, in the order the formats are tried."""
-    for harness, tool, formats in iter_declared_format_lists():
-        for fmt in formats.formats:
-            yield harness, tool, fmt
+    """List every declared format with its harness and tool, in the order the formats are tried."""
+    for harness, tool, format_list in iter_declared_format_lists():
+        for harness_result_format in format_list.formats:
+            yield harness, tool, harness_result_format
 
 
 def iter_declared_format_lists() -> Iterator[
@@ -136,42 +151,51 @@ def iter_declared_format_lists() -> Iterator[
             *((tool, f.text_formats) for tool, f in tools),
             *((tool, f.json_formats) for tool, f in tools),
         ]
-        for tool, formats in lists:
-            if formats is not None:
-                yield harness, tool, formats
+        for tool, format_list in lists:
+            if format_list is not None:
+                yield harness, tool, format_list
 
 
 def all_matches_of(
-    formats: HarnessResultFormatList[Any], annotated_output: Any
+    format_list: HarnessResultFormatList[Any], annotated_output: Any
 ) -> list[tuple[HarnessResultFormat[Any], MatchedValues]]:
-    """Every format of the list that matches, in order, with its values. The first is the
-    result's format, and more than one means the list is ambiguous."""
-    matches = ((fmt, fmt.match(annotated_output)) for fmt in formats.formats)
-    return [(fmt, values) for fmt, values in matches if values is not None]
+    """List every format of the list that matches, in order, with its values.
+
+    The first is the result's format, and more than one means the list is ambiguous.
+    """
+    matches = (
+        (harness_result_format, harness_result_format.match(annotated_output))
+        for harness_result_format in format_list.formats
+    )
+    return [
+        (harness_result_format, matched_values)
+        for harness_result_format, matched_values in matches
+        if matched_values is not None
+    ]
 
 
-def render_text_format(fmt: HarnessTextResultFormat, values: MatchedValues) -> str:
+def render_text_format(
+    harness_result_format: HarnessTextResultFormat, matched_values: MatchedValues
+) -> str:
     """Put the matched values back into the template. This equals the annotated output when the split is exact."""
     return PLACEHOLDER_REGEX.sub(
-        lambda placeholder: str(values[placeholder[1]]), fmt.template
+        lambda placeholder: str(matched_values[placeholder[1]]),
+        harness_result_format.template,
     )
 
 
 def harness_text_patterns_of(
-    formats: HarnessResultFormatList[Any],
+    format_list: HarnessResultFormatList[Any],
 ) -> list[tuple[str, re.Pattern[str]]]:
-    """The harness text of this tool's format and notice templates, as regexes, longest first.
+    """List the harness text of this tool's format and notice templates, as regexes, longest first.
 
-    None of them should match inside a tool output. A match means either that the
-    tool output really holds that text, such as a log file, or that a format took
-    annotation or notice text as tool output. Each item is the template part as
-    declared and its regex.
+    None of them should match inside a tool output. A match means either that the tool output really holds that text, such as a log file, or that a format took annotation or notice text as tool output. Each item is the template part as declared and its regex.
     """
     found: dict[str, re.Pattern[str]] = {}
-    for fmt in formats.formats:
-        if isinstance(fmt, HarnessTextResultFormat):
-            found.update(_harness_text_of_template(fmt.template))
-    for notice in formats.notices:
+    for harness_result_format in format_list.formats:
+        if isinstance(harness_result_format, HarnessTextResultFormat):
+            found.update(_harness_text_of_template(harness_result_format.template))
+    for notice in format_list.notices:
         found.update(_harness_text_of_template(notice.template))
     return sorted(found.items(), key=lambda item: len(item[0]), reverse=True)
 

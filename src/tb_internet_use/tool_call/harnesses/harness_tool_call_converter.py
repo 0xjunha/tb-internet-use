@@ -6,7 +6,7 @@ from dataclasses import replace
 from typing import TYPE_CHECKING, Any
 
 from tb_internet_use.tool_call._convert_tool_call_result import (
-    result_from_harness_result_format,
+    result_from_matched_or_unmatched_format,
 )
 from tb_internet_use.tool_call.model import (
     HarnessToolCall,
@@ -45,7 +45,7 @@ class HarnessToolCallConverter:
     ) -> ToolCallResult:
         """Convert a tool call result in the trajectory into a ToolCallResult.
 
-        By default, it asks `knowledge` which declared format the result has, from what the hooks `tool_result_raw_text_of`, `tool_result_json_of` and `is_marked_as_error` return, and builds the result with `result_from_harness_result_format`.
+        By default, it asks `knowledge` which declared format the result has, from what the hooks `tool_result_raw_text_of`, `tool_result_json_of` and `is_marked_as_error` return, and builds the result with `result_from_matched_or_unmatched_format`.
         A harness overrides those hooks when its trajectory differs, and this method to add what formats cannot express.
         A format that names a rule of `judgment_rules.py` and an override that applies one both count its use in `judgment_rule_use_counts`.
         """
@@ -57,15 +57,15 @@ class HarnessToolCallConverter:
             if knowledge.has_json_result_formats(harness_tool_call.tool)
             else None
         )
-        harness_result_format = knowledge.harness_result_format(
+        matched_or_unmatched_format = knowledge.harness_result_format(
             harness_tool_call.tool,
             tool_result_raw_text,
             tool_result_json,
             is_marked_as_error=self.is_marked_as_error(harness_tool_call, tool_result),
         )
-        return result_from_harness_result_format(
+        return result_from_matched_or_unmatched_format(
             tool_result_raw_text,
-            harness_result_format,
+            matched_or_unmatched_format,
             judgment_rule_use_counts=judgment_rule_use_counts,
         )
 

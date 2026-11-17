@@ -77,11 +77,15 @@ _EXEC_COMMAND = HarnessResultFormatList[str](
             + "Exit code: {exit_code:int}\nWall time: {seconds2:line_without_brackets} seconds\nOutput:\n{tool_output:text}",
             S.FINISHED,
         ),
-        Text("rejected", "exec_command failed: {reason:text}", S.NOT_RUN),
+        Text(
+            "rejected",
+            "exec_command failed: {reason:text}",
+            judgment_rule="treat_tool_failure_message_as_not_run",
+        ),
         Text(
             "rejected_command",
             "exec_command failed for `{command:text}`: {reason:text}",
-            S.NOT_RUN,
+            judgment_rule="treat_tool_failure_message_as_not_run",
         ),
         Text(
             "rejected_patch",
@@ -96,12 +100,16 @@ _WRITE_STDIN = HarnessResultFormatList[str](
         _SHELL_EXITED,
         _SHELL_RUNNING_TRUNCATED,
         _SHELL_RUNNING,
-        Text("rejected_stdin", "write_stdin failed: {reason:text}", S.NOT_RUN),
+        Text(
+            "rejected_stdin",
+            "write_stdin failed: {reason:text}",
+            judgment_rule="treat_tool_failure_message_as_not_run",
+        ),
     )
 )
 
-# exec runs a script, and wait polls a script that was still running. Both results
-# start with the script's state, e.g. "Script completed", then this head.
+# exec runs a script, and wait polls a script that was still running.
+# Both results start with the script's state, e.g. "Script completed", then this head.
 _SCRIPT_HEAD = "\nWall time {seconds:line_without_brackets} seconds\nOutput:\n"
 _SCRIPT_COMPLETED = "Script completed" + _SCRIPT_HEAD
 _SCRIPT_FAILED = "Script failed" + _SCRIPT_HEAD
@@ -140,7 +148,7 @@ _EXEC = HarnessResultFormatList[str](
             is_truncated=True,
         ),
         _COMPLETED,
-        # A script that does not parse runs nothing.
+        # The result does not say whether a script that does not parse ran any step, so a judgment rule decides the status.
         Text(
             "failed_syntax",
             _SCRIPT_FAILED + "Script error:\nSyntaxError: {error:rest_of_line}",
@@ -181,7 +189,7 @@ _WAIT = HarnessResultFormatList[str](
         Text(
             "rejected_arguments",
             "failed to parse function arguments: {reason:text}",
-            S.NOT_RUN,
+            judgment_rule="treat_tool_failure_message_as_not_run",
         ),
     )
 )
