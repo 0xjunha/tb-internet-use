@@ -60,7 +60,7 @@ The [pipeline example](docs/pipeline-example.md) follows six made-up tool calls 
 | 2 | Expand tool calls | What did each call actually run, and where does that output show up? | `ExpandedToolCall` | 23 | Built and run on the sample of 100 trials, with `pipeline.py` calling it after step 1. Its catalogs still lack rows for many programs and options, which come out as unknown. The old code still runs for steps 3 to 5 |
 | 3 | Extract network requests | Which of what ran is a request, and for which target? | `NetworkRequest` | 6 | Built and run on the sample of 100 trials, with `pipeline.py` calling it after step 2. Every option of a fetching program that the sample uses has a row of its catalog except `curl -X` with a variable as its value. Programs and subcommands without a row in this catalog or in that of step 2, e.g. `lake build`, `sbt` and `git status`, still come out as unknown inputs, and `go build -o` as an uncertain request. The old code still runs for steps 4 and 5 |
 | 4 | Decide request results | How far did each request get, and on what evidence? | `NetworkRequestResult` | 19 | Built and run on the sample of 100 trials, with `pipeline.py` calling it after step 3. Its catalogs and those of steps 2 and 3 still lack rows for many programs and options, so many results stay at `ATTEMPTED` or are assumed. The old code still runs for step 5 |
-| 5 | Export rows | Which category is each request, and what do the rows say for each task? | `NetworkRequestRow`, `TrialRow`, `TrialCategoryMeasureRow` | 17 | Being built, with its types, the trial row, the category of a request, the network request row and the redaction of credentials, while `export_rows` still exports only a read trial without requests and no main measure rows |
+| 5 | Export rows | Which category is each request, and what do the rows say for each task? | `NetworkRequestRow`, `TrialRow`, `TrialCategoryMeasureRow` | 17 | Built and run on the sample of 100 trials, with `pipeline.py` calling it after step 4 and `scripts/run_pipeline.py` writing the rows of every trial. Its catalog of public hosts has no rows yet and its catalog of web tools one, so most public hosts and web tools come out as unknown inputs |
 
 A judgment rule is a choice that facts alone do not settle, e.g. whether a negative exit code means the command was killed.
 Judgment rules are kept apart from outside knowledge, one function each in the `judgment_rules.py` of the step, each marked provisional or decided, and all are provisional today.
@@ -74,6 +74,20 @@ Steps 1 and 2 are built to know nothing about the internet, so they can serve ot
   - Devin, Grok Build: subagent and pre-compaction calls missing.
   - Cursor CLI: subagents' inner calls missing.
 - Requests made outside the trajectory, such as those of the image build or the verifier, are out of scope.
+
+## Running
+
+`scripts/run_pipeline.py` runs the six steps on the trial folders of a raw data folder and writes the rows under `out/pipeline/`, which git ignores, since the rows hold targets and host names from the trajectories.
+
+```bash
+nice -n 10 uv run python -I scripts/run_pipeline.py <raw_trials_dir> [--trial-ids FILE] [--out-dir DIR]
+```
+
+It writes one file per row type, i.e. `network_request_rows.csv`, `trial_rows.csv` and `trial_category_measure_rows.csv`, and a count of the main measure per task in `task_category_measures.csv`.
+For each step it lists the inputs that its catalogs have no row for and how often each row and each judgment rule was used, with the trials and tasks of each.
+It also checks equations between the steps, e.g. that every network request result gives one request row, and exits with 1 when one differs or a trial raised.
+`--resume` goes on with a run that stopped, and `--export-only` runs only the last step again on the saved output of the steps before it.
+`scripts/audit_export_knowledge.py` then checks the rows of a run against the uses of the last step's catalogs and judgment rules.
 
 ## Development
 

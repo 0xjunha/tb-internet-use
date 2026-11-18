@@ -7,6 +7,9 @@ from pathlib import Path
 
 import pytest
 
+from tb_internet_use.expanded_tool_call import (
+    judgment_rules as expanded_tool_call_judgment_rules,
+)
 from tb_internet_use.expanded_tool_call.model import (
     CallCommandText,
     FileText,
@@ -14,10 +17,21 @@ from tb_internet_use.expanded_tool_call.model import (
     FileUseKind,
     RanShellText,
 )
+from tb_internet_use.export import judgment_rules as export_judgment_rules
+from tb_internet_use.export.model import MeasureBound, NetworkRequestCategory
+from tb_internet_use.network_request import (
+    judgment_rules as network_request_judgment_rules,
+)
+from tb_internet_use.network_request.judgment_rules import (
+    treat_dotted_host_name_as_public,
+)
 from tb_internet_use.network_request.model import (
     FromCommand,
     NetworkRequestCertainty,
     NoNetworkRequestReason,
+)
+from tb_internet_use.network_request_result import (
+    judgment_rules as network_request_result_judgment_rules,
 )
 from tb_internet_use.network_request_result.model import (
     NetworkRequestResultCertainty,
@@ -30,10 +44,11 @@ from tb_internet_use.pipeline import (
     KnowledgeDoors,
     read_trajectory,
     read_trial_file_texts,
+    run_steps_of_trial,
     run_steps_to_expanded_tool_calls,
     run_steps_to_network_request_results,
-    run_steps_to_network_requests,
 )
+from tb_internet_use.tool_call import judgment_rules as tool_call_judgment_rules
 from tb_internet_use.tool_call.model import (
     HarnessTool,
     HarnessToolCall,
@@ -273,13 +288,16 @@ def test_each_step_counts_its_lookups_in_its_own_door_and_its_rules_in_its_own_c
 
 def test_new_doors_count_only_their_own_lookups():
     first_doors = KnowledgeDoors()
-    run_steps_to_network_requests(
+    run_steps_to_network_request_results(
         _claude_code_tool_calls_writing_and_running_a_script(),
         knowledge_doors=first_doors,
         tool_call_judgment_rule_use_counts=Counter(),
         expanded_tool_call_judgment_rule_use_counts=Counter(),
         network_request_judgment_rule_use_counts=Counter(),
         no_network_request_counts=Counter(),
+        network_request_result_judgment_rule_use_counts=Counter(),
+        unused_output_line_counts=Counter(),
+        program_counts_of_unowned_output_lines=Counter(),
     )
 
     second_doors = KnowledgeDoors()
@@ -313,14 +331,21 @@ def test_runs_the_extraction_of_network_requests_after_the_expansion_with_its_ow
     network_request_judgment_rule_use_counts: Counter[str] = Counter()
     no_network_request_counts: Counter[NoNetworkRequestReason] = Counter()
 
-    network_requests = run_steps_to_network_requests(
+    network_request_results = run_steps_to_network_request_results(
         (write_call, background_bash_call, task_output_call, later_bash_call),
         knowledge_doors=knowledge_doors,
         tool_call_judgment_rule_use_counts=tool_call_judgment_rule_use_counts,
         expanded_tool_call_judgment_rule_use_counts=expanded_tool_call_judgment_rule_use_counts,
         network_request_judgment_rule_use_counts=network_request_judgment_rule_use_counts,
         no_network_request_counts=no_network_request_counts,
+        network_request_result_judgment_rule_use_counts=Counter(),
+        unused_output_line_counts=Counter(),
+        program_counts_of_unowned_output_lines=Counter(),
     )
+    network_requests = [
+        network_request_result.network_request
+        for network_request_result in network_request_results
+    ]
 
     assert [
         (
@@ -459,3 +484,188 @@ def test_runs_the_decision_of_request_results_after_the_extraction_with_its_own_
     assert tool_call_judgment_rule_use_counts == Counter(
         {"treat_bash_output_without_exit_code_line_as_finished": 2}
     )
+
+
+# The keyword arguments of `run_steps_of_trial` that hold a counter, which a test fills with empty counters.
+_COUNTER_ARGUMENT_NAMES = (
+    "tool_call_judgment_rule_use_counts",
+    "expanded_tool_call_judgment_rule_use_counts",
+    "network_request_judgment_rule_use_counts",
+    "no_network_request_counts",
+    "network_request_result_judgment_rule_use_counts",
+    "unused_output_line_counts",
+    "program_counts_of_unowned_output_lines",
+    "export_judgment_rule_use_counts",
+)
+# The module of the judgment rules of each step whose rule counter `run_steps_of_trial` takes.
+_JUDGMENT_RULES_BY_COUNTER_ARGUMENT_NAME = {
+    "tool_call_judgment_rule_use_counts": tool_call_judgment_rules,
+    "expanded_tool_call_judgment_rule_use_counts": expanded_tool_call_judgment_rules,
+    "network_request_judgment_rule_use_counts": network_request_judgment_rules,
+    "network_request_result_judgment_rule_use_counts": network_request_result_judgment_rules,
+    "export_judgment_rule_use_counts": export_judgment_rules,
+}
+
+
+def _run_steps_of_trial_with_new_counters(
+    trial_dir: Path,
+) -> tuple[tuple, KnowledgeDoors, dict[str, Counter]]:
+    """Run `run_steps_of_trial` with new doors and new counters, and return its output with the doors and the counters by argument name."""
+    knowledge_doors = KnowledgeDoors()
+    counters: dict[str, Counter] = {name: Counter() for name in _COUNTER_ARGUMENT_NAMES}
+    output = run_steps_of_trial(trial_dir, knowledge_doors=knowledge_doors, **counters)
+    return output, knowledge_doors, counters
+
+
+def test_runs_every_step_on_a_trial_folder_and_keeps_the_counters_of_each_step_apart(
+    tmp_path, write_trial_folder
+):
+    # wget runs only when x.tgz is missing, pip installs packages of a variable, and mytool has no row of a catalog.
+    trial_dir = write_trial_folder(
+        tmp_path,
+        "trial-1",
+        [
+            (
+                "test -f x.tgz || wget -O x.tgz https://files.acme.org/x.tgz; pip install $PKGS; mytool https://b.org/y",
+                "Successfully installed requests-2.32.3",
+            )
+        ],
+    )
+
+    (
+        (
+            trial,
+            network_request_results,
+            trial_row,
+            network_request_rows,
+            trial_category_measure_rows,
+        ),
+        knowledge_doors,
+        counters,
+    ) = _run_steps_of_trial_with_new_counters(trial_dir)
+
+    assert (trial.trial_id, trial.task_name, trial.unreadable_trajectory) == (
+        "trial-1",
+        "terminal-bench/a",
+        None,
+    )
+    assert [
+        network_request_result.network_request.tool_call_key
+        for network_request_result in network_request_results
+    ] == [ToolCallKey("trial-1", "main", 1, 0)] * 3
+    assert [
+        (row.made_by, row.target, row.category) for row in network_request_rows
+    ] == [
+        ("wget", "https://files.acme.org/x.tgz", NetworkRequestCategory.FETCHED_FILE),
+        ("pip install", "", NetworkRequestCategory.PACKAGE),
+        ("mytool", "https://b.org/y", NetworkRequestCategory.OTHER_WEB),
+    ]
+    assert trial_row.any_category_request_measure_bound == MeasureBound.LOWER_AND_UPPER
+    assert {
+        (row.category, row.request_measure_bound) for row in trial_category_measure_rows
+    } == {
+        (NetworkRequestCategory.FETCHED_FILE, MeasureBound.LOWER_AND_UPPER),
+        (NetworkRequestCategory.PACKAGE, MeasureBound.LOWER_AND_UPPER),
+        # mytool is an uncertain request.
+        (NetworkRequestCategory.OTHER_WEB, MeasureBound.UPPER_ONLY),
+    }
+    # Every step uses a rule of its own and counts no rule of another step, except that `export_rows` counts the rule of `extract_network_requests` that reads a dotted host name as public.
+    for name, judgment_rules in _JUDGMENT_RULES_BY_COUNTER_ARGUMENT_NAME.items():
+        own_rule_names = {
+            name
+            for name, function in vars(judgment_rules).items()
+            if callable(function)
+            and getattr(function, "__module__", None) == judgment_rules.__name__
+        }
+        if judgment_rules is export_judgment_rules:
+            own_rule_names.add(treat_dotted_host_name_as_public.__name__)
+        assert counters[name], f"{name} counted no rule"
+        assert set(counters[name]) <= own_rule_names, name
+    # The dotted host of mytool's URL counts in the counter of `extract_network_requests`, and the hosts of wget, mytool and `pypi.org` of `pip install` in that of `export_rows`.
+    assert (
+        counters["network_request_judgment_rule_use_counts"][
+            treat_dotted_host_name_as_public.__name__
+        ]
+        == 1
+    )
+    assert (
+        counters["export_judgment_rule_use_counts"][
+            treat_dotted_host_name_as_public.__name__
+        ]
+        == 3
+    )
+    assert counters["no_network_request_counts"]
+    # Each door counts its own lookups, e.g. the export door the default registry of `pip install`.
+    assert knowledge_doors.export_knowledge.uses.row_use_counts == Counter(
+        {("program_package_registries.csv", ("pip", "install")): 1}
+    )
+    for door_name in (
+        "tool_call_knowledge",
+        "expanded_tool_call_knowledge",
+        "network_request_knowledge",
+        "network_request_result_knowledge",
+    ):
+        assert getattr(knowledge_doors, door_name).uses.row_use_counts, door_name
+
+
+def test_a_readable_trial_without_requests_keeps_its_trial_row_alone(
+    tmp_path, write_trial_folder
+):
+    trial_dir = write_trial_folder(tmp_path, "trial-1", [("ls", "notes.txt")])
+
+    (
+        (trial, network_request_results, trial_row, network_request_rows, measure_rows),
+        (_),
+        _,
+    ) = _run_steps_of_trial_with_new_counters(trial_dir)
+
+    assert trial.unreadable_trajectory is None
+    assert (network_request_results, network_request_rows, measure_rows) == ((), (), ())
+    assert (
+        trial_row.unreadable_trajectory_reason,
+        trial_row.any_category_request_measure_bound,
+        trial_row.any_category_received_measure_bound,
+    ) == (None, MeasureBound.NEITHER, MeasureBound.NEITHER)
+
+
+@pytest.mark.parametrize(
+    ("trajectory", "reason"),
+    [
+        (None, UnreadableTrajectoryReason.MISSING),
+        (b'{"steps": [', UnreadableTrajectoryReason.INVALID_JSON),
+    ],
+)
+def test_an_unreadable_trajectory_gives_its_reason_no_results_and_the_upper_bounds_of_every_category(
+    tmp_path, write_trial_folder, trajectory, reason
+):
+    trial_dir = write_trial_folder(tmp_path, "trial-1", trajectory)
+
+    (
+        (trial, network_request_results, trial_row, network_request_rows, measure_rows),
+        knowledge_doors,
+        counters,
+    ) = _run_steps_of_trial_with_new_counters(trial_dir)
+
+    assert trial.unreadable_trajectory == UnreadableTrajectory(reason)
+    assert trial.task_name == "terminal-bench/a"
+    assert (network_request_results, network_request_rows) == ((), ())
+    assert trial_row.unreadable_trajectory_reason == reason
+    assert trial_row.any_category_request_measure_bound == MeasureBound.UPPER_ONLY
+    # One row per category and each sender other than unknown, all in the upper bounds only.
+    assert len(measure_rows) == len(NetworkRequestCategory) * 3
+    assert {
+        (row.request_measure_bound, row.received_measure_bound) for row in measure_rows
+    } == {(MeasureBound.UPPER_ONLY, MeasureBound.UPPER_ONLY)}
+    # No step before `export_rows` ran, so no counter and no door counted anything.
+    assert not any(counters.values())
+    assert not knowledge_doors.tool_call_knowledge.uses.row_use_counts
+    assert not knowledge_doors.tool_call_knowledge.uses.unknown_input_counts
+
+
+def test_a_trial_folder_without_a_detail_file_raises(tmp_path, write_trial_folder):
+    trial_dir = write_trial_folder(
+        tmp_path, "trial-1", [("ls", "notes.txt")], has_detail_file=False
+    )
+
+    with pytest.raises(FileNotFoundError, match="detail.json"):
+        _run_steps_of_trial_with_new_counters(trial_dir)
