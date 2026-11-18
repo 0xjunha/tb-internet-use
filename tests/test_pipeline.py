@@ -436,26 +436,26 @@ def test_runs_the_decision_of_request_results_after_the_extraction_with_its_own_
         tuple[UnusedOutputLineReason, OutputLineKind, str]
     ] = Counter()
 
-    network_request_result, mytool_network_request_result = (
-    (network_request,), (network_request_result,) = (
-        run_steps_to_network_request_results(
-            harness_tool_calls,
-            knowledge_doors=knowledge_doors,
-            tool_call_judgment_rule_use_counts=tool_call_judgment_rule_use_counts,
-            expanded_tool_call_judgment_rule_use_counts=Counter(),
-            network_request_judgment_rule_use_counts=network_request_judgment_rule_use_counts,
-            no_network_request_counts=no_network_request_counts,
-            no_network_request_counts=Counter(),
-            network_request_result_judgment_rule_use_counts=network_request_result_judgment_rule_use_counts,
-            unused_output_line_counts=unused_output_line_counts,
-            program_counts_of_unowned_output_lines=program_counts_of_unowned_output_lines,
-        )
+    (
+        (network_request, mytool_network_request),
+        (network_request_result, mytool_network_request_result),
+    ) = run_steps_to_network_request_results(
+        harness_tool_calls,
+        knowledge_doors=knowledge_doors,
+        tool_call_judgment_rule_use_counts=tool_call_judgment_rule_use_counts,
+        expanded_tool_call_judgment_rule_use_counts=Counter(),
+        network_request_judgment_rule_use_counts=network_request_judgment_rule_use_counts,
+        no_network_request_counts=no_network_request_counts,
+        network_request_result_judgment_rule_use_counts=network_request_result_judgment_rule_use_counts,
+        unused_output_line_counts=unused_output_line_counts,
+        program_counts_of_unowned_output_lines=program_counts_of_unowned_output_lines,
     )
 
-    assert network_request_result.network_request.target == "x"
-    assert mytool_network_request_result.network_request.target == "https://b.org/y"
+    # The requests of `extract_network_requests` come back beside their results, one result each.
     assert network_request_result.network_request == network_request
+    assert mytool_network_request_result.network_request == mytool_network_request
     assert network_request.target == "x"
+    assert mytool_network_request.target == "https://b.org/y"
     assert (
         network_request_result.level,
         network_request_result.stop_reason,
