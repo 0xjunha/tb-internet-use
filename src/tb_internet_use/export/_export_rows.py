@@ -15,10 +15,7 @@ from tb_internet_use.trial.model import Trial
 
 if TYPE_CHECKING:
     # The door is passed in and named in annotations only, so that `export_rows` never loads `knowledge/` itself.
-    # The door module does not exist yet, so pyright is told to skip the missing import until it does.
-    from tb_internet_use.knowledge.export_knowledge import (  # pyright: ignore[reportMissingImports]
-        ExportKnowledge,
-    )
+    from tb_internet_use.knowledge.export_knowledge import ExportKnowledge
 
 
 def export_rows(

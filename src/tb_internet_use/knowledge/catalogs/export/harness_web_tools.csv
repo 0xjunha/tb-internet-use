@@ -1,0 +1,2 @@
+harness,tool,sender,checked_against,reviewed,note
+codex,web_search_call,provider_server,"1,610 web_search_call calls in the trajectories (terminal-bench 2026-10-08), none with result content and each followed by another call in the same model response",,"The search runs on the model provider's server while the model writes its response, so the trajectory holds the query and no result"

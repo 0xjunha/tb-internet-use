@@ -192,7 +192,10 @@ class PublicHost:
 
 @dataclass(frozen=True, slots=True)
 class UnknownPublicHost:
-    """Answer of `ExportKnowledge` for a public host without a row of the host catalog."""
+    """Answer of `ExportKnowledge` for a public host without a row of the host catalog.
+
+    The door also gives it for a host whose row has a blank `service`.
+    """
 
 
 @dataclass(frozen=True, slots=True)
@@ -207,7 +210,10 @@ class PackageRegistry:
 
 @dataclass(frozen=True, slots=True)
 class UnknownPackageRegistry:
-    """Answer of `ExportKnowledge` for a program and subcommand without a row of the package registry catalog."""
+    """Answer of `ExportKnowledge` for a program and subcommand without a row of the package registry catalog.
+
+    The door also gives it for a program and subcommand whose row has a blank `package_registry`.
+    """
 
     def __bool__(self) -> bool:
         """Refuse to be read as True or False, so that `if package_registry` never takes a program without a row for one with a row, since a request that the door is not asked about has None."""
@@ -246,7 +252,10 @@ class NetworkRequestSender(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class UnknownNetworkRequestSender:
-    """Answer of `ExportKnowledge` for a harness tool without a row of the web tool catalog."""
+    """Answer of `ExportKnowledge` for a harness tool without a row of the web tool catalog.
+
+    The door also gives it for a harness tool whose row has a blank `sender`.
+    """
 
 
 class NetworkRequestResultView(StrEnum):
