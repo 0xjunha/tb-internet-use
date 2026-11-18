@@ -464,7 +464,8 @@ def test_npx_and_the_program_it_runs_each_give_a_request():
         for network_request in network_requests
     ] == [
         (FromCommand(0, CallCommandText(), npx), 0, "playwright", UNCERTAIN),
-        (FromCommand(0, CallCommandText(), playwright), 1, "chromium", CONFIRMED),
+        # The browser name chromium is no target of playwright install.
+        (FromCommand(0, CallCommandText(), playwright), 1, None, CONFIRMED),
     ]
 
 

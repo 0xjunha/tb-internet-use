@@ -848,3 +848,93 @@ def test_commands_give_their_requests_on_the_real_catalogs(text, targets):
         (network_request.target, network_request.certainty)
         for network_request in network_requests
     ] == [(target, NetworkRequestCertainty.CONFIRMED) for target in targets]
+
+
+CONFIRMED = NetworkRequestCertainty.CONFIRMED
+UNCERTAIN = NetworkRequestCertainty.UNCERTAIN
+HOST = NetworkRequestTargetKind.HOST
+PACKAGE_NAME = NetworkRequestTargetKind.PACKAGE_NAME
+URL_KIND = NetworkRequestTargetKind.URL
+NAMED_IN_FILE = UnknownNetworkRequestTarget(
+    UnknownNetworkRequestTargetReason.NAMED_IN_FILE
+)
+# Commands whose rows a review of the catalogs checked against their pages, as (text, requests as (target, target kind, hosts, certainty), unknown inputs as (catalog, key)) on the real catalogs.
+_REVIEWED_REAL_CATALOG_CASES = [
+    # dig has no row, since its first argument can be the server or a query option, e.g. @1.1.1.1 or +short, so no word of it is taken for the name and a host without a URL gives no request.
+    ("dig a.org", [], {(PROGRAM_BEHAVIORS_CSV, ("dig", ""))}),
+    ("dig +short a.org", [], {(PROGRAM_BEHAVIORS_CSV, ("dig", ""))}),
+    ("dig @1.1.1.1 a.org", [], {(PROGRAM_BEHAVIORS_CSV, ("dig", ""))}),
+    ("dig -x 8.8.8.8", [], {(PROGRAM_BEHAVIORS_CSV, ("dig", ""))}),
+    # The query type is the value of -t, and the server comes after the name.
+    ("host -t A a.org", [("a.org", HOST, ("a.org",), CONFIRMED)], set()),
+    ("host a.org 8.8.8.8", [("a.org", HOST, ("a.org",), CONFIRMED)], set()),
+    ("nslookup a.org 8.8.8.8", [("a.org", HOST, ("a.org",), CONFIRMED)], set()),
+    # The arguments of the install of browsers are browser names and no targets.
+    ("playwright install chromium", [(None, URL_KIND, (), CONFIRMED)], set()),
+    (
+        "playwright install --with-deps chromium",
+        [(None, URL_KIND, (), CONFIRMED)],
+        set(),
+    ),
+    ("agent-browser install", [(None, URL_KIND, (), CONFIRMED)], set()),
+    ("dnf install -y curl", [("curl", PACKAGE_NAME, (), CONFIRMED)], set()),
+    ("bun add -d x", [("x", PACKAGE_NAME, (), CONFIRMED)], set()),
+    ("sbt -batch compile", [(NAMED_IN_FILE, PACKAGE_NAME, (), UNCERTAIN)], set()),
+    # The wrappers have no row of their own in the request catalog, and the request is that of curl.
+    (
+        "strace -f -o t.txt -e trace=network curl https://a.org",
+        [("https://a.org", URL_KIND, ("a.org",), CONFIRMED)],
+        {(PROGRAM_NETWORK_REQUESTS_CSV, ("strace", "", "", ""))},
+    ),
+    (
+        "unshare -n curl https://a.org",
+        [("https://a.org", URL_KIND, ("a.org",), CONFIRMED)],
+        {(PROGRAM_NETWORK_REQUESTS_CSV, ("unshare", "", "", ""))},
+    ),
+    # git log fetches missing objects in a partial clone, which no row can state, so it stays an unknown input.
+    ("git log", [], {(PROGRAM_NETWORK_REQUESTS_CSV, ("git", "log", "", ""))}),
+    # pip list sends a request only with --outdated, which no option effect can state for a program that does not fetch otherwise.
+    (
+        "pip list --outdated",
+        [],
+        {
+            (PROGRAM_OPTION_BEHAVIORS_CSV, ("pip", "list", "--outdated")),
+            (PROGRAM_NETWORK_REQUESTS_CSV, ("pip", "list", "", "")),
+        },
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    ("text", "requests", "unknown_inputs"), _REVIEWED_REAL_CATALOG_CASES
+)
+def test_reviewed_rows_give_their_requests_and_unknown_inputs_on_the_real_catalogs(
+    text, requests, unknown_inputs
+):
+    expanded_tool_call_knowledge = ExpandedToolCallKnowledge()
+    network_request_knowledge = NetworkRequestKnowledge()
+    expanded_tool_calls = expand_tool_calls(
+        (_call(1, text),),
+        knowledge=expanded_tool_call_knowledge,
+        judgment_rule_use_counts=Counter(),
+    )
+    network_requests = extract_network_requests(
+        expanded_tool_calls,
+        knowledge=network_request_knowledge,
+        judgment_rule_use_counts=Counter(),
+        no_network_request_counts=Counter(),
+    )
+
+    assert [
+        (
+            network_request.target,
+            network_request.target_kind,
+            network_request.host_names,
+            network_request.certainty,
+        )
+        for network_request in network_requests
+    ] == requests
+    assert (
+        set(expanded_tool_call_knowledge.uses.unknown_input_counts)
+        | set(network_request_knowledge.uses.unknown_input_counts)
+    ) == unknown_inputs

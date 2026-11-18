@@ -153,7 +153,7 @@ _CODE_CALL_CATALOGS_THAT_CANNOT_LOAD = [
         "two rows have the key",
     ),
 ]
-# Calls of the old code request tables that build a client and send nothing, or whose first argument is a method and not the URL, so the real catalog has no row for them.
+# Calls of the old code request tables that build a client or a request object and send nothing, or whose first argument is a method and not the URL, so the real catalog has no row for them.
 _OLD_CALLS_WITHOUT_ROW = [
     "requests.Session",
     "httpx.Client",
@@ -161,6 +161,16 @@ _OLD_CALLS_WITHOUT_ROW = [
     "aiohttp.ClientSession",
     "requests.request",
     "httpx.stream",
+    # It builds a request object that urlopen sends, and the column effect has no value that says so.
+    "urllib.request.Request",
+]
+# Programs and subcommands for which no column can state what a page says, so they have no row and stay unknown inputs.
+# The first argument of dig can be its server, git log and git diff fetch missing objects in a partial clone, and pip list sends a request only with --outdated.
+_PROGRAM_ROWS_THAT_NO_COLUMN_CAN_STATE = [
+    ("dig", ""),
+    ("git", "log"),
+    ("git", "diff"),
+    ("pip", "list"),
 ]
 # Fact cells of a fetching program row in which a blank fails the load.
 _PROGRAM_COLUMNS_THAT_CANNOT_BE_BLANK = [
@@ -305,6 +315,19 @@ _OPTION_EFFECTS_OF_THE_SAMPLE = [
 ]
 # (program name, subcommand words, full label) of the real catalog for the rows of the most used fetching programs, so that a change of any fact cell of these rows fails.
 _FETCHING_PROGRAM_LABELS_OF_NAMED_ROWS = [
+    # The page shows agent-browser install without arguments, so no argument is a target.
+    (
+        "agent-browser",
+        ("install",),
+        FetchingProgramLabel(
+            fetches_only_what_is_missing=False,
+            target_arguments=TargetArguments.NONE,
+            target_kind=NetworkRequestTargetKind.URL,
+            target_notation=TargetNotation.URL,
+            target_without_target_arguments=TargetWithoutTargetArguments.NO_TARGET,
+            content_route=UnknownProgramContentRoute(),
+        ),
+    ),
     (
         "curl",
         (),
@@ -430,6 +453,7 @@ class _OldProgramRow(NamedTuple):
 
 
 # The rows of the earlier program catalog, all of which `program_network_requests.csv` carries over.
+# The row of dig is left out, since its first argument can be the server, e.g. `@1.1.1.1` of `dig @1.1.1.1 a.org`, which the column target_arguments cannot tell apart from the name.
 _OLD_PROGRAM_ROWS = [
     _OldProgramRow("agent-browser", "install", "url", "no", "no", "no"),
     _OldProgramRow("apt", "install", "system_package", "no", "no", "no"),
@@ -447,7 +471,6 @@ _OLD_PROGRAM_ROWS = [
     _OldProgramRow("curl", "", "url", "no", "no", "yes"),
     _OldProgramRow("cut", "", "", "", "", ""),
     _OldProgramRow("diff", "", "", "", "", ""),
-    _OldProgramRow("dig", "", "remote_host", "no", "no", "yes"),
     _OldProgramRow("dnf", "install", "system_package", "no", "no", "no"),
     _OldProgramRow("dnf", "makecache", "system_package", "no", "no", "no"),
     _OldProgramRow("egrep", "", "", "", "", ""),
@@ -874,6 +897,17 @@ def test_real_catalog_gives_the_full_label_of_the_rows_the_decision_document_nam
     )
 
 
+@pytest.mark.parametrize(
+    ("program_name", "subcommand"), _PROGRAM_ROWS_THAT_NO_COLUMN_CAN_STATE
+)
+def test_real_catalog_has_no_program_row_that_no_column_can_state(
+    program_name, subcommand
+):
+    assert (program_name, subcommand) not in {
+        (row["program_name"], row["subcommand"]) for row in _real_rows()
+    }
+
+
 @pytest.mark.parametrize("program_name", ["echo", "printf", "cat"])
 def test_real_catalog_says_that_echo_printf_and_cat_do_not_fetch(program_name):
     knowledge = NetworkRequestKnowledge()
@@ -1077,17 +1111,6 @@ def test_real_code_call_rows_are_carried_from_the_old_tables_or_name_a_documenta
                 CodeCallEffect.SENDS_NETWORK_REQUEST,
                 TargetNotation.HOST_AND_PORT_TUPLE,
                 NetworkRequestTargetKind.HOST,
-            ),
-        ),
-        # The Request object is sent by the urlopen call that gets it, so a URL written in it is no request of its own.
-        (
-            CodeLanguage.PYTHON,
-            "urllib.request.Request",
-            CodeCallLabel(
-                "urllib.request.Request",
-                CodeCallEffect.SENDS_NO_NETWORK_REQUEST,
-                None,
-                None,
             ),
         ),
         (

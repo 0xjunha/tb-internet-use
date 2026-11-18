@@ -57,6 +57,8 @@ UNKNOWN_PROGRAM = NetworkRequestUncertaintyReason.UNKNOWN_PROGRAM
 U = "https://a.org/x"
 # The confirmed request of `requests.get(U)`, as (call name, target, target kind, hosts, uncertainty reason).
 REQUESTS_GET_U = ("requests.get", U, URL, ("a.org",), None)
+# The confirmed request of `urlopen` whose argument is no literal, e.g. a request object.
+URLOPEN_OF_OBJECT = ("urlopen", BUILT_IN_CODE, URL, (), None)
 # The request of a URL in code outside every call.
 OUTSIDE_U = (UNKNOWN_CALL, U, URL, ("a.org",), URL_OUTSIDE_CODE_CALL)
 NAMESPACE_RULE = "treat_url_of_namespace_host_as_no_target"
@@ -162,6 +164,19 @@ _CASES = [
         f'urllib.request.build_opener("{U}")',
         PYTHON,
         [(UNKNOWN_CALL, U, URL, ("a.org",), UNKNOWN_CODE_CALL)],
+    ),
+    # A request object is no call with a row, so both spellings give the request of urlopen, whose target is the object, and an uncertain request for the URL in it that names its host.
+    (
+        "request object built with a dotted name",
+        f'urllib.request.urlopen(urllib.request.Request("{U}"))',
+        PYTHON,
+        [URLOPEN_OF_OBJECT, (UNKNOWN_CALL, U, URL, ("a.org",), UNKNOWN_CODE_CALL)],
+    ),
+    (
+        "request object built with an imported name",
+        f'from urllib.request import Request, urlopen\nurlopen(Request("{U}"))',
+        PYTHON,
+        [URLOPEN_OF_OBJECT, (UNKNOWN_CALL, U, URL, ("a.org",), UNKNOWN_CODE_CALL)],
     ),
     (
         "client that sends nothing",

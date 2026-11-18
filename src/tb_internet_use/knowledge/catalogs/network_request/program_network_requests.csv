@@ -1,5 +1,5 @@
 program_name,subcommand,option_name,option_value,fetches,target_arguments,target_kind,target_notation,target_without_target_arguments,content_route,option_effect,checked_against,reviewed,note
-agent-browser,install,,,yes,all,url,url,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
+agent-browser,install,,,yes,none,url,url,no_target,,,"agent-browser README (github.com/vercel-labs/agent-browser, read 2026-11-18), Install (agent-browser install, download Chrome for Testing, agent-browser install --with-deps), the page shows no version, for target_arguments; the other cells not checked, from the old table",,"The page shows install without arguments and names no URL in it, so target_arguments is none. Target_kind stays url, since the request is the download of Chrome for Testing, which no other NetworkRequestTargetKind value names. content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
 apt,install,,,yes,all,package_name,name,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
 apt,update,,,yes,none,package_name,name,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
 apt,list,,,no,,,,,,,"apt(8), apt 2.6.1 (Debian bookworm, manpages.debian.org), list (list is somewhat similar to dpkg-query --list in that it can display a list of packages satisfying certain criteria) and update (update is used to download package information from all configured sources. Other commands operate on this data)",,It lists packages from the package information that apt update downloaded
@@ -14,6 +14,7 @@ apt-get,,--no-install-recommends,,,,,,,,none,"apt-get(8) OPTIONS --no-install-re
 awk,,,,no,,,,,,,"not checked, from the old table",,
 bun,add,,,yes,all,package_name,name,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for. The old table reads the targets from the arguments and notes that no target means the project's packages, which no page of bun.sh says for add"
 bun,x,,,only_what_is_missing,next_program,package_name,name,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
+bun,add,-d,,,,,,,,none,"bun add, CLI Usage (--dev, Add dependency to devDependencies, Alias: -d), Bun v1.4.4 (bun.com/docs/cli/add)",,
 bunx,,,,only_what_is_missing,next_program,package_name,name,no_request,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
 cat,,,,no,,,,,,,"not checked, from the old table",,
 conda,install,,,yes,all,package_name,name,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
@@ -56,9 +57,9 @@ curl,,-v,,,,,,,,none,"curl(1) -v, --verbose, curl.se/docs/manpage.html, curl 8.2
 curl,,-w,,,,,,,,none,"curl(1) -w, --write-out, curl.se/docs/manpage.html, curl 8.23.1",,"It writes information about the transfer to stdout after it, beside the body"
 cut,,,,no,,,,,,,"not checked, from the old table",,
 diff,,,,no,,,,,,,"not checked, from the old table",,
-dig,,,,yes,first,host,host_name,no_request,stdout,,"not checked, from the old table",,
 dnf,install,,,yes,all,package_name,name,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
 dnf,makecache,,,yes,none,package_name,name,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
+dnf,install,-y,,,,,,,,none,"dnf(8) OPTIONS (-y, --assumeyes, Automatically answer yes for all questions), dnf 4.14.0-3+deb12u1 (Debian bookworm, manpages.debian.org)",,
 echo,,,,no,,,,,,,"echo(1) DESCRIPTION, GNU coreutils 9.11 (man7.org)",,
 egrep,,,,no,,,,,,,"not checked, from the old table",,
 getent,hosts,,,yes,all,host,host_name,no_request,,,"target_without_target_arguments from getent(1) DESCRIPTION and hosts, Linux man-pages 6.19 (man7.org), which enumerate the hosts database when no key is given instead of looking a name up. content_route left blank, since that page says only that the result is displayed. The rest not checked, from the old table",,The old table said the response goes to stdout. Whether the address that a lookup prints is content the request asks for is not said by getent(1)
@@ -72,8 +73,6 @@ git,,-C,,,,,,,,none,"git(1) OPTIONS -C <path> (Run as if git was started in <pat
 git,clone,--depth,,,,,,,,none,"git-clone(1) OPTIONS --depth, Git 2.54.0 (git-scm.com/docs/git-clone)",,
 git,clone,-q,,,,,,,,none,"git-clone(1) OPTIONS -q, --quiet, Git 2.54.0 (git-scm.com/docs/git-clone)",,
 git,status,,,no,,,,,,,"git-status(1) DESCRIPTION (Displays paths that have differences between the index file and the current HEAD commit, paths that have differences between the working tree and the index file, and paths in the working tree that are not tracked by Git), Git 2.55.0 (2026-06-29, Homebrew)",,Everything it compares is in the local repository and the working tree
-git,log,,,no,,,,,,,"git-log(1) DESCRIPTION (Shows the commit logs. List commits that are reachable by following the parent links from the given commit(s)), Git 2.55.0 (2026-06-29, Homebrew)",,The commits it lists are in the local repository
-git,diff,,,no,,,,,,,"git-diff(1) DESCRIPTION (Show changes between the working tree and the index or a tree, changes between the index and a tree, changes between two trees, changes resulting from a merge, changes between two blob objects, or changes between two files on disk), Git 2.55.0 (2026-06-29, Homebrew)",,Everything it compares is in the local repository or on disk
 go,build,,,only_what_is_missing,none,package_name,name,named_in_file,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
 go,mod tidy,,,yes,none,package_name,name,named_in_file,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
 go,run,,,only_what_is_missing,none,package_name,name,named_in_file,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
@@ -81,6 +80,7 @@ go,build,-o,,,,,,,,none,"cmd/go documentation, go1.27.4, pkg.go.dev, Compile pac
 grep,,,,no,,,,,,,"not checked, from the old table",,
 head,,,,no,,,,,,,"not checked, from the old table",,
 host,,,,yes,first,host,host_name,no_request,stdout,,"not checked, from the old table",,
+host,,-t,,,,,,,,none,"host(1) OPTIONS (-t type, The type argument can be any recognized query type), bind9-host 1:9.18.33-1~deb12u2 (Debian bookworm, manpages.debian.org)",,"The query type changes what is asked of the name, not the name or the server"
 huggingface-cli,download,,,yes,all,url,url,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
 jq,,,,no,,,,,,,"not checked, from the old table",,
 lake,build,,,only_what_is_missing,none,package_name,name,named_in_file,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
@@ -143,8 +143,9 @@ pip,install,--no-deps,,,,,,,,none,"pip install Options --no-deps (Don't install 
 pip,,--disable-pip-version-check,,,,,,,,none,"pip General Options --disable-pip-version-check (Don't periodically check PyPI to determine whether a new version of pip is available for download), pip documentation v26.3 (pip.pypa.io)",,"It stops the check for a new version of pip, a request that the words do not show"
 pip,,--no-input,,,,,,,,none,"pip General Options --no-input (Disable prompting for input), pip documentation v26.3 (pip.pypa.io)",,
 pip,download,--no-binary,,,,,,,,none,"pip download Options --no-binary <format_control> (Do not download binary packages. Cached binary packages may still be used), pip documentation v26.3 (pip.pypa.io)",,It changes which file of a package is fetched and not which package
-playwright,install,,,yes,all,url,url,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
+playwright,install,,,yes,none,url,url,no_target,,,"Browsers, Install browsers (Running the command without arguments will install the default browsers, You can also install specific browsers by providing an argument, npx playwright install webkit), playwright.dev/docs/browsers, read 2026-11-18, the page shows no version, for target_arguments; the other cells not checked, from the old table",,"The arguments are browser names, not targets, so target_arguments is none. Target_kind stays url, since the request is the download of the browser builds, which no other NetworkRequestTargetKind value names. content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
 playwright,install-deps,,,yes,none,package_name,name,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
+playwright,install,--with-deps,,,,,,,,none,"Command line, Install browsers (--with-deps Install browser system dependencies), playwright.dev/docs/test-cli, read 2026-11-18, the page shows no version",,"The system packages it installs are named nowhere in the command, so they are no targets of their own"
 pnpm,add,,,yes,all,package_name,name,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for. The old table reads the targets from the arguments and notes that no target means the project's packages, which no page of pnpm.io says for add"
 pnpm,exec,,,only_what_is_missing,next_program,package_name,name,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
 pnpm,install,,,yes,all,package_name,name,named_in_file,,,"target_without_target_arguments from pnpm install, pnpm docs 12.x (pnpm.io/cli/install), which installs all dependencies for a project. The rest not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
@@ -153,6 +154,7 @@ printf,,,,no,,,,,,,"printf(1) DESCRIPTION, GNU coreutils 9.11 (man7.org)",,
 rg,,,,no,,,,,,,"not checked, from the old table",,
 rsync,,,,yes,all,host,rsync_address,no_request,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
 sbt,,,,only_what_is_missing,none,package_name,name,named_in_file,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
+sbt,,-batch,,,,,,,,none,"sbt launcher script (raw.githubusercontent.com/sbt/sbt/develop/sbt, builtin_sbt_version 1.12.0, read 2026-11-18), usage (--batch disable interactive mode)",,It only closes stdin
 sed,,,,no,,,,,,,"not checked, from the old table",,
 sort,,,,no,,,,,,,"not checked, from the old table",,
 strings,,,,no,,,,,,,"not checked, from the old table",,
