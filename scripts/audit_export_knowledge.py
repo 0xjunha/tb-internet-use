@@ -72,7 +72,8 @@ from tb_internet_use.export.judgment_rules import (
     treat_saved_content_from_package_registry_host_as_fetched_file,
     treat_shown_content_from_registry_or_model_hub_host_as_other_web,
     treat_shown_content_from_search_engine_host_as_other_web,
-    treat_unclassified_host_name_as_unknown_internet_use,
+    treat_single_label_host_name_as_not_internet_use,
+    treat_templated_host_name_as_unknown_internet_use,
     treat_url_query_value_and_fragment_as_credential,
     treat_web_tool_request_without_host_name_as_internet_use,
 )
@@ -325,23 +326,30 @@ def situation_counts_of(
         for host_name in host_names
     )
     has_public = "public" in host_scope_texts
-    has_unknown = any(text.startswith("unknown_") for text in host_scope_texts)
+    has_templated = any(
+        text.startswith("unknown_") and text != "unknown_single_label"
+        for text in host_scope_texts
+    )
     has_reserved = "reserved" in host_scope_texts
+    is_local_or_single_label = bool(host_scope_texts) and set(host_scope_texts) <= {
+        "local",
+        "unknown_single_label",
+    }
     is_situation_of_rule = {
         treat_request_without_host_name_as_sent_to_default_registry_host: not network_request.host_names
         and not is_web_tool,
         treat_web_tool_request_without_host_name_as_internet_use: not network_request.host_names
         and is_web_tool,
-        treat_unclassified_host_name_as_unknown_internet_use: not has_public
-        and has_unknown,
+        treat_templated_host_name_as_unknown_internet_use: not has_public
+        and has_templated,
         treat_reserved_host_name_as_unknown_internet_use: not has_public
-        and not has_unknown
+        and not has_templated
         and has_reserved,
-        treat_local_host_name_of_web_tool_as_unknown_internet_use: bool(
-            host_scope_texts
-        )
-        and set(host_scope_texts) == {"local"}
+        treat_local_host_name_of_web_tool_as_unknown_internet_use: is_local_or_single_label
         and is_web_tool,
+        treat_single_label_host_name_as_not_internet_use: is_local_or_single_label
+        and not is_web_tool
+        and "unknown_single_label" in host_scope_texts,
         treat_repository_request_for_no_content_as_other_web: row.received_content_destination
         == "not_requested"
         and row.target_kind == NetworkRequestTargetKind.REPOSITORY_URL,

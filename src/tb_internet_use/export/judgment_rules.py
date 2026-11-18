@@ -6,7 +6,7 @@ For example, the URL `https://a.org/x?page=2&token=abc` shows no rule of which q
 Each rule adds one to `use_counts` under its own function name every time it decides something, so that audits can show how much of the output leans on each rule.
 The counts are for tracking and never go into a row.
 
-A rule is provisional until the user decides it. The last paragraph of each docstring marks it `Provisional.` or `Decided.`
+A rule is provisional until the user decides it. The last paragraph of each docstring marks it `Provisional.` or `Decided.`, e.g. `treat_single_label_host_name_as_not_internet_use` is decided.
 """
 
 from collections import Counter
@@ -224,26 +224,43 @@ def treat_request_without_host_name_as_sent_to_default_registry_host(
     return ()
 
 
-def treat_unclassified_host_name_as_unknown_internet_use(
+def treat_templated_host_name_as_unknown_internet_use(
     network_request: NetworkRequest, *, use_counts: Counter[str]
 ) -> bool:
-    """Leave the internet use of a request unknown when a host name of it has no dot or holds a template and none is public, e.g. `curl http://db:5432/` or `curl https://$HOST/x`.
+    """Leave the internet use of a request unknown when a host name of it holds a template and none is public, e.g. `curl https://$HOST/x`.
 
-    No standard says whether `db` is a service inside the task environment or a host on the internet, and `$HOST` gets its value when the command runs.
+    `$HOST` gets its value when the command runs, and the trajectory does not show the value.
     `export_network_request_row` asks it for a request with such a host name and no public host, among the hosts that its words name or that it is taken to be sent to.
     On `True` `is_internet_use` is None, so the request counts only toward the upper bound. On `False` it is False, as for `localhost`, and the request counts in no bound.
     A use is such a request.
 
     Provisional. No earlier code chose, and unknown claims least.
     """
-    use_counts[treat_unclassified_host_name_as_unknown_internet_use.__name__] += 1
+    use_counts[treat_templated_host_name_as_unknown_internet_use.__name__] += 1
+    return True
+
+
+def treat_single_label_host_name_as_not_internet_use(
+    network_request: NetworkRequest, *, use_counts: Counter[str]
+) -> bool:
+    """Count a request whose host names are local or have no dot, and none public, templated or reserved, as no internet use, e.g. `curl http://db:8000/x` or `socket.create_connection(("api", 8000))` in code.
+
+    A name without a dot does not resolve on public DNS, only inside a container network or through `/etc/hosts`, so the request goes to a service inside the task environment, which turning the internet off would not block.
+    `export_network_request_row` asks it for a request from a command or code with such a host name and no public, templated or reserved host, among the hosts that its words name or that it is taken to be sent to.
+    A web tool request with such a host name is left to `treat_local_host_name_of_web_tool_as_unknown_internet_use`, since the name then resolves where the web tool sends from.
+    On `True` `is_internet_use` is False, as for `localhost`, and the request counts in no bound. On `False` it is None, so the request counts only toward the upper bound.
+    A use is such a request.
+
+    Decided. The user decided on 2026-11-19 that a name without a dot is read as a service inside the task environment. Some such names in code are no hosts at all but test strings, which the choice also counts as no internet use.
+    """
+    use_counts[treat_single_label_host_name_as_not_internet_use.__name__] += 1
     return True
 
 
 def treat_reserved_host_name_as_unknown_internet_use(
     network_request: NetworkRequest, *, use_counts: Counter[str]
 ) -> bool:
-    """Leave the internet use of a request unknown when a host name of it is reserved for examples and tests and none is public or unclassified, e.g. `curl https://example.com/`.
+    """Leave the internet use of a request unknown when a host name of it is reserved for examples and tests and none is public or templated, e.g. `curl https://example.com/`.
 
     A reserved name resolves nowhere by the standards, but the task environment may still map it to a service of its own.
     `export_network_request_row` asks it for a request with such a host name, among the hosts that its words name or that it is taken to be sent to.
@@ -260,10 +277,10 @@ def treat_reserved_host_name_as_unknown_internet_use(
 def treat_local_host_name_of_web_tool_as_unknown_internet_use(
     network_request: NetworkRequest, *, use_counts: Counter[str]
 ) -> bool:
-    """Leave the internet use of a web tool request unknown when all its host names are local, e.g. a fetch tool that runs on the provider's server reading `http://localhost:3000/`.
+    """Leave the internet use of a web tool request unknown when all its host names are local or have no dot, e.g. a fetch tool that runs on the provider's server reading `http://localhost:3000/` or `http://db:8000/`.
 
-    A local name means the machine that sends the request, and a web tool may send from the harness process or the provider's server instead of the task environment.
-    `export_network_request_row` asks it for a request from a web tool whose host names are all local.
+    A local name, and a name without a dot, means the machine that sends the request or its network, and a web tool may send from the harness process or the provider's server instead of the task environment.
+    `export_network_request_row` asks it for a request from a web tool whose host names are all local or have no dot.
     On `True` `is_internet_use` is None, so the request counts only toward the upper bound. On `False` it is False, as for a command that asks `localhost`.
     A use is such a request.
 

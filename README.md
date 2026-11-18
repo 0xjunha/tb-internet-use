@@ -22,7 +22,7 @@ Every request is kept as a row with its place in the trajectory and its evidence
 
 | Term | Meaning |
 |---|---|
-| Internet use | A request that the agent's own call causes and that turning the internet off would block. So a request to localhost is a network request but not internet use, and a failed request still counts |
+| Internet use | A request that the agent's own call causes and that turning the internet off would block. So a request to localhost, or to a name without a dot such as `db` that resolves only inside the task environment, is a network request but not internet use, and a failed request still counts |
 | One request | One target that one command, code text or web tool call tries to get, e.g. two for `pip install A B` |
 | How far it got | The furthest level below that the trajectory shows, with why it stopped there: it failed, nothing further is visible, or nothing needed sending (e.g. pip prints `Requirement already satisfied`) |
 
@@ -60,7 +60,7 @@ The [pipeline example](docs/pipeline-example.md) follows six made-up tool calls 
 | 2 | Expand tool calls | What did each call actually run, and where does that output show up? | `expand_tool_calls` in `expanded_tool_call/` | `ExpandedToolCall` | 23 | Built and run on a sample of 100 trials, where many programs and options still have no catalog row and come out as unknown inputs |
 | 3 | Extract network requests | Which of what ran is a request, and for which target? | `extract_network_requests` in `network_request/` | `NetworkRequest` | 6 | Built and run on a sample of 100 trials, where a program or option without a catalog row still comes out as an unknown input or an uncertain request |
 | 4 | Decide request results | How far did each request get, and on what evidence? | `decide_network_request_results` in `network_request_result/` | `NetworkRequestResult` | 19 | Built and run on a sample of 100 trials, where many results stay at `ATTEMPTED` since the exit code of a text shows nothing of a command in a loop, before a pipe or in a file |
-| 5 | Export rows | Which category is each request, and what do the rows say for each task? | `export_rows` in `export/` | `NetworkRequestRow`, `TrialRow`, `TrialCategoryMeasureRow` | 17 | Built and run on a sample of 100 trials, where most public hosts and web tools still have no catalog row and come out as unknown inputs |
+| 5 | Export rows | Which category is each request, and what do the rows say for each task? | `export_rows` in `export/` | `NetworkRequestRow`, `TrialRow`, `TrialCategoryMeasureRow` | 18 | Built and run on a sample of 100 trials, where most public hosts and web tools still have no catalog row and come out as unknown inputs |
 
 Each step is a package of `src/tb_internet_use/` whose `__init__.py` exports only its entry function, and whose types are in its `model.py`.
 `run_steps_of_trial` in `pipeline.py` reads the files of one trial folder, makes the doors of outside knowledge and calls the six entry functions in order. The steps themselves take text and types, never a path.
@@ -86,7 +86,7 @@ The [knowledge README](src/tb_internet_use/knowledge/README.md) lists every file
 ## Judgment rules
 
 A judgment rule is a choice that facts alone do not settle, e.g. whether a negative exit code means the command was killed.
-Judgment rules are kept apart from outside knowledge, one function each in the `judgment_rules.py` of the step, which counts each of its uses. Each is marked provisional or decided, and all are provisional today.
+Judgment rules are kept apart from outside knowledge, one function each in the `judgment_rules.py` of the step, which counts each of its uses. Each is marked provisional or decided. One is decided today, `treat_single_label_host_name_as_not_internet_use` of `export/`, which counts a request to a host name without a dot, e.g. `db`, as no internet use, since such a name resolves only inside the task environment.
 A provisional rule keeps the choice of the earlier code, or where there was none the choice that claims least, e.g. that a command with no evidence of its own that it ran is not known to have run, so that the lower bounds stay true.
 
 ## Running

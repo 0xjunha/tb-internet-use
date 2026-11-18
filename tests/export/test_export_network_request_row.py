@@ -37,7 +37,8 @@ from tb_internet_use.export.judgment_rules import (
     treat_reserved_host_name_as_unknown_internet_use,
     treat_saved_content_from_package_registry_host_as_fetched_file,
     treat_shown_content_from_search_engine_host_as_other_web,
-    treat_unclassified_host_name_as_unknown_internet_use,
+    treat_single_label_host_name_as_not_internet_use,
+    treat_templated_host_name_as_unknown_internet_use,
     treat_url_query_value_and_fragment_as_credential,
     treat_web_tool_request_without_host_name_as_internet_use,
 )
@@ -119,7 +120,8 @@ WEB_TOOL_WITHOUT_HOST_RULE = (
 DEFAULT_REGISTRY_RULE = (
     treat_request_without_host_name_as_sent_to_default_registry_host.__name__
 )
-UNCLASSIFIED_HOST_RULE = treat_unclassified_host_name_as_unknown_internet_use.__name__
+TEMPLATED_HOST_RULE = treat_templated_host_name_as_unknown_internet_use.__name__
+SINGLE_LABEL_HOST_RULE = treat_single_label_host_name_as_not_internet_use.__name__
 RESERVED_HOST_RULE = treat_reserved_host_name_as_unknown_internet_use.__name__
 LOCAL_HOST_OF_WEB_TOOL_RULE = (
     treat_local_host_name_of_web_tool_as_unknown_internet_use.__name__
@@ -320,6 +322,7 @@ PIP_INSTALL_REQUESTS = _request(
 )
 CURL_A_ORG = _curl("https://a.org/x", "a.org")
 CURL_DB = _curl("http://db:5432/", "db")
+CURL_TEMPLATED_HOST = _curl("https://$HOST/x", "$HOST")
 CURL_EXAMPLE = _curl("https://example.com/", "example.com")
 CURL_LOCALHOST = _curl("http://localhost:8000/health", "localhost")
 WEB_SEARCH = _request(
@@ -392,23 +395,17 @@ INTERNET_USE_CASES: list[
         },
         {DEFAULT_REGISTRY_RULE: 1, DOTTED_HOST_RULE: 1},
     ),
-    # A host name without a dot or with a template.
+    # A host name with a template.
     (
-        "curl http://db:5432/",
-        CURL_DB,
+        "curl https://$HOST/x",
+        CURL_TEMPLATED_HOST,
         {
-            "host_scope": "unknown_single_label",
+            "host_scope": "unknown_templated",
             "host_service": "not_public",
             "is_internet_use": None,
             "request_measure_bound": UPPER_ONLY,
         },
-        {UNCLASSIFIED_HOST_RULE: 1},
-    ),
-    (
-        "curl https://$HOST/x",
-        _curl("https://$HOST/x", "$HOST"),
-        {"host_scope": "unknown_templated", "is_internet_use": None},
-        {UNCLASSIFIED_HOST_RULE: 1},
+        {TEMPLATED_HOST_RULE: 1},
     ),
     # A reserved host name.
     (
@@ -423,6 +420,32 @@ INTERNET_USE_CASES: list[
         WEB_FETCH_LOCALHOST,
         {"is_internet_use": None, "sender": NetworkRequestSender.HARNESS_PROCESS},
         {LOCAL_HOST_OF_WEB_TOOL_RULE: 1},
+    ),
+    # A host name without a dot, read as a service inside the task environment like a local host.
+    (
+        "curl http://db:5432/",
+        CURL_DB,
+        {
+            "host_scope": "unknown_single_label",
+            "host_service": "not_public",
+            "is_internet_use": False,
+            "request_measure_bound": NEITHER,
+            "received_measure_bound": NEITHER,
+        },
+        {SINGLE_LABEL_HOST_RULE: 1},
+    ),
+    (
+        "a single label and a local host",
+        _request(
+            _command(_program("curl")),
+            "http://db/x",
+            URL,
+            ContentShownInResult(),
+            "db",
+            "127.0.0.1",
+        ),
+        {"host_scope": "unknown_single_label local", "is_internet_use": False},
+        {SINGLE_LABEL_HOST_RULE: 1},
     ),
     # Only local hosts.
     (
@@ -480,7 +503,35 @@ INTERNET_USE_CASES: list[
             "db",
         ),
         {"host_scope": "reserved unknown_single_label", "is_internet_use": None},
-        {UNCLASSIFIED_HOST_RULE: 1},
+        {RESERVED_HOST_RULE: 1},
+    ),
+    (
+        "a single label and a templated host",
+        _request(
+            _command(_program("curl")),
+            "http://db/x",
+            URL,
+            ContentShownInResult(),
+            "db",
+            "$HOST",
+        ),
+        {
+            "host_scope": "unknown_single_label unknown_templated",
+            "is_internet_use": None,
+        },
+        {TEMPLATED_HOST_RULE: 1},
+    ),
+    (
+        "a web tool with a single label",
+        _request(
+            _web_tool("claude-code", "WebFetch"),
+            "http://db:8000/",
+            URL,
+            ContentShownInResult(),
+            "db",
+        ),
+        {"host_scope": "unknown_single_label", "is_internet_use": None},
+        {LOCAL_HOST_OF_WEB_TOOL_RULE: 1},
     ),
     (
         "a web tool with a public host",
@@ -669,9 +720,9 @@ def test_internet_use_takes_the_first_condition_that_fits_and_counts_each_rule_i
                 PACKAGE_NAME,
                 ContentSaved(None),
             ),
-            None,
-            UPPER_ONLY,
-            {DEFAULT_REGISTRY_RULE: 1, UNCLASSIFIED_HOST_RULE: 1},
+            False,
+            NEITHER,
+            {DEFAULT_REGISTRY_RULE: 1, SINGLE_LABEL_HOST_RULE: 1},
         ),
     ],
 )
@@ -735,7 +786,8 @@ def test_a_host_that_the_words_name_decides_a_package_request_instead_of_the_def
 OTHER_INTERNET_USE_ANSWER_CASES = [
     (WEB_TOOL_WITHOUT_HOST_RULE, False, WEB_SEARCH, None),
     (DEFAULT_REGISTRY_RULE, (), PIP_INSTALL_REQUESTS, None),
-    (UNCLASSIFIED_HOST_RULE, False, CURL_DB, False),
+    (TEMPLATED_HOST_RULE, False, CURL_TEMPLATED_HOST, False),
+    (SINGLE_LABEL_HOST_RULE, False, CURL_DB, None),
     (RESERVED_HOST_RULE, False, CURL_EXAMPLE, False),
     (LOCAL_HOST_OF_WEB_TOOL_RULE, False, WEB_FETCH_LOCALHOST, False),
 ]
@@ -979,9 +1031,9 @@ COLUMN_CASES: list[tuple[str, NetworkRequest, dict[str, object], dict[str, int]]
         {
             "category": NetworkRequestCategory.OTHER_WEB,
             "host_scope": "unknown_single_label",
-            "is_internet_use": None,
+            "is_internet_use": False,
         },
-        {HOST_TARGET_RULE: 1, UNCLASSIFIED_HOST_RULE: 1},
+        {HOST_TARGET_RULE: 1, SINGLE_LABEL_HOST_RULE: 1},
     ),
     (
         "subprocess.run of pip in code",
@@ -1202,7 +1254,7 @@ BOUND_CASES: list[
         {DOTTED_HOST_RULE: 1},
     ),
     ("uncertain request received", _result(NPX_TSC), UPPER_ONLY, UPPER_ONLY, {DEFAULT_REGISTRY_RULE: 1, DOTTED_HOST_RULE: 1}),
-    ("internet use not known, received", _result(CURL_DB), UPPER_ONLY, UPPER_ONLY, {UNCLASSIFIED_HOST_RULE: 1}),
+    ("internet use not known, received", _result(CURL_TEMPLATED_HOST), UPPER_ONLY, UPPER_ONLY, {TEMPLATED_HOST_RULE: 1}),
     ("not internet use, received", _result(CURL_LOCALHOST), NEITHER, NEITHER, {}),
     # Requests that two conditions fit, where the first wins.
     (
@@ -1214,17 +1266,17 @@ BOUND_CASES: list[
     ),
     (
         "internet use not known, confirmed not needed",
-        _result(CURL_DB, EXECUTED, NOT_NEEDED, CONFIRMED),
+        _result(CURL_TEMPLATED_HOST, EXECUTED, NOT_NEEDED, CONFIRMED),
         NEITHER,
         NEITHER,
-        {UNCLASSIFIED_HOST_RULE: 1},
+        {TEMPLATED_HOST_RULE: 1},
     ),
     (
         "internet use not known, assumed not needed",
-        _result(CURL_DB, EXECUTED, NOT_NEEDED, ASSUMED),
+        _result(CURL_TEMPLATED_HOST, EXECUTED, NOT_NEEDED, ASSUMED),
         UPPER_ONLY,
         UPPER_ONLY,
-        {UNCLASSIFIED_HOST_RULE: 1, ASSUMED_NOT_NEEDED_RULE: 1},
+        {TEMPLATED_HOST_RULE: 1, ASSUMED_NOT_NEEDED_RULE: 1},
     ),
     (
         "not internet use, assumed failure",

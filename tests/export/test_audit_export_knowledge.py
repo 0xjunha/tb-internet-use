@@ -5,6 +5,7 @@ The equations hold whatever the catalogs say, so the cases use the catalogs of t
 
 import csv
 import importlib.util
+import json
 import sys
 from collections.abc import Callable, Iterable, Iterator
 from concurrent.futures import Future
@@ -28,7 +29,7 @@ def _load_script(name: str):
 run_pipeline = _load_script("run_pipeline")
 audit = _load_script("audit_export_knowledge")
 
-# Commands of made-up trials whose rows reach many rules, e.g. a request that runs only when its file is missing, a package of a variable, a program without a row, a discarded page with a query, a host without a dot and a clone of a repository.
+# Commands of made-up trials whose rows reach many rules, e.g. a request that runs only when its file is missing, a package of a variable, a program without a row, a discarded page with a query, a host without a dot, a reserved host beside a templated one and a clone of a repository.
 _BASH_CALLS_OF_TRIAL = {
     "t1": [
         (
@@ -40,11 +41,38 @@ _BASH_CALLS_OF_TRIAL = {
         (
             'curl -s -o /dev/null "https://a.org/x?token=abc"; curl http://db:5432/; git clone https://github.com/a/b',
             "",
-        )
+        ),
+        (
+            "pip install --index-url https://example.com/simple --extra-index-url 'https://{host}/simple' x",
+            "",
+        ),
     ],
     "t3": [("ls", "notes.txt")],
     "t4": None,
 }
+
+# A made-up Claude Code trajectory whose one `WebFetch` call reads a host without a dot, which the rule for local hosts of a web tool decides rather than the rule for a host without a dot.
+_WEB_FETCH_TRAJECTORY = json.dumps(
+    {
+        "schema_version": "ATIF-v1.7",
+        "agent": {"name": "claude-code"},
+        "steps": [
+            {
+                "step_id": 1,
+                "tool_calls": [
+                    {
+                        "tool_call_id": "call-1",
+                        "function_name": "WebFetch",
+                        "arguments": {"url": "http://db:8000/", "prompt": "read it"},
+                    }
+                ],
+                "observation": {
+                    "results": [{"source_call_id": "call-1", "content": "a page"}]
+                },
+            }
+        ],
+    }
+).encode()
 
 
 class _InProcessPool:
@@ -80,6 +108,7 @@ def run_dir(tmp_path, monkeypatch, write_trial_folder) -> Path:
     raw_trials_dir = tmp_path / "raw"
     for trial_id, bash_calls in _BASH_CALLS_OF_TRIAL.items():
         write_trial_folder(raw_trials_dir, trial_id, bash_calls)
+    write_trial_folder(raw_trials_dir, "t5", _WEB_FETCH_TRAJECTORY)
     run_dir = tmp_path / "run"
     monkeypatch.setattr(run_pipeline, "ProcessPoolExecutor", _InProcessPool)
     monkeypatch.setattr(
@@ -137,7 +166,9 @@ def test_every_equation_holds_on_the_rows_of_made_up_trials(
     # The made-up trials reach the rules, so the equations do not hold only because both sides are 0.
     for rule_name in (
         "treat_request_without_host_name_as_sent_to_default_registry_host",
-        "treat_unclassified_host_name_as_unknown_internet_use",
+        "treat_single_label_host_name_as_not_internet_use",
+        "treat_templated_host_name_as_unknown_internet_use",
+        "treat_local_host_name_of_web_tool_as_unknown_internet_use",
         "treat_url_query_value_and_fragment_as_credential",
         "treat_dotted_host_name_as_public",
     ):
@@ -152,7 +183,8 @@ def test_every_equation_holds_on_the_rows_of_made_up_trials(
         "0",
     ] in rule_rows
     assert _csv_rows(out_dir / "row_uses.csv")[1:] == [
-        ["program_package_registries.csv", '["pip", "install"]', "1", "1", "1"],
+        ["program_package_registries.csv", '["pip", "install"]', "2", "2", "1"],
+        ["harness_web_tools.csv", '["claude-code", "WebFetch"]', "1", "1", "1"],
         ["public_hosts.csv", '["github.com"]', "1", "1", "1"],
     ]
     assert _csv_rows(out_dir / "trials_not_audited.csv") == [

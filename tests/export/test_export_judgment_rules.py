@@ -25,7 +25,8 @@ from tb_internet_use.export.judgment_rules import (
     treat_saved_content_from_package_registry_host_as_fetched_file,
     treat_shown_content_from_registry_or_model_hub_host_as_other_web,
     treat_shown_content_from_search_engine_host_as_other_web,
-    treat_unclassified_host_name_as_unknown_internet_use,
+    treat_single_label_host_name_as_not_internet_use,
+    treat_templated_host_name_as_unknown_internet_use,
     treat_url_query_value_and_fragment_as_credential,
     treat_web_tool_request_without_host_name_as_internet_use,
 )
@@ -286,7 +287,19 @@ JUDGMENT_RULE_CASES: list[tuple[Callable[..., object], tuple[object, ...], objec
         ("deb.debian.org", "archive.ubuntu.com"),
     ),
     (
-        treat_unclassified_host_name_as_unknown_internet_use,
+        treat_templated_host_name_as_unknown_internet_use,
+        (
+            _request(
+                ("curl", "https://$HOST/x"),
+                NetworkRequestTargetKind.URL,
+                ContentShownInResult(),
+                "$HOST",
+            ),
+        ),
+        True,
+    ),
+    (
+        treat_single_label_host_name_as_not_internet_use,
         (
             _request(
                 ("curl", "http://db:5432/"),

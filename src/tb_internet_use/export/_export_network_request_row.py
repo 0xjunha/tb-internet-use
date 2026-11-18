@@ -8,9 +8,10 @@ Whether a request is internet use comes from the first condition below that fits
 - A public host gives True.
 - No host and a web tool source is decided by a judgment rule, e.g. a web search.
 - No host and any other source gives the hosts that a judgment rule takes it to be sent to, read by the conditions below, or None without such hosts, e.g. `git push origin main`.
-- A host name without a dot or with a template is decided by a judgment rule.
+- A host name with a template is decided by a judgment rule.
 - A reserved host name is decided by a judgment rule.
-- Only local hosts and a web tool source is decided by a judgment rule.
+- Only local hosts or host names without a dot and a web tool source is decided by a judgment rule.
+- Host names without a dot, alone or beside local hosts, are decided by a judgment rule, which counts them as no internet use, e.g. `curl http://db:8000/x`.
 - Only local hosts gives False, e.g. `curl http://localhost:8000/health`.
 
 The request bound comes from the first condition below that fits it.
@@ -56,7 +57,8 @@ from tb_internet_use.export.judgment_rules import (
     treat_local_host_name_of_web_tool_as_unknown_internet_use,
     treat_request_without_host_name_as_sent_to_default_registry_host,
     treat_reserved_host_name_as_unknown_internet_use,
-    treat_unclassified_host_name_as_unknown_internet_use,
+    treat_single_label_host_name_as_not_internet_use,
+    treat_templated_host_name_as_unknown_internet_use,
     treat_web_tool_request_without_host_name_as_internet_use,
 )
 from tb_internet_use.export.model import (
@@ -229,7 +231,7 @@ def _host_name_scopes_of(
 ) -> tuple[HostNameScope | UnknownHostNameScope, ...]:
     """Give the scope of each host name in order, as `parse_host_name` reads it and `treat_dotted_host_name_as_public` decides a dotted name, e.g. PUBLIC for `files.acme.org`.
 
-    A name without a dot or with a template keeps its unknown scope, e.g. `db` or `$HOST`.
+    A name without a dot or with a template keeps its unknown scope, e.g. `db` or `$HOST`, so the `host_scope` column shows its form while `treat_single_label_host_name_as_not_internet_use` decides the internet use of `db`.
     """
     host_name_scopes: list[HostNameScope | UnknownHostNameScope] = []
     for host_name in host_names:
@@ -310,10 +312,11 @@ def _internet_use_from_nonempty_host_name_scopes(
         return True
     if any(
         isinstance(host_name_scope, UnknownHostNameScope)
+        and host_name_scope.reason != UnknownHostNameScopeReason.SINGLE_LABEL
         for host_name_scope in host_name_scopes
     ):
         return _internet_use_from_rule_answer(
-            treat_unclassified_host_name_as_unknown_internet_use(
+            treat_templated_host_name_as_unknown_internet_use(
                 network_request, use_counts=judgment_rule_use_counts
             )
         )
@@ -329,6 +332,16 @@ def _internet_use_from_nonempty_host_name_scopes(
                 network_request, use_counts=judgment_rule_use_counts
             )
         )
+    # Only local hosts and names without a dot are left here.
+    if any(
+        isinstance(host_name_scope, UnknownHostNameScope)
+        for host_name_scope in host_name_scopes
+    ):
+        if treat_single_label_host_name_as_not_internet_use(
+            network_request, use_counts=judgment_rule_use_counts
+        ):
+            return False
+        return None
     return False
 
 

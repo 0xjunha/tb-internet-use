@@ -370,7 +370,7 @@ The category is computed from what the request's own text shows, so the same com
 
 Each category of the trial then gets one row with the strongest bounds of its requests, which gives the last table of [Where this ends](#where-this-ends). The trial row takes the strongest bounds of all requests that the task environment sent.
 The lines of case C give no request and no row. `decide_network_request_results` only counts them as unused lines.
-Some columns need a choice that facts alone do not settle, e.g. whether a request that names no host goes to the default registry of its program. Such choices are the provisional judgment rules of `export/judgment_rules.py`, and each use of one is counted.
+Some columns need a choice that facts alone do not settle, e.g. whether a request that names no host goes to the default registry of its program. Such choices are the judgment rules of `export/judgment_rules.py`, all provisional but the one that counts a request to a host name without a dot as no internet use, and each use of one is counted.
 The entry function `export_rows` calls these pieces in order.
 
 | Piece | What it gives |
