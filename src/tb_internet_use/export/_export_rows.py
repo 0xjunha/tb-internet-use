@@ -4,6 +4,12 @@ from collections import Counter
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
+from tb_internet_use.export._export_network_request_row import (
+    export_network_request_row,
+)
+from tb_internet_use.export._export_trial_category_measure_rows import (
+    export_trial_category_measure_rows,
+)
 from tb_internet_use.export._export_trial_row import export_trial_row
 from tb_internet_use.export.model import (
     NetworkRequestRow,
@@ -27,22 +33,49 @@ def export_rows(
 ) -> tuple[
     TrialRow, tuple[NetworkRequestRow, ...], tuple[TrialCategoryMeasureRow, ...]
 ]:
-    """Export the `TrialRow` of one trial, a `NetworkRequestRow` per network request result and a `TrialCategoryMeasureRow` per category and sender.
+    """Export the `TrialRow` of one trial, a `NetworkRequestRow` per network request result in the order of the results and a `TrialCategoryMeasureRow` per category and sender.
 
-    Every use of a rule of `judgment_rules.py` adds one to `judgment_rule_use_counts` under the name of the rule.
-    A trial whose trajectory could not be read has no network request results, so results for one raise `ValueError`.
-    It exports only the `TrialRow` of a read trial without results. A trial with results, or with an unreadable trajectory, raises `NotImplementedError` instead of getting rows without its request rows and main measure rows.
+    Every request of a trial is kept as a row, and a trial without requests still gets its `TrialRow`, since it counts in the share of trials of its task.
+    The request rows come first, since the bounds of the trial row and of the main measure rows are the strongest among them.
+    Every use of a rule of `judgment_rules.py` adds one to `judgment_rule_use_counts` under the name of the rule, and every question to `knowledge` counts in `knowledge.uses`.
+    Results that cannot belong to the trial raise `ValueError` before any row is exported, so that a refused trial counts no use. These are results of a trial whose trajectory could not be read, which has no results, and results of another trial, e.g. a result of `t2` given with the `Trial` of `t1`.
     """
+    _check_network_request_results_of_trial(trial, network_request_results)
+    network_request_rows = tuple(
+        export_network_request_row(
+            network_request_result,
+            knowledge=knowledge,
+            judgment_rule_use_counts=judgment_rule_use_counts,
+        )
+        for network_request_result in network_request_results
+    )
+    return (
+        export_trial_row(
+            trial,
+            network_request_rows,
+            judgment_rule_use_counts=judgment_rule_use_counts,
+        ),
+        network_request_rows,
+        export_trial_category_measure_rows(trial, network_request_rows),
+    )
+
+
+def _check_network_request_results_of_trial(
+    trial: Trial, network_request_results: Sequence[NetworkRequestResult]
+) -> None:
+    """Refuse with `ValueError` the results of a trial whose trajectory could not be read and the results of another trial."""
     if trial.unreadable_trajectory is not None and network_request_results:
         raise ValueError(
             f"trial {trial.trial_id} has an unreadable trajectory and {len(network_request_results)} network request results"
         )
-    if network_request_results or trial.unreadable_trajectory is not None:
-        raise NotImplementedError(
-            "export_rows exports no request rows and no main measure rows"
-        )
-    return (
-        export_trial_row(trial, (), judgment_rule_use_counts=judgment_rule_use_counts),
-        (),
-        (),
+    other_trial_ids = sorted(
+        {
+            network_request_result.network_request.tool_call_key.trial_id
+            for network_request_result in network_request_results
+        }
+        - {trial.trial_id}
     )
+    if other_trial_ids:
+        raise ValueError(
+            f"network request results of trials {other_trial_ids} given for trial {trial.trial_id}"
+        )

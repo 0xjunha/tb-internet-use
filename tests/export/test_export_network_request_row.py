@@ -4,6 +4,7 @@ from collections import Counter
 from pathlib import Path
 
 import pytest
+from made_up_export_catalogs import write_made_up_export_catalogs
 
 from tb_internet_use.expanded_tool_call.model import (
     ArgumentText,
@@ -139,7 +140,6 @@ SHOWN_FROM_SEARCH_ENGINE_RULE = (
     treat_shown_content_from_search_engine_host_as_other_web.__name__
 )
 
-_REVIEW_COLUMNS = ",a manual,,"
 # The made-up host catalog. `a.org` and `api.github.com` have no row.
 PUBLIC_HOST_ROWS = (
     "pypi.org,package_registry,pypi",
@@ -180,45 +180,23 @@ PROGRAM_MISSING_LINE = OutputLineEvidence(
 )
 
 
-def _write_catalogs(
-    catalogs_dir: Path, program_package_registry_rows: tuple[str, ...]
-) -> Path:
-    """Write the three made-up export CSVs into a folder and return the folder."""
-    catalogs_dir.mkdir()
-    for file_name, header, rows in (
-        (
-            PUBLIC_HOSTS_CSV,
-            "host_name,service,package_registry,checked_against,reviewed,note",
-            PUBLIC_HOST_ROWS,
-        ),
-        (
-            HARNESS_WEB_TOOLS_CSV,
-            "harness,tool,sender,checked_against,reviewed,note",
-            HARNESS_WEB_TOOL_ROWS,
-        ),
-        (
-            PROGRAM_PACKAGE_REGISTRIES_CSV,
-            "program_name,subcommand,package_registry,package_registry_host_names,checked_against,reviewed,note",
-            program_package_registry_rows,
-        ),
-    ):
-        lines = [header, *(row + _REVIEW_COLUMNS for row in rows)]
-        (catalogs_dir / file_name).write_text("\n".join(lines) + "\n")
-    return catalogs_dir
-
-
 @pytest.fixture(scope="module")
 def catalogs_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    return _write_catalogs(
-        tmp_path_factory.mktemp("export") / "catalogs", PROGRAM_PACKAGE_REGISTRY_ROWS
+    return write_made_up_export_catalogs(
+        tmp_path_factory.mktemp("export") / "catalogs",
+        public_host_rows=PUBLIC_HOST_ROWS,
+        harness_web_tool_rows=HARNESS_WEB_TOOL_ROWS,
+        program_package_registry_rows=PROGRAM_PACKAGE_REGISTRY_ROWS,
     )
 
 
 @pytest.fixture(scope="module")
 def internal_catalogs_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    return _write_catalogs(
+    return write_made_up_export_catalogs(
         tmp_path_factory.mktemp("export") / "catalogs",
-        INTERNAL_PROGRAM_PACKAGE_REGISTRY_ROWS,
+        public_host_rows=PUBLIC_HOST_ROWS,
+        harness_web_tool_rows=HARNESS_WEB_TOOL_ROWS,
+        program_package_registry_rows=INTERNAL_PROGRAM_PACKAGE_REGISTRY_ROWS,
     )
 
 
