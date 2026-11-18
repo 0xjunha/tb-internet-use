@@ -5,6 +5,7 @@ from collections import Counter
 from tb_internet_use.expanded_tool_call.judgment_rules import (
     treat_values_outside_their_for_loop_as_one_of_them,
     treat_calls_of_other_trajectory_as_not_linked,
+    treat_first_poll_that_saw_end_as_command_text_status,
     treat_poll_as_reading_latest_earlier_start_of_handle,
     treat_script_poll_step_naming_no_handle_as_polling_none,
     treat_word_with_expansion_as_one_argument,
@@ -53,4 +54,13 @@ def test_script_poll_step_naming_no_handle_reads_no_handle_and_counted():
     )
     assert use_counts == Counter(
         {"treat_script_poll_step_naming_no_handle_as_polling_none": 1}
+    )
+
+
+def test_first_poll_that_saw_the_end_gives_the_command_text_status_and_counted():
+    use_counts: Counter[str] = Counter()
+
+    assert treat_first_poll_that_saw_end_as_command_text_status(use_counts=use_counts)
+    assert use_counts == Counter(
+        {"treat_first_poll_that_saw_end_as_command_text_status": 1}
     )

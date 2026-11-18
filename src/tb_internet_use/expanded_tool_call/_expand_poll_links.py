@@ -131,19 +131,25 @@ def _polled_handles_of(
     for step_index, action in indexed_action_steps_of(tool_call.action):
         if not isinstance(action, PollAction):
             continue
-        if action.handles:
+        if step_index is None:
+            handles = handles_of_poll_action(action, result_handles)
+        elif action.handles:
             handles = tuple(dict.fromkeys(action.handles))
-        elif step_index is None or (
-            result_handles
-            and not treat_script_poll_step_naming_no_handle_as_polling_none(
-                use_counts=judgment_rule_use_counts
-            )
+        elif result_handles and not treat_script_poll_step_naming_no_handle_as_polling_none(
+            use_counts=judgment_rule_use_counts
         ):
             handles = result_handles
         else:
             handles = ()
         polled_handles_of_tool_call.append(_PolledHandles(step_index, handles))
     return tuple(polled_handles_of_tool_call)
+
+
+def handles_of_poll_action(
+    poll_action: PollAction, result_handles: tuple[ExecutionHandle, ...]
+) -> tuple[ExecutionHandle, ...]:
+    """List the handles that a poll which is the call's action reads, each once, i.e. those it names, or those its result names when it names none, e.g. a Codex `wait` without arguments."""
+    return tuple(dict.fromkeys(poll_action.handles or result_handles))
 
 
 def _handle_starts_of(

@@ -92,3 +92,20 @@ def treat_script_poll_step_naming_no_handle_as_polling_none(
     """
     use_counts[treat_script_poll_step_naming_no_handle_as_polling_none.__name__] += 1
     return True
+
+
+def treat_first_poll_that_saw_end_as_command_text_status(
+    *, use_counts: Counter[str]
+) -> bool:
+    """Take the end state of a call's command text from the first later poll that saw it end, when the call's own result is running or unknown, e.g. a call whose result says running and whose handle three later polls read.
+
+    A handle can be polled again after its command ended, and a later poll can report another state, e.g. one poll reports a timeout and a later one exit code 0, so the trajectory does not say which report is the end state.
+    Only a poll that is the call's action and reads one handle counts, since a poll of several handles or a poll step of a tool script has one result for more than that command.
+    `expand_command_text_status` asks it for each call that has such a poll whose result is finished, timed out or killed.
+    On `True` the status and exit code are those of the first such poll, and on `False` they stay those of the call's own result, e.g. running without an exit code.
+    A use is such a call.
+
+    Provisional. It keeps the choice of the earlier code, which took the first poll of one handle that saw the command end.
+    """
+    use_counts[treat_first_poll_that_saw_end_as_command_text_status.__name__] += 1
+    return True
