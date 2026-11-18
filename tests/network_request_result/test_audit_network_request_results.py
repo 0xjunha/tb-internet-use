@@ -37,6 +37,7 @@ from tb_internet_use.network_request_result.model import (
     NetworkRequestResultStopReason,
     OutputLineEvidence,
     OutputLineKind,
+    SharedOutputLineAssumptionReason,
     UnusedOutputLineReason,
 )
 from tb_internet_use.pipeline import KnowledgeDoors, run_steps_to_expanded_tool_calls
@@ -243,6 +244,43 @@ def test_every_equation_holds_on_a_made_up_trial():
         "confirmed_received_results_without_own_download_or_content_use",
         "confirmed_reached_successes_without_own_status",
         "lifted_requests_without_own_line",
+        "shared_output_line_reasons_without_another_result_of_the_line",
+    }
+
+
+def test_counts_assumed_results_by_reason_and_finds_both_results_of_one_shared_line():
+    # `pip install C E` prints one download line of both packages, so both results rest on that line alone, and so do those of `pip install F G` on two lines and those of `pip install H I` on a line inside a JSON string. The four results of the made-up trial that rest on judgment rules, e.g. exit 0 of `sudo curl -s -o y https://f.org/b`, give the other reason.
+    trial_audit = _checked(
+        _steps(
+            (
+                *_MADE_UP_TRIAL,
+                _bash_call(
+                    16, "pip install C E", "Successfully downloaded C-1.0 E-2.0"
+                ),
+                # Two shared lines at the picked level, which count each result once.
+                _bash_call(
+                    17,
+                    "pip install F G",
+                    "Successfully downloaded F-1.0 G-2.0\nSuccessfully downloaded F-1.0 G-2.0",
+                ),
+                # A shared line inside the output string of a JSON object, found by its index in that string.
+                _bash_call(
+                    18,
+                    "pip install H I",
+                    'start\n{"output": "Collecting H\\nSuccessfully downloaded H-1.0 I-2.0"}',
+                ),
+            )
+        )
+    )
+
+    assert _differing_equations(trial_audit) == set()
+    assert {
+        count_name: count
+        for (harness, count_name), count in trial_audit.counts.items()
+        if harness == "all" and count_name.startswith("assumed results with")
+    } == {
+        "assumed results with the reason SharedOutputLineAssumptionReason": 6,
+        "assumed results with the reason JudgmentRuleAssumptionReason": 4,
     }
 
 
@@ -387,6 +425,44 @@ def _uncertain_request_lifted_without_a_line(steps: _Steps) -> _Steps:
     )
 
 
+def _assumed_result_without_assumption_reasons(steps: _Steps) -> _Steps:
+    result = _result_of_step(steps, 1)
+    return _with_result(
+        steps,
+        1,
+        _unchecked_result(
+            **{
+                field.name: getattr(result, field.name)
+                for field in dataclasses.fields(result)
+            }
+            | {
+                "level_certainty": NetworkRequestResultCertainty.ASSUMED,
+                "assumption_reasons": (),
+            }
+        ),
+    )
+
+
+def _shared_output_line_reason_of_a_line_no_other_result_holds(
+    steps: _Steps,
+) -> _Steps:
+    # The line of call 1 is shared in this result alone, so no other result can be found with it.
+    result = _result_of_step(steps, 1)
+    return _with_result(
+        steps,
+        1,
+        dataclasses.replace(
+            result,
+            level_certainty=NetworkRequestResultCertainty.ASSUMED,
+            evidence=(
+                *result.evidence,
+                OutputLineEvidence(_key(1), 0, None, OutputLineKind.DOWNLOADED, True),
+            ),
+            assumption_reasons=(SharedOutputLineAssumptionReason(_key(1), 0, None),),
+        ),
+    )
+
+
 def _rule_of_another_step_counted(steps: _Steps) -> _Steps:
     steps.judgment_rule_use_counts["treat_dotted_host_name_as_public"] += 1
     return steps
@@ -418,6 +494,14 @@ BROKEN_INPUT_CASES: list[tuple[str, Callable[[_Steps], _Steps]]] = [
         _confirmed_reached_success_on_exit_code_alone,
     ),
     ("lifted_requests_without_own_line", _uncertain_request_lifted_without_a_line),
+    (
+        "assumed_results_equal_results_with_assumption_reasons",
+        _assumed_result_without_assumption_reasons,
+    ),
+    (
+        "shared_output_line_reasons_without_another_result_of_the_line",
+        _shared_output_line_reason_of_a_line_no_other_result_holds,
+    ),
     ("judgment_rule_names_are_of_this_step", _rule_of_another_step_counted),
 ]
 

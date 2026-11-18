@@ -43,16 +43,25 @@ from tb_internet_use.network_request_result.model import (
     ExecutionStatusEvidence,
     ExitCodeEvidence,
     FileUseEvidence,
+    FileWrittenByAnotherRequestAssumptionReason,
     HttpStatusEvidence,
+    JudgmentRuleAssumptionReason,
+    MissingProgramOfAnotherCommandAssumptionReason,
+    NetworkRequestResultAssumptionReason,
     NetworkRequestResultLevel,
     NetworkRequestResultStopReason,
     OutputLineEvidence,
     OutputLineKind,
+    OutputLineMeaning,
     OutputLineOwners,
     OutputPlaceSources,
     ProgramExitCodeMeaning,
+    SharedHttpStatusAssumptionReason,
+    SharedOutputLineAssumptionReason,
     ShownContentEvidence,
     UnknownProgramOutputLines,
+    UnknownProgramOutputLinesAssumptionReason,
+    UnknownRunBesideAssumptionReason,
     UnreadablePackageNamesText,
 )
 from tb_internet_use.network_request_result.parse_package_names_text import (
@@ -126,8 +135,7 @@ def decide_network_request_result_evidence(
                 ),
                 _ATTEMPTED,
                 _FAILED,
-                may_belong_to_another_request=False,
-                rests_on_judgment_rule=False,
+                assumption_reasons=(),
             ),
         )
     output_place_sources_by_key = {
@@ -211,29 +219,34 @@ def _output_line_evidence_of(
             rests_on_judgment_rule = True
         is_shared_with_other_requests = len(owner_network_requests) > 1
         # A missing program and a run are facts about the whole command, so a line that shows only them holds for each request of that command, e.g. both of `pip install a b` under `pip: command not found`.
-        may_belong_to_another_request = is_shared_with_other_requests and not (
+        may_belong_to_another_request_reasons: tuple[
+            NetworkRequestResultAssumptionReason, ...
+        ] = (
             (
-                output_line_meaning.kind == OutputLineKind.PROGRAM_MISSING
-                or (level, stop_reason) == (_EXECUTED, _NOT_VISIBLE)
+                SharedOutputLineAssumptionReason(
+                    output_line_with_meaning.showing_tool_call_key,
+                    output_line_with_meaning.line_index,
+                    output_line_with_meaning.line_index_in_json_string,
+                ),
             )
-            and _are_requests_of_one_command(owner_network_requests)
+            if is_shared_with_other_requests
+            and not (
+                (
+                    output_line_meaning.kind == OutputLineKind.PROGRAM_MISSING
+                    or (level, stop_reason) == (_EXECUTED, _NOT_VISIBLE)
+                )
+                and _are_requests_of_one_command(owner_network_requests)
+            )
+            else ()
         )
-        if not may_belong_to_another_request and (
-            _has_unknown_printer(
+        if not may_belong_to_another_request_reasons:
+            may_belong_to_another_request_reasons = _unknown_printer_reasons_of(
                 network_request,
-                output_line_meaning.kind,
+                output_line_meaning,
+                place,
                 expanded_tool_call_by_key,
                 knowledge=knowledge,
-            )
-            or (
-                output_line_meaning.is_printed_by_other_programs_too
-                and has_unknown_run_beside(
-                    network_request, place, expanded_tool_call_by_key
-                )
-            )
-        ):
-            may_belong_to_another_request = judgment_rules.treat_line_that_unknown_printer_may_have_printed_as_shared(
-                use_counts=judgment_rule_use_counts
+                judgment_rule_use_counts=judgment_rule_use_counts,
             )
         output_line_evidence.append(
             EvidenceWithLevel(
@@ -246,11 +259,66 @@ def _output_line_evidence_of(
                 ),
                 level=level,
                 stop_reason=stop_reason,
-                may_belong_to_another_request=may_belong_to_another_request,
-                rests_on_judgment_rule=rests_on_judgment_rule,
+                assumption_reasons=_assumption_reasons_from(
+                    may_belong_to_another_request_reasons,
+                    rests_on_judgment_rule=rests_on_judgment_rule,
+                ),
             )
         )
     return output_line_evidence
+
+
+def _unknown_printer_reasons_of(
+    network_request: NetworkRequest,
+    output_line_meaning: OutputLineMeaning,
+    place: OutputPlaceSources,
+    expanded_tool_call_by_key: Mapping[ToolCallKey, ExpandedToolCall],
+    *,
+    knowledge: NetworkRequestResultKnowledge,
+    judgment_rule_use_counts: Counter[str],
+) -> tuple[
+    UnknownProgramOutputLinesAssumptionReason | UnknownRunBesideAssumptionReason, ...
+]:
+    """Find the reasons that a line of the request alone may still have been printed by a run whose lines are unknown, none when there is no such run or `treat_line_that_unknown_printer_may_have_printed_as_shared` keeps the line the request's own.
+
+    One reason is the run of the request itself, e.g. `HTTP/1.1 200 OK` under `mytool https://a.org/x`. The other is a run that is not read beside it, only for a line that any program prints, e.g. `Connection refused` under `curl -s u; ./test.sh`. Both can hold, e.g. `Connection refused` under `mytool https://a.org/x; ./test.sh`, and the rule is asked once when either does.
+    """
+    unknown_printer_reasons: list[
+        UnknownProgramOutputLinesAssumptionReason | UnknownRunBesideAssumptionReason
+    ] = []
+    if _has_unknown_printer(
+        network_request,
+        output_line_meaning.kind,
+        expanded_tool_call_by_key,
+        knowledge=knowledge,
+    ):
+        unknown_printer_reasons.append(UnknownProgramOutputLinesAssumptionReason())
+    if output_line_meaning.is_printed_by_other_programs_too and has_unknown_run_beside(
+        network_request, place, expanded_tool_call_by_key
+    ):
+        unknown_printer_reasons.append(UnknownRunBesideAssumptionReason())
+    if (
+        unknown_printer_reasons
+        and judgment_rules.treat_line_that_unknown_printer_may_have_printed_as_shared(
+            use_counts=judgment_rule_use_counts
+        )
+    ):
+        return tuple(unknown_printer_reasons)
+    return ()
+
+
+def _assumption_reasons_from(
+    may_belong_to_another_request_reasons: tuple[
+        NetworkRequestResultAssumptionReason, ...
+    ],
+    *,
+    rests_on_judgment_rule: bool,
+) -> tuple[NetworkRequestResultAssumptionReason, ...]:
+    """Give the assumption reasons of one piece of evidence, the reasons that another request or run may own it first and then a judgment rule that gave its level."""
+    return (
+        *may_belong_to_another_request_reasons,
+        *((JudgmentRuleAssumptionReason(),) if rests_on_judgment_rule else ()),
+    )
 
 
 def _level_and_stop_reason_from_output_line(
@@ -413,8 +481,7 @@ def _execution_evidence_of(
                     ),
                     _EXECUTED,
                     _NOT_VISIBLE,
-                    may_belong_to_another_request=False,
-                    rests_on_judgment_rule=False,
+                    assumption_reasons=(),
                 )
             )
     else:
@@ -451,8 +518,7 @@ def _execution_evidence_of(
                 ),
                 _EXECUTED,
                 _NOT_VISIBLE,
-                may_belong_to_another_request=False,
-                rests_on_judgment_rule=True,
+                assumption_reasons=(JudgmentRuleAssumptionReason(),),
             )
         )
     return execution_evidence
@@ -540,8 +606,9 @@ def _exit_code_evidence_of(
             ),
             level,
             stop_reason,
-            may_belong_to_another_request=False,
-            rests_on_judgment_rule=rests_on_judgment_rule,
+            assumption_reasons=_assumption_reasons_from(
+                (), rests_on_judgment_rule=rests_on_judgment_rule
+            ),
         )
     ]
 
@@ -599,7 +666,8 @@ def _stopping_line_evidence_of(
                 _output_line_evidence_of_stopping_line(output_line_owners_of_line),
                 _ATTEMPTED,
                 _FAILED,
-                may_belong_to_another_request=any(
+                assumption_reasons=(MissingProgramOfAnotherCommandAssumptionReason(),)
+                if any(
                     is_missing_program_of_command(missing_program_word, ran_command)
                     for output_place_source_commands in place.source_commands
                     for ran_command in ran_commands_of(
@@ -613,8 +681,8 @@ def _stopping_line_evidence_of(
                         output_place_source_commands.tool_call_key == tool_call_key
                         and ran_command.shell_command.id in stopping_command_ids
                     )
-                ),
-                rests_on_judgment_rule=False,
+                )
+                else (),
             )
         )
     if stopping_line_evidence:
@@ -638,8 +706,7 @@ def _stopping_line_evidence_of(
                 _output_line_evidence_of_stopping_line(output_line_owners_of_line),
                 _ATTEMPTED,
                 _FAILED,
-                may_belong_to_another_request=False,
-                rests_on_judgment_rule=True,
+                assumption_reasons=(JudgmentRuleAssumptionReason(),),
             )
             for output_line_owners_of_line in failure_lines
         ]
@@ -734,10 +801,9 @@ def _received_content_evidence_of(
             EvidenceWithLevel(
                 HttpStatusEvidence(tool_call.harness_tool_call.key, result.http_status),
                 *level_and_stop_reason,
-                may_belong_to_another_request=_has_other_request_in_call(
-                    network_request, network_requests
-                ),
-                rests_on_judgment_rule=False,
+                assumption_reasons=(SharedHttpStatusAssumptionReason(),)
+                if _has_other_request_in_call(network_request, network_requests)
+                else (),
             )
         )
         # The status is read like an HTTP status line, so a status that failed keeps a shown result text from being taken as the content as a failed line does.
@@ -769,8 +835,7 @@ def _received_content_evidence_of(
                     ShownContentEvidence(showing_tool_call_key),
                     _RECEIVED,
                     None,
-                    may_belong_to_another_request=False,
-                    rests_on_judgment_rule=True,
+                    assumption_reasons=(JudgmentRuleAssumptionReason(),),
                 )
                 for showing_tool_call_key in showing_tool_call_keys
             ]
@@ -791,8 +856,7 @@ def _received_content_evidence_of(
                 ),
                 _REACHED,
                 _NOT_VISIBLE,
-                may_belong_to_another_request=False,
-                rests_on_judgment_rule=True,
+                assumption_reasons=(JudgmentRuleAssumptionReason(),),
             )
         )
     return received_content_evidence
@@ -828,14 +892,14 @@ def _file_use_evidence_of(
             or command_id not in writer_command_ids
         ):
             continue
-        may_belong_to_another_request = _is_written_by_another_request(
+        is_written_by_another_request = _is_written_by_another_request(
             written_file, network_request, network_requests
         )
         for file_use in written_file.file_uses:
             evidence_with_level = _file_use_evidence_with_level_of(
                 file_use,
                 expanded_tool_call_by_key,
-                may_belong_to_another_request=may_belong_to_another_request,
+                is_written_by_another_request=is_written_by_another_request,
                 judgment_rule_use_counts=judgment_rule_use_counts,
             )
             if evidence_with_level is not None:
@@ -847,7 +911,7 @@ def _file_use_evidence_with_level_of(
     file_use: FileUse,
     expanded_tool_call_by_key: Mapping[ToolCallKey, ExpandedToolCall],
     *,
-    may_belong_to_another_request: bool,
+    is_written_by_another_request: bool,
     judgment_rule_use_counts: Counter[str],
 ) -> EvidenceWithLevel | None:
     """Find the evidence of one use of a saved file, or None when the use gives none."""
@@ -879,8 +943,12 @@ def _file_use_evidence_with_level_of(
         FileUseEvidence(file_use),
         _RECEIVED,
         None,
-        may_belong_to_another_request=may_belong_to_another_request,
-        rests_on_judgment_rule=rests_on_judgment_rule,
+        assumption_reasons=_assumption_reasons_from(
+            (FileWrittenByAnotherRequestAssumptionReason(),)
+            if is_written_by_another_request
+            else (),
+            rests_on_judgment_rule=rests_on_judgment_rule,
+        ),
     )
 
 

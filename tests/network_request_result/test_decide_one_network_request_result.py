@@ -37,15 +37,22 @@ from tb_internet_use.network_request_result.model import (
     ExecutionStatusEvidence,
     ExitCodeEvidence,
     FileUseEvidence,
+    FileWrittenByAnotherRequestAssumptionReason,
     HttpStatusEvidence,
+    JudgmentRuleAssumptionReason,
     NetworkRequestResult,
+    NetworkRequestResultAssumptionReason,
     NetworkRequestResultCertainty,
     NetworkRequestResultEvidence,
     NetworkRequestResultLevel,
     NetworkRequestResultStopReason,
     OutputLineEvidence,
     OutputLineKind,
+    SharedHttpStatusAssumptionReason,
+    SharedOutputLineAssumptionReason,
     ShownContentEvidence,
+    UnknownProgramOutputLinesAssumptionReason,
+    UnknownRunBesideAssumptionReason,
 )
 from tb_internet_use.tool_call.model import ExecutionStatus, ToolCallKey
 
@@ -75,6 +82,7 @@ PIP_INVOCATION = ProgramInvocation(
 
 
 CONTENT_SHOWN_IN_RESULT = ContentShownInResult()
+JUDGMENT_RULE_REASON = JudgmentRuleAssumptionReason()
 
 
 def build_network_request(
@@ -116,12 +124,47 @@ def with_level(
     may_belong_to_another_request: bool = False,
     rests_on_judgment_rule: bool = False,
 ) -> EvidenceWithLevel:
+    """Give evidence with the reasons that its two marks stand for, the reason that another request may own it as `may_belong_reason_of` gives it for the kind of evidence."""
     return EvidenceWithLevel(
         evidence,
         level,
         stop_reason,
-        may_belong_to_another_request,
-        rests_on_judgment_rule,
+        (
+            *(
+                (may_belong_reason_of(evidence),)
+                if may_belong_to_another_request
+                else ()
+            ),
+            *((JUDGMENT_RULE_REASON,) if rests_on_judgment_rule else ()),
+        ),
+    )
+
+
+def may_belong_reason_of(
+    evidence: NetworkRequestResultEvidence,
+) -> NetworkRequestResultAssumptionReason:
+    """Give the reason that `decide_network_request_result_evidence` gives a piece of evidence of this kind that may belong to another request, and for a line that no other request owns the reason of a run whose lines are unknown."""
+    match evidence:
+        case OutputLineEvidence() if evidence.is_shared_with_other_requests:
+            return shared_line_reason_of(evidence)
+        case OutputLineEvidence():
+            return UnknownProgramOutputLinesAssumptionReason()
+        case HttpStatusEvidence():
+            return SharedHttpStatusAssumptionReason()
+        case FileUseEvidence():
+            return FileWrittenByAnotherRequestAssumptionReason()
+        case _:
+            return UnknownRunBesideAssumptionReason()
+
+
+def shared_line_reason_of(
+    output_line_evidence: NetworkRequestResultEvidence,
+) -> SharedOutputLineAssumptionReason:
+    assert isinstance(output_line_evidence, OutputLineEvidence)
+    return SharedOutputLineAssumptionReason(
+        output_line_evidence.showing_tool_call_key,
+        output_line_evidence.line_index,
+        output_line_evidence.line_index_in_json_string,
     )
 
 
@@ -174,6 +217,13 @@ USES_SAVED_FILE = with_level(
 )
 SHOWN_CONTENT = with_level(
     ShownContentEvidence(TOOL_CALL_KEY), RECEIVED, None, rests_on_judgment_rule=True
+)
+# `* Connected to a.org`, which `treat_connected_line_as_assumed_server_answer` reads as an answer of a server.
+CONNECTED_BY_RULE = with_level(
+    output_line(OutputLineKind.CONNECTED, line_index=5),
+    REACHED,
+    NOT_VISIBLE,
+    rests_on_judgment_rule=True,
 )
 
 # (request, evidence, expected level, stop reason and certainty, expected rule uses)
@@ -527,6 +577,21 @@ RESULT_CASES = [
         {},
         id="a shared `HTTP/1.1 404` still gives the stop reason beside exit 0 alone",
     ),
+    pytest.param(
+        REQUEST_FOR_CONTENT,
+        [
+            CONNECTED_BY_RULE,
+            with_level(
+                output_line(OutputLineKind.HTTP_STATUS, line_index=1, is_shared=True),
+                REACHED,
+                FAILED,
+                may_belong_to_another_request=True,
+            ),
+        ],
+        (REACHED, NOT_VISIBLE, ASSUMED),
+        {},
+        id="own `* Connected to a.org` that a rule read beside a shared `HTTP/1.1 405` keeps the own stop reason",
+    ),
 ]
 
 
@@ -552,6 +617,138 @@ def test_decide_one_network_request_result_combines_the_evidence_into_one_level_
     )
     assert result.network_request == network_request
     assert judgment_rule_use_counts == Counter(expected_rule_uses)
+
+
+# A shared `Connection reset by peer` of `pip install x y` that `treat_lost_connection_as_after_server_answer` reads.
+SHARED_LOST_CONNECTION_BY_RULE = with_level(
+    output_line(OutputLineKind.CONNECTION_LOST, line_index=3, is_shared=True),
+    REACHED,
+    FAILED,
+    may_belong_to_another_request=True,
+    rests_on_judgment_rule=True,
+)
+# One `HTTP/1.1 200 OK` that `curl -i u; curl -i v` printed for both.
+SHARED_HTTP_200 = with_level(
+    output_line(OutputLineKind.HTTP_STATUS, line_index=4, is_shared=True),
+    REACHED,
+    NOT_VISIBLE,
+    may_belong_to_another_request=True,
+)
+SHARED_SAVED = with_level(
+    output_line(OutputLineKind.DOWNLOADED, line_index=1, is_shared=True),
+    RECEIVED,
+    None,
+    may_belong_to_another_request=True,
+)
+SHARED_CONNECTION_REFUSED = with_level(
+    output_line(OutputLineKind.CONNECTION_FAILED, is_shared=True),
+    EXECUTED,
+    FAILED,
+    may_belong_to_another_request=True,
+)
+
+# (evidence, expected assumption reasons), each for a request that asks for content.
+ASSUMPTION_REASON_CASES = [
+    pytest.param([SAVED], (), id="a confirmed result has none"),
+    pytest.param(
+        [SHARED_SAVED, USES_SAVED_FILE],
+        (),
+        id="a shared downloaded line beside a sure use of the saved file gives none",
+    ),
+    pytest.param(
+        [SHARED_SAVED],
+        (shared_line_reason_of(SHARED_SAVED.evidence),),
+        id="one `Successfully downloaded x-1.0 y-2.0` of two requests names its line",
+    ),
+    pytest.param(
+        [
+            with_level(
+                output_line(OutputLineKind.TLS_FAILED),
+                EXECUTED,
+                FAILED,
+                rests_on_judgment_rule=True,
+            )
+        ],
+        (JUDGMENT_RULE_REASON,),
+        id="`SSL certificate problem` read by a rule gives the rule alone",
+    ),
+    pytest.param(
+        [SHARED_LOST_CONNECTION_BY_RULE],
+        (
+            shared_line_reason_of(SHARED_LOST_CONNECTION_BY_RULE.evidence),
+            JUDGMENT_RULE_REASON,
+        ),
+        id="a shared line that a rule reads gives both reasons",
+    ),
+    pytest.param(
+        [
+            SHARED_HTTP_200,
+            EXIT_CODE_0_READ_AS_ANSWER,
+            with_level(
+                output_line(OutputLineKind.INSTALLED, line_index=2, is_shared=True),
+                EXECUTED,
+                NOT_VISIBLE,
+                may_belong_to_another_request=True,
+            ),
+        ],
+        (shared_line_reason_of(SHARED_HTTP_200.evidence), JUDGMENT_RULE_REASON),
+        id="two pieces at the picked level give both reasons and a shared line of a lower level none",
+    ),
+    pytest.param(
+        [SHARED_HTTP_200, CONNECTED_BY_RULE],
+        (JUDGMENT_RULE_REASON,),
+        id="a shared 200 that the pick left out beside an own line a rule read gives nothing",
+    ),
+    pytest.param(
+        [CONNECTION_REFUSED, SAVED, SHARED_SAVED],
+        (JUDGMENT_RULE_REASON,),
+        id="a shared `saved` beside a clean one gives nothing when a rule took them over a failure",
+    ),
+    pytest.param(
+        [CONNECTION_REFUSED, USES_SAVED_FILE, SHARED_SAVED],
+        (JUDGMENT_RULE_REASON,),
+        id="a shared `saved` beside a sure use of the saved file gives nothing when a rule took them over a failure",
+    ),
+    pytest.param(
+        [
+            EXIT_CODE_0_READ_AS_ANSWER,
+            with_level(
+                output_line(OutputLineKind.HTTP_STATUS, line_index=6, is_shared=True),
+                REACHED,
+                FAILED,
+                may_belong_to_another_request=True,
+            ),
+        ],
+        (SharedOutputLineAssumptionReason(TOOL_CALL_KEY, 6, None),),
+        id="a shared 404 that decides the stop reason gives its line and the exit 0 a rule read at another stop reason nothing",
+    ),
+    pytest.param(
+        [EXIT_CODE_0_READ_AS_ANSWER, CONNECTED_BY_RULE],
+        (JUDGMENT_RULE_REASON,),
+        id="two pieces that rules gave name the rule once",
+    ),
+    pytest.param(
+        [SHARED_CONNECTION_REFUSED, SAVED],
+        (JUDGMENT_RULE_REASON,),
+        id="a rule that takes clean `saved` over a shared failure gives the rule and nothing of the failure",
+    ),
+    pytest.param(
+        [CONNECTION_REFUSED, SHARED_SAVED],
+        (JUDGMENT_RULE_REASON, shared_line_reason_of(SHARED_SAVED.evidence)),
+        id="a rule that takes a shared `saved` over a failure comes before the line",
+    ),
+]
+
+
+@pytest.mark.parametrize(("evidence_with_levels", "expected"), ASSUMPTION_REASON_CASES)
+def test_decide_one_network_request_result_gives_every_reason_of_the_evidence_that_decided_an_assumed_result(
+    evidence_with_levels: list[EvidenceWithLevel],
+    expected: tuple[NetworkRequestResultAssumptionReason, ...],
+):
+    result, _ = decide(REQUEST_FOR_CONTENT, evidence_with_levels)
+
+    assert result.assumption_reasons == expected
+    assert result.level_certainty == (ASSUMED if expected else CONFIRMED)
 
 
 # Evidence of `NOT_VISIBLE` beside a failure at the same level, with whether it shows that the request may have gone on after the failure.
@@ -976,3 +1173,4 @@ def test_decide_one_network_request_result_gives_a_result_the_model_accepts_for_
         } | {NOT_VISIBLE}
         if judgment_rule_use_counts:
             assert result.level_certainty == ASSUMED
+        assert bool(result.assumption_reasons) == (result.level_certainty == ASSUMED)

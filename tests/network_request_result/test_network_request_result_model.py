@@ -21,13 +21,16 @@ from tb_internet_use.network_request.model import (
 )
 from tb_internet_use.network_request_result.model import (
     ExitCodeEvidence,
+    JudgmentRuleAssumptionReason,
     NetworkRequestResult,
+    NetworkRequestResultAssumptionReason,
     NetworkRequestResultCertainty,
     NetworkRequestResultEvidence,
     NetworkRequestResultLevel,
     NetworkRequestResultStopReason,
     OutputLineEvidence,
     OutputLineKind,
+    SharedOutputLineAssumptionReason,
 )
 from tb_internet_use.tool_call.model import ToolCallKey
 
@@ -106,14 +109,17 @@ def build_network_request_result(
     level: NetworkRequestResultLevel = EXECUTED,
     stop_reason: NetworkRequestResultStopReason | None = NOT_VISIBLE,
     evidence: tuple[NetworkRequestResultEvidence, ...] = (EXIT_CODE_EVIDENCE,),
+    level_certainty: NetworkRequestResultCertainty = NetworkRequestResultCertainty.CONFIRMED,
+    assumption_reasons: tuple[NetworkRequestResultAssumptionReason, ...] = (),
 ) -> NetworkRequestResult:
     return NetworkRequestResult(
         network_request=network_request,
         request_certainty_after_evidence=request_certainty_after_evidence,
         level=level,
         stop_reason=stop_reason,
-        level_certainty=NetworkRequestResultCertainty.CONFIRMED,
+        level_certainty=level_certainty,
         evidence=evidence,
+        assumption_reasons=assumption_reasons,
     )
 
 
@@ -246,3 +252,78 @@ def test_network_request_result_lifts_a_request_to_confirmed_only_by_an_output_l
                 evidence=evidence,
                 level=level,
             )
+
+
+# The reason that names the line of `SHARED_OUTPUT_LINE_EVIDENCE`.
+SHARED_OUTPUT_LINE_REASON = SharedOutputLineAssumptionReason(TOOL_CALL_KEY, 0, None)
+
+
+def test_network_request_result_refuses_assumption_reasons_of_a_confirmed_result():
+    with pytest.raises(ValueError, match="confirmed result with assumption reasons"):
+        build_network_request_result(
+            build_network_request(),
+            level=EXECUTED,
+            stop_reason=FAILED,
+            evidence=(SHARED_OUTPUT_LINE_EVIDENCE,),
+            assumption_reasons=(JudgmentRuleAssumptionReason(),),
+        )
+
+
+@pytest.mark.parametrize(
+    "evidence",
+    [
+        pytest.param((OWN_OUTPUT_LINE_EVIDENCE,), id="the line no other request owns"),
+        pytest.param(
+            (
+                OutputLineEvidence(
+                    TOOL_CALL_KEY, 1, None, OutputLineKind.NAME_NOT_RESOLVED, True
+                ),
+            ),
+            id="another shared line of the result",
+        ),
+        pytest.param(
+            (
+                OutputLineEvidence(
+                    TOOL_CALL_KEY, 0, 0, OutputLineKind.NAME_NOT_RESOLVED, True
+                ),
+            ),
+            id="a shared line inside the JSON string of the same line",
+        ),
+        pytest.param(
+            (
+                OutputLineEvidence(
+                    ToolCallKey("trial", "main", 2, 0),
+                    0,
+                    None,
+                    OutputLineKind.NAME_NOT_RESOLVED,
+                    True,
+                ),
+            ),
+            id="a shared line at the same index of another call",
+        ),
+        pytest.param((EXIT_CODE_EVIDENCE,), id="no line"),
+    ],
+)
+def test_network_request_result_refuses_a_shared_output_line_reason_whose_line_is_no_shared_line_of_the_evidence(
+    evidence: tuple[NetworkRequestResultEvidence, ...],
+):
+    with pytest.raises(ValueError, match="names no output line"):
+        build_network_request_result(
+            build_network_request(),
+            level=EXECUTED,
+            stop_reason=FAILED if evidence != (EXIT_CODE_EVIDENCE,) else NOT_VISIBLE,
+            evidence=evidence,
+            level_certainty=NetworkRequestResultCertainty.ASSUMED,
+            assumption_reasons=(SHARED_OUTPUT_LINE_REASON,),
+        )
+
+
+def test_network_request_result_accepts_a_shared_output_line_reason_that_names_a_shared_line_of_the_evidence():
+    build_network_request_result(
+        build_network_request(),
+        level=EXECUTED,
+        stop_reason=FAILED,
+        evidence=(EXIT_CODE_EVIDENCE, SHARED_OUTPUT_LINE_EVIDENCE),
+        level_certainty=NetworkRequestResultCertainty.ASSUMED,
+        assumption_reasons=(SHARED_OUTPUT_LINE_REASON, JudgmentRuleAssumptionReason()),
+    )

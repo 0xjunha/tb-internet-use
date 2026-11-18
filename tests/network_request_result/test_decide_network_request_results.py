@@ -24,12 +24,14 @@ from tb_internet_use.network_request_result.model import (
     ExecutionStatusEvidence,
     ExitCodeEvidence,
     FileUseEvidence,
+    JudgmentRuleAssumptionReason,
     NetworkRequestResult,
     NetworkRequestResultCertainty,
     NetworkRequestResultLevel,
     NetworkRequestResultStopReason,
     OutputLineEvidence,
     OutputLineKind,
+    SharedOutputLineAssumptionReason,
     ShownContentEvidence,
     UnusedOutputLineReason,
 )
@@ -150,7 +152,7 @@ def _exit_zero(step_id: int, *, is_shared: bool = False) -> ExitCodeEvidence:
 
 
 # Made-up inputs, each with the whole result of every request, without the request itself, which the test takes from `extract_network_requests`.
-# Each gives the calls and, per request in order, the request certainty after the evidence, level, stop reason, level certainty, evidence and the rule uses of the trial.
+# Each gives the calls and, per request in order, the request certainty after the evidence, level, stop reason, level certainty, evidence and, for an assumed result, the assumption reasons, and then the rule uses of the trial.
 WHOLE_RESULT_CASES = [
     pytest.param(
         (
@@ -187,6 +189,8 @@ WHOLE_RESULT_CASES = [
                     _line(1, OutputLineKind.HTTP_STATUS, line_index=1, is_shared=True),
                     _exit_zero(1, is_shared=True),
                 ),
+                # The shared 405 decides the stop reason, not the exit code that a rule reads.
+                (SharedOutputLineAssumptionReason(_key(1), 1, None),),
             ),
         ],
         Counter(
@@ -289,6 +293,7 @@ WHOLE_RESULT_CASES = [
                     _line(1, OutputLineKind.DOWNLOADED, line_index=1),
                     _exit_zero(1),
                 ),
+                (JudgmentRuleAssumptionReason(),),
             )
         ],
         Counter(
@@ -384,10 +389,83 @@ WHOLE_RESULT_CASES = [
                     ExecutionStatusEvidence(_key(2), ExecutionStatus.FINISHED, False),
                     ShownContentEvidence(_key(2)),
                 ),
+                (JudgmentRuleAssumptionReason(),),
             ),
         ],
         Counter({"treat_shown_result_text_as_assumed_content": 1}),
         id="a web fetch result is read with the web tool result patterns",
+    ),
+    pytest.param(
+        (
+            _bash_call(
+                1,
+                "pip install A B",
+                "Successfully downloaded A-1.0 B-2.0",
+            ),
+        ),
+        [
+            (
+                NetworkRequestCertainty.CONFIRMED,
+                _RECEIVED,
+                None,
+                _ASSUMED,
+                (
+                    _line(1, OutputLineKind.DOWNLOADED, is_shared=True),
+                    _exit_zero(1, is_shared=True),
+                ),
+                (SharedOutputLineAssumptionReason(_key(1), 0, None),),
+            ),
+        ]
+        * 2,
+        Counter(),
+        id="one downloaded line that both requests of `pip install A B` own names the same line as the reason of both",
+    ),
+    pytest.param(
+        (
+            _bash_call(
+                1,
+                "pip install A B",
+                'start\n{"output": "Collecting A\\nSuccessfully downloaded A-1.0 B-2.0"}',
+            ),
+        ),
+        [
+            (
+                NetworkRequestCertainty.CONFIRMED,
+                _RECEIVED,
+                None,
+                _ASSUMED,
+                (
+                    OutputLineEvidence(_key(1), 1, 1, OutputLineKind.DOWNLOADED, True),
+                    _exit_zero(1, is_shared=True),
+                ),
+                (SharedOutputLineAssumptionReason(_key(1), 1, 1),),
+            ),
+        ]
+        * 2,
+        Counter(),
+        id="a shared line inside the output string of a JSON object is named with its index in that string",
+    ),
+    pytest.param(
+        (
+            _bash_call(1, "pip install A B > log 2>&1", ""),
+            _bash_call(2, "cat log", "Successfully downloaded A-1.0 B-2.0"),
+        ),
+        [
+            (
+                NetworkRequestCertainty.CONFIRMED,
+                _RECEIVED,
+                None,
+                _ASSUMED,
+                (
+                    _line(2, OutputLineKind.DOWNLOADED, is_shared=True),
+                    _exit_zero(1, is_shared=True),
+                ),
+                (SharedOutputLineAssumptionReason(_key(2), 0, None),),
+            ),
+        ]
+        * 2,
+        Counter(),
+        id="a shared line that a later read of the log shows is named by the call that shows it",
     ),
 ]
 

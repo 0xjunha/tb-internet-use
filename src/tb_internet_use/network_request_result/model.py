@@ -26,6 +26,16 @@ type NetworkRequestResultEvidence = (
     | FileUseEvidence
     | ShownContentEvidence
 )
+# Reason that the level of a result is assumed, as the evidence or the choice of a judgment rule that leaves it unsure.
+type NetworkRequestResultAssumptionReason = (
+    SharedOutputLineAssumptionReason
+    | UnknownProgramOutputLinesAssumptionReason
+    | UnknownRunBesideAssumptionReason
+    | MissingProgramOfAnotherCommandAssumptionReason
+    | SharedHttpStatusAssumptionReason
+    | FileWrittenByAnotherRequestAssumptionReason
+    | JudgmentRuleAssumptionReason
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,11 +52,14 @@ class NetworkRequestResult:
     # The certainty of `level`. With `NOT_VISIBLE` it says how sure the level is that was reached, not what lies beyond it.
     level_certainty: NetworkRequestResultCertainty
     evidence: tuple[NetworkRequestResultEvidence, ...]
+    # Every reason that `level_certainty` is `ASSUMED`, each once, empty when it is `CONFIRMED`. They are the reasons of the evidence that shows `level` and `stop_reason`, and a judgment rule that picked them, e.g. a `SharedOutputLineAssumptionReason` for `Successfully downloaded A-1.0` that `pip install A B` printed once for two requests.
+    assumption_reasons: tuple[NetworkRequestResultAssumptionReason, ...] = ()
 
     def __post_init__(self) -> None:
-        """Refuse a level and stop reason that a request cannot have, a claim that rests on no evidence, and a request certainty that the evidence cannot give.
+        """Refuse a level and stop reason that a request cannot have, a claim that rests on no evidence, a request certainty that the evidence cannot give, and reasons that do not fit the certainty or the evidence.
 
         A failure is recorded only when the trajectory shows a trace of it, and a request is lifted to confirmed only by an output line of this request alone, e.g. `npm ERR! code E404` under `npx tsc`.
+        A confirmed result has no assumption reason, and a shared output line that is a reason is a line of the evidence that other requests own too.
         """
         if not _is_valid_level_and_stop_reason(
             self.level,
@@ -77,6 +90,42 @@ class NetworkRequestResult:
             raise ValueError(
                 "an uncertain request lifted to confirmed without an output line of its own"
             )
+        if (
+            self.level_certainty == NetworkRequestResultCertainty.CONFIRMED
+            and self.assumption_reasons
+        ):
+            raise ValueError("a confirmed result with assumption reasons")
+        for assumption_reason in self.assumption_reasons:
+            if isinstance(
+                assumption_reason, SharedOutputLineAssumptionReason
+            ) and not _has_shared_output_line_evidence(
+                self.evidence, assumption_reason
+            ):
+                raise ValueError(
+                    f"{assumption_reason} names no output line of the evidence that other requests own too"
+                )
+
+
+def _has_shared_output_line_evidence(
+    evidence: tuple[NetworkRequestResultEvidence, ...],
+    shared_output_line_assumption_reason: SharedOutputLineAssumptionReason,
+) -> bool:
+    """Tell whether the evidence holds the output line that a shared output line reason names, marked as one that other requests own too."""
+    return any(
+        isinstance(piece, OutputLineEvidence)
+        and piece.is_shared_with_other_requests
+        and (
+            piece.showing_tool_call_key,
+            piece.line_index,
+            piece.line_index_in_json_string,
+        )
+        == (
+            shared_output_line_assumption_reason.showing_tool_call_key,
+            shared_output_line_assumption_reason.line_index,
+            shared_output_line_assumption_reason.line_index_in_json_string,
+        )
+        for piece in evidence
+    )
 
 
 def _is_valid_level_and_stop_reason(
@@ -220,6 +269,60 @@ class ShownContentEvidence:
     """Evidence in a result that shows the received content itself, e.g. the page text in the result of a web fetch."""
 
     showing_tool_call_key: ToolCallKey
+
+
+@dataclass(frozen=True, slots=True)
+class SharedOutputLineAssumptionReason:
+    """Assumption reason of a result whose level an output line shows that other requests own too, so that any of them may have printed it, e.g. one `Successfully downloaded A-1.0` under `pip install A B`.
+
+    The line is named by where it is, which is one line in a trial, so that the results that share it can be found together.
+    """
+
+    # The call whose result shows the line.
+    showing_tool_call_key: ToolCallKey
+    # The 0-based index of the line in the text split at "\n".
+    line_index: int
+    # The 0-based index of the line in the `output` string of the JSON object that the output line holds, None when it holds none.
+    line_index_in_json_string: int | None
+
+
+@dataclass(frozen=True, slots=True)
+class UnknownProgramOutputLinesAssumptionReason:
+    """Assumption reason of a result whose level an output line of its own shows, where `NetworkRequestResultKnowledge` knows no lines that the run of the request prints, e.g. `HTTP/1.1 200 OK` under `mytool https://a.org/x`.
+
+    `treat_line_that_unknown_printer_may_have_printed_as_shared` chose to treat such a line as one that another run may have printed.
+    """
+
+
+@dataclass(frozen=True, slots=True)
+class UnknownRunBesideAssumptionReason:
+    """Assumption reason of a result whose level a line that any program prints shows, where a run whose content or program is unknown reaches the same place, e.g. `Connection refused` under `curl -s u; ./test.sh`.
+
+    `treat_line_that_unknown_printer_may_have_printed_as_shared` chose to treat such a line as one that the unknown run may have printed.
+    """
+
+
+@dataclass(frozen=True, slots=True)
+class MissingProgramOfAnotherCommandAssumptionReason:
+    """Assumption reason of a result that a missing program line stopped, where the word of that line is the program of another command whose output reaches the place too, e.g. the first `rg` of `rg a; rg x && pip install y` under `rg: command not found`."""
+
+
+@dataclass(frozen=True, slots=True)
+class SharedHttpStatusAssumptionReason:
+    """Assumption reason of a result whose level the HTTP status of a web fetch shows, where the call of the fetch made other requests too, so that the status may be theirs."""
+
+
+@dataclass(frozen=True, slots=True)
+class FileWrittenByAnotherRequestAssumptionReason:
+    """Assumption reason of a result whose level a use of its saved file shows, where another request of the call wrote the same file, e.g. `tar xzf a` after `curl -o a u1; curl -o a u2`."""
+
+
+@dataclass(frozen=True, slots=True)
+class JudgmentRuleAssumptionReason:
+    """Assumption reason of a result whose level or stop reason a rule of `judgment_rules.py` gave, other than `treat_line_that_unknown_printer_may_have_printed_as_shared`, e.g. `REACHED` for exit 0 of `curl -s u` by `treat_exit_code_meaning_as_assumed_level`.
+
+    It does not name the rule, since the uses of each rule are counted outside the output types.
+    """
 
 
 class OutputLineKind(StrEnum):
@@ -392,10 +495,24 @@ class EvidenceWithLevel:
     evidence: NetworkRequestResultEvidence
     level: NetworkRequestResultLevel
     stop_reason: NetworkRequestResultStopReason | None
-    # Another request or a run that is not read can have printed the line, so a result that rests on it is assumed.
-    may_belong_to_another_request: bool
-    # A judgment rule gave the level, so a result that rests on it is assumed.
-    rests_on_judgment_rule: bool
+    # Every reason that a result that rests on this evidence is assumed, empty for evidence of this request alone that no judgment rule gave.
+    assumption_reasons: tuple[NetworkRequestResultAssumptionReason, ...]
+
+    @property
+    def may_belong_to_another_request(self) -> bool:
+        """Tell whether another request or a run that is not read can have printed the line or caused the evidence, i.e. it has a reason other than a judgment rule."""
+        return any(
+            not isinstance(assumption_reason, JudgmentRuleAssumptionReason)
+            for assumption_reason in self.assumption_reasons
+        )
+
+    @property
+    def rests_on_judgment_rule(self) -> bool:
+        """Tell whether a judgment rule gave the level or stop reason."""
+        return any(
+            isinstance(assumption_reason, JudgmentRuleAssumptionReason)
+            for assumption_reason in self.assumption_reasons
+        )
 
 
 class UnusedOutputLineReason(StrEnum):

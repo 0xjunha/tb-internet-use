@@ -290,7 +290,7 @@ A line goes to the requests whose output reaches its place, whose run can print 
 | None | No evidence and no request. The line is counted by its reason, e.g. it shows a file's content after `cat README.md`, or a run whose content is unknown reaches its place |
 
 Then each request is judged on its own evidence, i.e. its lines, the exit code of the text that ran it, the status of its call and later uses of the file it saved.
-`request_certainty_after_evidence` says how sure the pipeline is that something is a request, and `level_certainty` says how sure it is of how far the request got. Line indexes are 0-based.
+`request_certainty_after_evidence` says how sure the pipeline is that something is a request, and `level_certainty` says how sure it is of how far the request got. An assumed result lists every reason of that in `assumption_reasons`, e.g. a line that other requests own too, named by where it is so that the results that share it can be found together, or a judgment rule. Line indexes are 0-based.
 
 | Asked through `NetworkRequestResultKnowledge` | Answer in this example |
 |---|---|
@@ -317,6 +317,8 @@ r1.result = NetworkRequestResult(
     # The only failure line may be r2's.
     level_certainty=ASSUMED,
     evidence=(OutputLineEvidence(showing_tool_call_key=c1, line_index=0, line_index_in_json_string=None, kind=CONNECTION_FAILED, is_shared_with_other_requests=True),),
+    # r2's result names the same line.
+    assumption_reasons=(SharedOutputLineAssumptionReason(showing_tool_call_key=c1, line_index=0, line_index_in_json_string=None),),
 )
 r4.result = NetworkRequestResult(
     network_request=r4,
@@ -329,6 +331,7 @@ r4.result = NetworkRequestResult(
         OutputLineEvidence(showing_tool_call_key=c4, line_index=0, line_index_in_json_string=None, kind=DOWNLOAD_STARTED, is_shared_with_other_requests=False),
         OutputLineEvidence(showing_tool_call_key=c4, line_index=1, line_index_in_json_string=None, kind=INSTALLED, is_shared_with_other_requests=False),
     ),
+    assumption_reasons=(),
 )
 ```
 

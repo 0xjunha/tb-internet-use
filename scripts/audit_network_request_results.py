@@ -15,6 +15,8 @@ Every equation starts at 0 for every trial, so that one the trials never reach s
 | `confirmed_received_results_without_own_download_or_content_use` | Confirmed `RECEIVED` results without a `DOWNLOADED` line of their own and without an `USES_CONTENT` file use that fits one written file | 0 |
 | `confirmed_reached_successes_without_own_status` | Confirmed `REACHED` results without a stop reason whose request asks for content, or that have neither a status line 100 to 399 of their own nor the status of a web fetch with one request | 0 |
 | `lifted_requests_without_own_line` | Results whose request certainty rose from `UNCERTAIN` to `CONFIRMED` without an output line of their own | 0 |
+| `assumed_results_equal_results_with_assumption_reasons` | `ASSUMED` results | Results with at least one assumption reason |
+| `shared_output_line_reasons_without_another_result_of_the_line` | Shared output line reasons of a result whose line no other result of the trial holds as a shared `OutputLineEvidence` | 0 |
 | `judgment_rule_names_are_of_this_step` | Names counted in the counter of `decide_network_request_results` | Those of `network_request_result/judgment_rules.py` |
 
 It writes these CSVs under the output folder, `out/network_request_result/` unless `--out-dir` names another, which `.gitignore` keeps out of the repo.
@@ -24,7 +26,7 @@ They hold counts, harness names, task names, trial ids, call keys, exception typ
 |---|---|
 | `trial_outcomes.csv` | An outcome of a trial, e.g. `decided`, `not found` or `exception` with its type name, with its trials and the first 20 trial ids |
 | `trials_not_decided.csv` | A trial that was not decided, with its outcome |
-| `counts_by_harness.csv` | A harness, or `all`, with a count, e.g. results by level, stop reason and certainty, requests by the view of the report (received, not received, unknown, not needed), and matched output lines by kind and by how they were used |
+| `counts_by_harness.csv` | A harness, or `all`, with a count, e.g. results by level, stop reason and certainty, assumed results by assumption reason, requests by the view of the report (received, not received, unknown, not needed), and matched output lines by kind and by how they were used |
 | `equations.csv` | An equation of the table, with its two sides and whether they are equal |
 | `equation_examples.csv` | A call where an equation differs, the first 20 per equation |
 | `results_by_level.csv` | A harness, or `all`, a level, a stop reason and a level certainty, with its results, trials and tasks |
@@ -99,6 +101,7 @@ from tb_internet_use.network_request_result.model import (
     OutputLineKind,
     OutputLineMeaning,
     ProgramExitCodeMeaning,
+    SharedOutputLineAssumptionReason,
     ShownContentEvidence,
     UnreadablePackageNamesText,
     UnusedOutputLineReason,
@@ -149,6 +152,8 @@ EQUATIONS = (
     "confirmed_received_results_without_own_download_or_content_use",
     "confirmed_reached_successes_without_own_status",
     "lifted_requests_without_own_line",
+    "assumed_results_equal_results_with_assumption_reasons",
+    "shared_output_line_reasons_without_another_result_of_the_line",
     "judgment_rule_names_are_of_this_step",
 )
 # The two sides of an equation, as `equations.csv` names them.
@@ -778,6 +783,7 @@ class TrialChecker:
         for network_request_result in self.network_request_results:
             self.check_result(network_request_result)
             self.count_result(network_request_result)
+        self.check_shared_output_line_reasons()
         self.count_unowned_output_lines()
         self.count_trial()
         self.trial_audit.add_sides(
@@ -950,7 +956,7 @@ class TrialChecker:
         )
 
     def check_result(self, result: NetworkRequestResult) -> None:
-        """Check the combination of level and stop reason and the evidence that a confirmed received or reached result and a lifted request need."""
+        """Check the combination of level and stop reason, the evidence that a confirmed received or reached result and a lifted request need, and that an assumed result has assumption reasons."""
         network_request = result.network_request
         asks_for_no_content = isinstance(
             network_request.received_content_destination, NoContentRequested
@@ -986,6 +992,12 @@ class TrialChecker:
                 0,
                 tool_call_key,
             )
+        self.trial_audit.add_sides(
+            "assumed_results_equal_results_with_assumption_reasons",
+            1 if result.level_certainty == NetworkRequestResultCertainty.ASSUMED else 0,
+            1 if result.assumption_reasons else 0,
+            tool_call_key,
+        )
         if (
             network_request.certainty == NetworkRequestCertainty.UNCERTAIN
             and result.request_certainty_after_evidence
@@ -1003,6 +1015,42 @@ class TrialChecker:
                 0,
                 tool_call_key,
             )
+
+    def check_shared_output_line_reasons(self) -> None:
+        """Check that the line of each shared output line reason is a shared line of another result too, so that the results that share it can be found together."""
+        result_indexes_by_shared_line: dict[_LinePlace, set[int]] = {}
+        for result_index, result in enumerate(self.network_request_results):
+            for evidence in result.evidence:
+                if (
+                    isinstance(evidence, OutputLineEvidence)
+                    and evidence.is_shared_with_other_requests
+                ):
+                    result_indexes_by_shared_line.setdefault(
+                        (
+                            evidence.showing_tool_call_key,
+                            evidence.line_index,
+                            evidence.line_index_in_json_string,
+                        ),
+                        set(),
+                    ).add(result_index)
+        for result_index, result in enumerate(self.network_request_results):
+            for assumption_reason in result.assumption_reasons:
+                if not isinstance(assumption_reason, SharedOutputLineAssumptionReason):
+                    continue
+                result_indexes = result_indexes_by_shared_line.get(
+                    (
+                        assumption_reason.showing_tool_call_key,
+                        assumption_reason.line_index,
+                        assumption_reason.line_index_in_json_string,
+                    ),
+                    set(),
+                )
+                self.trial_audit.add_sides(
+                    "shared_output_line_reasons_without_another_result_of_the_line",
+                    0 if result_indexes - {result_index} else 1,
+                    0,
+                    result.network_request.tool_call_key,
+                )
 
     def _has_own_download_or_content_use(self, result: NetworkRequestResult) -> bool:
         return any(
@@ -1061,6 +1109,13 @@ class TrialChecker:
         )
         if result.request_certainty_after_evidence != result.network_request.certainty:
             trial_audit.count("requests lifted to confirmed by the evidence")
+        for assumption_reason_name in dict.fromkeys(
+            type(assumption_reason).__name__
+            for assumption_reason in result.assumption_reasons
+        ):
+            trial_audit.count(
+                f"assumed results with the reason {assumption_reason_name}"
+            )
         for harness in (trial_audit.harness, "all"):
             trial_audit.list_counts[
                 _RESULTS_BY_LEVEL, (harness, level, stop_reason, level_certainty)

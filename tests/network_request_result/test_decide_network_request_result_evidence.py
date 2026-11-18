@@ -63,7 +63,11 @@ from tb_internet_use.network_request_result.model import (
     ExecutionStatusEvidence,
     ExitCodeEvidence,
     FileUseEvidence,
+    FileWrittenByAnotherRequestAssumptionReason,
     HttpStatusEvidence,
+    JudgmentRuleAssumptionReason,
+    MissingProgramOfAnotherCommandAssumptionReason,
+    NetworkRequestResultAssumptionReason,
     NetworkRequestResultLevel,
     NetworkRequestResultStopReason,
     OutputLineEvidence,
@@ -73,7 +77,11 @@ from tb_internet_use.network_request_result.model import (
     OutputLineWithMeaning,
     OutputPlaceSourceCommands,
     OutputPlaceSources,
+    SharedHttpStatusAssumptionReason,
+    SharedOutputLineAssumptionReason,
     ShownContentEvidence,
+    UnknownProgramOutputLinesAssumptionReason,
+    UnknownRunBesideAssumptionReason,
 )
 from tb_internet_use.tool_call.model import (
     ExecutionStatus,
@@ -374,7 +382,8 @@ def line_evidence(
     showing_tool_call_key: ToolCallKey = K1,
     line_index: int = 0,
     is_shared_with_other_requests: bool = False,
-    may_belong_to_another_request: bool = False,
+    may_belong_to_another_request_reason: NetworkRequestResultAssumptionReason
+    | None = None,
     rests_on_judgment_rule: bool = False,
 ) -> EvidenceWithLevel:
     return EvidenceWithLevel(
@@ -387,9 +396,30 @@ def line_evidence(
         ),
         level,
         stop_reason,
-        may_belong_to_another_request,
-        rests_on_judgment_rule,
+        assumption_reasons_from(
+            may_belong_to_another_request_reason,
+            rests_on_judgment_rule=rests_on_judgment_rule,
+        ),
     )
+
+
+def assumption_reasons_from(
+    may_belong_to_another_request_reason: NetworkRequestResultAssumptionReason | None,
+    *,
+    rests_on_judgment_rule: bool,
+) -> tuple[NetworkRequestResultAssumptionReason, ...]:
+    return (
+        *(
+            ()
+            if may_belong_to_another_request_reason is None
+            else (may_belong_to_another_request_reason,)
+        ),
+        *((JudgmentRuleAssumptionReason(),) if rests_on_judgment_rule else ()),
+    )
+
+
+# The reason of a line at index 0 of the result of call K1 that other requests own too.
+SHARED_LINE_REASON = SharedOutputLineAssumptionReason(K1, 0, None)
 
 
 def exit_zero_evidence(
@@ -404,8 +434,7 @@ def exit_zero_evidence(
         ExitCodeEvidence(reporter_tool_call_key, 0, is_shared_with_other_requests),
         level,
         stop_reason,
-        False,
-        rests_on_judgment_rule,
+        assumption_reasons_from(None, rests_on_judgment_rule=rests_on_judgment_rule),
     )
 
 
@@ -424,23 +453,26 @@ def status_evidence(
         ),
         level,
         stop_reason,
-        False,
-        rests_on_judgment_rule,
+        assumption_reasons_from(None, rests_on_judgment_rule=rests_on_judgment_rule),
     )
 
 
 def file_use_evidence(
     file_use: FileUse,
     *,
-    may_belong_to_another_request: bool = False,
+    is_written_by_another_request: bool = False,
     rests_on_judgment_rule: bool = False,
 ) -> EvidenceWithLevel:
     return EvidenceWithLevel(
         FileUseEvidence(file_use),
         RECEIVED,
         None,
-        may_belong_to_another_request,
-        rests_on_judgment_rule,
+        assumption_reasons_from(
+            FileWrittenByAnotherRequestAssumptionReason()
+            if is_written_by_another_request
+            else None,
+            rests_on_judgment_rule=rests_on_judgment_rule,
+        ),
     )
 
 
@@ -448,7 +480,10 @@ def shown_content_evidence(
     showing_tool_call_key: ToolCallKey = K1,
 ) -> EvidenceWithLevel:
     return EvidenceWithLevel(
-        ShownContentEvidence(showing_tool_call_key), RECEIVED, None, False, True
+        ShownContentEvidence(showing_tool_call_key),
+        RECEIVED,
+        None,
+        (JudgmentRuleAssumptionReason(),),
     )
 
 
@@ -887,7 +922,7 @@ def test_line_of_several_owners_is_shared_without_the_rule_about_unknown_printer
             EXECUTED,
             FAILED,
             is_shared_with_other_requests=True,
-            may_belong_to_another_request=True,
+            may_belong_to_another_request_reason=SHARED_LINE_REASON,
         ),
     )
     assert decided.judgment_rule_use_counts == Counter({RULE_11: 1})
@@ -924,7 +959,7 @@ def test_line_of_several_commands_with_unknown_printers_is_shared_without_the_ru
             EXECUTED,
             FAILED,
             is_shared_with_other_requests=True,
-            may_belong_to_another_request=True,
+            may_belong_to_another_request_reason=SHARED_LINE_REASON,
         ),
     )
     assert decided.judgment_rule_use_counts == Counter({RULE_11: 1})
@@ -1025,7 +1060,7 @@ def test_line_naming_both_packages_of_one_command_is_shared_when_it_shows_more_t
             RECEIVED,
             None,
             is_shared_with_other_requests=True,
-            may_belong_to_another_request=True,
+            may_belong_to_another_request_reason=SHARED_LINE_REASON,
             rests_on_judgment_rule=True,
         ),
     )
@@ -1055,7 +1090,7 @@ def test_line_that_shows_the_run_of_one_of_two_commands_may_belong_to_the_other(
             EXECUTED,
             NOT_VISIBLE,
             is_shared_with_other_requests=True,
-            may_belong_to_another_request=True,
+            may_belong_to_another_request_reason=SHARED_LINE_REASON,
         ),
     )
 
@@ -1197,7 +1232,11 @@ def test_line_that_an_unknown_printer_may_have_printed_may_belong_to_another_req
         output_line_owners=(output_line_owners,),
     )
     [evidence_with_level] = decided.evidence_with_levels
-    assert evidence_with_level.may_belong_to_another_request
+    assert evidence_with_level.assumption_reasons == (
+        (UnknownRunBesideAssumptionReason(),)
+        if which == "any program's line beside a run that is not read"
+        else (UnknownProgramOutputLinesAssumptionReason(),)
+    )
     assert isinstance(evidence_with_level.evidence, OutputLineEvidence)
     assert not evidence_with_level.evidence.is_shared_with_other_requests
     assert decided.judgment_rule_use_counts == Counter({RULE_20: 1, RULE_11: 1})
@@ -1224,7 +1263,30 @@ def test_line_of_an_unknown_printer_is_the_requests_own_when_the_rule_says_so(
         output_line_owners=(output_line_owners,),
     )
     [evidence_with_level] = decided.evidence_with_levels
-    assert not evidence_with_level.may_belong_to_another_request
+    assert evidence_with_level.assumption_reasons == ()
+
+
+def test_line_of_an_unknown_printer_beside_a_run_that_is_not_read_gives_both_reasons_after_one_rule_use():
+    mytool = command(
+        0,
+        "mytool https://a.org/x",
+        UnknownProgramInvocation("mytool", ("https://a.org/x",)),
+        succeeded_if_text_exits_zero=False,
+    )
+    test_sh = command(1, "./test.sh", UnknownProgramInvocation("test.sh", ()))
+    network_request = request(K1, from_command(mytool), "https://a.org/x")
+    decided = decide(
+        network_request,
+        [call(K1, mytool, test_sh)],
+        places=(place(K1, (K1, (0, 1))),),
+        output_line_owners=(owned(K1, "Connection refused", network_request),),
+    )
+    [evidence_with_level] = decided.evidence_with_levels
+    assert evidence_with_level.assumption_reasons == (
+        UnknownProgramOutputLinesAssumptionReason(),
+        UnknownRunBesideAssumptionReason(),
+    )
+    assert decided.judgment_rule_use_counts == Counter({RULE_20: 1, RULE_11: 1})
 
 
 def test_line_that_only_the_requests_program_prints_is_its_own_beside_a_run_that_is_not_read():
@@ -1822,7 +1884,10 @@ def test_missing_program_of_a_may_belong_to_another_command_with_that_program():
     )
     assert decided.evidence_with_levels == (
         line_evidence(
-            K.PROGRAM_MISSING, ATTEMPTED, FAILED, may_belong_to_another_request=True
+            K.PROGRAM_MISSING,
+            ATTEMPTED,
+            FAILED,
+            may_belong_to_another_request_reason=MissingProgramOfAnotherCommandAssumptionReason(),
         ),
     )
 
@@ -2124,7 +2189,7 @@ def test_line_of_a_missing_program_that_b_owns_is_not_added_again_as_the_line_th
             ATTEMPTED,
             FAILED,
             is_shared_with_other_requests=True,
-            may_belong_to_another_request=True,
+            may_belong_to_another_request_reason=SHARED_LINE_REASON,
         ),
     )
 
@@ -2155,7 +2220,7 @@ def test_web_fetch_status_with_page_text_takes_the_text_as_content_only_when_the
     assert decided.evidence_with_levels == (
         status_evidence(FINISHED, EXECUTED, NOT_VISIBLE),
         EvidenceWithLevel(
-            HttpStatusEvidence(K1, http_status), REACHED, stop_reason, False, False
+            HttpStatusEvidence(K1, http_status), REACHED, stop_reason, ()
         ),
         *((shown_content_evidence(),) if is_content_shown else ()),
     )
@@ -2176,9 +2241,7 @@ def test_web_tool_result_of_another_call_is_not_taken_as_content():
     )
     assert decided.evidence_with_levels == (
         status_evidence(FINISHED, EXECUTED, NOT_VISIBLE),
-        EvidenceWithLevel(
-            HttpStatusEvidence(K1, 200), REACHED, NOT_VISIBLE, False, False
-        ),
+        EvidenceWithLevel(HttpStatusEvidence(K1, 200), REACHED, NOT_VISIBLE, ()),
     )
     assert decided.judgment_rule_use_counts == Counter()
 
@@ -2188,7 +2251,7 @@ def test_web_fetch_refused_without_text():
     decided = decide(network_request, [web_call(K1, http_status=404)])
     assert decided.evidence_with_levels == (
         status_evidence(FINISHED, EXECUTED, NOT_VISIBLE),
-        EvidenceWithLevel(HttpStatusEvidence(K1, 404), REACHED, FAILED, False, False),
+        EvidenceWithLevel(HttpStatusEvidence(K1, 404), REACHED, FAILED, ()),
     )
     assert decided.judgment_rule_use_counts == Counter()
 
@@ -2205,7 +2268,10 @@ def test_web_fetch_status_of_several_requests_may_belong_to_another():
     )
     assert (
         EvidenceWithLevel(
-            HttpStatusEvidence(K1, 200), REACHED, NOT_VISIBLE, True, False
+            HttpStatusEvidence(K1, 200),
+            REACHED,
+            NOT_VISIBLE,
+            (SharedHttpStatusAssumptionReason(),),
         )
         in decided.evidence_with_levels
     )
@@ -2683,7 +2749,7 @@ def test_use_of_a_file_that_another_request_wrote_too_may_belong_to_it():
         network_request, expanded_tool_calls, network_requests=network_requests
     )
     assert decided.evidence_with_levels == (
-        file_use_evidence(file_use, may_belong_to_another_request=True),
+        file_use_evidence(file_use, is_written_by_another_request=True),
     )
 
 

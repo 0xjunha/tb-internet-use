@@ -20,7 +20,9 @@ from tb_internet_use.network_request_result.model import (
     EvidenceWithLevel,
     ExitCodeEvidence,
     HttpStatusEvidence,
+    JudgmentRuleAssumptionReason,
     NetworkRequestResult,
+    NetworkRequestResultAssumptionReason,
     NetworkRequestResultCertainty,
     NetworkRequestResultLevel,
     NetworkRequestResultStopReason,
@@ -67,6 +69,8 @@ class _LevelAndStopReason:
     stop_reason: NetworkRequestResultStopReason | None
     # A judgment rule picked them, so the result is assumed whatever evidence shows them.
     rests_on_judgment_rule: bool
+    # An output line of this request alone showed the level, so evidence that another request may share was left out of the pick and gives no assumption reason.
+    leaves_out_evidence_that_may_belong_to_another_request: bool = False
 
 
 def decide_one_network_request_result(
@@ -78,13 +82,14 @@ def decide_one_network_request_result(
     """Decide the result of `network_request` from `evidence_with_levels`, all its evidence, each with the level and stop reason it shows.
 
     The result takes the highest level, the stop reason at it and every piece of evidence, also those that show a lower level, e.g. the exit code 0 of `pip install x` beside `Successfully downloaded x`.
-    It is `CONFIRMED` when evidence that neither another request may share nor a judgment rule gave shows its level and stop reason, and `ASSUMED` otherwise.
+    It is `CONFIRMED` when evidence that neither another request may share nor a judgment rule gave shows its level and stop reason, and `ASSUMED` otherwise, with every reason of that.
     A request without evidence is `ATTEMPTED` with `NOT_VISIBLE` and `CONFIRMED`, since it claims nothing more.
     Every use of a rule of `judgment_rules.py` adds one to `judgment_rule_use_counts` under the name of the rule.
     """
     level_and_stop_reason = _highest_level_and_stop_reason_of(
         evidence_with_levels, judgment_rule_use_counts=judgment_rule_use_counts
     )
+    level_certainty = _level_certainty_of(level_and_stop_reason, evidence_with_levels)
     return NetworkRequestResult(
         network_request=network_request,
         request_certainty_after_evidence=_request_certainty_after_evidence_of(
@@ -92,11 +97,12 @@ def decide_one_network_request_result(
         ),
         level=level_and_stop_reason.level,
         stop_reason=level_and_stop_reason.stop_reason,
-        level_certainty=_level_certainty_of(
-            level_and_stop_reason, evidence_with_levels
-        ),
+        level_certainty=level_certainty,
         evidence=tuple(
             evidence_with_level.evidence for evidence_with_level in evidence_with_levels
+        ),
+        assumption_reasons=_assumption_reasons_of(
+            level_and_stop_reason, evidence_with_levels, level_certainty
         ),
     )
 
@@ -169,11 +175,12 @@ def _level_and_stop_reason_for(
         for evidence_with_level in evidence_with_levels
         if evidence_with_level.level == level
     ]
-    if any(
+    leaves_out_evidence_that_may_belong_to_another_request = any(
         isinstance(evidence_with_level.evidence, OutputLineEvidence)
         and not evidence_with_level.may_belong_to_another_request
         for evidence_with_level in evidence_at_level
-    ):
+    )
+    if leaves_out_evidence_that_may_belong_to_another_request:
         evidence_at_level = [
             evidence_with_level
             for evidence_with_level in evidence_at_level
@@ -194,14 +201,17 @@ def _level_and_stop_reason_for(
                 stop_reasons_to_pick_from, use_counts=judgment_rule_use_counts
             ),
             rests_on_judgment_rule=True,
+            leaves_out_evidence_that_may_belong_to_another_request=leaves_out_evidence_that_may_belong_to_another_request,
         )
     if stop_reasons_to_pick_from:
         (stop_reason,) = stop_reasons_to_pick_from
-        return _LevelAndStopReason(level, stop_reason, rests_on_judgment_rule=False)
+    else:
+        stop_reason = NetworkRequestResultStopReason.NOT_VISIBLE
     return _LevelAndStopReason(
         level,
-        NetworkRequestResultStopReason.NOT_VISIBLE,
+        stop_reason,
         rests_on_judgment_rule=False,
+        leaves_out_evidence_that_may_belong_to_another_request=leaves_out_evidence_that_may_belong_to_another_request,
     )
 
 
@@ -252,6 +262,40 @@ def _level_certainty_of(
     ):
         return NetworkRequestResultCertainty.CONFIRMED
     return NetworkRequestResultCertainty.ASSUMED
+
+
+def _assumption_reasons_of(
+    level_and_stop_reason: _LevelAndStopReason,
+    evidence_with_levels: Sequence[EvidenceWithLevel],
+    level_certainty: NetworkRequestResultCertainty,
+) -> tuple[NetworkRequestResultAssumptionReason, ...]:
+    """Give every reason that an assumed result is assumed, each once, and none for a confirmed one.
+
+    A judgment rule that picked the level or stop reason comes first. Then come the reasons of each piece of evidence that shows the picked level and stop reason and that the pick did not leave out, in the order of the evidence, unless one such piece has no reason, since then that piece alone would have confirmed the result.
+    So evidence of another level gives none, e.g. a shared `Connection refused` beside `saved [10/10]` of this request alone. Nor does a shared `saved` beside a clean one when a rule took them over a failure, nor a shared `HTTP/1.1 200 OK` beside an own `* Connected to a.org` that a rule read, which the pick left out.
+    """
+    if level_certainty == NetworkRequestResultCertainty.CONFIRMED:
+        return ()
+    assumption_reasons: list[NetworkRequestResultAssumptionReason] = []
+    if level_and_stop_reason.rests_on_judgment_rule:
+        assumption_reasons.append(JudgmentRuleAssumptionReason())
+    deciding_evidence_with_levels = [
+        evidence_with_level
+        for evidence_with_level in evidence_with_levels
+        if (evidence_with_level.level, evidence_with_level.stop_reason)
+        == (level_and_stop_reason.level, level_and_stop_reason.stop_reason)
+        and not (
+            level_and_stop_reason.leaves_out_evidence_that_may_belong_to_another_request
+            and evidence_with_level.may_belong_to_another_request
+        )
+    ]
+    if all(
+        evidence_with_level.assumption_reasons
+        for evidence_with_level in deciding_evidence_with_levels
+    ):
+        for evidence_with_level in deciding_evidence_with_levels:
+            assumption_reasons += evidence_with_level.assumption_reasons
+    return tuple(dict.fromkeys(assumption_reasons))
 
 
 def _request_certainty_after_evidence_of(
