@@ -159,7 +159,7 @@ _CASES = [
     ),
     (
         "unknown call written like a known module",
-        f'urllib.request.Request("{U}")',
+        f'urllib.request.build_opener("{U}")',
         PYTHON,
         [(UNKNOWN_CALL, U, URL, ("a.org",), UNKNOWN_CODE_CALL)],
     ),

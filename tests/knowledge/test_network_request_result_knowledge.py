@@ -122,6 +122,14 @@ EXAMPLE_LINES: list[
         _ANY,
         {"missing_program_word": "/opt/tool/bin/x"},
     ),
+    # bash -c and a script put the line number after the shell name, e.g. for a pip whose file is gone.
+    (
+        "bash: line 1: /usr/local/bin/pip: No such file or directory",
+        "program_missing",
+        K.PROGRAM_MISSING,
+        _ANY,
+        {"missing_program_word": "/usr/local/bin/pip"},
+    ),
     (
         "error: externally-managed-environment",
         "pip_externally_managed",
@@ -946,22 +954,6 @@ _OPTIONS_OF_THE_OLD_RULES = [
     ("wget", ProgramOption("-d", None), {P.HTTP_HEADERS}, False),
     ("wget", ProgramOption("--debug", None), {P.HTTP_HEADERS}, False),
 ]
-# The (program, subcommand) pairs of the real program output catalogs that `program_behaviors.csv` has no row for yet.
-# The rows come with the program catalog of `expand_tool_calls` and the set then shrinks, so that a pair that is misspelled never hides in it.
-_PAIRS_WITHOUT_PROGRAM_BEHAVIOR_ROW_YET = {
-    ("agent-browser", "install"),
-    ("apt", "install"),
-    ("apt", "update"),
-    ("bun", "add"),
-    ("dnf", "install"),
-    ("dnf", "makecache"),
-    ("go", "run"),
-    ("lake", "build"),
-    ("npm", "audit"),
-    ("playwright", "install"),
-    ("playwright", "install-deps"),
-    ("sbt", ""),
-}
 # Printing programs that the output line patterns name but no program row gives, since a request of code asks the door with the run of its runner, e.g. python, and never as `CODE`.
 _PRINTING_PROGRAMS_NOT_GIVEN_BY_A_PROGRAM_ROW = {P.CODE}
 # (program, subcommand words, answer of `program_output_lines`, answer of `program_exit_code_meaning` for exit 0) of real program rows, with every subcommand of several words.
@@ -973,7 +965,7 @@ _ANSWERS_OF_REAL_PROGRAM_ROWS = [
     ("bunx", (), _lines(P.NPM), M.NOTHING),
     ("conda", ("install",), UnknownProgramOutputLines(), M.NOTHING),
     ("curl", (), _lines(P.CURL), M.SERVER_ANSWERED),
-    ("getent", ("hosts",), _lines(), _UNKNOWN_MEANING),
+    ("getent", ("hosts",), _lines(), M.NOTHING),
     ("gh", ("api",), _lines(P.GIT), M.REQUEST_SUCCEEDED),
     ("git", ("clone",), _lines(P.GIT), M.REQUEST_SUCCEEDED),
     ("git", ("submodule", "update"), _lines(P.GIT), M.NOTHING),
@@ -1624,7 +1616,7 @@ def test_real_catalog_gives_the_printing_programs_that_the_output_line_patterns_
     )
 
 
-def test_pairs_of_the_real_catalogs_without_a_row_of_program_behaviors_are_the_pinned_ones():
+def test_every_pair_of_the_real_catalogs_has_a_row_of_program_behaviors():
     with (EXPANDED_TOOL_CALL_CATALOGS_DIR / PROGRAM_BEHAVIORS_CSV).open(
         newline=""
     ) as csv_file:
@@ -1637,7 +1629,7 @@ def test_pairs_of_the_real_catalogs_without_a_row_of_program_behaviors_are_the_p
         for row in _real_rows(file_name)
     }
 
-    assert pairs - behavior_keys == _PAIRS_WITHOUT_PROGRAM_BEHAVIOR_ROW_YET
+    assert pairs - behavior_keys == set()
 
 
 def _options(*names_and_values: str | tuple[str, str]) -> tuple[ProgramOption, ...]:

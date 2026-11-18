@@ -247,7 +247,7 @@ _CODE_RUNNER_ROWS_THAT_CANNOT_LOAD = [
     ({"runner_kind": "file_extension", "runner": "py"}, "does not start with a dot"),
 ]
 # Programs of the old tables whose rows were left out, since the 100 sample trials never run them, e.g. tac, or no page of the program could be read, e.g. tsx.
-_PROGRAMS_LEFT_OUT = frozenset({"clang", "exec", "stdbuf", "tac", "tsx"})
+_PROGRAMS_LEFT_OUT = frozenset({"clang", "stdbuf", "tsx"})
 # Wrappers whose page shows no `NAME=value` words before the command, which the old tables let them skip, e.g. `time [option ...] command [argument ...]` of time(1), since the bash reserved word time is no program.
 _WRAPPERS_THAT_SKIP_NO_ASSIGNMENT_WORDS_BY_THE_PAGE = frozenset({"time"})
 # Programs that the old tables let read stdin, whose page says what they show when they read stdin but not that they read it when no file is given, e.g. strings(1).

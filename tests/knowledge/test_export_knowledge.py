@@ -91,17 +91,6 @@ _ROWS_THAT_CANNOT_LOAD = [
     ([], [], ["pkg,install,reg,Reg.org"], "not in lower case"),
 ]
 
-# The (program, subcommand) pairs of the real program package registry catalog that `program_behaviors.csv` has no row for yet.
-# The rows come with the program catalog of `extract_network_requests`, which needs the same programs, and the set then shrinks, so that a pair that is misspelled never hides in it.
-_PAIRS_WITHOUT_PROGRAM_BEHAVIOR_ROW_YET = {
-    ("apt", "update"),
-    ("apt", "install"),
-    ("sbt", "compile"),
-    ("sbt", "test"),
-    ("sbt", "run"),
-    ("sbt", "package"),
-}
-
 
 def _write_catalogs(
     tmp_path: Path,
@@ -365,7 +354,4 @@ def test_every_real_program_row_names_a_program_and_subcommand_of_the_program_ca
         for row in _real_csv_rows(EXPORT_CATALOGS_DIR, PROGRAM_PACKAGE_REGISTRIES_CSV)
     }
 
-    assert (
-        program_package_registry_keys - program_behavior_keys
-        == _PAIRS_WITHOUT_PROGRAM_BEHAVIOR_ROW_YET
-    )
+    assert program_package_registry_keys - program_behavior_keys == set()

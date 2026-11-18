@@ -329,6 +329,19 @@ _FETCHING_PROGRAM_LABELS_OF_NAMED_ROWS = [
             content_route=ProgramContentRoute.OWN_FILE,
         ),
     ),
+    # Only the first argument of npm view is a package, since npm-view(1) gives `npm view [<package-spec>] [<field>[.subfield]...]`, e.g. version in `npm view lodash version`.
+    (
+        "npm",
+        ("view",),
+        FetchingProgramLabel(
+            fetches_only_what_is_missing=False,
+            target_arguments=TargetArguments.FIRST,
+            target_kind=NetworkRequestTargetKind.PACKAGE_NAME,
+            target_notation=TargetNotation.NAME,
+            target_without_target_arguments=TargetWithoutTargetArguments.NO_TARGET,
+            content_route=ProgramContentRoute.STDOUT,
+        ),
+    ),
     (
         "pip",
         ("install",),
@@ -402,25 +415,6 @@ _FETCHING_PROGRAM_LABELS_OF_NAMED_ROWS = [
         ),
     ),
 ]
-# The (program, subcommand) pairs of the real program request catalog that `program_behaviors.csv` has no row for yet.
-# The rows come with the program catalog of `expand_tool_calls` and the set then shrinks, so that a pair that is misspelled never hides in it.
-_PAIRS_WITHOUT_PROGRAM_BEHAVIOR_ROW_YET = {
-    ("agent-browser", "install"),
-    ("apt", "install"),
-    ("apt", "update"),
-    ("bun", "add"),
-    ("dig", ""),
-    ("dnf", "install"),
-    ("dnf", "makecache"),
-    ("go", "run"),
-    ("host", ""),
-    ("lake", "build"),
-    ("npm", "audit"),
-    ("playwright", "install"),
-    ("playwright", "install-deps"),
-    ("sbt", ""),
-    ("tac", ""),
-}
 
 
 class _OldProgramRow(NamedTuple):
@@ -925,7 +919,7 @@ def test_real_checked_against_is_the_wording_of_a_carried_row_or_names_a_manual_
         ), row
 
 
-def test_pairs_of_the_real_catalog_without_a_row_of_program_behaviors_are_the_pinned_ones():
+def test_every_program_row_of_the_real_catalog_has_a_row_of_program_behaviors():
     with (EXPANDED_TOOL_CALL_CATALOGS_DIR / PROGRAM_BEHAVIORS_CSV).open(
         newline=""
     ) as csv_file:
@@ -938,7 +932,7 @@ def test_pairs_of_the_real_catalog_without_a_row_of_program_behaviors_are_the_pi
         if not row["option_name"]
     }
 
-    assert program_row_keys - behavior_keys == _PAIRS_WITHOUT_PROGRAM_BEHAVIOR_ROW_YET
+    assert program_row_keys - behavior_keys == set()
 
 
 def _code_call_uses(*row_keys: tuple[str, ...]) -> Counter[KnowledgeLookupKey]:
@@ -1083,6 +1077,17 @@ def test_real_code_call_rows_are_carried_from_the_old_tables_or_name_a_documenta
                 CodeCallEffect.SENDS_NETWORK_REQUEST,
                 TargetNotation.HOST_AND_PORT_TUPLE,
                 NetworkRequestTargetKind.HOST,
+            ),
+        ),
+        # The Request object is sent by the urlopen call that gets it, so a URL written in it is no request of its own.
+        (
+            CodeLanguage.PYTHON,
+            "urllib.request.Request",
+            CodeCallLabel(
+                "urllib.request.Request",
+                CodeCallEffect.SENDS_NO_NETWORK_REQUEST,
+                None,
+                None,
             ),
         ),
         (

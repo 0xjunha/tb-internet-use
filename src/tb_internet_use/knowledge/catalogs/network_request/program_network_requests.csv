@@ -2,6 +2,7 @@ program_name,subcommand,option_name,option_value,fetches,target_arguments,target
 agent-browser,install,,,yes,all,url,url,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
 apt,install,,,yes,all,package_name,name,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
 apt,update,,,yes,none,package_name,name,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
+apt,list,,,no,,,,,,,"apt(8), apt 2.6.1 (Debian bookworm, manpages.debian.org), list (list is somewhat similar to dpkg-query --list in that it can display a list of packages satisfying certain criteria) and update (update is used to download package information from all configured sources. Other commands operate on this data)",,It lists packages from the package information that apt update downloaded
 apt-get,download,,,yes,all,package_name,name,no_target,own_file,,"content_route from apt-get(8) download, apt 2.6.1 (Debian bookworm, manpages.debian.org). The rest not checked, from the old table",,
 apt-get,install,,,yes,all,package_name,name,no_target,own_file,,"content_route from apt-get(8) install, apt 2.6.1 (Debian bookworm, manpages.debian.org). The rest not checked, from the old table",,
 apt-get,source,,,yes,all,package_name,name,no_target,own_file,,"content_route from apt-get(8) source, apt 2.6.1 (Debian bookworm, manpages.debian.org). The rest not checked, from the old table",,
@@ -9,6 +10,7 @@ apt-get,update,,,yes,none,package_name,name,no_target,own_file,,"content_route f
 apt-get,,--help,,,,,,,,sends_no_request,"not checked, from the old table",,
 apt-get,,-q,,,,,,,,none,"apt-get(8) OPTIONS -q, --quiet, apt 2.6.1 (Debian bookworm, manpages.debian.org)",,
 apt-get,,-y,,,,,,,,none,"apt-get(8) OPTIONS -y, --yes, --assume-yes, apt 2.6.1 (Debian bookworm, manpages.debian.org)",,
+apt-get,,--no-install-recommends,,,,,,,,none,"apt-get(8) OPTIONS --no-install-recommends (Do not consider recommended packages as a dependency for installing), apt 2.6.1 (Debian bookworm, manpages.debian.org)",,Recommended packages are requests that the words do not show
 awk,,,,no,,,,,,,"not checked, from the old table",,
 bun,add,,,yes,all,package_name,name,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for. The old table reads the targets from the arguments and notes that no target means the project's packages, which no page of bun.sh says for add"
 bun,x,,,only_what_is_missing,next_program,package_name,name,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
@@ -69,9 +71,13 @@ git,submodule update,,,yes,none,repository_url,url_or_scp_like_address,no_target
 git,,-C,,,,,,,,none,"git(1) OPTIONS -C <path> (Run as if git was started in <path> instead of the current working directory), Git 2.56.0 (git-scm.com)",,"The repository at the path decides which remote a command without a repository asks, which the words do not show"
 git,clone,--depth,,,,,,,,none,"git-clone(1) OPTIONS --depth, Git 2.54.0 (git-scm.com/docs/git-clone)",,
 git,clone,-q,,,,,,,,none,"git-clone(1) OPTIONS -q, --quiet, Git 2.54.0 (git-scm.com/docs/git-clone)",,
+git,status,,,no,,,,,,,"git-status(1) DESCRIPTION (Displays paths that have differences between the index file and the current HEAD commit, paths that have differences between the working tree and the index file, and paths in the working tree that are not tracked by Git), Git 2.55.0 (2026-06-29, Homebrew)",,Everything it compares is in the local repository and the working tree
+git,log,,,no,,,,,,,"git-log(1) DESCRIPTION (Shows the commit logs. List commits that are reachable by following the parent links from the given commit(s)), Git 2.55.0 (2026-06-29, Homebrew)",,The commits it lists are in the local repository
+git,diff,,,no,,,,,,,"git-diff(1) DESCRIPTION (Show changes between the working tree and the index or a tree, changes between the index and a tree, changes between two trees, changes resulting from a merge, changes between two blob objects, or changes between two files on disk), Git 2.55.0 (2026-06-29, Homebrew)",,Everything it compares is in the local repository or on disk
 go,build,,,only_what_is_missing,none,package_name,name,named_in_file,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
 go,mod tidy,,,yes,none,package_name,name,named_in_file,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
 go,run,,,only_what_is_missing,none,package_name,name,named_in_file,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
+go,build,-o,,,,,,,,none,"cmd/go documentation, go1.27.4, pkg.go.dev, Compile packages and dependencies (The -o flag forces build to write the resulting executable or object to the named output file or directory)",,The file it names holds the build output and not fetched content
 grep,,,,no,,,,,,,"not checked, from the old table",,
 head,,,,no,,,,,,,"not checked, from the old table",,
 host,,,,yes,first,host,host_name,no_request,stdout,,"not checked, from the old table",,
@@ -87,7 +93,7 @@ npm,exec,,,only_what_is_missing,next_program,package_name,name,no_target,,,"not 
 npm,i,,,yes,all,package_name,name,named_in_file,own_file,,"content_route, target_without_target_arguments from npm install Description and aliases, npm CLI 10.9.10 (docs.npmjs.com). The rest not checked, from the old table",,
 npm,install,,,yes,all,package_name,name,named_in_file,own_file,,"content_route from npm install Description and aliases, npm CLI 10.9.10 (docs.npmjs.com). The rest not checked, from the old table",,
 npm,ping,,,yes,none,package_name,name,no_target,no_content,,"not checked, from the old table",,
-npm,view,,,yes,all,package_name,name,no_target,stdout,,"not checked, from the old table",,
+npm,view,,,yes,first,package_name,name,no_target,stdout,,"npm view Synopsis (npm view [<package-spec>] [<field>[.subfield]...]), npm 10.9.10, docs.npmjs.com, for target_arguments; the other cells not checked, from the old table",,"The words after the package are fields of it, e.g. version"
 npm,install,--no-save,,,,,,,,none,"npm install Description (--no-save), npm 10.9.10 (docs.npmjs.com/cli/v10/commands/npm-install)",,
 npm,,--ignore-scripts,,,,,,,,none,"npm config ignore-scripts, npm 10.9.10 (docs.npmjs.com/cli/v10/using-npm/config)",,Scripts that would run are not words of the command
 npm,,--no-audit,,,,,,,,none,"npm config audit, npm 10.9.10 (docs.npmjs.com/cli/v10/using-npm/config), and npm install Configuration audit, npm 10.9.10 (docs.npmjs.com/cli/v10/commands/npm-install)",,"It stops the audit report sent to the registry beside the command, which is no target of the command"
@@ -97,9 +103,11 @@ npm,,--omit,,,,,,,,none,"npm config omit, npm 10.9.10 (docs.npmjs.com/cli/v10/us
 npm,,--package-lock,,,,,,,,none,"npm config package-lock, npm 10.9.10 (docs.npmjs.com/cli/v10/using-npm/config)",,With the value false npm ignores package-lock.json when installing
 npm,,--prefer-offline,,,,,,,,fetches_only_what_is_missing,"not checked, from the old table",,
 npm,,--prefix,,,,,,,,none,"npm config prefix, npm 10.9.10 (docs.npmjs.com/cli/v10/using-npm/config)",,"It names the folder that a command runs in, e.g. the project whose package.json names the packages"
+npm,,-y,,,,,,,,none,"npm config, npm 10.9.10 (docs.npmjs.com/cli/v10/using-npm/config), Shorthands and Other CLI Niceties (-y: --yes) and yes (Automatically answer ""yes"" to any prompts that npm might print on the command line)",,
 npx,,,,only_what_is_missing,next_program,package_name,name,no_request,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
 npx,,--no-install,,,,,,,,sends_no_request,"not checked, from the old table",,
 npx,,--version,,,,,,,,sends_no_request,"not checked, from the old table",,
+npx,,--yes,,,,,,,,none,"npx Description (A prompt is printed (which can be suppressed by providing either --yes or --no)), npm 10.9.10 (docs.npmjs.com/cli/v10/commands/npx)",,
 nslookup,,,,yes,first,host,host_name,no_request,stdout,,"not checked, from the old table",,
 od,,,,no,,,,,,,"not checked, from the old table",,
 ping,,,,yes,first,host,host_name,no_request,no_content,,"content_route from ping(8) DESCRIPTION, iputils-ping 20221126 (Debian bookworm, manpages.debian.org). The rest not checked, from the old table",,
@@ -128,6 +136,13 @@ pip,,-e,,,,,,,,names_target_in_value,"not checked, from the old table",,"The old
 pip,,-i,,,,,,,,names_host_in_value,"not checked, from the old table",,
 pip,,-q,,,,,,,,none,"-q, --quiet, pip General Options, pip documentation v26.3 (pip.pypa.io/en/stable/cli/pip/)",,
 pip,,-r,,,,,,,,names_targets_in_file,"not checked, from the old table",,
+pip,uninstall,,,no,,,,,,,"pip uninstall Description (Uninstall packages), pip documentation v26.3, pip.pypa.io",,It removes installed packages
+pip,install,--break-system-packages,,,,,,,,none,"pip install Options --break-system-packages (Allow pip to modify an EXTERNALLY-MANAGED Python installation), pip documentation v26.3 (pip.pypa.io)",,
+pip,install,--dry-run,,,,,,,,none,"pip install Options --dry-run (Don't actually install anything, just print what would be. Can be used in combination with --ignore-installed to 'resolve' the requirements), pip documentation v26.3 (pip.pypa.io)",,"It still resolves the requirements against the index, and installs nothing"
+pip,install,--no-deps,,,,,,,,none,"pip install Options --no-deps (Don't install package dependencies), pip documentation v26.3 (pip.pypa.io)",,Dependencies are requests that the words do not show
+pip,,--disable-pip-version-check,,,,,,,,none,"pip General Options --disable-pip-version-check (Don't periodically check PyPI to determine whether a new version of pip is available for download), pip documentation v26.3 (pip.pypa.io)",,"It stops the check for a new version of pip, a request that the words do not show"
+pip,,--no-input,,,,,,,,none,"pip General Options --no-input (Disable prompting for input), pip documentation v26.3 (pip.pypa.io)",,
+pip,download,--no-binary,,,,,,,,none,"pip download Options --no-binary <format_control> (Do not download binary packages. Cached binary packages may still be used), pip documentation v26.3 (pip.pypa.io)",,It changes which file of a package is fetched and not which package
 playwright,install,,,yes,all,url,url,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
 playwright,install-deps,,,yes,none,package_name,name,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
 pnpm,add,,,yes,all,package_name,name,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for. The old table reads the targets from the arguments and notes that no target means the project's packages, which no page of pnpm.io says for add"
@@ -151,6 +166,7 @@ uv,,--extra-index-url,,,,,,,,names_host_in_value,"not checked, from the old tabl
 uv,,--help,,,,,,,,sends_no_request,"not checked, from the old table",,
 uv,,--index-url,,,,,,,,names_host_in_value,"not checked, from the old table",,
 uv,,-e,,,,,,,,names_target_in_value,"not checked, from the old table",,The old table said it names packages in a file or a local project. Its value is the target itself
+uv,pip install,--python,,,,,,,,none,"uv CLI reference, docs.astral.sh/uv/reference/cli/ (read 2026-11-18), uv pip install Options --python, -p python (The Python interpreter to use during resolution)",,It picks the interpreter whose environment the packages go to
 wget,,,,yes,all,url,url,no_request,own_file,,"content_route from wget(1) DESCRIPTION, -P and -O, GNU Wget 1.21.3 (Debian bookworm, manpages.debian.org). The rest not checked, from the old table",,
 wget,,--output-document,,,,,,,,sends_content_to_file,"wget(1) -O file, --output-document=file (The documents will not be written to the appropriate files, but all will be concatenated together and written to file), GNU Wget 1.21.3 (Debian bookworm, manpages.debian.org)",,The file it names is a written file of the command
 wget,,--output-document,-,,,,,,,sends_content_to_stdout,"not checked, from the old table",,
