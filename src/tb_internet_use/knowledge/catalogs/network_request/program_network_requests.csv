@@ -1,0 +1,112 @@
+program_name,subcommand,option_name,option_value,fetches,target_arguments,target_kind,target_notation,target_without_target_arguments,content_route,option_effect,checked_against,reviewed,note
+agent-browser,install,,,yes,all,url,url,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
+apt,install,,,yes,all,package_name,name,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
+apt,update,,,yes,none,package_name,name,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
+apt-get,download,,,yes,all,package_name,name,no_target,own_file,,"content_route from apt-get(8) download, apt 2.6.1 (Debian bookworm, manpages.debian.org). The rest not checked, from the old table",,
+apt-get,install,,,yes,all,package_name,name,no_target,own_file,,"content_route from apt-get(8) install, apt 2.6.1 (Debian bookworm, manpages.debian.org). The rest not checked, from the old table",,
+apt-get,source,,,yes,all,package_name,name,no_target,own_file,,"content_route from apt-get(8) source, apt 2.6.1 (Debian bookworm, manpages.debian.org). The rest not checked, from the old table",,
+apt-get,update,,,yes,none,package_name,name,no_target,own_file,,"content_route from apt-get(8) update, apt 2.6.1 (Debian bookworm, manpages.debian.org). The rest not checked, from the old table",,
+apt-get,,--help,,,,,,,,sends_no_request,"not checked, from the old table",,
+awk,,,,no,,,,,,,"not checked, from the old table",,
+bun,add,,,yes,all,package_name,name,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for. The old table reads the targets from the arguments and notes that no target means the project's packages, which no page of bun.sh says for add"
+bun,x,,,only_what_is_missing,next_program,package_name,name,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
+bunx,,,,only_what_is_missing,next_program,package_name,name,no_request,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
+cat,,,,no,,,,,,,"not checked, from the old table",,
+conda,install,,,yes,all,package_name,name,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
+curl,,,,yes,all,url,url_or_schemeless_url,no_request,stdout,,"not checked, from the old table",,
+curl,,--head,,,,,,,,asks_for_no_content,"not checked, from the old table",,
+curl,,--output,,,,,,,,none,"not checked, from the old table",,The file it names is a written file of the command
+curl,,--output,-,,,,,,,sends_content_to_stdout,"not checked, from the old table",,
+curl,,--remote-name,,,,,,,,none,"not checked, from the old table",,The file it names is a written file of the command
+curl,,--remote-name-all,,,,,,,,none,"not checked, from the old table",,The file it names is a written file of the command
+curl,,--request,HEAD,,,,,,,asks_for_no_content,"not checked, from the old table",,
+curl,,--version,,,,,,,,sends_no_request,"not checked, from the old table",,
+curl,,-I,,,,,,,,asks_for_no_content,"not checked, from the old table",,
+curl,,-O,,,,,,,,none,"not checked, from the old table",,The file it names is a written file of the command
+curl,,-X,HEAD,,,,,,,asks_for_no_content,"not checked, from the old table",,
+curl,,-o,,,,,,,,none,"not checked, from the old table",,The file it names is a written file of the command
+curl,,-o,-,,,,,,,sends_content_to_stdout,"not checked, from the old table",,
+cut,,,,no,,,,,,,"not checked, from the old table",,
+diff,,,,no,,,,,,,"not checked, from the old table",,
+dig,,,,yes,first,host,host_name,no_request,stdout,,"not checked, from the old table",,
+dnf,install,,,yes,all,package_name,name,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
+dnf,makecache,,,yes,none,package_name,name,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
+echo,,,,no,,,,,,,"echo(1) DESCRIPTION, GNU coreutils 9.11 (man7.org)",,
+egrep,,,,no,,,,,,,"not checked, from the old table",,
+getent,hosts,,,yes,all,host,host_name,no_request,,,"target_without_target_arguments from getent(1) DESCRIPTION and hosts, Linux man-pages 6.19 (man7.org), which enumerate the hosts database when no key is given instead of looking a name up. content_route left blank, since that page says only that the result is displayed. The rest not checked, from the old table",,The old table said the response goes to stdout. Whether the address that a lookup prints is content the request asks for is not said by getent(1)
+gh,api,,,yes,all,repository_url,url_or_scp_like_address,no_target,stdout,,"not checked, from the old table",,
+git,clone,,,yes,first,repository_url,url_or_scp_like_address,no_target,own_file,,"target_arguments, content_route from git-clone(1) SYNOPSIS and DESCRIPTION, Git 2.56 (git-scm.com). The rest not checked, from the old table",,
+git,fetch,,,yes,first,repository_url,url_or_scp_like_address,no_target,own_file,,"target_arguments, content_route from git-fetch(1) SYNOPSIS and DESCRIPTION, Git 2.56 (git-scm.com). The rest not checked, from the old table",,
+git,ls-remote,,,yes,first,repository_url,url_or_scp_like_address,no_target,stdout,,"target_arguments from git-ls-remote(1) SYNOPSIS and DESCRIPTION, Git 2.56 (git-scm.com). The rest not checked, from the old table",,
+git,submodule update,,,yes,none,repository_url,url_or_scp_like_address,no_target,,,"target_arguments from git-submodule(1) SYNOPSIS and DESCRIPTION, Git 2.56 (git-scm.com) update. The rest not checked, from the old table",,"The words after update are paths of submodules, not targets"
+go,build,,,only_what_is_missing,none,package_name,name,named_in_file,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
+go,mod tidy,,,yes,none,package_name,name,named_in_file,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
+go,run,,,only_what_is_missing,none,package_name,name,named_in_file,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
+grep,,,,no,,,,,,,"not checked, from the old table",,
+head,,,,no,,,,,,,"not checked, from the old table",,
+host,,,,yes,first,host,host_name,no_request,stdout,,"not checked, from the old table",,
+huggingface-cli,download,,,yes,all,url,url,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
+jq,,,,no,,,,,,,"not checked, from the old table",,
+lake,build,,,only_what_is_missing,none,package_name,name,named_in_file,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
+nc,,,,yes,first,host,host_name,no_request,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
+nl,,,,no,,,,,,,"not checked, from the old table",,
+npm,audit,,,yes,none,package_name,name,named_in_file,stdout,,"not checked, from the old table",,
+npm,ci,,,yes,none,package_name,name,named_in_file,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
+npm,create,,,yes,all,package_name,name,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
+npm,exec,,,only_what_is_missing,next_program,package_name,name,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
+npm,i,,,yes,all,package_name,name,named_in_file,own_file,,"content_route, target_without_target_arguments from npm install Description and aliases, npm CLI 10.9.10 (docs.npmjs.com). The rest not checked, from the old table",,
+npm,install,,,yes,all,package_name,name,named_in_file,own_file,,"content_route from npm install Description and aliases, npm CLI 10.9.10 (docs.npmjs.com). The rest not checked, from the old table",,
+npm,ping,,,yes,none,package_name,name,no_target,no_content,,"not checked, from the old table",,
+npm,view,,,yes,all,package_name,name,no_target,stdout,,"not checked, from the old table",,
+npm,,--offline,,,,,,,,sends_no_request,"not checked, from the old table",,
+npm,,--prefer-offline,,,,,,,,fetches_only_what_is_missing,"not checked, from the old table",,
+npx,,,,only_what_is_missing,next_program,package_name,name,no_request,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
+npx,,--no-install,,,,,,,,sends_no_request,"not checked, from the old table",,
+npx,,--version,,,,,,,,sends_no_request,"not checked, from the old table",,
+nslookup,,,,yes,first,host,host_name,no_request,stdout,,"not checked, from the old table",,
+od,,,,no,,,,,,,"not checked, from the old table",,
+ping,,,,yes,first,host,host_name,no_request,no_content,,"content_route from ping(8) DESCRIPTION, iputils-ping 20221126 (Debian bookworm, manpages.debian.org). The rest not checked, from the old table",,
+pip,download,,,yes,all,package_name,pip_requirement,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
+pip,index versions,,,yes,all,package_name,pip_requirement,no_target,stdout,,"not checked, from the old table",,
+pip,install,,,yes,all,package_name,pip_requirement,no_target,own_file,,"content_route from pip install Usage and Description, pip documentation v26.3 (pip.pypa.io). The rest not checked, from the old table",,
+pip,search,,,yes,all,package_name,pip_requirement,no_target,stdout,,"not checked, from the old table",,
+pip,wheel,,,yes,all,package_name,pip_requirement,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
+pip,,--editable,,,,,,,,names_target_in_value,"pip install Options, pip documentation v26.3 (pip.pypa.io), -e and --editable are one option",,
+pip,,--extra-index-url,,,,,,,,names_host_in_value,"not checked, from the old table",,
+pip,,--help,,,,,,,,sends_no_request,"not checked, from the old table",,
+pip,,--index-url,,,,,,,,names_host_in_value,"not checked, from the old table",,
+pip,,--no-index,,,,,,,,sends_no_request,"not checked, from the old table",,
+pip,,--requirement,,,,,,,,names_targets_in_file,"pip install Options, pip documentation v26.3 (pip.pypa.io), -r and --requirement are one option",,
+pip,,--version,,,,,,,,sends_no_request,"not checked, from the old table",,
+pip,,-e,,,,,,,,names_target_in_value,"not checked, from the old table",,"The old table said it names packages in a file or a local project. Its value is the target itself, a local path or a VCS URL"
+pip,,-i,,,,,,,,names_host_in_value,"not checked, from the old table",,
+pip,,-r,,,,,,,,names_targets_in_file,"not checked, from the old table",,
+playwright,install,,,yes,all,url,url,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
+playwright,install-deps,,,yes,none,package_name,name,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
+pnpm,add,,,yes,all,package_name,name,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for. The old table reads the targets from the arguments and notes that no target means the project's packages, which no page of pnpm.io says for add"
+pnpm,exec,,,only_what_is_missing,next_program,package_name,name,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
+pnpm,install,,,yes,all,package_name,name,named_in_file,,,"target_without_target_arguments from pnpm install, pnpm docs 12.x (pnpm.io/cli/install), which installs all dependencies for a project. The rest not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
+pnpm,,--offline,,,,,,,,sends_no_request,"pnpm install Options --offline, pnpm docs 12.x (pnpm.io/cli/install)",,"The old table called it an offline option, which covered both sends_no_request and fetches_only_what_is_missing"
+printf,,,,no,,,,,,,"printf(1) DESCRIPTION, GNU coreutils 9.11 (man7.org)",,
+rg,,,,no,,,,,,,"not checked, from the old table",,
+rsync,,,,yes,all,host,rsync_address,no_request,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
+sbt,,,,only_what_is_missing,none,package_name,name,named_in_file,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
+sed,,,,no,,,,,,,"not checked, from the old table",,
+sort,,,,no,,,,,,,"not checked, from the old table",,
+strings,,,,no,,,,,,,"not checked, from the old table",,
+tac,,,,no,,,,,,,"not checked, from the old table",,
+tail,,,,no,,,,,,,"not checked, from the old table",,
+uv,pip install,,,yes,all,package_name,pip_requirement,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
+uv,run,,,only_what_is_missing,none,package_name,name,named_in_file,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
+uv,venv,,,only_what_is_missing,none,package_name,name,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
+uv,,--extra-index-url,,,,,,,,names_host_in_value,"not checked, from the old table",,
+uv,,--help,,,,,,,,sends_no_request,"not checked, from the old table",,
+uv,,--index-url,,,,,,,,names_host_in_value,"not checked, from the old table",,
+uv,,-e,,,,,,,,names_target_in_value,"not checked, from the old table",,The old table said it names packages in a file or a local project. Its value is the target itself
+wget,,,,yes,all,url,url,no_request,own_file,,"content_route from wget(1) DESCRIPTION, -P and -O, GNU Wget 1.21.3 (Debian bookworm, manpages.debian.org). The rest not checked, from the old table",,
+wget,,--output-document,,,,,,,,none,"not checked, from the old table",,The file it names is a written file of the command
+wget,,--output-document,-,,,,,,,sends_content_to_stdout,"not checked, from the old table",,
+wget,,--spider,,,,,,,,asks_for_no_content,"not checked, from the old table",,
+wget,,-O,,,,,,,,none,"not checked, from the old table",,The file it names is a written file of the command
+wget,,-O,-,,,,,,,sends_content_to_stdout,"not checked, from the old table",,
+xxd,,,,no,,,,,,,"not checked, from the old table",,

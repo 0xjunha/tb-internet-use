@@ -1,0 +1,278 @@
+"""Answer the questions of `extract_network_requests` about which programs fetch, which of their words are targets and where the content goes, from the program request catalog, counting every use of a row and every input without one.
+
+A blank cell is unknown only in `content_route`. Every other fact cell of a row of its kind says what it means in a word, e.g. `none` or `no_request`, and a blank there fails the load, so that the door never reads a missing fact as a default.
+"""
+
+import functools
+from collections.abc import Mapping
+from dataclasses import dataclass
+from pathlib import Path
+
+from tb_internet_use.expanded_tool_call.model import ProgramInvocation, ProgramOption
+from tb_internet_use.knowledge.catalog import (
+    Catalog,
+    KnowledgeRowKey,
+    KnowledgeUses,
+    load_catalog,
+)
+from tb_internet_use.network_request.model import (
+    FetchingProgramLabel,
+    NetworkRequestTargetKind,
+    NonFetchingProgramLabel,
+    ProgramContentRoute,
+    ProgramNetworkRequestLabel,
+    ProgramOptionEffect,
+    TargetArguments,
+    TargetNotation,
+    TargetWithoutTargetArguments,
+    UnknownProgramContentRoute,
+    UnknownProgramNetworkRequestLabel,
+    UnknownProgramOptionEffect,
+)
+
+NETWORK_REQUEST_CATALOGS_DIR = Path(__file__).parent / "catalogs" / "network_request"
+PROGRAM_NETWORK_REQUESTS_CSV = "program_network_requests.csv"
+# The subcommand cell under which `may_program_fetch` counts a program name, since it answers from all the rows of the name and not from one.
+ANY_SUBCOMMAND = "any subcommand"
+_KEY_COLUMNS = ("program_name", "subcommand", "option_name", "option_value")
+# The cells of a program row past its keys, which an option row leaves blank.
+_PROGRAM_FACT_COLUMNS = (
+    "fetches",
+    "target_arguments",
+    "target_kind",
+    "target_notation",
+    "target_without_target_arguments",
+    "content_route",
+)
+# The values of `fetches`.
+_YES = "yes"
+_NO = "no"
+_ONLY_WHAT_IS_MISSING = "only_what_is_missing"
+
+
+class NetworkRequestKnowledge:
+    """Door of `extract_network_requests` to the outside knowledge, made for one trial and passed to `extract_network_requests`, which asks it one question per method.
+
+    An answer is a value or an `Unknown…` type of the step's model, never a default.
+    `uses` counts every catalog row that answered and every input without one.
+    The loaded catalog is cached per process, so making a door per trial is cheap.
+    """
+
+    def __init__(self, *, catalogs_dir: Path = NETWORK_REQUEST_CATALOGS_DIR) -> None:
+        self.uses = KnowledgeUses()
+        self._catalogs = _load_network_request_catalogs(catalogs_dir)
+
+    def program_network_request_label(
+        self, program_invocation: ProgramInvocation
+    ) -> ProgramNetworkRequestLabel | UnknownProgramNetworkRequestLabel:
+        """Answer whether a program and subcommand fetch, which arguments name what kind of target and where the content goes, or `UnknownProgramNetworkRequestLabel` for one without a row.
+
+        Only the row whose program name and subcommand words are those of the invocation answers, e.g. `(pip, install)` for `pip install x`, since the subcommand was read once by `expand_tool_calls`.
+        One lookup counts the row or the input `(program_name, subcommand, "", "")`.
+        """
+        row = self._catalogs.program_network_requests.lookup(
+            _program_row_key_of(program_invocation), self.uses
+        )
+        if row is None:
+            return UnknownProgramNetworkRequestLabel()
+        assert not isinstance(row, ProgramOptionEffect)
+        return row
+
+    def program_option_effect(
+        self, program_invocation: ProgramInvocation, program_option: ProgramOption
+    ) -> ProgramOptionEffect | UnknownProgramOptionEffect:
+        """Answer how one option of a program changes its requests, or `UnknownProgramOptionEffect` for an option without a row.
+
+        The rows are tried in this order, and the first that the catalog has answers.
+
+        | Subcommand | Value |
+        |---|---|
+        | that of the invocation | the value of the option, e.g. `-` for `curl -o -` |
+        | blank, for every subcommand | the value of the option |
+        | that of the invocation | blank, for every value |
+        | blank | blank |
+
+        One lookup counts that row, or when none fits the narrowest key, i.e. the subcommand and the value of the option as asked, e.g. `(curl, "", -L, "")`.
+        An option that takes no value is asked with a blank value.
+        """
+        program_name, subcommand, _, _ = _program_row_key_of(program_invocation)
+        option_value = program_option.value or ""
+        candidate_row_keys = [
+            (program_name, row_subcommand, program_option.name, row_option_value)
+            for row_option_value in dict.fromkeys((option_value, ""))
+            for row_subcommand in dict.fromkeys((subcommand, ""))
+        ]
+        catalogs = self._catalogs
+        row_key = next(
+            (
+                key
+                for key in candidate_row_keys
+                if key in catalogs.program_network_request_row_keys
+            ),
+            candidate_row_keys[0],
+        )
+        row = catalogs.program_network_requests.lookup(row_key, self.uses)
+        if row is None:
+            return UnknownProgramOptionEffect()
+        assert isinstance(row, ProgramOptionEffect)
+        return row
+
+    def may_program_fetch(
+        self, program_name: str
+    ) -> bool | UnknownProgramNetworkRequestLabel:
+        """Answer whether any row of a program name fetches, for a program that code runs, whose subcommand nobody read, or `UnknownProgramNetworkRequestLabel` for a name without a program row.
+
+        `program_name` is the first word that code passes to run, without its folder, e.g. `pip`.
+        A row that fetches only what is missing counts as fetching.
+        The door counts one use, or one unknown input, under the key `(program_name, "any subcommand", "", "")`, apart from the counts of `program_network_request_label`.
+        """
+        fetches = self._catalogs.fetches_by_program_name.get(program_name)
+        row_key = (program_name, ANY_SUBCOMMAND, "", "")
+        lookup_key = (PROGRAM_NETWORK_REQUESTS_CSV, row_key)
+        if fetches is None:
+            self.uses.unknown_input_counts[lookup_key] += 1
+            return UnknownProgramNetworkRequestLabel()
+        self.uses.row_use_counts[lookup_key] += 1
+        return fetches
+
+
+def _program_row_key_of(program_invocation: ProgramInvocation) -> KnowledgeRowKey:
+    """Give the key of the program row of an invocation, with its subcommand words split by one space."""
+    return (
+        program_invocation.program_name,
+        " ".join(program_invocation.subcommand_words),
+        "",
+        "",
+    )
+
+
+@functools.cache
+def _load_network_request_catalogs(catalogs_dir: Path) -> _NetworkRequestCatalogs:
+    """Load the program request CSV of a folder once per process, raising ValueError on a row that `extract_network_requests` cannot use."""
+    program_network_requests = load_catalog(
+        catalogs_dir / PROGRAM_NETWORK_REQUESTS_CSV,
+        key_columns=_KEY_COLUMNS,
+        row_from_columns=_program_network_request_row_from_columns,
+    )
+    # These lookups sort the rows when the file loads and answer no question of a step, so their counts are dropped.
+    unused_uses = KnowledgeUses()
+    fetches_by_program_name: dict[str, bool] = {}
+    fetching_program_rows: set[tuple[str, str]] = set()
+    for program_name, subcommand, option_name, _ in program_network_requests.row_keys:
+        if option_name:
+            continue
+        row = program_network_requests.lookup(
+            (program_name, subcommand, "", ""), unused_uses
+        )
+        is_fetching = isinstance(row, FetchingProgramLabel)
+        fetches_by_program_name[program_name] = (
+            fetches_by_program_name.get(program_name, False) or is_fetching
+        )
+        if is_fetching:
+            fetching_program_rows.add((program_name, subcommand))
+    for program_name, subcommand, option_name, _ in program_network_requests.row_keys:
+        if option_name:
+            _check_option_row_has_fetching_program(
+                program_name, subcommand, fetching_program_rows
+            )
+    return _NetworkRequestCatalogs(
+        program_network_requests,
+        frozenset(program_network_requests.row_keys),
+        fetches_by_program_name,
+    )
+
+
+def _check_option_row_has_fetching_program(
+    program_name: str, subcommand: str, fetching_program_rows: set[tuple[str, str]]
+) -> None:
+    """Raise ValueError on an option row whose program, or program and subcommand when the row names one, has no row that fetches, since the door is asked about options only for such programs."""
+    if subcommand:
+        if (program_name, subcommand) not in fetching_program_rows:
+            raise ValueError(
+                f"the option row of {(program_name, subcommand)} in {PROGRAM_NETWORK_REQUESTS_CSV} has no program row that fetches"
+            )
+    elif not any(name == program_name for name, _ in fetching_program_rows):
+        raise ValueError(
+            f"the option row of {program_name} in {PROGRAM_NETWORK_REQUESTS_CSV} has no program row that fetches"
+        )
+
+
+type _ProgramNetworkRequestRow = ProgramNetworkRequestLabel | ProgramOptionEffect
+
+
+@dataclass(frozen=True, slots=True)
+class _NetworkRequestCatalogs:
+    """Loaded catalog of `extract_network_requests`, shared by every `NetworkRequestKnowledge` of a process."""
+
+    program_network_requests: Catalog[_ProgramNetworkRequestRow]
+    # The keys of all rows, so the door can pick the row of an option before its one lookup.
+    program_network_request_row_keys: frozenset[KnowledgeRowKey]
+    # Whether any program row of each name fetches, so `may_program_fetch` answers without a lookup per row.
+    fetches_by_program_name: Mapping[str, bool]
+
+
+def _program_network_request_row_from_columns(
+    columns: Mapping[str, str],
+) -> _ProgramNetworkRequestRow:
+    """Read one row of `program_network_requests.csv`, a program row when `option_name` is blank and else an option row, raising ValueError on a cell that its kind of row does not allow."""
+    _check_review_columns(columns)
+    if not columns["program_name"]:
+        raise ValueError("program_name is empty")
+    if " ".join(columns["subcommand"].split()) != columns["subcommand"]:
+        raise ValueError(
+            f"subcommand {columns['subcommand']!r} is not words split by one space"
+        )
+    if columns["option_name"]:
+        return _program_option_effect_from_columns(columns)
+    return _program_network_request_label_from_columns(columns)
+
+
+def _program_network_request_label_from_columns(
+    columns: Mapping[str, str],
+) -> ProgramNetworkRequestLabel:
+    """Read a program row, in which `fetches` `no` leaves every other fact cell blank and else only `content_route` may be blank."""
+    _check_blank(columns, ("option_value", "option_effect"), row_kind="a program row")
+    fetches = columns["fetches"]
+    if fetches == _NO:
+        _check_blank(columns, _PROGRAM_FACT_COLUMNS[1:], row_kind="a row of `no`")
+        return NonFetchingProgramLabel()
+    if fetches not in (_YES, _ONLY_WHAT_IS_MISSING):
+        raise ValueError(f"fetches is {fetches!r}, not yes, no or only_what_is_missing")
+    content_route = columns["content_route"]
+    return FetchingProgramLabel(
+        fetches_only_what_is_missing=fetches == _ONLY_WHAT_IS_MISSING,
+        target_arguments=TargetArguments(columns["target_arguments"]),
+        target_kind=NetworkRequestTargetKind(columns["target_kind"]),
+        target_notation=TargetNotation(columns["target_notation"]),
+        target_without_target_arguments=TargetWithoutTargetArguments(
+            columns["target_without_target_arguments"]
+        ),
+        content_route=UnknownProgramContentRoute()
+        if content_route == ""
+        else ProgramContentRoute(content_route),
+    )
+
+
+def _program_option_effect_from_columns(
+    columns: Mapping[str, str],
+) -> ProgramOptionEffect:
+    """Read an option row, which leaves the program fact cells blank and names one `ProgramOptionEffect`."""
+    _check_blank(columns, _PROGRAM_FACT_COLUMNS, row_kind="an option row")
+    return ProgramOptionEffect(columns["option_effect"])
+
+
+def _check_blank(
+    columns: Mapping[str, str], blank_columns: tuple[str, ...], *, row_kind: str
+) -> None:
+    """Raise ValueError on a filled cell in a column that this kind of row leaves blank."""
+    filled_columns = [column for column in blank_columns if columns[column]]
+    if filled_columns:
+        raise ValueError(f"{filled_columns} are filled in {row_kind}")
+
+
+def _check_review_columns(columns: Mapping[str, str]) -> None:
+    """Raise ValueError on a row that does not say what it was checked against, or whose `reviewed` is neither empty nor `yes`."""
+    if not columns["checked_against"]:
+        raise ValueError("checked_against is empty")
+    if columns["reviewed"] not in ("", "yes"):
+        raise ValueError(f"reviewed is {columns['reviewed']!r}, not empty or yes")

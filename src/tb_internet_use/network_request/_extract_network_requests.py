@@ -12,8 +12,7 @@ from tb_internet_use.network_request.model import (
 
 if TYPE_CHECKING:
     # The door is passed in and named in annotations only, so that `extract_network_requests` never loads `knowledge/` itself.
-    # The door module does not exist yet, so pyright is told to skip the missing import until it does.
-    from tb_internet_use.knowledge.network_request_knowledge import (  # pyright: ignore[reportMissingImports]
+    from tb_internet_use.knowledge.network_request_knowledge import (
         NetworkRequestKnowledge,
     )
 
