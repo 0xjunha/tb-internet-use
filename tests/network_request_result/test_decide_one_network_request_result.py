@@ -478,6 +478,54 @@ RESULT_CASES = [
         {},
         id="`NOT_NEEDED` below a server answer is no failure and needs no rule",
     ),
+    # The request's own lines decide the stop reason at their level, and a line it shares with another request gives none there.
+    pytest.param(
+        REQUEST_FOR_CONTENT,
+        [
+            with_level(
+                output_line(OutputLineKind.BARE_STATUS_CODE), REACHED, NOT_VISIBLE
+            ),
+            with_level(
+                output_line(OutputLineKind.HTTP_STATUS, line_index=1, is_shared=True),
+                REACHED,
+                FAILED,
+                may_belong_to_another_request=True,
+            ),
+        ],
+        (REACHED, NOT_VISIBLE, CONFIRMED),
+        {},
+        id="own `200` of `curl -s -w %{http_code} u` beside a shared `HTTP/1.1 405` of `curl -s v`",
+    ),
+    pytest.param(
+        REQUEST_FOR_CONTENT,
+        [
+            HTTP_404,
+            with_level(
+                output_line(OutputLineKind.HTTP_STATUS, line_index=1, is_shared=True),
+                REACHED,
+                NOT_VISIBLE,
+                may_belong_to_another_request=True,
+            ),
+        ],
+        (REACHED, FAILED, CONFIRMED),
+        {},
+        id="own `HTTP/1.1 404` beside a shared `HTTP/1.1 200` needs no rule",
+    ),
+    pytest.param(
+        REQUEST_FOR_CONTENT,
+        [
+            EXIT_CODE_0_READ_AS_ANSWER,
+            with_level(
+                output_line(OutputLineKind.HTTP_STATUS, is_shared=True),
+                REACHED,
+                FAILED,
+                may_belong_to_another_request=True,
+            ),
+        ],
+        (REACHED, FAILED, ASSUMED),
+        {},
+        id="a shared `HTTP/1.1 404` still gives the stop reason beside exit 0 alone",
+    ),
 ]
 
 

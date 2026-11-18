@@ -328,7 +328,8 @@ def _level_and_stop_reason_from_output_line(
     elif kind in _SERVER_ANSWER_KINDS:
         level_and_stop_reason = _REACHED, _NOT_VISIBLE
     elif kind == OutputLineKind.NOT_FOUND:
-        level_and_stop_reason = _REACHED, _FAILED
+        # pip prints `No matching distribution found for x` also when the index cannot be reached, and apt prints `Unable to locate package x` from its local lists, so the line shows a failure but not that a server answered.
+        level_and_stop_reason = _EXECUTED, _FAILED
     elif kind == OutputLineKind.DOWNLOADED:
         level_and_stop_reason = _success_level_of(network_request), None
     elif kind in (OutputLineKind.HTTP_STATUS, OutputLineKind.BARE_STATUS_CODE):

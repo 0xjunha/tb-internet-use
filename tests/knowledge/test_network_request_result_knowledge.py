@@ -973,6 +973,7 @@ _ANSWERS_OF_REAL_PROGRAM_ROWS = [
     ("bunx", (), _lines(P.NPM), M.NOTHING),
     ("conda", ("install",), UnknownProgramOutputLines(), M.NOTHING),
     ("curl", (), _lines(P.CURL), M.SERVER_ANSWERED),
+    ("getent", ("hosts",), _lines(), _UNKNOWN_MEANING),
     ("gh", ("api",), _lines(P.GIT), M.REQUEST_SUCCEEDED),
     ("git", ("clone",), _lines(P.GIT), M.REQUEST_SUCCEEDED),
     ("git", ("submodule", "update"), _lines(P.GIT), M.NOTHING),

@@ -160,6 +160,7 @@ def _level_and_stop_reason_for(
 ) -> _LevelAndStopReason:
     """Pick the stop reason at `level` from the evidence of that level, asking a judgment rule when the evidence gives several that contradict each other.
 
+    A request is judged by its own evidence, so when an output line of this request alone shows the level, evidence that another request may share gives no stop reason there, e.g. the `200` that only `curl -s -w "%{http_code}" https://a.org/x` can have printed beside an `HTTP/1.1 405` of the same result that it shares with `curl -s https://b.org/y`.
     `NOT_VISIBLE` only says that nothing shows beyond the level, so it gives way to another stop reason without a rule, e.g. `Requirement already satisfied: x` beside exit 0 gives `NOT_NEEDED`.
     Two or more of no stop reason, `FAILED` and `NOT_NEEDED`, or `FAILED` beside evidence that the request may have gone on after the failure, e.g. `HTTP/1.1 404` and `HTTP/1.1 200` under `curl -i -L u`, are picked from by `treat_stop_reasons_of_one_level_as_first_in_fixed_order`, and the result then rests on it.
     """
@@ -168,6 +169,16 @@ def _level_and_stop_reason_for(
         for evidence_with_level in evidence_with_levels
         if evidence_with_level.level == level
     ]
+    if any(
+        isinstance(evidence_with_level.evidence, OutputLineEvidence)
+        and not evidence_with_level.may_belong_to_another_request
+        for evidence_with_level in evidence_at_level
+    ):
+        evidence_at_level = [
+            evidence_with_level
+            for evidence_with_level in evidence_at_level
+            if not evidence_with_level.may_belong_to_another_request
+        ]
     stop_reasons_to_pick_from = {
         evidence_with_level.stop_reason for evidence_with_level in evidence_at_level
     } - {NetworkRequestResultStopReason.NOT_VISIBLE}

@@ -30,7 +30,9 @@ from tb_internet_use.network_request.model import (
 from tb_internet_use.network_request_result import decide_network_request_results
 from tb_internet_use.network_request_result.model import (
     ExitCodeEvidence,
+    HttpStatusEvidence,
     NetworkRequestResult,
+    NetworkRequestResultCertainty,
     NetworkRequestResultLevel,
     NetworkRequestResultStopReason,
     OutputLineEvidence,
@@ -38,7 +40,16 @@ from tb_internet_use.network_request_result.model import (
     UnusedOutputLineReason,
 )
 from tb_internet_use.pipeline import KnowledgeDoors, run_steps_to_expanded_tool_calls
-from tb_internet_use.tool_call.model import HarnessTool, HarnessToolCall, ToolCallKey
+from tb_internet_use.tool_call.model import (
+    HarnessTool,
+    HarnessToolCall,
+    RunCommandAction,
+    RunToolScriptAction,
+    ToolCall,
+    ToolCallKey,
+    WebFetchAction,
+    WebSearchAction,
+)
 
 _SPEC = importlib.util.spec_from_file_location(
     "audit_network_request_results",
@@ -85,6 +96,32 @@ _MADE_UP_TRIAL = (
         {"command": "curl https://c.org/z"},
         {"content": json.dumps({"exception_info": "action was not executed"})},
     ),
+    # Exit code 0 of the text shows that sudo and curl ran, since sudo ends with the exit code of curl.
+    _bash_call(6, "sudo curl -s -o y https://f.org/b", ""),
+    # Exit code 0 of the text does not show that these ran: curl before a pipe, curl in a loop, curl under timeout, whose row leaves that fact blank, and curl in a file that bash runs.
+    _bash_call(7, "curl -s https://d.org/a | tar xz", ""),
+    _bash_call(8, "for u in https://e.org/a; do curl -s -o x $u; done", ""),
+    _bash_call(9, "timeout 5 curl -s -o z https://g.org/c", ""),
+    _bash_call(
+        10,
+        "cat > fetch.sh <<'EOF'\ncurl -s -o w https://h.org/d\nEOF\nbash fetch.sh",
+        "",
+    ),
+    # Two requests of one call, so that the status of one web fetch could not be told apart.
+    _bash_call(11, "curl -s -o p https://i.org/e https://i.org/f", ""),
+    # A request that asks for no content and fails at reached.
+    _bash_call(12, "curl -I https://j.org", "HTTP/1.1 404 Not Found"),
+    # A brace list may make the structure of the text wrong, so its exit code 0 shows nothing of curl.
+    _bash_call(13, "cp {a,b} /tmp; curl -s -o q https://k.org/g", ""),
+    # A page that curl shows, which only a judgment rule takes as the content asked for.
+    _bash_call(14, "curl -s https://m.org/p", "<html>a page</html>"),
+    # A download line of another package, shared by both requests and read only as a run, before an install line of A alone.
+    _bash_call(
+        15,
+        "pip install A B",
+        "Downloading D-1.0.whl\nSuccessfully installed A-1.0",
+        returncode=1,
+    ),
 )
 
 
@@ -102,10 +139,10 @@ class _Steps:
     ]
 
 
-def _steps() -> _Steps:
+def _steps(harness_tool_calls: tuple[HarnessToolCall, ...] = _MADE_UP_TRIAL) -> _Steps:
     knowledge_doors = KnowledgeDoors()
     expanded_tool_calls = run_steps_to_expanded_tool_calls(
-        _MADE_UP_TRIAL,
+        harness_tool_calls,
         knowledge_doors=knowledge_doors,
         tool_call_judgment_rule_use_counts=Counter(),
         expanded_tool_call_judgment_rule_use_counts=Counter(),
@@ -175,14 +212,23 @@ def test_every_equation_holds_on_a_made_up_trial():
     trial_audit = _checked(steps)
 
     assert _differing_equations(trial_audit) == set()
-    assert trial_audit.counts["all", "results"] == 4
+    assert trial_audit.counts["all", "results"] == 16
     assert trial_audit.counts["all", "results received none confirmed"] == 1
     assert trial_audit.counts["all", "results reached none confirmed"] == 1
     assert trial_audit.counts["all", "results attempted failed confirmed"] == 2
+    # Exit code 0 shows the run of wget, both `curl -I`, `sudo curl`, both requests of `curl -s -o p` and `curl -s https://m.org/p`, and not that of the other curl commands.
+    assert (
+        trial_audit.equation_sides[
+            "exit_zero_requests_equal_results_with_exit_zero_evidence", "left"
+        ]
+        == 7
+    )
+    assert trial_audit.counts["all", "results attempted not_visible confirmed"] == 5
     assert trial_audit.counts["all", "requests in the view received confirmed"] == 2
     assert trial_audit.received_trial_columns == {
         "with request",
         "with received",
+        "with assumed received",
         "with confirmed received",
         "with confirmed received of confirmed request",
     }
@@ -376,14 +422,132 @@ BROKEN_INPUT_CASES: list[tuple[str, Callable[[_Steps], _Steps]]] = [
 ]
 
 
+def _not_run_result_at_another_level(steps: _Steps) -> _Steps:
+    result = _result_of_step(steps, 5)
+    return _with_result(
+        steps,
+        5,
+        _unchecked_result(
+            **{
+                field.name: getattr(result, field.name)
+                for field in dataclasses.fields(result)
+            }
+            | {"level": NetworkRequestResultLevel.EXECUTED}
+        ),
+    )
+
+
+def _confirmed_reached_success_of_a_content_request(steps: _Steps) -> _Steps:
+    # wget asks for content, so its own `HTTP/1.1 200 OK` cannot make it a confirmed success at reached.
+    result = _result_of_step(steps, 1)
+    return _with_result(
+        steps,
+        1,
+        _unchecked_result(
+            **{
+                field.name: getattr(result, field.name)
+                for field in dataclasses.fields(result)
+            }
+            | {
+                "level": NetworkRequestResultLevel.REACHED,
+                "evidence": (
+                    OutputLineEvidence(
+                        _key(2), 0, None, OutputLineKind.HTTP_STATUS, False
+                    ),
+                ),
+            }
+        ),
+    )
+
+
+def _confirmed_reached_success_on_the_status_of_a_call_with_two_requests(
+    steps: _Steps,
+) -> _Steps:
+    # The status of a web fetch is that of one of the two requests of call 11, so it is no own status of the request of `curl -I`.
+    return _with_result(
+        steps,
+        2,
+        dataclasses.replace(
+            _result_of_step(steps, 2), evidence=(HttpStatusEvidence(_key(11), 200),)
+        ),
+    )
+
+
+def _confirmed_reached_success_on_an_own_failure_status(steps: _Steps) -> _Steps:
+    # The `HTTP/1.1 404 Not Found` of call 12 is no success status.
+    return _with_result(
+        steps,
+        2,
+        dataclasses.replace(
+            _result_of_step(steps, 2),
+            evidence=(
+                OutputLineEvidence(
+                    _key(12), 0, None, OutputLineKind.HTTP_STATUS, False
+                ),
+            ),
+        ),
+    )
+
+
+def _uncertain_request_lifted_on_a_shared_line(steps: _Steps) -> _Steps:
+    result = _result_of_step(steps, 1)
+    return _with_result(
+        steps,
+        1,
+        _unchecked_result(
+            **{
+                field.name: getattr(result, field.name)
+                for field in dataclasses.fields(result)
+            }
+            | {
+                "network_request": dataclasses.replace(
+                    result.network_request,
+                    certainty=NetworkRequestCertainty.UNCERTAIN,
+                    uncertainty_reason=NetworkRequestUncertaintyReason.UNKNOWN_PROGRAM,
+                ),
+                "evidence": (
+                    OutputLineEvidence(
+                        _key(1), 0, None, OutputLineKind.DOWNLOADED, True
+                    ),
+                ),
+            }
+        ),
+    )
+
+
+# More broken inputs of some equations, each breaking a condition that the first one does not reach.
+MORE_BROKEN_INPUT_CASES: list[tuple[str, Callable[[_Steps], _Steps]]] = [
+    (
+        "not_run_requests_equal_not_run_failed_results",
+        _not_run_result_at_another_level,
+    ),
+    (
+        "confirmed_reached_successes_without_own_status",
+        _confirmed_reached_success_of_a_content_request,
+    ),
+    (
+        "confirmed_reached_successes_without_own_status",
+        _confirmed_reached_success_on_the_status_of_a_call_with_two_requests,
+    ),
+    (
+        "confirmed_reached_successes_without_own_status",
+        _confirmed_reached_success_on_an_own_failure_status,
+    ),
+    ("lifted_requests_without_own_line", _uncertain_request_lifted_on_a_shared_line),
+]
+
+
 def test_every_equation_has_a_broken_input():
     assert [equation for equation, _ in BROKEN_INPUT_CASES] == list(audit.EQUATIONS)
 
 
 @pytest.mark.parametrize(
     ("equation", "broken_input_of"),
-    BROKEN_INPUT_CASES,
-    ids=[equation for equation, _ in BROKEN_INPUT_CASES],
+    BROKEN_INPUT_CASES + MORE_BROKEN_INPUT_CASES,
+    ids=[
+        broken_input_of.__name__
+        for _, broken_input_of in BROKEN_INPUT_CASES + MORE_BROKEN_INPUT_CASES
+    ],
 )
 def test_a_broken_input_makes_its_equation_differ(equation, broken_input_of):
     trial_audit = _checked(broken_input_of(_steps()))
@@ -398,8 +562,19 @@ def test_lists_lines_by_kind_and_use_and_unowned_lines_by_program():
         UnusedOutputLineReason.UNOWNED_LINE_IN_UNKNOWN_RUN.value,
         OutputLineKind.DOWNLOAD_STARTED.value,
     )
+    # Two download start lines match, that of ./setup.sh and that of D under `pip install A B`, which both requests of pip share.
     assert (
-        trial_audit.list_counts["output lines by kind", unowned[1:] + ("matched",)] == 1
+        trial_audit.list_counts["output lines by kind", unowned[1:] + ("matched",)] == 2
+    )
+    assert (
+        trial_audit.list_counts[
+            "output lines by kind",
+            (
+                OutputLineKind.DOWNLOAD_STARTED.value,
+                "evidence shared by several requests",
+            ),
+        ]
+        == 1
     )
     assert (
         trial_audit.list_counts[
@@ -418,6 +593,82 @@ def test_lists_lines_by_kind_and_use_and_unowned_lines_by_program():
     assert trial_audit.list_counts["unowned output lines", (*unowned, "")] == 1
     assert trial_audit.list_counts["unowned output lines", (*unowned, "setup.sh")] == 1
     assert trial_audit.list_counts["evidence kinds", ("output line downloaded",)] == 1
+
+
+def test_counts_the_strongest_evidence_of_each_result():
+    trial_audit = _checked(_steps())
+
+    strongest_counts = {
+        evidence_kind: count
+        for (
+            evidence_kind,
+            outcome,
+        ), count in trial_audit.evidence_kind_outcome_counts.items()
+        if outcome == "strongest" and count
+    }
+    # wget's own download line outranks its exit code 0, and exit code 0 of `curl -s -o p`, which the door reads as a server's answer, outranks nothing else.
+    # The shared download line of D shows only that pip ran, so the install line of A alone outranks it, while it stays the strongest evidence of B.
+    assert strongest_counts == {
+        "output line downloaded": 1,
+        "output line installed": 1,
+        "output line download_started": 1,
+        "output line http_status 100-399": 1,
+        "output line program_missing": 1,
+        "execution status not_run": 1,
+        "exit code 0, door answer server_answered": 3,
+        "output line http_status 400-599": 1,
+        "shown content of a command result": 1,
+    }
+
+
+def test_a_result_is_in_the_lower_bound_only_as_a_confirmed_success_of_a_confirmed_request():
+    steps = _steps()
+    received = _result_of_step(steps, 1)
+    reached_without_content = _result_of_step(steps, 2)
+
+    def changed(result: NetworkRequestResult, **fields: Any) -> NetworkRequestResult:
+        return _unchecked_result(
+            **{
+                field.name: getattr(result, field.name)
+                for field in dataclasses.fields(result)
+            }
+            | fields
+        )
+
+    assert audit._is_in_lower_bound(received)
+    assert audit._is_in_lower_bound(reached_without_content)
+    assert not audit._is_in_lower_bound(
+        changed(
+            received,
+            request_certainty_after_evidence=NetworkRequestCertainty.UNCERTAIN,
+        )
+    )
+    assert not audit._is_in_lower_bound(
+        changed(received, level_certainty=NetworkRequestResultCertainty.ASSUMED)
+    )
+    assert not audit._is_in_lower_bound(
+        changed(received, level=NetworkRequestResultLevel.REACHED)
+    )
+
+
+def test_lists_the_rule_that_alone_keeps_a_result_out_of_the_lower_bound_by_whether_the_trial_has_another_in_it():
+    # The page that curl shows is the only success that a rule keeps out, beside the confirmed download of wget, and alone in a trial of its own.
+    rule_name = "treat_shown_result_text_as_assumed_content"
+    beside_download = _checked(_steps())
+    alone = _checked(
+        _steps(tuple(call for call in _MADE_UP_TRIAL if call.key == _key(14)))
+    )
+
+    assert {
+        row_key: count
+        for (list_name, row_key), count in beside_download.list_counts.items()
+        if list_name == "rules keeping out of the lower bound"
+    } == {(rule_name, "yes"): 1}
+    assert {
+        row_key: count
+        for (list_name, row_key), count in alone.list_counts.items()
+        if list_name == "rules keeping out of the lower bound"
+    } == {(rule_name, "no"): 1}
 
 
 def _csv_rows(path: Path) -> list[list[str]]:
@@ -586,11 +837,35 @@ def test_audit_trial_decides_and_checks_a_trial_folder(tmp_path):
 def test_audit_trial_gives_the_same_lookups_for_a_trial_audited_twice(tmp_path):
     trial_dir = _raw_trials_dir(tmp_path) / "t1"
 
-    first = audit.audit_trial(trial_dir)
+    # The counts of the first trial are copied before the second, since a door that kept its uses would change them in place.
+    first_row_use_counts = Counter(
+        audit.audit_trial(trial_dir).knowledge_uses.row_use_counts
+    )
     second = audit.audit_trial(trial_dir)
 
-    assert first.knowledge_uses.row_use_counts
-    assert second.knowledge_uses == first.knowledge_uses
+    assert first_row_use_counts
+    assert second.knowledge_uses.row_use_counts == first_row_use_counts
+
+
+def test_only_a_call_of_web_tool_actions_alone_is_read_as_page_text():
+    def tool_call_of(action: Any) -> ToolCall:
+        return ToolCall(
+            HarnessToolCall(_key(1), HarnessTool("codex", "exec"), "1", {}, None),
+            action,
+            None,
+        )
+
+    assert audit._has_only_web_tool_actions(tool_call_of(WebFetchAction()))
+    assert audit._has_only_web_tool_actions(
+        tool_call_of(RunToolScriptAction(steps=(WebSearchAction(), WebFetchAction())))
+    )
+    assert not audit._has_only_web_tool_actions(
+        tool_call_of(
+            RunToolScriptAction(steps=(WebFetchAction(), RunCommandAction("ls")))
+        )
+    )
+    assert not audit._has_only_web_tool_actions(tool_call_of(RunToolScriptAction()))
+    assert not audit._has_only_web_tool_actions(tool_call_of(RunCommandAction("ls")))
 
 
 def test_audit_trial_names_a_missing_folder_apart_from_a_missing_trajectory(

@@ -28,7 +28,7 @@ They hold counts, harness names, task names, trial ids, call keys, exception typ
 | `equations.csv` | An equation of the table, with its two sides and whether they are equal |
 | `equation_examples.csv` | A call where an equation differs, the first 20 per equation |
 | `results_by_level.csv` | A harness, or `all`, a level, a stop reason and a level certainty, with its results, trials and tasks |
-| `evidence_by_kind.csv` | A kind of evidence, with the requests that have it, their trials and tasks, and of those requests the confirmed received, the assumed received and the lower ones |
+| `evidence_by_kind.csv` | A kind of evidence, with the requests that have it, their trials and tasks, of those requests the confirmed received, the assumed received and the lower ones, and the requests whose strongest evidence it is, i.e. evidence that shows the level of the result, one that no other request shares first |
 | `output_lines_by_kind.csv` | An output line kind and a use, i.e. matched, evidence of one request, evidence shared by several or unused with its reason, with its lines |
 | `requests_with_shown_output_and_no_trace.csv` | A program with its subcommand and options, a code language or a web tool, with its requests whose output reached a result but which have no output line evidence, their trials and tasks, most first |
 | `unowned_output_lines.csv` | A reason, an output line kind and a program name that reaches the place of the line, blank for the lines themselves, with the lines, trials and tasks |
@@ -37,6 +37,7 @@ They hold counts, harness names, task names, trial ids, call keys, exception typ
 | `exit_code_rule_uses.csv` | An answer of the door that makes exit code 0 give a level, a program and a subcommand, with its requests, trials and tasks |
 | `file_use_rule_conditions.csv` | A condition that makes a use of a saved file uncertain, or none, with its requests, trials and tasks |
 | `requests_by_evidence_pair.csv` | A pair of evidence that the report lists apart, with its requests, trials and tasks |
+| `judgment_rule_lower_bound_changes.csv` | A judgment rule and whether another result of the trial is in the lower bound, with the assumed successes of confirmed requests that would be in the lower bound if the evidence of that rule alone were a fact, their trials and tasks. The trials of `no` would newly be in it. The rule is read from the kind of the evidence, since a result keeps no rule, so a line of one request alone names two rules |
 | `received_trials.csv` | All trials, a harness or a task, with its trials, those with a request, with a confirmed received result, with one whose request is also confirmed, and with any received result |
 | `knowledge_row_uses.csv` | A row of a catalog or an output line pattern of `NetworkRequestResultKnowledge`, with its uses and trials |
 | `unknown_inputs.csv` | A program run, option or exit code without a row, with its lookups, its trials and its tasks, most lookups first |
@@ -91,6 +92,7 @@ from tb_internet_use.network_request_result.model import (
     HttpStatusEvidence,
     NetworkRequestResult,
     NetworkRequestResultCertainty,
+    NetworkRequestResultEvidence,
     NetworkRequestResultLevel,
     NetworkRequestResultStopReason,
     OutputLineEvidence,
@@ -193,6 +195,27 @@ _REPORT_VIEW_BY_STOP_REASON = {
 }
 # The levels from the lowest, to tell a lower result in `evidence_by_kind.csv`.
 _LEVELS_IN_ORDER = (_ATTEMPTED, _EXECUTED, _REACHED, _RECEIVED)
+# The level and stop reason that a line of each kind shows, with the provisional choice of each judgment rule, read again here since a result keeps no level of its evidence. Lines of status codes and of content received are read in `_level_and_stop_reason_of_evidence`.
+_LEVEL_AND_STOP_REASON_BY_OUTPUT_LINE_KIND = {
+    OutputLineKind.PROGRAM_MISSING: (_ATTEMPTED, _FAILED),
+    OutputLineKind.NAME_NOT_RESOLVED: (_EXECUTED, _FAILED),
+    OutputLineKind.CONNECTION_FAILED: (_EXECUTED, _FAILED),
+    OutputLineKind.REFUSED_LOCALLY: (_EXECUTED, _FAILED),
+    OutputLineKind.TLS_FAILED: (_EXECUTED, _FAILED),
+    OutputLineKind.PROXY_REFUSED: (_EXECUTED, _FAILED),
+    OutputLineKind.NOT_FOUND: (_EXECUTED, _FAILED),
+    OutputLineKind.CONNECTION_LOST: (_REACHED, _FAILED),
+    OutputLineKind.ALREADY_PRESENT: (_EXECUTED, _NOT_NEEDED),
+    OutputLineKind.CONNECTED: (_REACHED, _NOT_VISIBLE),
+    OutputLineKind.SERVER_ANSWERED: (_REACHED, _NOT_VISIBLE),
+    OutputLineKind.DOWNLOAD_STARTED: (_REACHED, _NOT_VISIBLE),
+    OutputLineKind.INSTALLED: (_EXECUTED, _NOT_VISIBLE),
+    OutputLineKind.VERSION_NOTICE: (_EXECUTED, _NOT_VISIBLE),
+}
+# The row of `judgment_rule_lower_bound_changes.csv` for an assumed success that no one rule keeps out of the lower bound, e.g. shown content beside a failure.
+_NO_SINGLE_RULE = "no single rule"
+# The rules that can leave a line of one request alone uncertain, which a result does not tell apart.
+_RULES_OF_AN_OWN_LINE_IN_AN_ASSUMED_RESULT = f"{judgment_rules.treat_line_beside_shown_file_or_page_text_as_not_a_trace.__name__} or {judgment_rules.treat_line_that_unknown_printer_may_have_printed_as_shared.__name__}"
 _WEB_TOOL_ACTIONS = (WebFetchAction, WebSearchAction, WebFindAction)
 # The place of a line in the results of one trial, i.e. the call key, the line index and the index in the JSON string.
 type _LinePlace = tuple[ToolCallKey, int, int | None]
@@ -281,6 +304,7 @@ def write_audit_files(total: TrialAuditTotal, out_dir: Path) -> None:
             "received_confirmed_count",
             "received_assumed_count",
             "lower_count",
+            "strongest_count",
         ),
         (
             (
@@ -291,6 +315,7 @@ def write_audit_files(total: TrialAuditTotal, out_dir: Path) -> None:
                 total.evidence_kind_outcome_counts[row_key[0], "received confirmed"],
                 total.evidence_kind_outcome_counts[row_key[0], "received assumed"],
                 total.evidence_kind_outcome_counts[row_key[0], "lower"],
+                total.evidence_kind_outcome_counts[row_key[0], "strongest"],
             )
             for row_key, count in total.list_rows_of(_EVIDENCE_KINDS)
         ),
@@ -397,6 +422,7 @@ _UNOWNED_OUTPUT_LINES = "unowned output lines"
 _EXIT_CODE_RULE_USES = "exit code rule uses"
 _FILE_USE_RULE_CONDITIONS = "file use rule conditions"
 _EVIDENCE_PAIRS = "evidence pairs"
+_RULES_KEEPING_OUT_OF_LOWER_BOUND = "rules keeping out of the lower bound"
 _LISTS = (
     (
         _RESULTS_BY_LEVEL,
@@ -421,6 +447,11 @@ _LISTS = (
     ),
     (_FILE_USE_RULE_CONDITIONS, "file_use_rule_conditions.csv", ("condition",)),
     (_EVIDENCE_PAIRS, "requests_by_evidence_pair.csv", ("evidence_pair",)),
+    (
+        _RULES_KEEPING_OUT_OF_LOWER_BOUND,
+        "judgment_rule_lower_bound_changes.csv",
+        ("judgment_rule", "trial_has_another_result_in_lower_bound"),
+    ),
 )
 # The columns of `received_trials.csv` after the scope.
 _RECEIVED_TRIAL_COLUMNS = (
@@ -549,6 +580,8 @@ class TrialAudit:
     )
     # The columns of `_RECEIVED_TRIAL_COLUMNS` that the trial fills.
     received_trial_columns: set[str] = field(default_factory=set)
+    # The rule of each result that only it keeps out of the lower bound, once per rule and result.
+    rules_keeping_out_of_lower_bound: list[str] = field(default_factory=list)
     has_unowned_line_in_unknown_run: bool = False
     # The rows of `output_line_meanings.csv` without the trial id.
     output_line_meaning_rows: list[tuple[str, int, str, str, str, str, str]] = field(
@@ -1036,6 +1069,11 @@ class TrialChecker:
         for evidence_kind in self._evidence_kinds_of(result):
             trial_audit.list_counts[_EVIDENCE_KINDS, (evidence_kind,)] += 1
             trial_audit.evidence_kind_outcome_counts[evidence_kind, outcome] += 1
+        strongest_evidence = self._strongest_evidence_of(result)
+        if strongest_evidence is not None:
+            trial_audit.evidence_kind_outcome_counts[
+                self._evidence_kind_of(result, strongest_evidence), "strongest"
+            ] += 1
         if not any(
             isinstance(evidence, OutputLineEvidence) for evidence in result.evidence
         ) and self._has_shown_output(result.network_request):
@@ -1048,6 +1086,9 @@ class TrialChecker:
             trial_audit.list_counts[_FILE_USE_RULE_CONDITIONS, (condition,)] += 1
         for evidence_pair in self._evidence_pairs_of(result):
             trial_audit.list_counts[_EVIDENCE_PAIRS, (evidence_pair,)] += 1
+        trial_audit.rules_keeping_out_of_lower_bound += (
+            self._rules_keeping_out_of_lower_bound_of(result)
+        )
         trial_audit.received_trial_columns.add("with request")
         if result.level == _RECEIVED:
             trial_audit.received_trial_columns.add("with received")
@@ -1073,54 +1114,209 @@ class TrialChecker:
         return "lower"
 
     def _evidence_kinds_of(self, result: NetworkRequestResult) -> set[str]:
-        """Name the kinds of evidence of a result, splitting status codes at 400, shown content by tool, file uses by kind and exit code 0 by the door's answer."""
-        evidence_kinds: set[str] = set()
-        for evidence in result.evidence:
-            if isinstance(evidence, OutputLineEvidence):
-                status_code = self._status_code_of_line(evidence)
-                status_range = (
-                    ""
-                    if status_code is None
-                    else " 100-399"
-                    if 100 <= status_code <= 399
-                    else " 400-599"
-                    if 400 <= status_code <= 599
-                    else f" {status_code}"
-                )
-                evidence_kinds.add(f"output line {evidence.kind.value}{status_range}")
-            elif isinstance(evidence, HttpStatusEvidence):
-                evidence_kinds.add(
-                    "http status 100-399"
-                    if evidence.http_status < 400
-                    else "http status 400-599"
-                )
-            elif isinstance(evidence, ShownContentEvidence):
-                action = self.expanded_tool_call_by_key[
-                    evidence.showing_tool_call_key
-                ].tool_call.action
-                evidence_kinds.add(
-                    "shown content of web search"
-                    if isinstance(action, WebSearchAction)
-                    else "shown content of web fetch"
-                    if isinstance(action, WebFetchAction)
-                    else "shown content of a command result"
-                )
-            elif isinstance(evidence, FileUseEvidence):
-                evidence_kinds.add(f"file use {evidence.file_use.kind.value}")
-            elif isinstance(evidence, ExitCodeEvidence):
-                evidence_kinds.add(
-                    f"exit code {evidence.exit_code}, door answer {self._exit_code_answer_of(result.network_request, evidence.exit_code)}"
-                )
-            else:
-                evidence_kinds.add(
-                    f"execution status {evidence.execution_status.value}"
-                )
+        """Name the kinds of evidence of a result as `_evidence_kind_of` names each, and a use of the saved file that shows only its size or type, which gives no evidence."""
+        evidence_kinds = {
+            self._evidence_kind_of(result, evidence) for evidence in result.evidence
+        }
         if any(
             file_use.kind == FileUseKind.SHOWS_SIZE_OR_TYPE
             for file_use in self._saved_file_uses_of(result.network_request)
         ):
             evidence_kinds.add("file use shows_size_or_type, which gives no evidence")
         return evidence_kinds
+
+    def _evidence_kind_of(
+        self, result: NetworkRequestResult, evidence: NetworkRequestResultEvidence
+    ) -> str:
+        """Name the kind of one piece of evidence of a result, splitting status codes at 400, shown content by tool, file uses by kind and exit code 0 by the door's answer."""
+        if isinstance(evidence, OutputLineEvidence):
+            status_code = self._status_code_of_line(evidence)
+            status_range = (
+                ""
+                if status_code is None
+                else " 100-399"
+                if 100 <= status_code <= 399
+                else " 400-599"
+                if 400 <= status_code <= 599
+                else f" {status_code}"
+            )
+            return f"output line {evidence.kind.value}{status_range}"
+        if isinstance(evidence, HttpStatusEvidence):
+            return (
+                "http status 100-399"
+                if evidence.http_status < 400
+                else "http status 400-599"
+            )
+        if isinstance(evidence, ShownContentEvidence):
+            action = self.expanded_tool_call_by_key[
+                evidence.showing_tool_call_key
+            ].tool_call.action
+            return (
+                "shown content of web search"
+                if isinstance(action, WebSearchAction)
+                else "shown content of web fetch"
+                if isinstance(action, WebFetchAction)
+                else "shown content of a command result"
+            )
+        if isinstance(evidence, FileUseEvidence):
+            return f"file use {evidence.file_use.kind.value}"
+        if isinstance(evidence, ExitCodeEvidence):
+            return f"exit code {evidence.exit_code}, door answer {self._exit_code_answer_of(result.network_request, evidence.exit_code)}"
+        return f"execution status {evidence.execution_status.value}"
+
+    def _strongest_evidence_of(
+        self, result: NetworkRequestResult
+    ) -> NetworkRequestResultEvidence | None:
+        """Find the strongest evidence of a result, i.e. one that shows its level as `_level_and_stop_reason_of_evidence` reads it, or the highest below it, evidence that no other request shares first and then the first in order.
+
+        A result keeps no level of each piece of evidence, so this script reads the level again from the kind of the evidence with the provisional choice of each judgment rule. A line that names another target is read by its kind, so its level is capped at the result's, e.g. `Downloading B-1.0.whl` under `pip install A` does not outrank exit code 0.
+        """
+        level_index = _LEVELS_IN_ORDER.index(result.level)
+        evidence_with_level_index = [
+            (
+                min(
+                    _LEVELS_IN_ORDER.index(
+                        self._level_and_stop_reason_of_evidence(result, evidence)[0]
+                    ),
+                    level_index,
+                ),
+                not _is_evidence_shared(evidence),
+                -evidence_index,
+                evidence,
+            )
+            for evidence_index, evidence in enumerate(result.evidence)
+        ]
+        if not evidence_with_level_index:
+            return None
+        return max(evidence_with_level_index, key=lambda item: item[:3])[3]
+
+    def _level_and_stop_reason_of_evidence(
+        self, result: NetworkRequestResult, evidence: NetworkRequestResultEvidence
+    ) -> tuple[NetworkRequestResultLevel, NetworkRequestResultStopReason | None]:
+        """Read the level and stop reason that one piece of evidence shows, from its kind, the status code of its line and the door's answer for exit code 0, with the provisional choice of each judgment rule.
+
+        Content received or a status below 400 is a success at `REACHED` for a request that asks for no content, e.g. `curl -I u`.
+        """
+        success_level = (
+            _REACHED
+            if isinstance(
+                result.network_request.received_content_destination,
+                NoContentRequested,
+            )
+            else _RECEIVED
+        )
+        if isinstance(evidence, ExecutionStatusEvidence):
+            return (
+                (_ATTEMPTED, _FAILED)
+                if evidence.execution_status == ExecutionStatus.NOT_RUN
+                else (_EXECUTED, _NOT_VISIBLE)
+            )
+        if isinstance(evidence, ShownContentEvidence | FileUseEvidence):
+            return success_level, None
+        if isinstance(evidence, ExitCodeEvidence):
+            answer = self._exit_code_answer_of(
+                result.network_request, evidence.exit_code
+            )
+            if answer == ProgramExitCodeMeaning.REQUEST_SUCCEEDED.value:
+                return success_level, None
+            if answer == ProgramExitCodeMeaning.SERVER_ANSWERED.value:
+                return _REACHED, _NOT_VISIBLE
+            return _EXECUTED, _NOT_VISIBLE
+        status_code = (
+            evidence.http_status
+            if isinstance(evidence, HttpStatusEvidence)
+            else self._status_code_of_line(evidence)
+        )
+        if status_code is not None:
+            if status_code == 0:
+                return _EXECUTED, _FAILED
+            if status_code >= 400:
+                return _REACHED, _FAILED
+            return (
+                (_REACHED, None)
+                if success_level == _REACHED
+                else (_REACHED, _NOT_VISIBLE)
+            )
+        assert isinstance(evidence, OutputLineEvidence)
+        if evidence.kind == OutputLineKind.DOWNLOADED:
+            return success_level, None
+        return _LEVEL_AND_STOP_REASON_BY_OUTPUT_LINE_KIND[evidence.kind]
+
+    def _rules_keeping_out_of_lower_bound_of(
+        self, result: NetworkRequestResult
+    ) -> list[str]:
+        """Name the judgment rule whose evidence alone, if it were a fact, would put an assumed success of a confirmed request into the lower bound, or `no single rule`.
+
+        The success evidence of each rule is read from its kind, e.g. shown content for `treat_shown_result_text_as_assumed_content`. A line of this request alone in an assumed result rests on a rule that the result does not name, so it is listed under the two rules that make such a line uncertain.
+        Failure evidence beside the success makes the result rest on the rule that picks between them, which then is the only rule that could change it, and only when a line of this request alone shows the success.
+        """
+        success_level = (
+            _REACHED
+            if isinstance(
+                result.network_request.received_content_destination,
+                NoContentRequested,
+            )
+            else _RECEIVED
+        )
+        if (
+            (result.level, result.stop_reason) != (success_level, None)
+            or result.level_certainty == _CONFIRMED
+            or result.request_certainty_after_evidence
+            != NetworkRequestCertainty.CONFIRMED
+        ):
+            return []
+        levels_and_stop_reasons = [
+            (evidence, self._level_and_stop_reason_of_evidence(result, evidence))
+            for evidence in result.evidence
+        ]
+        failure_levels = [
+            level
+            for _, (level, stop_reason) in levels_and_stop_reasons
+            if stop_reason == _FAILED
+        ]
+        success_evidence = [
+            evidence
+            for evidence, level_and_stop_reason in levels_and_stop_reasons
+            if level_and_stop_reason == (success_level, None)
+        ]
+        if failure_levels:
+            if not any(
+                isinstance(evidence, OutputLineEvidence)
+                and not evidence.is_shared_with_other_requests
+                for evidence in success_evidence
+            ):
+                return [_NO_SINGLE_RULE]
+            return [
+                judgment_rules.treat_stop_reasons_of_one_level_as_first_in_fixed_order.__name__
+                if success_level in failure_levels
+                else judgment_rules.treat_higher_evidence_beside_failure_as_assumed_level.__name__
+            ]
+        rule_names = sorted(
+            {
+                rule_name
+                for evidence in success_evidence
+                if (rule_name := self._rule_of_success_evidence(evidence)) is not None
+            }
+        )
+        return rule_names or [_NO_SINGLE_RULE]
+
+    def _rule_of_success_evidence(
+        self, evidence: NetworkRequestResultEvidence
+    ) -> str | None:
+        """Name the judgment rule that leaves one piece of success evidence assumed, or None for evidence that another request shares, which no rule leaves so."""
+        if isinstance(evidence, ShownContentEvidence):
+            return judgment_rules.treat_shown_result_text_as_assumed_content.__name__
+        if isinstance(evidence, FileUseEvidence):
+            return (
+                judgment_rules.treat_shown_content_of_saved_file_as_assumed_content.__name__
+                if evidence.file_use.kind == FileUseKind.SHOWS_CONTENT
+                else judgment_rules.treat_file_use_that_may_not_have_happened_as_assumed_evidence.__name__
+            )
+        if isinstance(evidence, ExitCodeEvidence):
+            return judgment_rules.treat_exit_code_meaning_as_assumed_level.__name__
+        if _is_evidence_shared(evidence):
+            return None
+        return _RULES_OF_AN_OWN_LINE_IN_AN_ASSUMED_RESULT
 
     def _exit_code_answer_of(
         self, network_request: NetworkRequest, exit_code: int
@@ -1350,11 +1546,40 @@ class TrialChecker:
             ] += count
 
     def count_trial(self) -> None:
-        """Count the trial, and whether it has a request and a received result."""
+        """Count the trial, whether it has a request and a received result, and each rule that keeps a result of it out of the lower bound, by whether another result of the trial is in it."""
         trial_audit = self.trial_audit
         trial_audit.count("trials")
         for column in sorted(trial_audit.received_trial_columns):
             trial_audit.count(f"trials {column}")
+        has_result_in_lower_bound = any(
+            _is_in_lower_bound(result) for result in self.network_request_results
+        )
+        for rule_name in trial_audit.rules_keeping_out_of_lower_bound:
+            trial_audit.list_counts[
+                _RULES_KEEPING_OUT_OF_LOWER_BOUND,
+                (rule_name, "yes" if has_result_in_lower_bound else "no"),
+            ] += 1
+
+
+def _is_in_lower_bound(result: NetworkRequestResult) -> bool:
+    """Tell whether a result is in the lower bound of what was received, i.e. a confirmed success of a request that is confirmed after the evidence."""
+    success_level = (
+        _REACHED
+        if isinstance(
+            result.network_request.received_content_destination, NoContentRequested
+        )
+        else _RECEIVED
+    )
+    return (
+        (result.level, result.stop_reason) == (success_level, None)
+        and result.level_certainty == _CONFIRMED
+        and result.request_certainty_after_evidence == NetworkRequestCertainty.CONFIRMED
+    )
+
+
+def _is_evidence_shared(evidence: NetworkRequestResultEvidence) -> bool:
+    """Tell whether a piece of evidence says that other requests share it, which shown content and a file use never say."""
+    return getattr(evidence, "is_shared_with_other_requests", False)
 
 
 def _request_key_of(network_request: NetworkRequest) -> tuple[ToolCallKey, int]:

@@ -299,13 +299,13 @@ Then each request is judged on its own evidence, i.e. its lines, the exit code o
 | What does `Connection timed out` mean? | No connection was made, and any program may print it |
 | What does `Successfully installed X` mean, and who prints it? | A package was installed, printed by pip |
 | Which lines does a run of `pip install` print? | pip's |
-| Which lines does a run of `curl -sS -O` print? | Unknown, since `-S` and `-O` have no row yet |
+| Which lines does a run of `curl -sS -O` print? | curl's |
 
 | Output place | Commands that reach it | Lines a pattern fits | Owner | Result |
 |---|---|---|---|---|
 | c1's result | curl x.tgz, curl y.tgz, echo | `Connection timed out` | r1 and r2 share it | Both executed, failed, assumed |
 | c4's result | bash and pip of c3 | `Downloading requests-2.32.3`, `Successfully installed requests-2.32.3` | r4 | Reached, not visible, confirmed |
-| c5's result | bash and curl of c3, through fetch.log | `Could not resolve host: data.example.org` | r3 | Executed, failed, assumed |
+| c5's result | bash and curl of c3, through fetch.log | `Could not resolve host: data.example.org` | r3 | Executed, failed, confirmed |
 | c6's result | bash of c6, which ran unknown content | `Downloading torch-2.3.0`, `Successfully installed torch-2.3.0` | None | Two lines counted as unused, by the program `bash` that reaches the place |
 
 ```python
@@ -332,7 +332,7 @@ r4.result = NetworkRequestResult(
 )
 ```
 
-r3 owns its line alone, yet its result is assumed, since the door does not know which lines a run of `curl -sS -O` prints, so another program may have printed it.
+r3 owns its line alone, and no run whose lines are unknown reaches c5, so its failure is confirmed.
 A Claude Code `Bash` result gives no exit code line, so no request here gets evidence from an exit code, and each counts `treat_command_without_own_evidence_as_no_evidence_of_run` once.
 Case C gives no request. If setup.sh did fetch torch, that request is missing from both bounds, and only the count of unused lines shows it.
 Had a later call unpacked x.tgz, that use would be r1's own evidence that its content arrived.

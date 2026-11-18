@@ -86,6 +86,7 @@ pnpm,exec,,0,nothing,"not checked, from the old table",,
 pnpm,install,,0,nothing,"not checked, from the old table",,
 sbt,,,0,nothing,"not checked, from the old table",,
 uv,pip install,,0,nothing,"not checked, from the old table",,
+uv,pip install,--system,0,changes_nothing,"--system, uv pip install Options (Install packages into the system Python environment), uv documentation for 0.13.9 (docs.astral.sh/uv/reference/cli/)",,It picks the Python environment to install into
 uv,run,,0,nothing,"not checked, from the old table",,
 uv,venv,,0,nothing,"not checked, from the old table",,
 wget,,,0,request_succeeded,"not checked, from the old table",,

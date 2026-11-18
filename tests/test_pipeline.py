@@ -400,6 +400,7 @@ def test_runs_the_extraction_of_network_requests_after_the_expansion_with_its_ow
 
 def test_runs_the_decision_of_request_results_after_the_extraction_with_its_own_door_and_counters():
     # pip prints that it installed x, and the later call runs a script whose text the trial does not hold, which prints a download line.
+    # The last call runs mytool, which has no row, on a URL, which `extract_network_requests` counts under one of its rules, and cat, which gives no request.
     harness_tool_calls = (
         HarnessToolCall(
             ToolCallKey("t1", "main", 1, 0),
@@ -415,10 +416,18 @@ def test_runs_the_decision_of_request_results_after_the_extraction_with_its_own_
             {"command": "./setup.sh"},
             {"content": "Downloading torch-2.3.0.whl"},
         ),
+        HarnessToolCall(
+            ToolCallKey("t1", "main", 3, 0),
+            HarnessTool("claude-code", "Bash"),
+            "c",
+            {"command": "mytool https://b.org/y; cat notes.txt"},
+            {"content": ""},
+        ),
     )
     knowledge_doors = KnowledgeDoors()
     tool_call_judgment_rule_use_counts: Counter[str] = Counter()
     network_request_judgment_rule_use_counts: Counter[str] = Counter()
+    no_network_request_counts: Counter[NoNetworkRequestReason] = Counter()
     network_request_result_judgment_rule_use_counts: Counter[str] = Counter()
     unused_output_line_counts: Counter[
         tuple[UnusedOutputLineReason, OutputLineKind]
@@ -427,19 +436,22 @@ def test_runs_the_decision_of_request_results_after_the_extraction_with_its_own_
         tuple[UnusedOutputLineReason, OutputLineKind, str]
     ] = Counter()
 
-    (network_request_result,) = run_steps_to_network_request_results(
-        harness_tool_calls,
-        knowledge_doors=knowledge_doors,
-        tool_call_judgment_rule_use_counts=tool_call_judgment_rule_use_counts,
-        expanded_tool_call_judgment_rule_use_counts=Counter(),
-        network_request_judgment_rule_use_counts=network_request_judgment_rule_use_counts,
-        no_network_request_counts=Counter(),
-        network_request_result_judgment_rule_use_counts=network_request_result_judgment_rule_use_counts,
-        unused_output_line_counts=unused_output_line_counts,
-        program_counts_of_unowned_output_lines=program_counts_of_unowned_output_lines,
+    network_request_result, mytool_network_request_result = (
+        run_steps_to_network_request_results(
+            harness_tool_calls,
+            knowledge_doors=knowledge_doors,
+            tool_call_judgment_rule_use_counts=tool_call_judgment_rule_use_counts,
+            expanded_tool_call_judgment_rule_use_counts=Counter(),
+            network_request_judgment_rule_use_counts=network_request_judgment_rule_use_counts,
+            no_network_request_counts=no_network_request_counts,
+            network_request_result_judgment_rule_use_counts=network_request_result_judgment_rule_use_counts,
+            unused_output_line_counts=unused_output_line_counts,
+            program_counts_of_unowned_output_lines=program_counts_of_unowned_output_lines,
+        )
     )
 
     assert network_request_result.network_request.target == "x"
+    assert mytool_network_request_result.network_request.target == "https://b.org/y"
     assert (
         network_request_result.level,
         network_request_result.stop_reason,
@@ -455,11 +467,11 @@ def test_runs_the_decision_of_request_results_after_the_extraction_with_its_own_
         ]
         == 1
     )
-    # The result of a Claude Code `Bash` call gives no exit code, so no evidence shows that pip ran beyond its own line.
+    # The result of a Claude Code `Bash` call gives no exit code, so no evidence shows that pip or mytool ran beyond the line of pip.
     assert network_request_result_judgment_rule_use_counts == Counter(
         {
             "treat_installed_line_as_no_evidence_of_download": 1,
-            "treat_command_without_own_evidence_as_no_evidence_of_run": 1,
+            "treat_command_without_own_evidence_as_no_evidence_of_run": 2,
         }
     )
     assert unused_output_line_counts == Counter(
@@ -479,10 +491,18 @@ def test_runs_the_decision_of_request_results_after_the_extraction_with_its_own_
             ): 1
         }
     )
-    # The rules of the earlier steps stay in their own counters.
-    assert network_request_judgment_rule_use_counts == Counter()
+    # The rules and the runs without a request of the earlier steps stay in their own counters, e.g. the dotted host of the URL of mytool, cat, and ./setup.sh, which has no row and no URL.
+    assert network_request_judgment_rule_use_counts == Counter(
+        {"treat_dotted_host_name_as_public": 1}
+    )
+    assert no_network_request_counts == Counter(
+        {
+            NoNetworkRequestReason.NON_FETCHING_PROGRAM: 1,
+            NoNetworkRequestReason.NO_URL_THAT_MAY_BE_PUBLIC: 1,
+        }
+    )
     assert tool_call_judgment_rule_use_counts == Counter(
-        {"treat_bash_output_without_exit_code_line_as_finished": 2}
+        {"treat_bash_output_without_exit_code_line_as_finished": 3}
     )
 
 

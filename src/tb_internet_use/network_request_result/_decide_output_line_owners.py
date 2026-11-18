@@ -293,8 +293,9 @@ def _may_print_output_line(
 
     A line of a missing program is printed for the command whose program word it names, e.g. `pip3: command not found` for `pip3 install x`.
     A bare number is printed only by a run that the door says prints a status code, e.g. `curl -w "%{http_code}" u`, so a run whose lines are not known prints none.
-    Any other line that any program prints can be printed by any run, and a line that only some programs print needs one of them among the printing programs of the run.
-    A run whose lines are not known can print such a line, since the door does not know that it cannot.
+    A run whose lines are not known can print any other line, since the door does not know that it cannot.
+    A run that the door says prints no line of a pattern prints none of them, e.g. `getent hosts a.org`, which shows only entries of the hosts database, beside the `HTTP/1.1 405` of `curl -i` in the same result.
+    Any other line that any program prints can be printed by any other run, and a line that only some programs print needs one of them among the printing programs of the run.
     A request of a web tool can print every line of its result, which is read with the web tool result patterns only.
     """
     source = network_request.source
@@ -318,12 +319,14 @@ def _may_print_output_line(
             isinstance(program_output_lines, ProgramOutputLines)
             and program_output_lines.prints_status_code
         )
-    if output_line_meaning.is_printed_by_other_programs_too:
-        return True
     program_output_lines = program_output_lines_of(
         source, expanded_tool_call, knowledge=knowledge
     )
     if isinstance(program_output_lines, UnknownProgramOutputLines):
+        return True
+    if not program_output_lines.printing_programs:
+        return False
+    if output_line_meaning.is_printed_by_other_programs_too:
         return True
     return not output_line_meaning.printing_programs.isdisjoint(
         program_output_lines.printing_programs

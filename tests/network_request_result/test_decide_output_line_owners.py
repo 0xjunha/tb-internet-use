@@ -82,6 +82,7 @@ K = OutputLineKind
 COMMAND = RunCommandAction("x")
 URL = NetworkRequestTargetKind.URL
 PACKAGE_NAME = NetworkRequestTargetKind.PACKAGE_NAME
+HOST = NetworkRequestTargetKind.HOST
 
 
 def key_of(step_id: int) -> ToolCallKey:
@@ -548,6 +549,27 @@ def test_a_line_that_only_other_programs_print_has_no_owner_unless_the_run_print
     )
 
 
+def test_a_line_that_any_program_prints_has_no_owner_whose_run_the_door_says_prints_no_line():
+    # `getent hosts a.org; curl -i https://b.org/y` and `HTTP/1.1 405 Method Not Allowed`. getent(1) shows only entries of the hosts database, so curl alone owns the status line.
+    getent = command(0, "getent hosts a.org", program("getent", "hosts"))
+    curl = command(
+        1,
+        "curl -i https://b.org/y",
+        program("curl", options=(ProgramOption("-i", None),)),
+    )
+    decided = decide(
+        [place(K1, (K1, (0, 1)))],
+        lines(K1, "HTTP/1.1 405 Method Not Allowed"),
+        [call(K1, getent, curl)],
+        [
+            request(K1, from_command(getent), "a.org", target_kind=HOST),
+            request(K1, from_command(curl), "https://b.org/y", index_in_tool_call=1),
+        ],
+    )
+
+    assert owner_targets_of(decided) == [("https://b.org/y",)]
+
+
 def test_a_bare_number_is_owned_only_by_a_run_that_prints_a_status_code():
     # `curl -w '%{http_code}' u` prints `200`. `curl u` and `./setup.sh` beside it do not, so their `404` is counted as not printed by the run.
     curl_w = command(
@@ -961,7 +983,7 @@ def test_a_web_tool_request_owns_the_lines_of_its_own_result_only():
 
 
 def test_the_door_is_asked_only_about_runs_whose_rows_answer_whether_they_print_a_line():
-    # `pip install A` under a line that only pip prints, `curl u` under a line that any program prints, which needs no question, and `curl --foo x u`, whose unread words no row can answer for.
+    # `pip install A` under a line that only pip prints, `curl u` under a line that any program prints, which still needs the question whether curl prints no line at all, and `curl --foo x u`, whose unread words no row can answer for.
     pip = command(0, "pip install A", program("pip", "install"))
     curl = command(0, "curl https://a.org/x", program("curl"))
     curl_unread = command(
@@ -984,7 +1006,7 @@ def test_the_door_is_asked_only_about_runs_whose_rows_answer_whether_they_print_
         program_counts_of_unowned_output_lines=Counter(),
     )
 
-    assert sum(knowledge.uses.row_use_counts.values()) == 1
+    assert sum(knowledge.uses.row_use_counts.values()) == 2
     assert not knowledge.uses.unknown_input_counts
 
 

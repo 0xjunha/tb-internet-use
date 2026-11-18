@@ -39,6 +39,7 @@ curl,,-s,,changes_nothing,changes_nothing,"curl(1) -s, --silent (Silent or quiet
 curl,,-u,,changes_nothing,changes_nothing,"curl(1) -u, --user (Specify the username and password to use for server authentication), curl.se/docs/manpage.html, curl 8.23.1",,
 curl,,-v,,http_headers,changes_nothing,"not checked, from the old table",,the old code added this to every curl run with the option
 curl,,-w,%{http_code} %{response_code},changes_nothing,yes,"curl(1) -w, --write-out, the variables http_code and response_code, curl 8.23.1 (curl.se/docs/manpage.html)",,"the manual says response_code is the same number, formerly known as http_code, and the old code read a status code from a value with either"
+getent,hosts,,,none,no,"getent(1) DESCRIPTION (The getent command displays entries from databases supported by the Name Service Switch libraries) and hosts, Linux man-pages 6.19 (2026-02-08, man7.org)",,"It prints entries of the hosts database, so no status line, download line or failure line of a pattern"
 gh,api,,,git,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
 git,clone,,,git,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
 git,clone,--depth,,changes_nothing,changes_nothing,"git-clone(1) OPTIONS --depth (Create a shallow clone with a history truncated to the specified number of commits), Git 2.54.0 (git-scm.com/docs/git-clone)",,
@@ -87,6 +88,7 @@ pnpm,add,,,npm,no,"not checked, from the old table. The printing programs are na
 pnpm,exec,,,npm,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
 pnpm,install,,,npm,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
 uv,pip install,,,uv pip,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
+uv,pip install,--system,,changes_nothing,changes_nothing,"--system, uv pip install Options (Install packages into the system Python environment), uv documentation for 0.13.9 (docs.astral.sh/uv/reference/cli/)",,It picks the Python environment to install into
 uv,run,,,uv pip,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
 uv,venv,,,uv pip,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
 wget,,,,wget,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,

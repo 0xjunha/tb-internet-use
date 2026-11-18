@@ -147,9 +147,54 @@ def _exit_zero(step_id: int, *, is_shared: bool = False) -> ExitCodeEvidence:
     return ExitCodeEvidence(_key(step_id), 0, is_shared)
 
 
-# Cases of the made-up inputs of the decision document with their whole results, without the request, which the test takes from `extract_network_requests`.
+# Made-up inputs, each with the whole result of every request, without the request itself, which the test takes from `extract_network_requests`.
 # Each gives the calls and, per request in order, the request certainty after the evidence, level, stop reason, level certainty, evidence and the rule uses of the trial.
 WHOLE_RESULT_CASES = [
+    pytest.param(
+        (
+            _bash_call(
+                1,
+                "getent hosts a.org; curl -s -o /dev/null -w '%{http_code}' https://b.org/x; curl -s -i -X POST https://c.org/y",
+                "200\nHTTP/1.1 405 Method Not Allowed",
+            ),
+        ),
+        [
+            (
+                NetworkRequestCertainty.CONFIRMED,
+                _ATTEMPTED,
+                _NOT_VISIBLE,
+                _CONFIRMED,
+                (),
+            ),
+            (
+                NetworkRequestCertainty.CONFIRMED,
+                _REACHED,
+                _NOT_VISIBLE,
+                _CONFIRMED,
+                (
+                    _line(1, OutputLineKind.BARE_STATUS_CODE),
+                    _line(1, OutputLineKind.HTTP_STATUS, line_index=1, is_shared=True),
+                ),
+            ),
+            (
+                NetworkRequestCertainty.CONFIRMED,
+                _REACHED,
+                _FAILED,
+                _ASSUMED,
+                (
+                    _line(1, OutputLineKind.HTTP_STATUS, line_index=1, is_shared=True),
+                    _exit_zero(1, is_shared=True),
+                ),
+            ),
+        ],
+        Counter(
+            {
+                "treat_command_without_own_evidence_as_no_evidence_of_run": 2,
+                "treat_exit_code_meaning_as_assumed_level": 1,
+            }
+        ),
+        id="getent prints no status line and the own 200 of curl -w decides beside a shared 405",
+    ),
     pytest.param(
         (_bash_call(1, "wget https://a.org/x.tgz", "'x.tgz' saved [1024/1024]"),),
         [
@@ -194,19 +239,19 @@ WHOLE_RESULT_CASES = [
     ),
     pytest.param(
         (
-            _bash_call(1, "pip install x > log 2>&1", ""),
+            _bash_call(1, "pip install x > log 2>&1", "", returncode=1),
             _bash_call(2, "cat log", "ERROR: No matching distribution found for x"),
         ),
         [
             (
                 NetworkRequestCertainty.CONFIRMED,
-                _REACHED,
+                _EXECUTED,
                 _FAILED,
                 _CONFIRMED,
-                (_line(2, OutputLineKind.NOT_FOUND), _exit_zero(1)),
+                (_line(2, OutputLineKind.NOT_FOUND),),
             )
         ],
-        Counter(),
+        Counter({"treat_command_without_own_evidence_as_no_evidence_of_run": 1}),
         id="a line in a later read of the log is evidence of the command that wrote it",
     ),
     pytest.param(

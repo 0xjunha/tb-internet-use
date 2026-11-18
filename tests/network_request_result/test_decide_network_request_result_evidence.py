@@ -666,7 +666,7 @@ LINE_CASES = {
         "ERROR: No matching distribution found for x",
         PIP_INSTALL,
         "pip install x",
-        line_evidence(K.NOT_FOUND, REACHED, FAILED),
+        line_evidence(K.NOT_FOUND, EXECUTED, FAILED),
         target="x",
         target_kind=PACKAGE_NAME,
     ),
@@ -1351,7 +1351,7 @@ def test_line_in_a_later_call_names_that_call():
     )
     assert decided.evidence_with_levels == (
         line_evidence(
-            K.NOT_FOUND, REACHED, FAILED, showing_tool_call_key=K3, line_index=4
+            K.NOT_FOUND, EXECUTED, FAILED, showing_tool_call_key=K3, line_index=4
         ),
     )
 
