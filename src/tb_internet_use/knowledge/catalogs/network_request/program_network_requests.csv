@@ -16,6 +16,7 @@ bunx,,,,only_what_is_missing,next_program,package_name,name,no_request,,,"not ch
 cat,,,,no,,,,,,,"not checked, from the old table",,
 conda,install,,,yes,all,package_name,name,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
 curl,,,,yes,all,url,url_or_schemeless_url,no_request,stdout,,"not checked, from the old table",,
+curl,,--connect-timeout,,,,,,,,none,"curl(1) --connect-timeout (Maximum time in seconds that you allow curl's connection to take), curl.se/docs/manpage.html, curl 8.23.1",,
 curl,,--data-binary,,,,,,,,none,"curl(1) --data-binary, curl.se/docs/manpage.html, curl 8.23.1",,It sends its value as the body of the request
 curl,,--fail,,,,,,,,none,"curl(1) -f, --fail, curl.se/docs/manpage.html, curl 8.23.1",,"On an HTTP response of 400 or more the body is not output, which the content route does not tell apart"
 curl,,--fail-with-body,,,,,,,,none,"curl(1) --fail-with-body, curl.se/docs/manpage.html, curl 8.23.1",,

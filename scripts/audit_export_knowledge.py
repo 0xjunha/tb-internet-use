@@ -116,7 +116,7 @@ from run_pipeline import (
     TaskKey,
     csv_cells_of,
     judgment_rule_names_of,
-    load_saved_results,
+    read_saved_results,
 )
 from trial_folders_and_csv_files import PROCESS_COUNT, write_csv
 
@@ -247,7 +247,7 @@ def audit_trial(saved_results_path: Path) -> TrialAudit:
     """Run `export_rows` again on the saved results of one trial with a door and a counter of its own, and count the situations of the rules from the rows, with an exception named instead of raised."""
     trial_id = saved_results_path.stem
     try:
-        trial, network_request_results, _ = load_saved_results(saved_results_path)
+        _, trial, network_request_results, _ = read_saved_results(saved_results_path)
         process_doors = process_doors_of_worker()
         # The doors serve every trial of the worker process, so their uses start empty for each trial.
         process_doors.export_knowledge.uses = KnowledgeUses()

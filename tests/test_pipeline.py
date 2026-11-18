@@ -331,7 +331,7 @@ def test_runs_the_extraction_of_network_requests_after_the_expansion_with_its_ow
     network_request_judgment_rule_use_counts: Counter[str] = Counter()
     no_network_request_counts: Counter[NoNetworkRequestReason] = Counter()
 
-    network_request_results = run_steps_to_network_request_results(
+    _, network_request_results = run_steps_to_network_request_results(
         (write_call, background_bash_call, task_output_call, later_bash_call),
         knowledge_doors=knowledge_doors,
         tool_call_judgment_rule_use_counts=tool_call_judgment_rule_use_counts,
@@ -437,6 +437,7 @@ def test_runs_the_decision_of_request_results_after_the_extraction_with_its_own_
     ] = Counter()
 
     network_request_result, mytool_network_request_result = (
+    (network_request,), (network_request_result,) = (
         run_steps_to_network_request_results(
             harness_tool_calls,
             knowledge_doors=knowledge_doors,
@@ -444,6 +445,7 @@ def test_runs_the_decision_of_request_results_after_the_extraction_with_its_own_
             expanded_tool_call_judgment_rule_use_counts=Counter(),
             network_request_judgment_rule_use_counts=network_request_judgment_rule_use_counts,
             no_network_request_counts=no_network_request_counts,
+            no_network_request_counts=Counter(),
             network_request_result_judgment_rule_use_counts=network_request_result_judgment_rule_use_counts,
             unused_output_line_counts=unused_output_line_counts,
             program_counts_of_unowned_output_lines=program_counts_of_unowned_output_lines,
@@ -452,6 +454,8 @@ def test_runs_the_decision_of_request_results_after_the_extraction_with_its_own_
 
     assert network_request_result.network_request.target == "x"
     assert mytool_network_request_result.network_request.target == "https://b.org/y"
+    assert network_request_result.network_request == network_request
+    assert network_request.target == "x"
     assert (
         network_request_result.level,
         network_request_result.stop_reason,
@@ -540,7 +544,7 @@ def _run_steps_of_trial_with_new_counters(
 def test_runs_every_step_on_a_trial_folder_and_keeps_the_counters_of_each_step_apart(
     tmp_path, write_trial_folder
 ):
-    # wget runs only when x.tgz is missing, pip installs packages of a variable, and mytool has no row of a catalog.
+    # wget runs only when x.tgz is missing, pip installs packages of a variable, and mytool has no row of a catalog. A later call runs a script whose text the trial does not hold, which prints a download line that no request owns.
     trial_dir = write_trial_folder(
         tmp_path,
         "trial-1",
@@ -548,13 +552,15 @@ def test_runs_every_step_on_a_trial_folder_and_keeps_the_counters_of_each_step_a
             (
                 "test -f x.tgz || wget -O x.tgz https://files.acme.org/x.tgz; pip install $PKGS; mytool https://b.org/y",
                 "Successfully installed requests-2.32.3",
-            )
+            ),
+            ("./setup.sh", "Downloading torch-2.3.0.whl"),
         ],
     )
 
     (
         (
             trial,
+            network_requests,
             network_request_results,
             trial_row,
             network_request_rows,
@@ -573,6 +579,11 @@ def test_runs_every_step_on_a_trial_folder_and_keeps_the_counters_of_each_step_a
         network_request_result.network_request.tool_call_key
         for network_request_result in network_request_results
     ] == [ToolCallKey("trial-1", "main", 1, 0)] * 3
+    # The requests of `extract_network_requests` come back beside their results, one result each.
+    assert network_requests == tuple(
+        network_request_result.network_request
+        for network_request_result in network_request_results
+    )
     assert [
         (row.made_by, row.target, row.category) for row in network_request_rows
     ] == [
@@ -615,6 +626,24 @@ def test_runs_every_step_on_a_trial_folder_and_keeps_the_counters_of_each_step_a
         == 3
     )
     assert counters["no_network_request_counts"]
+    # `decide_network_request_results` counts the line of setup.sh in both of its line counters.
+    assert counters["unused_output_line_counts"] == Counter(
+        {
+            (
+                UnusedOutputLineReason.UNOWNED_LINE_IN_UNKNOWN_RUN,
+                OutputLineKind.DOWNLOAD_STARTED,
+            ): 1
+        }
+    )
+    assert counters["program_counts_of_unowned_output_lines"] == Counter(
+        {
+            (
+                UnusedOutputLineReason.UNOWNED_LINE_IN_UNKNOWN_RUN,
+                OutputLineKind.DOWNLOAD_STARTED,
+                "setup.sh",
+            ): 1
+        }
+    )
     # Each door counts its own lookups, e.g. the export door the default registry of `pip install`.
     assert knowledge_doors.export_knowledge.uses.row_use_counts == Counter(
         {("program_package_registries.csv", ("pip", "install")): 1}
@@ -634,13 +663,25 @@ def test_a_readable_trial_without_requests_keeps_its_trial_row_alone(
     trial_dir = write_trial_folder(tmp_path, "trial-1", [("ls", "notes.txt")])
 
     (
-        (trial, network_request_results, trial_row, network_request_rows, measure_rows),
+        (
+            trial,
+            network_requests,
+            network_request_results,
+            trial_row,
+            network_request_rows,
+            measure_rows,
+        ),
         (_),
         _,
     ) = _run_steps_of_trial_with_new_counters(trial_dir)
 
     assert trial.unreadable_trajectory is None
-    assert (network_request_results, network_request_rows, measure_rows) == ((), (), ())
+    assert (
+        network_requests,
+        network_request_results,
+        network_request_rows,
+        measure_rows,
+    ) == ((), (), (), ())
     assert (
         trial_row.unreadable_trajectory_reason,
         trial_row.any_category_request_measure_bound,
@@ -661,14 +702,25 @@ def test_an_unreadable_trajectory_gives_its_reason_no_results_and_the_upper_boun
     trial_dir = write_trial_folder(tmp_path, "trial-1", trajectory)
 
     (
-        (trial, network_request_results, trial_row, network_request_rows, measure_rows),
+        (
+            trial,
+            network_requests,
+            network_request_results,
+            trial_row,
+            network_request_rows,
+            measure_rows,
+        ),
         knowledge_doors,
         counters,
     ) = _run_steps_of_trial_with_new_counters(trial_dir)
 
     assert trial.unreadable_trajectory == UnreadableTrajectory(reason)
     assert trial.task_name == "terminal-bench/a"
-    assert (network_request_results, network_request_rows) == ((), ())
+    assert (network_requests, network_request_results, network_request_rows) == (
+        (),
+        (),
+        (),
+    )
     assert trial_row.unreadable_trajectory_reason == reason
     assert trial_row.any_category_request_measure_bound == MeasureBound.UPPER_ONLY
     # One row per category and each sender other than unknown, all in the upper bounds only.

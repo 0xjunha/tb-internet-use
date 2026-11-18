@@ -25,7 +25,10 @@ from tb_internet_use.knowledge.network_request_result_knowledge import (
 )
 from tb_internet_use.knowledge.tool_call_knowledge import ToolCallKnowledge
 from tb_internet_use.network_request import extract_network_requests
-from tb_internet_use.network_request.model import NoNetworkRequestReason
+from tb_internet_use.network_request.model import (
+    NetworkRequest,
+    NoNetworkRequestReason,
+)
 from tb_internet_use.network_request_result import decide_network_request_results
 from tb_internet_use.network_request_result.model import (
     NetworkRequestResult,
@@ -64,12 +67,15 @@ def run_steps_of_trial(
     export_judgment_rule_use_counts: Counter[str],
 ) -> tuple[
     Trial,
+    tuple[NetworkRequest, ...],
     tuple[NetworkRequestResult, ...],
     TrialRow,
     tuple[NetworkRequestRow, ...],
     tuple[TrialCategoryMeasureRow, ...],
 ]:
-    """Run every step on one trial folder, from `collect_trials` to `export_rows`, and return its `Trial`, its network request results and its three kinds of row.
+    """Run every step on one trial folder, from `collect_trials` to `export_rows`, and return its `Trial`, its network requests, their results and its three kinds of row.
+
+    The network requests are those that `extract_network_requests` gave, which a caller can count beside the results of `decide_network_request_results` to see that no request was lost or repeated between the two steps.
 
     The trajectory file is read once. A trial whose trajectory is missing or is not JSON still gets its `Trial` with the reason, no results and the rows that `export_rows` gives such a trial, so that it counts in the upper bounds of its task.
     Each step counts the uses of its judgment rules in its own counter, as in `run_steps_to_network_request_results`, and `export_rows` counts in `export_judgment_rule_use_counts`, e.g. `treat_dotted_host_name_as_public` once for `pypi.org`, the default host of `pip install requests`, although `extract_network_requests` counts the same rule in its own counter.
@@ -81,19 +87,22 @@ def run_steps_of_trial(
         (trial,) = collect_trials(
             (trial_file_texts,), {trial_file_texts.trial_id: harness_tool_calls}
         )
+        network_requests: tuple[NetworkRequest, ...] = ()
         network_request_results: tuple[NetworkRequestResult, ...] = ()
     else:
         (trial,) = collect_trials((trial_file_texts,), {})
-        network_request_results = run_steps_to_network_request_results(
-            harness_tool_calls,
-            knowledge_doors=knowledge_doors,
-            tool_call_judgment_rule_use_counts=tool_call_judgment_rule_use_counts,
-            expanded_tool_call_judgment_rule_use_counts=expanded_tool_call_judgment_rule_use_counts,
-            network_request_judgment_rule_use_counts=network_request_judgment_rule_use_counts,
-            no_network_request_counts=no_network_request_counts,
-            network_request_result_judgment_rule_use_counts=network_request_result_judgment_rule_use_counts,
-            unused_output_line_counts=unused_output_line_counts,
-            program_counts_of_unowned_output_lines=program_counts_of_unowned_output_lines,
+        network_requests, network_request_results = (
+            run_steps_to_network_request_results(
+                harness_tool_calls,
+                knowledge_doors=knowledge_doors,
+                tool_call_judgment_rule_use_counts=tool_call_judgment_rule_use_counts,
+                expanded_tool_call_judgment_rule_use_counts=expanded_tool_call_judgment_rule_use_counts,
+                network_request_judgment_rule_use_counts=network_request_judgment_rule_use_counts,
+                no_network_request_counts=no_network_request_counts,
+                network_request_result_judgment_rule_use_counts=network_request_result_judgment_rule_use_counts,
+                unused_output_line_counts=unused_output_line_counts,
+                program_counts_of_unowned_output_lines=program_counts_of_unowned_output_lines,
+            )
         )
     trial_row, network_request_rows, trial_category_measure_rows = export_rows(
         trial,
@@ -103,6 +112,7 @@ def run_steps_of_trial(
     )
     return (
         trial,
+        network_requests,
         network_request_results,
         trial_row,
         network_request_rows,
@@ -170,11 +180,11 @@ def run_steps_to_network_request_results(
     program_counts_of_unowned_output_lines: Counter[
         tuple[UnusedOutputLineReason, OutputLineKind, str]
     ],
-) -> tuple[NetworkRequestResult, ...]:
-    """Run `convert_tool_calls`, `expand_tool_calls`, `extract_network_requests` and then `decide_network_request_results` on the tool calls of one trial, with the doors of `knowledge_doors`.
+) -> tuple[tuple[NetworkRequest, ...], tuple[NetworkRequestResult, ...]]:
+    """Run `convert_tool_calls`, `expand_tool_calls`, `extract_network_requests` and then `decide_network_request_results` on the tool calls of one trial, with the doors of `knowledge_doors`, and return the network requests and their results.
 
     Each step counts the uses of its judgment rules in its own counter, as in `run_steps_to_expanded_tool_calls`. `extract_network_requests` counts in `no_network_request_counts` each program run, code call or URL in code that gave no request, by its reason, and `decide_network_request_results` counts in `unused_output_line_counts` and `program_counts_of_unowned_output_lines` each output line that a pattern fits and that gave no evidence.
-    Each `NetworkRequestResult` holds its `NetworkRequest`, so the output of `extract_network_requests` is not returned apart.
+    Each `NetworkRequestResult` holds its `NetworkRequest`. The output of `extract_network_requests` is returned apart all the same, so that a caller can count it on its own.
     """
     expanded_tool_calls = run_steps_to_expanded_tool_calls(
         harness_tool_calls,
@@ -188,7 +198,7 @@ def run_steps_to_network_request_results(
         judgment_rule_use_counts=network_request_judgment_rule_use_counts,
         no_network_request_counts=no_network_request_counts,
     )
-    return decide_network_request_results(
+    network_request_results = decide_network_request_results(
         expanded_tool_calls,
         network_requests,
         knowledge=knowledge_doors.network_request_result_knowledge,
@@ -196,6 +206,7 @@ def run_steps_to_network_request_results(
         unused_output_line_counts=unused_output_line_counts,
         program_counts_of_unowned_output_lines=program_counts_of_unowned_output_lines,
     )
+    return network_requests, network_request_results
 
 
 def run_steps_to_expanded_tool_calls(

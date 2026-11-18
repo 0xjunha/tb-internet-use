@@ -7,6 +7,7 @@ import csv
 import importlib.util
 import sys
 from collections.abc import Callable, Iterable, Iterator
+from concurrent.futures import Future
 from pathlib import Path
 from typing import Any, Self
 
@@ -62,6 +63,15 @@ class _InProcessPool:
         self, function: Callable[[Path], Any], items: Iterable[Path], chunksize: int
     ) -> Iterator[Any]:
         return map(function, items)
+
+    def submit(self, function: Callable[[Path], Any], item: Path) -> Future:
+        """Run the function at once and give a future that holds its value."""
+        future: Future = Future()
+        future.set_result(function(item))
+        return future
+
+    def kill_workers(self) -> None:
+        pass
 
 
 @pytest.fixture
