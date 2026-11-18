@@ -268,6 +268,31 @@ _CASES = [
         [],
     ),
     ("program not named", "subprocess.run(cmd)", PYTHON, []),
+    # A built target names the host that a URL string writes whole.
+    (
+        "built url whose string closes the host with a port",
+        "requests.get('http://name:8069' + params['url'])",
+        PYTHON,
+        [("requests.get", BUILT_IN_CODE, URL, ("name",), None)],
+    ),
+    (
+        "built url whose string closes the host with a slash",
+        "requests.get('https://a.org/v1/' + path)",
+        PYTHON,
+        [("requests.get", BUILT_IN_CODE, URL, ("a.org",), None)],
+    ),
+    (
+        "built url whose string ends after the scheme",
+        "requests.get('http://' + h)",
+        PYTHON,
+        [("requests.get", BUILT_IN_CODE, URL, (), None)],
+    ),
+    (
+        "built url whose string ends inside the host",
+        "requests.get('http://api.' + domain + '/x')",
+        PYTHON,
+        [("requests.get", BUILT_IN_CODE, URL, (), None)],
+    ),
     # A string that is not the first argument is no URL target.
     (
         "string of a built url",

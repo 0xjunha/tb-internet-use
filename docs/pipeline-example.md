@@ -223,41 +223,60 @@ In case A, `c1_expanded` holds only c1's own text. All three commands reach c1's
 
 For everything a call ran, the step asks whether it fetches its target.
 When the answer is yes, the step makes one request per target and marks it as a confirmed request. When the answer is no, it makes none.
-When the answer is unknown, the step makes an uncertain request only if a public URL is visible, e.g. for `mytool https://a.example.org/x`.
+When the answer is unknown, the step makes an uncertain request only if a URL that may be public is visible, e.g. for `mytool https://a.example.org/x`.
+A program that runs another text the trial holds gives no request itself, e.g. bash of `bash fetch.sh`, since the commands of that text give them.
 The step looks only at what ran, and step 4 reads what came back.
 
 | Asked through `NetworkRequestKnowledge` | Answer in this example |
 |---|---|
-| Does curl fetch? | Yes. Each URL argument is a target, and `-O` saves what is received |
-| Does `pip install` fetch? | Yes. Each package name is a target |
+| Does curl fetch? | Yes. Each URL argument is a target, and what it receives goes to stdout unless the command writes a file of its own |
+| What do curl's `-s`, `-S`, `--connect-timeout` and `-O` change about the request? | Nothing. The file that `-O` writes comes from step 2 |
+| Does `pip install` fetch? | Yes. Each package name is a target, and pip keeps what it receives in files of its own |
 | Does `echo` fetch? | No |
+| Does `bash` fetch? | There is no row, and it runs fetch.sh, whose commands give the requests |
 
 ```python
-r3 = NetworkRequest(
-    # c3 ran it, though c2 wrote fetch.sh.
-    source=FromCommand(tool_call=c3, command_id=2),
-    means=("curl",),
-    target="https://data.example.org/a.tgz",
-    target_kind=URL,
-    host="data.example.org",
-    # The values this field can take are not decided.
-    received_content_destination=SAVED,
-    request_certainty=CONFIRMED,
-)
+# c3's own text has `bash fetch.sh` with id 0 and `pip install requests` with id 1, and the curl of fetch.sh gets the next id 2 of the call.
+# The requests of a call follow the command ids, then the code texts, then the web tool steps, and are numbered from 0 in the call.
 r4 = NetworkRequest(
-    source=FromCommand(tool_call=c3, command_id=1),
-    means=("pip", "install"),
+    tool_call_key=c3,
+    index_in_tool_call=0,
+    source=FromCommand(command_id=1, ran_text_source=CallCommandText(), program_invocation=ProgramInvocation("pip", subcommand_words=("install",), arguments=("requests",))),
     target="requests",
     target_kind=PACKAGE_NAME,
     # No index option names a host.
-    host=None,
-    received_content_destination=SAVED,
-    request_certainty=CONFIRMED,
+    host_names=(),
+    # pip keeps what it receives in files of its own, which the words do not name.
+    received_content_destination=ContentSaved(path=None),
+    certainty=CONFIRMED,
+    uncertainty_reason=None,
+)
+r3 = NetworkRequest(
+    tool_call_key=c3,
+    index_in_tool_call=1,
+    # c3 ran it, though c2 wrote fetch.sh.
+    source=FromCommand(command_id=2, ran_text_source=FileText(runner_command_id=0, path="fetch.sh", writer_tool_call_key=c2), program_invocation=ProgramInvocation("curl", options=(ProgramOption("-s"), ProgramOption("-S"), ProgramOption("-O")), arguments=("https://data.example.org/a.tgz",))),
+    target="https://data.example.org/a.tgz",
+    target_kind=URL,
+    host_names=("data.example.org",),
+    # Step 2 recorded a.tgz as the file that curl writes itself.
+    received_content_destination=ContentSaved(path="a.tgz"),
+    certainty=CONFIRMED,
+    uncertainty_reason=None,
 )
 ```
 
-r1 and r2 of case A look like r3, with `FromCommand(tool_call=c1, command_id=0)` and `command_id=1`.
-Case C gives no request here. `bash` runs a file, the file's content is unknown, and the words of the command show no public URL.
+The values above are those of the test `tests/network_request/test_extract_network_requests.py`, with fields that hold their empty value left out. r1 and r2 of case A look like r3, with `tool_call_key=c1`, `command_id=0` and `1`, the call's own text as the source and `ContentSaved` of x.tgz and y.tgz. echo gives no request.
+Case C gives no request here. `bash` runs setup.sh, whose content is unknown, and the words of the command show no URL.
+The entry function `extract_network_requests` calls these pieces for each call.
+
+| Piece | What it gives |
+|---|---|
+| `extract_command_network_requests` | The requests of each command by its id, r1, r2, r4 and r3 |
+| `extract_code_network_requests` | The requests of each Python or JavaScript code text, none here |
+| `extract_web_tool_network_requests` | The requests of each web search, fetch or find, none here |
+
+Each run, code call or URL in code that gives no request is counted by its reason, e.g. echo of c1 as a program that does not fetch.
 
 ## Step 4: decide request results
 

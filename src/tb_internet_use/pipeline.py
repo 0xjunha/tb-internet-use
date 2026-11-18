@@ -10,7 +10,15 @@ from tb_internet_use.expanded_tool_call.model import ExpandedToolCall
 from tb_internet_use.knowledge.expanded_tool_call_knowledge import (
     ExpandedToolCallKnowledge,
 )
+from tb_internet_use.knowledge.network_request_knowledge import (
+    NetworkRequestKnowledge,
+)
 from tb_internet_use.knowledge.tool_call_knowledge import ToolCallKnowledge
+from tb_internet_use.network_request import extract_network_requests
+from tb_internet_use.network_request.model import (
+    NetworkRequest,
+    NoNetworkRequestReason,
+)
 from tb_internet_use.tool_call import convert_tool_calls
 from tb_internet_use.tool_call.model import HarnessToolCall
 from tb_internet_use.tool_call.parse_trajectory import parse_trajectory
@@ -63,6 +71,9 @@ class KnowledgeDoors:
     expanded_tool_call_knowledge: ExpandedToolCallKnowledge = field(
         default_factory=ExpandedToolCallKnowledge
     )
+    network_request_knowledge: NetworkRequestKnowledge = field(
+        default_factory=NetworkRequestKnowledge
+    )
 
 
 def run_steps_to_expanded_tool_calls(
@@ -86,4 +97,31 @@ def run_steps_to_expanded_tool_calls(
         tool_calls,
         knowledge=knowledge_doors.expanded_tool_call_knowledge,
         judgment_rule_use_counts=expanded_tool_call_judgment_rule_use_counts,
+    )
+
+
+def run_steps_to_network_requests(
+    harness_tool_calls: Sequence[HarnessToolCall],
+    *,
+    knowledge_doors: KnowledgeDoors,
+    tool_call_judgment_rule_use_counts: Counter[str],
+    expanded_tool_call_judgment_rule_use_counts: Counter[str],
+    network_request_judgment_rule_use_counts: Counter[str],
+    no_network_request_counts: Counter[NoNetworkRequestReason],
+) -> tuple[NetworkRequest, ...]:
+    """Run `convert_tool_calls`, `expand_tool_calls` and then `extract_network_requests` on the tool calls of one trial, with the doors of `knowledge_doors`.
+
+    Each step counts the uses of its judgment rules in its own counter, as in `run_steps_to_expanded_tool_calls`, and `extract_network_requests` counts in `no_network_request_counts` each program run, code call or URL in code that gave no request, by its reason.
+    """
+    expanded_tool_calls = run_steps_to_expanded_tool_calls(
+        harness_tool_calls,
+        knowledge_doors=knowledge_doors,
+        tool_call_judgment_rule_use_counts=tool_call_judgment_rule_use_counts,
+        expanded_tool_call_judgment_rule_use_counts=expanded_tool_call_judgment_rule_use_counts,
+    )
+    return extract_network_requests(
+        expanded_tool_calls,
+        knowledge=knowledge_doors.network_request_knowledge,
+        judgment_rule_use_counts=network_request_judgment_rule_use_counts,
+        no_network_request_counts=no_network_request_counts,
     )

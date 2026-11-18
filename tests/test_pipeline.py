@@ -14,11 +14,17 @@ from tb_internet_use.expanded_tool_call.model import (
     FileUseKind,
     RanShellText,
 )
+from tb_internet_use.network_request.model import (
+    FromCommand,
+    NetworkRequestCertainty,
+    NoNetworkRequestReason,
+)
 from tb_internet_use.pipeline import (
     KnowledgeDoors,
     read_trajectory,
     read_trial_file_texts,
     run_steps_to_expanded_tool_calls,
+    run_steps_to_network_requests,
 )
 from tb_internet_use.tool_call.model import (
     HarnessTool,
@@ -259,15 +265,102 @@ def test_each_step_counts_its_lookups_in_its_own_door_and_its_rules_in_its_own_c
 
 def test_new_doors_count_only_their_own_lookups():
     first_doors = KnowledgeDoors()
-    run_steps_to_expanded_tool_calls(
+    run_steps_to_network_requests(
         _claude_code_tool_calls_writing_and_running_a_script(),
         knowledge_doors=first_doors,
         tool_call_judgment_rule_use_counts=Counter(),
         expanded_tool_call_judgment_rule_use_counts=Counter(),
+        network_request_judgment_rule_use_counts=Counter(),
+        no_network_request_counts=Counter(),
     )
 
     second_doors = KnowledgeDoors()
 
+    assert first_doors.tool_call_knowledge.uses.row_use_counts
     assert first_doors.expanded_tool_call_knowledge.uses.row_use_counts
+    assert first_doors.network_request_knowledge.uses.row_use_counts
     assert not second_doors.tool_call_knowledge.uses.row_use_counts
     assert not second_doors.expanded_tool_call_knowledge.uses.row_use_counts
+    assert not second_doors.network_request_knowledge.uses.row_use_counts
+
+
+def test_runs_the_extraction_of_network_requests_after_the_expansion_with_its_own_door_and_counters():
+    write_call, background_bash_call, task_output_call, later_bash_call = (
+        _claude_code_tool_calls_running_a_script_in_the_background()
+    )
+    # fetch.sh fetches a page with curl, which the catalogs of the repo say fetches, runs mytool, which has no row, on a URL and reads a file with cat, which they say does not fetch.
+    write_call = HarnessToolCall(
+        write_call.key,
+        write_call.tool,
+        write_call.tool_call_id,
+        {
+            "file_path": "fetch.sh",
+            "content": "curl https://a.org/x; mytool https://b.org/y; cat notes.txt",
+        },
+        write_call.result,
+    )
+    knowledge_doors = KnowledgeDoors()
+    tool_call_judgment_rule_use_counts: Counter[str] = Counter()
+    expanded_tool_call_judgment_rule_use_counts: Counter[str] = Counter()
+    network_request_judgment_rule_use_counts: Counter[str] = Counter()
+    no_network_request_counts: Counter[NoNetworkRequestReason] = Counter()
+
+    network_requests = run_steps_to_network_requests(
+        (write_call, background_bash_call, task_output_call, later_bash_call),
+        knowledge_doors=knowledge_doors,
+        tool_call_judgment_rule_use_counts=tool_call_judgment_rule_use_counts,
+        expanded_tool_call_judgment_rule_use_counts=expanded_tool_call_judgment_rule_use_counts,
+        network_request_judgment_rule_use_counts=network_request_judgment_rule_use_counts,
+        no_network_request_counts=no_network_request_counts,
+    )
+
+    assert [
+        (
+            network_request.tool_call_key,
+            network_request.target,
+            network_request.certainty,
+        )
+        for network_request in network_requests
+    ] == [
+        (
+            background_bash_call.key,
+            "https://a.org/x",
+            NetworkRequestCertainty.CONFIRMED,
+        ),
+        (
+            background_bash_call.key,
+            "https://b.org/y",
+            NetworkRequestCertainty.UNCERTAIN,
+        ),
+    ]
+    assert isinstance(network_requests[0].source, FromCommand)
+    assert network_requests[0].source.ran_text_source == FileText(
+        0, "fetch.sh", write_call.key
+    )
+    assert (
+        knowledge_doors.network_request_knowledge.uses.row_use_counts[
+            "program_network_requests.csv", ("curl", "", "", "")
+        ]
+        == 1
+    )
+    # bash runs fetch.sh, whose commands give the requests, cat does not fetch and the later `echo done` shows no URL.
+    assert no_network_request_counts == Counter(
+        {
+            NoNetworkRequestReason.PROGRAM_RUNS_SOMETHING_ELSE: 1,
+            NoNetworkRequestReason.NON_FETCHING_PROGRAM: 1,
+            NoNetworkRequestReason.NO_URL_THAT_MAY_BE_PUBLIC: 1,
+        }
+    )
+    # Each step counts its own rules in its own counter, e.g. the dotted host of the URL of mytool in that of `extract_network_requests`.
+    assert network_request_judgment_rule_use_counts == Counter(
+        {"treat_dotted_host_name_as_public": 1}
+    )
+    assert expanded_tool_call_judgment_rule_use_counts == Counter(
+        {
+            "treat_first_poll_that_saw_end_as_command_text_status": 1,
+            "treat_poll_result_as_showing_every_command_of_starter": 1,
+        }
+    )
+    assert tool_call_judgment_rule_use_counts == Counter(
+        {"treat_bash_output_without_exit_code_line_as_finished": 1}
+    )

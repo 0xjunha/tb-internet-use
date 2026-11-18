@@ -44,7 +44,7 @@ from tb_internet_use.network_request.model import (
 )
 from tb_internet_use.network_request.parse_code import parse_code
 from tb_internet_use.network_request.parse_target import parse_target
-from tb_internet_use.network_request.parse_url import parse_url
+from tb_internet_use.network_request.parse_url import SCHEME_AND_SLASHES, parse_url
 from tb_internet_use.network_request.parse_urls_in_text import parse_urls_in_text
 from tb_internet_use.tool_call.model import ToolCallKey
 
@@ -56,6 +56,8 @@ if TYPE_CHECKING:
 
 # The start of an argument text whose first argument is a tuple that opens with a string, e.g. `("api", 8000)`.
 _TUPLE_OPENING_WITH_STRING = re.compile(r"""\s*\(\s*["']""")
+# A port that closes the authority of a URL, e.g. `:8069` of `name:8069`.
+_PORT_AT_END = re.compile(r":[0-9]+$")
 
 
 def extract_code_network_requests(
@@ -203,6 +205,7 @@ def _add_sending_code_call_network_request(
     """Add the confirmed request of a call that sends one, with the target its text shows, or one request of unknown target per call name when the text shows none.
 
     The URLs in its other strings are no requests, e.g. the referer in `requests.get(u, headers={"Referer": "https://b.org"})`, and neither is the call that holds it.
+    A request of unknown target still names the hosts that its URL strings write whole, e.g. `name` for `requests.get('http://name:8069' + path)`.
     """
     target_notation = code_call_label.target_notation
     target_kind = code_call_label.target_kind
@@ -223,7 +226,7 @@ def _add_sending_code_call_network_request(
                 UnknownNetworkRequestTargetReason.BUILT_IN_CODE
             ),
             target_kind,
-            (),
+            _host_names_closed_in_url_strings(code_call),
             None,
         )
         return
@@ -240,6 +243,27 @@ def _add_sending_code_call_network_request(
         () if parsed_target.host_name is None else (parsed_target.host_name,),
         None,
     )
+
+
+def _host_names_closed_in_url_strings(code_call: CodeCall) -> tuple[str, ...]:
+    """List the distinct hosts of the strings of a call that start with a URL whose host ends inside the string, e.g. `name` for `'http://name:8069'` in `'http://name:8069' + path`.
+
+    A host ends inside the string when `/`, `?` or `#` follows it there or a port closes it, e.g. `'http://a.org/'` or `'http://name:8069'`.
+    A host that runs to the end of the string may go on outside it, so `'http://' + h` and `'http://api.' + domain` name no host.
+    """
+    host_names: list[str] = []
+    for string_literal in code_call.string_literals:
+        scheme_match = SCHEME_AND_SLASHES.match(string_literal)
+        if scheme_match is None:
+            continue
+        rest = string_literal[scheme_match.end() :]
+        authority = re.split(r"[/?#]", rest, maxsplit=1)[0]
+        if len(authority) == len(rest) and not _PORT_AT_END.search(authority):
+            continue
+        host_name = parse_url(string_literal)
+        if host_name is not None:
+            host_names.append(host_name)
+    return tuple(dict.fromkeys(host_names))
 
 
 def _target_text_of(
