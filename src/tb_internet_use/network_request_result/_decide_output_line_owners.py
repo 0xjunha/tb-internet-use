@@ -100,7 +100,7 @@ def decide_output_line_owners(
         if place is not None:
             if showing_tool_call_key not in reaching_network_requests_by_key:
                 reaching_network_requests_by_key[showing_tool_call_key] = (
-                    _network_requests_of_output_place(
+                    network_requests_of_output_place(
                         place, network_requests, call_index_by_key
                     )
                 )
@@ -153,7 +153,7 @@ def stopped_command_ids_from_missing_program_line(
         ran_command.shell_command.id
         for ran_command in ran_commands
         if not ran_command.shell_command.structure_may_be_wrong
-        and _is_missing_program_of_command(missing_program_word, ran_command)
+        and is_missing_program_of_command(missing_program_word, ran_command)
     }
     return tuple(
         ran_command.shell_command.id
@@ -177,7 +177,7 @@ def has_unknown_run_beside(
     That is a source command of the place other than the request's own command that runs a program no fact covers or a text the trial does not hold, e.g. `./test.sh` beside `curl -s u` in `curl -s u; ./test.sh`.
     It is also a program of the request's own command other than the request's program that no fact covers, or a text of that command that the trial does not hold, e.g. `tsc` of the request of `npx tsc`.
     """
-    own_command_id = _command_id_of_network_request(network_request)
+    own_command_id = command_id_of_network_request(network_request)
     for output_place_source_commands in output_place_sources.source_commands:
         expanded_tool_call = expanded_tool_call_by_key[
             output_place_source_commands.tool_call_key
@@ -211,7 +211,7 @@ def has_unknown_run_beside(
     ) or own_command_id in _unknown_runner_command_ids_of(own_expanded_tool_call)
 
 
-def _network_requests_of_output_place(
+def network_requests_of_output_place(
     output_place_sources: OutputPlaceSources,
     network_requests: Sequence[NetworkRequest],
     call_index_by_key: Mapping[ToolCallKey, int],
@@ -246,7 +246,7 @@ def _network_requests_of_output_place(
             ):
                 reaching_network_requests.append(network_request)
             continue
-        if _command_id_of_network_request(network_request) in command_ids_by_key.get(
+        if command_id_of_network_request(network_request) in command_ids_by_key.get(
             network_request.tool_call_key, frozenset()
         ):
             reaching_network_requests.append(network_request)
@@ -301,17 +301,17 @@ def _may_print_output_line(
     if isinstance(source, FromWebTool):
         return True
     if output_line_meaning.kind == OutputLineKind.PROGRAM_MISSING:
-        own_command_id = _command_id_of_network_request(network_request)
+        own_command_id = command_id_of_network_request(network_request)
         return (
             own_command_id is not None
             and output_line_meaning.missing_program_word is not None
-            and _is_missing_program_of_command(
+            and is_missing_program_of_command(
                 output_line_meaning.missing_program_word,
                 _ran_command_by_id_of(expanded_tool_call)[own_command_id],
             )
         )
     if output_line_meaning.kind == OutputLineKind.BARE_STATUS_CODE:
-        program_output_lines = _program_output_lines_of(
+        program_output_lines = program_output_lines_of(
             source, expanded_tool_call, knowledge=knowledge
         )
         return (
@@ -320,7 +320,7 @@ def _may_print_output_line(
         )
     if output_line_meaning.is_printed_by_other_programs_too:
         return True
-    program_output_lines = _program_output_lines_of(
+    program_output_lines = program_output_lines_of(
         source, expanded_tool_call, knowledge=knowledge
     )
     if isinstance(program_output_lines, UnknownProgramOutputLines):
@@ -330,7 +330,7 @@ def _may_print_output_line(
     )
 
 
-def _program_output_lines_of(
+def program_output_lines_of(
     source: FromCommand | FromCode,
     expanded_tool_call: ExpandedToolCall,
     *,
@@ -557,7 +557,7 @@ def _has_stopped_command_with_network_request(
         tool_call_key = output_place_source_commands.tool_call_key
         stopped_command_ids = stopped_command_ids_from_missing_program_line(
             missing_program_word,
-            _ran_commands_of(expanded_tool_call_by_key[tool_call_key]),
+            ran_commands_of(expanded_tool_call_by_key[tool_call_key]),
         )
         if any(
             _has_network_request(tool_call_key, command_id, network_requests)
@@ -580,7 +580,7 @@ def _has_missing_program_of_command_without_network_request(
             expanded_tool_call_by_key[tool_call_key]
         )
         if any(
-            _is_missing_program_of_command(
+            is_missing_program_of_command(
                 missing_program_word, ran_command_by_id[command_id]
             )
             and not _has_network_request(tool_call_key, command_id, network_requests)
@@ -598,12 +598,12 @@ def _has_network_request(
     """Tell whether a command of a call made a request, itself or by the code it ran."""
     return any(
         network_request.tool_call_key == tool_call_key
-        and _command_id_of_network_request(network_request) == command_id
+        and command_id_of_network_request(network_request) == command_id
         for network_request in network_requests
     )
 
 
-def _is_missing_program_of_command(
+def is_missing_program_of_command(
     missing_program_word: str, ran_command: RanCommand
 ) -> bool:
     """Tell whether the word of a line of a missing program is a program word of a command, both without their folder, e.g. `pip3` of `bash: pip3: command not found` and of `pip3 install x`.
@@ -687,7 +687,7 @@ def _program_names_of_unowned_output_line(
     return frozenset(program_names) or frozenset({""})
 
 
-def _command_id_of_network_request(network_request: NetworkRequest) -> int | None:
+def command_id_of_network_request(network_request: NetworkRequest) -> int | None:
     """Find the id of the command in the call of a request that made it, itself or by the code it ran, or None for code typed through a poll and for a web tool."""
     source = network_request.source
     if isinstance(source, FromCommand):
@@ -697,7 +697,7 @@ def _command_id_of_network_request(network_request: NetworkRequest) -> int | Non
     return None
 
 
-def _ran_commands_of(expanded_tool_call: ExpandedToolCall) -> tuple[RanCommand, ...]:
+def ran_commands_of(expanded_tool_call: ExpandedToolCall) -> tuple[RanCommand, ...]:
     """List the commands of every shell text that a call ran, in the order of its texts."""
     return tuple(
         ran_command
@@ -713,7 +713,7 @@ def _ran_command_by_id_of(
     """Find each command of a call by its id, which is unique within the call."""
     return {
         ran_command.shell_command.id: ran_command
-        for ran_command in _ran_commands_of(expanded_tool_call)
+        for ran_command in ran_commands_of(expanded_tool_call)
     }
 
 
