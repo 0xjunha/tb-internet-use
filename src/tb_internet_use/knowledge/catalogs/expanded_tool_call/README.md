@@ -23,7 +23,7 @@ The role columns hold a `ProgramWordRole` value, e.g. `read_file` for the argume
 | `runs_text_in_calling_shell` | `yes` when the text it runs sees the assignments of the calling shell, e.g. eval, else `no` | Fails the load |
 | `exits_with_exit_code_of_next_program` | `yes` when it runs the next program and ends with its exit code, e.g. sudo, `no` when it does not, e.g. a row with no `program` role | Unknown |
 | `name_may_end_with_version` | `yes` when the row also answers for the name with a version at its end, e.g. `python3.11` for python, else `no` | Fails the load |
-| `default_run_file` | The file the program runs when its words name none, or `none` | Fails the load |
+| `default_run_file` | The file the program runs when its words name none, e.g. `Makefile` for make, or `none` when it runs no such file | Unknown. When its words name no file to run, a program whose row gives a word or its stdin the role `run_text` or `run_file` then runs an unknown text, and any other program runs none, e.g. `git status` |
 
 [`program_option_behaviors.csv`](program_option_behaviors.csv) has one row per option, keyed by `program_name`, `subcommand` and `option_name` as written, e.g. `-o`. An option that takes no value needs a row too, since the first option without a row stops the reading of the command. Its program and subcommand must have a row of `program_behaviors.csv`. A row of the subcommand answers before the row without one.
 

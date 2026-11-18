@@ -150,6 +150,10 @@ PROGRAM_BEHAVIOR_ROWS: list[dict[str, str]] = [
     {"program_name": "read", "argument_role": "variable_name_set_at_run_time"},
     {"program_name": "node", "stdin_role": ""},
     {"program_name": "php", "argument_role": "", "stdin_role": "run_text"},
+    # deno runs files, and no fact says which file it runs when its words name none.
+    {"program_name": "deno", "first_argument_role": "run_file", "default_run_file": ""},
+    # git runs no file that its words name, and no fact says which file it runs by default.
+    {"program_name": "git", "default_run_file": ""},
 ]
 # Made-up rows, each named by the program, the option and the cells that differ from the defaults of `conftest.py`.
 PROGRAM_OPTION_BEHAVIOR_ROWS: list[dict[str, str]] = [
@@ -1852,6 +1856,36 @@ def test_an_argument_whose_role_no_fact_gives_is_an_unknown_text(
     ran_texts = _expand(knowledge, _call(1, shell_text))[-1].ran_texts
 
     assert _texts_with_words(ran_texts[1:]) == argument_texts
+
+
+@pytest.mark.parametrize(
+    ("shell_text", "texts"),
+    [
+        (
+            "deno",
+            [(FileTextWithoutKnownWriter(0, None), Reason.DEFAULT_RUN_FILE_NOT_KNOWN)],
+        ),
+        # The program that sudo runs is asked too.
+        (
+            "sudo deno",
+            [(FileTextWithoutKnownWriter(0, None), Reason.DEFAULT_RUN_FILE_NOT_KNOWN)],
+        ),
+        # A file that the words name is the file it runs.
+        (
+            "deno f.ts",
+            [(FileTextWithoutKnownWriter(0, "f.ts"), Reason.NOT_WRITTEN_IN_TRIAL)],
+        ),
+        ("git status", []),
+    ],
+)
+def test_a_program_whose_default_run_file_no_fact_gives_runs_an_unknown_text_only_when_its_row_runs_files(
+    knowledge: ExpandedToolCallKnowledge,
+    shell_text: str,
+    texts: list[tuple[object, object]],
+):
+    ran_texts = _expand(knowledge, _call(1, shell_text))[-1].ran_texts
+
+    assert _texts_with_words(ran_texts[1:]) == texts
 
 
 def test_a_use_of_a_file_that_only_another_trajectory_wrote_asks_the_rule(

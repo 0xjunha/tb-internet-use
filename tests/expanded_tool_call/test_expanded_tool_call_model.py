@@ -45,6 +45,7 @@ SOURCE_TYPE_NAMES_OF_REASON = {
     UnknownRanTextReason.CHANGED_BY_UNREAD_COMMAND: {"FileText"},
     UnknownRanTextReason.READ_FROM_PIPE: {"StdinText"},
     UnknownRanTextReason.WORD_ROLE_NOT_KNOWN: {"ArgumentText"},
+    UnknownRanTextReason.DEFAULT_RUN_FILE_NOT_KNOWN: {"FileTextWithoutKnownWriter"},
     UnknownRanTextReason.BUILT_AT_RUN_TIME: {
         "ArgumentText",
         "FileTextWithoutKnownWriter",

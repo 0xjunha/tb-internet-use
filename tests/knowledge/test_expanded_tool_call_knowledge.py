@@ -21,6 +21,7 @@ from tb_internet_use.expanded_tool_call.model import (
     ProgramWordRole,
     SameAsArgumentRole,
     ShellLanguage,
+    UnknownDefaultRunFile,
     UnknownExitsWithExitCodeOfNextProgram,
     UnknownOptionsEndAtFirstArgument,
     UnknownProgramBehavior,
@@ -189,6 +190,7 @@ _BLANK_PROGRAM_CELLS_THAT_ARE_UNKNOWN = [
     ),
     ("options_end_at_first_argument", UnknownOptionsEndAtFirstArgument()),
     ("takes_one_letter_options_joined", UnknownTakesOneLetterOptionsJoined()),
+    ("default_run_file", UnknownDefaultRunFile()),
 ]
 # Columns of a program row in which a blank fails the load.
 _PROGRAM_COLUMNS_THAT_CANNOT_BE_BLANK = [
@@ -196,7 +198,6 @@ _PROGRAM_COLUMNS_THAT_CANNOT_BE_BLANK = [
     "skips_assignment_words",
     "runs_text_in_calling_shell",
     "name_may_end_with_version",
-    "default_run_file",
     "checked_against",
 ]
 # (column of an option row, which is also the field of `ProgramOptionBehavior` it fills, answer for a blank cell), on `_UNCHANGING_OPTION_ROW_CELLS`
@@ -265,7 +266,7 @@ _PROGRAMS_LEFT_OUT = frozenset({"clang", "exec", "stdbuf", "tac", "tsx"})
 _WRAPPERS_THAT_SKIP_NO_ASSIGNMENT_WORDS_BY_THE_PAGE = frozenset({"time"})
 # Options that the old tables gave every shell and that only bash has, since dash(1) lists no -O or +O.
 _SHELL_OPTIONS_OF_BASH_ONLY = frozenset({"-O", "+O"})
-# Programs whose row without a subcommand was left out while a subcommand row was kept, with the subcommand that took over the option rows of the old tables, or None when they were left out too.
+# Programs whose option rows of the old tables went to a subcommand row, since the old tables gave them to every subcommand, with that subcommand, or None when they were left out, e.g. git `-b` of `git clone` and `git checkout`.
 _SUBCOMMAND_HOLDING_OPTIONS_BY_PROGRAM_NAME = {
     "bun": None,
     "conda": None,
@@ -535,6 +536,17 @@ def test_blank_cell_of_a_program_row_in_a_column_whose_blank_is_unknown_is_unkno
     program_behavior = knowledge.program_behavior("prog", ())
 
     assert getattr(program_behavior, column) == answer
+
+
+def test_default_run_file_none_says_the_program_runs_no_file_by_default(tmp_path):
+    knowledge = _knowledge(
+        tmp_path, program_rows=[_program_row(default_run_file="none")]
+    )
+
+    program_behavior = knowledge.program_behavior("prog", ())
+
+    assert isinstance(program_behavior, ProgramBehavior)
+    assert program_behavior.default_run_file is None
 
 
 @pytest.mark.parametrize("column", _PROGRAM_COLUMNS_THAT_CANNOT_BE_BLANK)

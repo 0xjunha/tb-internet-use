@@ -131,6 +131,8 @@ def _is_reason_possible_for_source(
             return isinstance(source, FileText)
         case UnknownRanTextReason.WORD_ROLE_NOT_KNOWN:
             return isinstance(source, ArgumentText)
+        case UnknownRanTextReason.DEFAULT_RUN_FILE_NOT_KNOWN:
+            return isinstance(source, FileTextWithoutKnownWriter)
 
 
 class UnknownRanTextReason(StrEnum):
@@ -157,6 +159,8 @@ class UnknownRanTextReason(StrEnum):
     FILE_ALREADY_RUNNING = "file_already_running"
     # The program runs texts or files, but no fact says what this argument of it is, e.g. f.sh of `bash -n f.sh` when the row of `-n` leaves the role blank.
     WORD_ROLE_NOT_KNOWN = "word_role_not_known"
+    # The program runs texts or files and its words name no file, but no fact says which file it runs then, e.g. a runner whose row leaves `default_run_file` blank.
+    DEFAULT_RUN_FILE_NOT_KNOWN = "default_run_file_not_known"
 
 
 @dataclass(frozen=True, slots=True)
@@ -196,7 +200,7 @@ class FileText:
 class FileTextWithoutKnownWriter:
     """Text source for a file that a command runs and that no single call is known to have written, e.g. setup.sh of the task image.
 
-    Its text is always an `UnknownRanText`, whose reason says whether no call wrote it, several fit or its path is built at run time.
+    Its text is always an `UnknownRanText`, whose reason says whether no call wrote it, several fit, its path is built at run time or no fact says which file the program runs when its words name none.
     """
 
     runner_command_id: int
@@ -446,8 +450,16 @@ class ProgramBehavior:
     runs_text_in_calling_shell: bool
     # False when the cell is `no`. An `UnknownExitsWithExitCodeOfNextProgram` when it is blank.
     exits_with_exit_code_of_next_program: bool | UnknownExitsWithExitCodeOfNextProgram
-    # The file it runs when its words name none, e.g. Makefile for make. None when the row says `none`.
-    default_run_file: str | None
+    # The file it runs when its words name none, e.g. Makefile for make. None when the row says `none`. An `UnknownDefaultRunFile` when the cell is blank.
+    default_run_file: str | UnknownDefaultRunFile | None
+
+
+@dataclass(frozen=True, slots=True)
+class UnknownDefaultRunFile:
+    """Answer of `ExpandedToolCallKnowledge`, standing where a file name or None would, to which file a program runs when its words name none, when its row of `program_behaviors.csv` leaves `default_run_file` blank.
+
+    A program whose row runs texts or files then gets an `UnknownRanText` of reason `DEFAULT_RUN_FILE_NOT_KNOWN` when its words name no file to run, and any other program gets no ran text, e.g. `git status` when the row of git gives no word the role `run_file`.
+    """
 
 
 @dataclass(frozen=True, slots=True)

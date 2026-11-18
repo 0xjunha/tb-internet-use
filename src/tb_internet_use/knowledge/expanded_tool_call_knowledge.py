@@ -21,6 +21,7 @@ from tb_internet_use.expanded_tool_call.model import (
     RanTextLanguage,
     SameAsArgumentRole,
     ShellLanguage,
+    UnknownDefaultRunFile,
     UnknownExitsWithExitCodeOfNextProgram,
     UnknownOptionsEndAtFirstArgument,
     UnknownProgramBehavior,
@@ -419,7 +420,7 @@ def _program_behavior_row_from_columns(
         exits_with_exit_code_of_next_program=_exits_with_exit_code_of_next_program_from_cell(
             columns, "exits_with_exit_code_of_next_program"
         ),
-        default_run_file=_text_or_none_from_cell(columns, "default_run_file"),
+        default_run_file=_default_run_file_from_cell(columns),
     )
     return _ProgramBehaviorRow(
         program_behavior,
@@ -473,6 +474,15 @@ def _program_option_behavior_from_columns(
             columns, "exits_with_exit_code_of_next_program_with_option"
         ),
     )
+
+
+def _default_run_file_from_cell(
+    columns: Mapping[str, str],
+) -> str | UnknownDefaultRunFile | None:
+    """Read `default_run_file`, in which `none` says the program runs no file when its words name none and a blank is unknown."""
+    if columns["default_run_file"] == "":
+        return UnknownDefaultRunFile()
+    return _text_or_none_from_cell(columns, "default_run_file")
 
 
 def _ran_text_language_from_columns(columns: Mapping[str, str]) -> RanTextLanguage:

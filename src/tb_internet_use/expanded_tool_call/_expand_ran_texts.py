@@ -62,6 +62,7 @@ from tb_internet_use.expanded_tool_call.model import (
     ShellLanguage,
     ShellTextSource,
     StdinText,
+    UnknownDefaultRunFile,
     UnknownProgramBehavior,
     UnknownProgramInvocation,
     UnknownProgramWordRole,
@@ -1101,6 +1102,8 @@ def _expand_ran_texts_of_command(
 ) -> None:
     """Follow the texts that one command runs, i.e. its words with the role `RUN_TEXT`, the files its words name with the role `RUN_FILE`, the files it runs by their paths or by default, and its stdin.
 
+    A program whose row runs texts or files and leaves its default run file blank gets an `UnknownRanText` when its words name no file to run, since it may run a file that no fact names.
+
     `text_variable_assignments` are the assignments of the command's text, which a text run in the calling shell sees, e.g. that of `eval`.
     """
     _expand_ran_texts_of_run_text_words(
@@ -1141,18 +1144,27 @@ def _expand_ran_texts_of_command(
         for program_index, program_behavior in enumerate(
             command_reading.program_behaviors
         ):
-            if (
-                isinstance(program_behavior, ProgramBehavior)
-                and program_behavior.default_run_file is not None
-            ):
+            if not isinstance(program_behavior, ProgramBehavior):
+                continue
+            default_run_file = program_behavior.default_run_file
+            if isinstance(default_run_file, str):
                 _expand_ran_text_of_file_of_program(
                     tool_call_state,
                     command_reading,
-                    program_behavior.default_run_file,
+                    default_run_file,
                     program_index,
                     text_variable_assignments,
                     running_written_file_keys=running_written_file_keys,
                     is_default_run_file=True,
+                )
+            elif isinstance(
+                default_run_file, UnknownDefaultRunFile
+            ) and _is_running_text_or_file(program_behavior):
+                tool_call_state.ran_texts.append(
+                    UnknownRanText(
+                        FileTextWithoutKnownWriter(shell_command.id, None),
+                        UnknownRanTextReason.DEFAULT_RUN_FILE_NOT_KNOWN,
+                    )
                 )
     _expand_ran_text_of_stdin(
         tool_call_state,
