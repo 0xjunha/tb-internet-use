@@ -343,12 +343,11 @@ def test_runs_the_extraction_of_network_requests_after_the_expansion_with_its_ow
         ]
         == 1
     )
-    # bash runs fetch.sh, whose commands give the requests, cat does not fetch and the later `echo done` shows no URL.
+    # bash runs fetch.sh, whose commands give the requests, and neither cat nor the later `echo done` fetches.
     assert no_network_request_counts == Counter(
         {
             NoNetworkRequestReason.PROGRAM_RUNS_SOMETHING_ELSE: 1,
-            NoNetworkRequestReason.NON_FETCHING_PROGRAM: 1,
-            NoNetworkRequestReason.NO_URL_THAT_MAY_BE_PUBLIC: 1,
+            NoNetworkRequestReason.NON_FETCHING_PROGRAM: 2,
         }
     )
     # Each step counts its own rules in its own counter, e.g. the dotted host of the URL of mytool in that of `extract_network_requests`.
