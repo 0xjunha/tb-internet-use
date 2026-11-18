@@ -1150,3 +1150,32 @@ def test_copies_of_the_old_code_are_in_the_rows(real_knowledge):
     program_behavior = _program_behavior_of(real_knowledge, "cp")
     assert program_behavior.argument_role == ProgramWordRole.COPY_SOURCE
     assert program_behavior.last_argument_role == ProgramWordRole.COPY_DESTINATION
+
+
+def test_options_of_read_take_the_values_that_the_bash_page_gives_them(
+    real_knowledge,
+):
+    program_behavior = _program_behavior_of(real_knowledge, "read")
+    taking_values = {
+        option_name: _option_behavior_of(
+            real_knowledge, program_behavior, option_name
+        ).takes_value
+        for option_name in ("-N", "-a", "-d", "-e", "-n", "-p", "-r", "-s", "-t", "-u")
+    }
+    array_option = _option_behavior_of(real_knowledge, program_behavior, "-a")
+
+    assert taking_values == {
+        "-N": True,
+        "-a": True,
+        "-d": True,
+        "-e": False,
+        "-n": True,
+        "-p": True,
+        "-r": False,
+        "-s": False,
+        "-t": True,
+        "-u": True,
+    }
+    # With -a the words go to the array aname and the name arguments are ignored.
+    assert array_option.value_role == ProgramWordRole.VARIABLE_NAME_SET_AT_RUN_TIME
+    assert array_option.argument_role_with_option == ProgramWordRole.OTHER

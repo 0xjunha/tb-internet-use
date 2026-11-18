@@ -1,6 +1,5 @@
 """Tests for expanded_tool_call/_expand_program_invocations.py, on a made-up program catalog whose rows the cases name, so that a case does not change when the real catalog gains rows."""
 
-import csv
 from collections import Counter
 from pathlib import Path
 from typing import NamedTuple
@@ -15,16 +14,17 @@ from tb_internet_use.expanded_tool_call.judgment_rules import (
     treat_word_with_expansion_as_one_argument,
 )
 from tb_internet_use.expanded_tool_call.model import (
+    ProgramBehavior,
     ProgramInvocation,
     ProgramOption,
     ProgramWordRole,
     UnknownExitsWithExitCodeOfNextProgram,
+    UnknownProgramBehavior,
     UnknownProgramInvocation,
     UnknownProgramWordRole,
 )
 from tb_internet_use.knowledge.catalog import KnowledgeUses
 from tb_internet_use.knowledge.expanded_tool_call_knowledge import (
-    CODE_RUNNERS_CSV,
     EXPANDED_TOOL_CALL_CATALOGS_DIR,
     PROGRAM_BEHAVIORS_CSV,
     PROGRAM_OPTION_BEHAVIORS_CSV,
@@ -36,50 +36,13 @@ UNKNOWN_ROLE = UnknownProgramWordRole()
 UNKNOWN_EXITS_WITH_EXIT_CODE_OF_NEXT_PROGRAM = UnknownExitsWithExitCodeOfNextProgram()
 EXPANSION_RULE_NAME = treat_word_with_expansion_as_one_argument.__name__
 
-# The cells of a program row that a row of `PROGRAM_BEHAVIOR_ROWS` does not give.
-_PROGRAM_ROW_DEFAULTS = {
-    "subcommand": "",
-    "argument_role": "other",
-    "first_argument_role": "same",
-    "last_argument_role": "same",
-    "stdin_role": "none",
-    "visibility_of_piped_input": "",
-    "gives_arguments_at_run_time": "no",
-    "skips_assignment_words": "no",
-    "options_end_at_first_argument": "no",
-    "takes_one_letter_options_joined": "yes",
-    "runs_text_in_calling_shell": "no",
-    "exits_with_exit_code_of_next_program": "no",
-    "name_may_end_with_version": "no",
-    "default_run_file": "none",
-    "checked_against": "made up",
-    "reviewed": "",
-    "note": "",
-}
-# The cells of an option row that a row of `PROGRAM_OPTION_BEHAVIOR_ROWS` does not give, i.e. an option without a value that changes nothing.
-_OPTION_ROW_DEFAULTS = {
-    "subcommand": "",
-    "takes_value": "no",
-    "value_role": "none",
-    "argument_role_with_option": "unchanged",
-    "first_argument_role_with_option": "unchanged",
-    "last_argument_role_with_option": "unchanged",
-    "changed_option_name": "none",
-    "changed_option_value_role": "none",
-    "gives_arguments_at_run_time": "no",
-    "exits_with_exit_code_of_next_program_with_option": "unchanged",
-    "next_program_end_words": "none",
-    "checked_against": "made up",
-    "reviewed": "",
-    "note": "",
-}
 _RUNS_NEXT_PROGRAM = {
     "argument_role": "program",
     "options_end_at_first_argument": "yes",
     "exits_with_exit_code_of_next_program": "yes",
 }
 _TAKES_OTHER_VALUE = {"takes_value": "yes", "value_role": "other"}
-# Made-up rows, each named by the program and the cells that differ from `_PROGRAM_ROW_DEFAULTS`. mytool has no row.
+# Made-up rows, each named by the program and the cells that differ from the defaults of `conftest.py`. mytool has no row.
 PROGRAM_BEHAVIOR_ROWS: list[dict[str, str]] = [
     {"program_name": "sudo", **_RUNS_NEXT_PROGRAM, "skips_assignment_words": "yes"},
     {"program_name": "env", **_RUNS_NEXT_PROGRAM, "skips_assignment_words": "yes"},
@@ -155,7 +118,7 @@ PROGRAM_BEHAVIOR_ROWS: list[dict[str, str]] = [
     {"program_name": "prog", "argument_role": "read_file"},
     {"program_name": "late"},
 ]
-# Made-up rows, each named by the program, the option and the cells that differ from `_OPTION_ROW_DEFAULTS`.
+# Made-up rows, each named by the program, the option and the cells that differ from the defaults of `conftest.py`.
 PROGRAM_OPTION_BEHAVIOR_ROWS: list[dict[str, str]] = [
     {"program_name": "sudo", "option_name": "-u", **_TAKES_OTHER_VALUE},
     {"program_name": "timeout", "option_name": "--signal", **_TAKES_OTHER_VALUE},
@@ -1192,35 +1155,12 @@ ROLE_CASES = [
 ]
 
 
-@pytest.fixture(scope="module")
-def catalogs_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    catalogs_dir = tmp_path_factory.mktemp("catalogs")
-    for file_name, defaults, rows in (
-        (PROGRAM_BEHAVIORS_CSV, _PROGRAM_ROW_DEFAULTS, PROGRAM_BEHAVIOR_ROWS),
-        (
-            PROGRAM_OPTION_BEHAVIORS_CSV,
-            _OPTION_ROW_DEFAULTS,
-            PROGRAM_OPTION_BEHAVIOR_ROWS,
-        ),
-    ):
-        columns = ["program_name", "option_name", *defaults]
-        if file_name == PROGRAM_BEHAVIORS_CSV:
-            columns.remove("option_name")
-        with (catalogs_dir / file_name).open("w", newline="") as csv_file:
-            writer = csv.DictWriter(csv_file, columns)
-            writer.writeheader()
-            writer.writerows({**defaults, **row} for row in rows)
-    (catalogs_dir / CODE_RUNNERS_CSV).write_text(
-        "runner_kind,runner,ran_text_language,checked_against,reviewed,note\n"
-    )
-    return catalogs_dir
-
-
 class _Expansion(NamedTuple):
     """Result of one `expand_program_invocations` call in a test, with the counts of the door and of the judgment rule."""
 
     program_invocations: tuple[ProgramInvocation | UnknownProgramInvocation, ...]
     roles: tuple[ProgramWordRole | UnknownProgramWordRole | None, ...]
+    program_behaviors: tuple[ProgramBehavior | UnknownProgramBehavior, ...]
     uses: KnowledgeUses
     judgment_rule_use_counts: Counter[str]
 
@@ -1232,13 +1172,17 @@ def _expansion_of(
 ) -> _Expansion:
     knowledge = ExpandedToolCallKnowledge(catalogs_dir=catalogs_dir)
     judgment_rule_use_counts: Counter[str] = Counter()
-    program_invocations, roles = expand_program_invocations(
+    program_invocations, roles, program_behaviors = expand_program_invocations(
         ShellCommand(0, words, expansion_word_indexes=expansion_word_indexes),
         knowledge=knowledge,
         judgment_rule_use_counts=judgment_rule_use_counts,
     )
     return _Expansion(
-        program_invocations, roles, knowledge.uses, judgment_rule_use_counts
+        program_invocations,
+        roles,
+        program_behaviors,
+        knowledge.uses,
+        judgment_rule_use_counts,
     )
 
 
@@ -1404,6 +1348,19 @@ def test_program_word_that_is_only_a_folder_is_counted_as_written(catalogs_dir):
     )
 
 
+def test_each_program_is_given_with_its_row_at_the_same_index(catalogs_dir):
+    program_behaviors = _expansion_of(
+        catalogs_dir, ("sudo", "env", "mytool", "x")
+    ).program_behaviors
+
+    assert [
+        program_behavior.program_name
+        if isinstance(program_behavior, ProgramBehavior)
+        else program_behavior
+        for program_behavior in program_behaviors
+    ] == ["sudo", "env", UnknownProgramBehavior()]
+
+
 def test_cluster_word_with_an_expansion_is_not_asked_of_the_door(catalogs_dir):
     uses = _expansion_of(catalogs_dir, ("tar", "$X", "a"), (1,)).uses
 
@@ -1523,7 +1480,7 @@ def test_wrapper_chain_and_shell_option_with_a_plus_are_read_on_the_real_catalog
         None,
         UNKNOWN_ROLE,
     )
-    assert shell_option == (
+    assert shell_option[:2] == (
         (
             _program_invocation(
                 "bash", options=(_option("+o", "posix"),), arguments=("f.sh",)
