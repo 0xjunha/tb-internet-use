@@ -1,6 +1,7 @@
 """Extract where the content that the requests of one fetching program receive goes, from its row, its options, the routes of its stdout and the files it writes itself.
 
 The same program can send its content to different places, e.g. `curl u` shows it in the result, `curl -o a.tgz u` saves it, `curl u > /dev/null` throws it away and `curl -I u` asks for none.
+A file that the program writes as the value of an option that does not send the content there holds something else, e.g. the headers of `curl -D h.txt u`, so it is not where the content goes.
 """
 
 from collections.abc import Sequence
@@ -51,11 +52,12 @@ def extract_received_content_destination(
     | An option asks for no content, e.g. `curl -I u`, or the row says `no_content`, e.g. `ping` | `NoContentRequested` |
     | The program gets more arguments when it runs, e.g. `xargs curl -O`, or an option has no row, e.g. `curl --foo u`, since either may send the content elsewhere as `-O` does | `UnknownReceivedContentDestination` |
     | An option sends the content to stdout, e.g. `curl -o - u`, or the row says `stdout` and the command writes no file of its own, e.g. `curl u > a.tgz` | the end of the stdout route |
-    | The command writes files of its own, e.g. `curl -o a.tgz u` | `ContentSaved` with the path when there is one file and one request, or `ContentDiscarded` when that file is `/dev/null`, else `ContentSaved(None)`, also for `curl -o /dev/null u1 -o /dev/null u2` |
+    | The command writes files of its own that may hold the content, e.g. `curl -o a.tgz u` | `ContentSaved` with the path when there is one file and one request, or `ContentDiscarded` when that file is `/dev/null`, else `ContentSaved(None)`, also for `curl -o /dev/null u1 -o /dev/null u2` |
     | The row says `own_file`, e.g. `pip install x` | `ContentSaved(None)` |
     | The row leaves the route blank | `UnknownReceivedContentDestination` |
 
-    `program_option_effects` holds the answer of `NetworkRequestKnowledge` for each of `program_invocation.options`, and `network_request_count` is the number of requests of the program in the command.
+    A file of its own may hold the content unless it is the value of an option whose effect is not `SENDS_CONTENT_TO_FILE`, e.g. h.txt of `curl -D h.txt u`, whose content goes to stdout, or of `curl -D h.txt u > b.txt`, whose content goes to b.txt.
+    `program_option_effects` holds the answer of `NetworkRequestKnowledge` for each of `program_invocation.options`, at the same index, and `network_request_count` is the number of requests of the program in the command.
     The same order holds for a call that did not run, since `expand_tool_calls` lists the files that its words write too, so that a command gets the same destination whether it ran or not.
     """
     if (
@@ -68,8 +70,10 @@ def extract_received_content_destination(
         for program_option_effect in program_option_effects
     ):
         return UnknownReceivedContentDestination()
-    own_output_file_paths = _own_output_file_paths_of(
-        ran_command.shell_command.id, written_files
+    own_output_file_paths = _content_file_paths_of(
+        _own_output_file_paths_of(ran_command.shell_command.id, written_files),
+        program_invocation,
+        program_option_effects,
     )
     if ProgramOptionEffect.SENDS_CONTENT_TO_STDOUT in program_option_effects or (
         not own_output_file_paths
@@ -112,6 +116,25 @@ def _destination_of_stdout_routes(
             return ContentDiscarded()
         case CaptureDestination():
             return UnknownReceivedContentDestination()
+
+
+def _content_file_paths_of(
+    own_output_file_paths: Sequence[str],
+    program_invocation: ProgramInvocation,
+    program_option_effects: Sequence[ProgramOptionEffect | UnknownProgramOptionEffect],
+) -> tuple[str, ...]:
+    """Give the files of a command's own that may hold the content, i.e. all but the values of options whose effect is not `SENDS_CONTENT_TO_FILE`, e.g. a.tgz and not h.txt of `curl -o a.tgz -D h.txt u`."""
+    other_file_values = {
+        program_option.value
+        for program_option, program_option_effect in zip(
+            program_invocation.options, program_option_effects, strict=True
+        )
+        if program_option.value is not None
+        and program_option_effect != ProgramOptionEffect.SENDS_CONTENT_TO_FILE
+    }
+    return tuple(
+        path for path in own_output_file_paths if path not in other_file_values
+    )
 
 
 def _own_output_file_paths_of(

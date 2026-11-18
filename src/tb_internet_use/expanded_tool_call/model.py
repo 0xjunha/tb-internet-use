@@ -615,6 +615,8 @@ class ProgramWordRole(StrEnum):
     COPY_SOURCE = "copy_source"
     COPY_DESTINATION = "copy_destination"
     DELETED_FILE = "deleted_file"
+    # The program changes something of the file other than its content and shows nothing of it, e.g. the mode bits in `chmod +x f.sh`, so a text written to the file stays as written.
+    METADATA_CHANGED_FILE = "metadata_changed_file"
     # A pattern or a script of the program, e.g. the first argument of grep.
     PATTERN = "pattern"
     # One-letter options written without a dash, e.g. `xzf` in `tar xzf a.tgz`.

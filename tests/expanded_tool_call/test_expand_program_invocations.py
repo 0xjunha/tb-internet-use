@@ -463,15 +463,26 @@ INVOCATION_CASES = [
             _CURL_U,
         ),
     ),
+    # An option of the program without a subcommand is skipped with its value before the subcommand is looked for.
     (
         "git -C dir clone u",
         ("git", "-C", "dir", "clone", "u"),
         (),
         (
             _program_invocation(
-                "git", options=(_option("-C", "dir"),), arguments=("clone", "u")
+                "git",
+                subcommand_words=("clone",),
+                options=(_option("-C", "dir"),),
+                arguments=("u",),
             ),
         ),
+    ),
+    # An option that only the subcommand has a row for is unknown before the subcommand, so the reading stops there and no subcommand is read.
+    (
+        "git --depth 1 clone u",
+        ("git", "--depth", "1", "clone", "u"),
+        (),
+        (_program_invocation("git", unread_words=("--depth", "1", "clone", "u")),),
     ),
     (
         "find . -maxdepth 2",
@@ -1152,7 +1163,7 @@ ROLE_CASES = [
             None,
             None,
             ProgramWordRole.OTHER,
-            ProgramWordRole.OTHER,
+            None,
             ProgramWordRole.OTHER,
         ),
     ),

@@ -798,6 +798,7 @@ def _record_file_touches_of_command(
     """Record the files that the words of a command read, write, change, copy or remove, and the files its output routes end in, in word order and then route order.
 
     A file that the command runs is recorded where its text is followed, and its stdin where that is read.
+    A word with the role `METADATA_CHANGED_FILE` records no touch, since its program leaves the content as it was, e.g. f.sh of `chmod +x f.sh`.
     A command of a call that did not run records only its writes, since they say what the text writes.
     """
     shell_command = command_reading.shell_command

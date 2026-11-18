@@ -287,7 +287,7 @@ def _extract_public_url_network_requests(
 def _program_option_effects_of(
     program_invocation: ProgramInvocation, knowledge: NetworkRequestKnowledge
 ) -> tuple[ProgramOptionEffect | UnknownProgramOptionEffect, ...]:
-    """Give the answer of the door for each option of a program, in the order of its options, e.g. `NONE` for `-o` of `curl -o a.tgz u`."""
+    """Give the answer of the door for each option of a program, in the order of its options, e.g. `SENDS_CONTENT_TO_FILE` for `-o` of `curl -o a.tgz u`."""
     return tuple(
         knowledge.program_option_effect(program_invocation, program_option)
         for program_option in program_invocation.options

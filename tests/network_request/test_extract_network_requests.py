@@ -176,7 +176,15 @@ PROGRAM_NETWORK_REQUEST_ROWS: list[dict[str, str]] = [
     },
     *(
         {"program_name": "curl", "option_name": option_name, "option_effect": "none"}
-        for option_name in ("-s", "-S", "-O", "-o", "--connect-timeout")
+        for option_name in ("-s", "-S", "--connect-timeout")
+    ),
+    *(
+        {
+            "program_name": "curl",
+            "option_name": option_name,
+            "option_effect": "sends_content_to_file",
+        }
+        for option_name in ("-O", "-o")
     ),
     {
         "program_name": "pip",
@@ -802,3 +810,41 @@ def test_every_use_of_a_judgment_rule_and_every_run_without_request_adds_to_the_
             NoNetworkRequestReason.NON_FETCHING_CODE_CALL: 1,
         }
     )
+
+
+# Commands whose fetching program has an option before its subcommand, or is a git subcommand that may run hooks of the repository, as (text, targets) of the requests that the real catalogs give.
+_REAL_CATALOG_CASES = [
+    ("apt-get -y install curl", ["curl"]),
+    ("pip -q install x", ["x"]),
+    ("python -m pip -q install x", ["x"]),
+    (
+        "npm --prefix /app install",
+        [UnknownNetworkRequestTarget(UnknownNetworkRequestTargetReason.NAMED_IN_FILE)],
+    ),
+    ("git -C /app fetch", [None]),
+    ("git pull https://github.com/a/b", ["https://github.com/a/b"]),
+    ("git submodule update", [None]),
+    # An option without a row of pip stops the reading before the subcommand, so no request is made from words that were not read.
+    ("pip --foo install x", []),
+]
+
+
+@pytest.mark.parametrize(("text", "targets"), _REAL_CATALOG_CASES)
+def test_commands_give_their_requests_on_the_real_catalogs(text, targets):
+    """Run on the real catalog folders, so that a missing program, subcommand or option row there fails here."""
+    expanded_tool_calls = expand_tool_calls(
+        (_call(1, text),),
+        knowledge=ExpandedToolCallKnowledge(),
+        judgment_rule_use_counts=Counter(),
+    )
+    network_requests = extract_network_requests(
+        expanded_tool_calls,
+        knowledge=NetworkRequestKnowledge(),
+        judgment_rule_use_counts=Counter(),
+        no_network_request_counts=Counter(),
+    )
+
+    assert [
+        (network_request.target, network_request.certainty)
+        for network_request in network_requests
+    ] == [(target, NetworkRequestCertainty.CONFIRMED) for target in targets]

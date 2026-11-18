@@ -6,7 +6,7 @@ A cell holds a fact, a word that stands for a value, e.g. `none`, or a blank. Th
 
 The role columns hold a `ProgramWordRole` value, e.g. `read_file` for the arguments of cat or `program` for those of sudo.
 
-[`program_behaviors.csv`](program_behaviors.csv) has one row per program, or per subcommand of a program, keyed by `program_name` and `subcommand`. The row of a subcommand, e.g. `(uv, run)`, answers when its words come right after the program word, and the longest such row wins over the row without a subcommand.
+[`program_behaviors.csv`](program_behaviors.csv) has one row per program, or per subcommand of a program, keyed by `program_name` and `subcommand`. The row of a subcommand, e.g. `(uv, run)`, answers when its words come right after the program word, or after the options before them that rows of the program without a subcommand cover, with their values, e.g. `install` of `apt-get -y install curl`. The longest such row wins over the row without a subcommand. A word before the subcommand that those rows do not cover leaves the row without a subcommand to answer, and the word stays unread.
 
 | Column | Cell | Blank |
 |---|---|---|

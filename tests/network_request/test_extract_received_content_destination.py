@@ -222,6 +222,38 @@ def _destination(
             id="curl -o /dev/null u1 -o /dev/null u2 saves to an unknown file",
         ),
         pytest.param(
+            {
+                "program_invocation": _invocation("curl", options=(("-D", "h.txt"),)),
+                "written_files": (_own_output_file("h.txt"),),
+            },
+            ContentShownInResult(),
+            id="curl -D h.txt u, whose headers file does not hold the content",
+        ),
+        pytest.param(
+            {
+                "program_invocation": _invocation("curl", options=(("-D", "h.txt"),)),
+                "stdout_routes": (_route_to(FileDestination("b.txt", appends=False)),),
+                "written_files": (
+                    _own_output_file("h.txt"),
+                    WrittenFile(
+                        "b.txt", (WrittenFileWriter(0, FileWriteChannel.STDOUT),), ()
+                    ),
+                ),
+            },
+            ContentSaved("b.txt"),
+            id="curl -D h.txt u > b.txt",
+        ),
+        pytest.param(
+            {
+                "program_invocation": _invocation(
+                    "curl", options=(("-o", "b.txt"), ("-D", "h.txt"))
+                ),
+                "written_files": (_own_output_file("b.txt"), _own_output_file("h.txt")),
+            },
+            ContentSaved("b.txt"),
+            id="curl -o b.txt -D h.txt u",
+        ),
+        pytest.param(
             {"program_invocation": _invocation("curl"), "stdout_routes": ()},
             UnknownReceivedContentDestination(),
             id="a command without a stdout route",

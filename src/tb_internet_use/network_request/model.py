@@ -365,6 +365,8 @@ class ProgramOptionEffect(StrEnum):
     ASKS_FOR_NO_CONTENT = "asks_for_no_content"
     # With it the content goes to stdout, e.g. `-o -` of curl.
     SENDS_CONTENT_TO_STDOUT = "sends_content_to_stdout"
+    # With it the content goes to a file that the program writes itself, e.g. `-o a.tgz` or `-O` of curl, unlike another file it writes, e.g. the headers of `-D h.txt`.
+    SENDS_CONTENT_TO_FILE = "sends_content_to_file"
     # Its value names a host that the request asks, e.g. `-i` of pip.
     NAMES_HOST_IN_VALUE = "names_host_in_value"
     # Its value is a file that names the targets, e.g. `-r` of pip.

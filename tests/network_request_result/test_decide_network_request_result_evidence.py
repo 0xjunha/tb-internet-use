@@ -1109,7 +1109,9 @@ def unknown_printer_case(
         )
     if which == "option without a row":
         ran_command = command(
-            0, "curl -L https://a.org/x", program("curl", options=(option("-L"),))
+            0,
+            "curl --compressed https://a.org/x",
+            program("curl", options=(option("--compressed"),)),
         )
         network_request = request(K1, from_command(ran_command), "https://a.org/x")
         return (

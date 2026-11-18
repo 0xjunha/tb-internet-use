@@ -21,10 +21,10 @@ curl,,--fail,,,,,,,,none,"curl(1) -f, --fail, curl.se/docs/manpage.html, curl 8.
 curl,,--fail-with-body,,,,,,,,none,"curl(1) --fail-with-body, curl.se/docs/manpage.html, curl 8.23.1",,
 curl,,--head,,,,,,,,asks_for_no_content,"not checked, from the old table",,
 curl,,--max-time,,,,,,,,none,"curl(1) -m, --max-time, curl.se/docs/manpage.html, curl 8.23.1",,
-curl,,--output,,,,,,,,none,"not checked, from the old table",,The file it names is a written file of the command
+curl,,--output,,,,,,,,sends_content_to_file,"curl(1) -o, --output (Write output to the given file instead of stdout), curl.se/docs/manpage.html, curl 8.23.1",,The file it names is a written file of the command
 curl,,--output,-,,,,,,,sends_content_to_stdout,"not checked, from the old table",,
-curl,,--remote-name,,,,,,,,none,"not checked, from the old table",,The file it names is a written file of the command
-curl,,--remote-name-all,,,,,,,,none,"not checked, from the old table",,The file it names is a written file of the command
+curl,,--remote-name,,,,,,,,sends_content_to_file,"curl(1) -O, --remote-name (Write output to a local file named like the remote file we get), curl.se/docs/manpage.html, curl 8.23.1",,The file it names is a written file of the command
+curl,,--remote-name-all,,,,,,,,sends_content_to_file,"curl(1) --remote-name-all (Change the default action for all given URLs to be dealt with as if --remote-name were used for each one), curl.se/docs/manpage.html, curl 8.23.1",,The file it names is a written file of the command
 curl,,--request,HEAD,,,,,,,asks_for_no_content,"not checked, from the old table",,
 curl,,--show-error,,,,,,,,none,"curl(1) -S, --show-error, curl.se/docs/manpage.html, curl 8.23.1",,
 curl,,--silent,,,,,,,,none,"curl(1) -s, --silent, curl.se/docs/manpage.html, curl 8.23.1",,
@@ -33,7 +33,7 @@ curl,,-D,,,,,,,,none,"curl(1) -D, --dump-header, curl.se/docs/manpage.html, curl
 curl,,-H,,,,,,,,none,"curl(1) -H, --header, curl.se/docs/manpage.html, curl 8.23.1",,
 curl,,-I,,,,,,,,asks_for_no_content,"not checked, from the old table",,
 curl,,-L,,,,,,,,none,"curl(1) -L, --location, curl.se/docs/manpage.html, curl 8.23.1",,A redirect to another host is a request that the words do not show
-curl,,-O,,,,,,,,none,"not checked, from the old table",,The file it names is a written file of the command
+curl,,-O,,,,,,,,sends_content_to_file,"curl(1) -O, --remote-name (Write output to a local file named like the remote file we get), curl.se/docs/manpage.html, curl 8.23.1",,The file it names is a written file of the command
 curl,,-S,,,,,,,,none,"curl(1) -S, --show-error, curl.se/docs/manpage.html, curl 8.23.1",,
 curl,,-X,DELETE,,,,,,,none,"curl(1) -X, --request, curl.se/docs/manpage.html, curl 8.23.1",,"Only the method changes. A value that is no method name, e.g. a variable, has no row"
 curl,,-X,HEAD,,,,,,,asks_for_no_content,"not checked, from the old table",,
@@ -45,7 +45,7 @@ curl,,-d,,,,,,,,none,"curl(1) -d, --data, curl.se/docs/manpage.html, curl 8.23.1
 curl,,-f,,,,,,,,none,"curl(1) -f, --fail, curl.se/docs/manpage.html, curl 8.23.1",,"On an HTTP response of 400 or more the body is not output, which the content route does not tell apart"
 curl,,-i,,,,,,,,none,"curl(1) -i, --show-headers, curl.se/docs/manpage.html, curl 8.23.1",,The received headers go to the same output as the body
 curl,,-m,,,,,,,,none,"curl(1) -m, --max-time, curl.se/docs/manpage.html, curl 8.23.1",,
-curl,,-o,,,,,,,,none,"not checked, from the old table",,The file it names is a written file of the command
+curl,,-o,,,,,,,,sends_content_to_file,"curl(1) -o, --output (Write output to the given file instead of stdout), curl.se/docs/manpage.html, curl 8.23.1",,The file it names is a written file of the command
 curl,,-o,-,,,,,,,sends_content_to_stdout,"not checked, from the old table",,
 curl,,-s,,,,,,,,none,"curl(1) -s, --silent, curl.se/docs/manpage.html, curl 8.23.1",,
 curl,,-u,,,,,,,,none,"curl(1) -u, --user, curl.se/docs/manpage.html, curl 8.23.1",,
@@ -63,7 +63,9 @@ gh,api,,,yes,all,repository_url,url_or_scp_like_address,no_target,stdout,,"not c
 git,clone,,,yes,first,repository_url,url_or_scp_like_address,no_target,own_file,,"target_arguments, content_route from git-clone(1) SYNOPSIS and DESCRIPTION, Git 2.56 (git-scm.com). The rest not checked, from the old table",,
 git,fetch,,,yes,first,repository_url,url_or_scp_like_address,no_target,own_file,,"target_arguments, content_route from git-fetch(1) SYNOPSIS and DESCRIPTION, Git 2.56 (git-scm.com). The rest not checked, from the old table",,
 git,ls-remote,,,yes,first,repository_url,url_or_scp_like_address,no_target,stdout,,"target_arguments from git-ls-remote(1) SYNOPSIS and DESCRIPTION, Git 2.56 (git-scm.com). The rest not checked, from the old table",,
+git,pull,,,yes,first,repository_url,url_or_scp_like_address,no_target,own_file,,"git-pull(1) SYNOPSIS (git pull [<options>] [<repository> [<refspec>...]]), DESCRIPTION (First, git pull runs git fetch with the same arguments ... Then it integrates that branch into the current branch) and <repository> (The ""remote"" repository to pull from), Git 2.55.0 (git-scm.com)",,"Without a repository it pulls from the remote that the configuration of the branch names, which the words do not show"
 git,submodule update,,,yes,none,repository_url,url_or_scp_like_address,no_target,,,"target_arguments from git-submodule(1) SYNOPSIS and DESCRIPTION, Git 2.56 (git-scm.com) update. The rest not checked, from the old table",,"The words after update are paths of submodules, not targets"
+git,,-C,,,,,,,,none,"git(1) OPTIONS -C <path> (Run as if git was started in <path> instead of the current working directory), Git 2.56.0 (git-scm.com)",,"The repository at the path decides which remote a command without a repository asks, which the words do not show"
 git,clone,--depth,,,,,,,,none,"git-clone(1) OPTIONS --depth, Git 2.54.0 (git-scm.com/docs/git-clone)",,
 git,clone,-q,,,,,,,,none,"git-clone(1) OPTIONS -q, --quiet, Git 2.54.0 (git-scm.com/docs/git-clone)",,
 go,build,,,only_what_is_missing,none,package_name,name,named_in_file,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
@@ -149,9 +151,9 @@ uv,,--help,,,,,,,,sends_no_request,"not checked, from the old table",,
 uv,,--index-url,,,,,,,,names_host_in_value,"not checked, from the old table",,
 uv,,-e,,,,,,,,names_target_in_value,"not checked, from the old table",,The old table said it names packages in a file or a local project. Its value is the target itself
 wget,,,,yes,all,url,url,no_request,own_file,,"content_route from wget(1) DESCRIPTION, -P and -O, GNU Wget 1.21.3 (Debian bookworm, manpages.debian.org). The rest not checked, from the old table",,
-wget,,--output-document,,,,,,,,none,"not checked, from the old table",,The file it names is a written file of the command
+wget,,--output-document,,,,,,,,sends_content_to_file,"wget(1) -O file, --output-document=file (The documents will not be written to the appropriate files, but all will be concatenated together and written to file), GNU Wget 1.21.3 (Debian bookworm, manpages.debian.org)",,The file it names is a written file of the command
 wget,,--output-document,-,,,,,,,sends_content_to_stdout,"not checked, from the old table",,
 wget,,--spider,,,,,,,,asks_for_no_content,"not checked, from the old table",,
-wget,,-O,,,,,,,,none,"not checked, from the old table",,The file it names is a written file of the command
+wget,,-O,,,,,,,,sends_content_to_file,"wget(1) -O file, --output-document=file (The documents will not be written to the appropriate files, but all will be concatenated together and written to file), GNU Wget 1.21.3 (Debian bookworm, manpages.debian.org)",,The file it names is a written file of the command
 wget,,-O,-,,,,,,,sends_content_to_stdout,"not checked, from the old table",,
 xxd,,,,no,,,,,,,"not checked, from the old table",,

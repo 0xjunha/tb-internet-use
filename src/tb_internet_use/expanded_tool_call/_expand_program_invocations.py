@@ -60,6 +60,7 @@ _FILE_ROLES = frozenset(
         ProgramWordRole.COPY_SOURCE,
         ProgramWordRole.COPY_DESTINATION,
         ProgramWordRole.DELETED_FILE,
+        ProgramWordRole.METADATA_CHANGED_FILE,
     }
 )
 
@@ -238,10 +239,8 @@ class _ProgramWordsState:
         self.program_word_index = program_word_index
         # The 0-based index after the last word of the range.
         self.end_word_index = end_word_index
-        # The 0-based index of the first word after the subcommand.
-        self.first_option_or_argument_index = (
-            program_word_index + 1 + len(program_behavior.subcommand_words)
-        )
+        # Whether the subcommand words of the row are still to come, e.g. after `-y` of `apt-get -y install curl`, since options of the program may stand before them.
+        self.is_before_subcommand = bool(program_behavior.subcommand_words)
         self.placed_program_options: list[_PlacedProgramOption] = []
         # The 0-based indexes of the words that are arguments and take a role from their place among them, in word order.
         self.placed_argument_indexes: list[int] = []
@@ -255,13 +254,30 @@ class _ProgramWordsState:
         self.next_program_ranges_of_options: list[_NextProgramRange] = []
 
     def place_words(self) -> None:
-        """Place the words after the subcommand left to right as options, values and arguments, up to an unread word, the argument that starts the next program or the end."""
+        """Place the words after the program word left to right as options, values, subcommand words and arguments, up to an unread word, the argument that starts the next program or the end.
+
+        Before the subcommand only options of the program without a subcommand are read, as `ExpandedToolCallKnowledge.program_behavior` skipped them to find the subcommand.
+        """
         command_state = self.command_state
         words = command_state.words
-        word_index = self.first_option_or_argument_index
+        word_index = self.program_word_index + 1
         after_end_of_options = False
         while word_index < self.end_word_index:
             word = words[word_index]
+            if self.is_before_subcommand and not (
+                word_index not in command_state.expansion_word_indexes
+                and word.startswith("-")
+                and word not in (*_WORDS_WITHOUT_OPTIONS, _END_OF_OPTIONS_WORD)
+            ):
+                subcommand_words = self.program_behavior.subcommand_words
+                subcommand_end_index = word_index + len(subcommand_words)
+                if tuple(words[word_index:subcommand_end_index]) != subcommand_words:
+                    # The door found the subcommand after the options it skipped, so another word here is not read.
+                    self.first_unread_word_index = word_index
+                    return
+                self.is_before_subcommand = False
+                word_index = subcommand_end_index
+                continue
             if self.is_skipped_assignment_word(word):
                 self.other_argument_indexes.append(word_index)
                 word_index += 1
@@ -281,7 +297,9 @@ class _ProgramWordsState:
                     word_index += 1
                     continue
                 program_option_word = command_state.knowledge.program_option_word(
-                    self.program_behavior, word
+                    self.program_behavior,
+                    word,
+                    is_before_subcommand=self.is_before_subcommand,
                 )
                 if (
                     isinstance(program_option_word, ProgramOptionWord)

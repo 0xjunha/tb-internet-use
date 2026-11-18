@@ -955,8 +955,6 @@ _PAIRS_WITHOUT_PROGRAM_BEHAVIOR_ROW_YET = {
     ("bun", "add"),
     ("dnf", "install"),
     ("dnf", "makecache"),
-    ("git", "fetch"),
-    ("git", "submodule update"),
     ("go", "run"),
     ("lake", "build"),
     ("npm", "audit"),
@@ -993,6 +991,8 @@ _ANSWERS_OF_REAL_PROGRAM_ROWS = [
 _NOT_CHECKED = "not checked, from the old table"
 # A manual page named as `name(section)`, e.g. `curl(1)`.
 _MANUAL_PAGE_NAME = re.compile(r"\b[\w.+-]+\([1-9][a-z]*\)")
+# A page of a program's own documentation named by its site and path, e.g. `(pip.pypa.io/en/stable/cli/pip/)`.
+_DOCUMENTATION_PAGE_ADDRESS = re.compile(r"\((?:[\w-]+\.)+[a-z]+/[^)]*\)")
 
 
 def _write_catalogs(
@@ -1534,9 +1534,11 @@ def test_real_catalog_loads_and_holds_no_invisible_control_characters_and_no_rev
     assert not [c for c in text if ord(c) < 32 and c != "\n"]
     for row in _real_rows(file_name):
         assert row["reviewed"] == "", row
-        assert row["checked_against"].startswith(
-            _NOT_CHECKED
-        ) or _MANUAL_PAGE_NAME.search(row["checked_against"]), row
+        assert (
+            row["checked_against"].startswith(_NOT_CHECKED)
+            or _MANUAL_PAGE_NAME.search(row["checked_against"])
+            or _DOCUMENTATION_PAGE_ADDRESS.search(row["checked_against"])
+        ), row
 
 
 @pytest.mark.parametrize(
@@ -1635,3 +1637,112 @@ def test_pairs_of_the_real_catalogs_without_a_row_of_program_behaviors_are_the_p
     }
 
     assert pairs - behavior_keys == _PAIRS_WITHOUT_PROGRAM_BEHAVIOR_ROW_YET
+
+
+def _options(*names_and_values: str | tuple[str, str]) -> tuple[ProgramOption, ...]:
+    return tuple(
+        ProgramOption(*name_and_value)
+        if isinstance(name_and_value, tuple)
+        else ProgramOption(name_and_value, None)
+        for name_and_value in names_and_values
+    )
+
+
+# (program name, subcommand words, options, lines it can print, meaning of exit 0) of runs with the options that the sample of trials uses, as the real catalogs must answer them.
+_ANSWERS_OF_REAL_RUNS_WITH_OPTIONS = [
+    (
+        "curl",
+        (),
+        _options("-s", "-S", "-L", ("-o", "f"), ("-H", "A: b"), ("-X", "POST")),
+        _lines(P.CURL),
+        M.SERVER_ANSWERED,
+    ),
+    (
+        "curl",
+        (),
+        _options("--silent", "--show-error", ("-d", "x"), ("-u", "a:b"), ("-m", "5")),
+        _lines(P.CURL),
+        M.SERVER_ANSWERED,
+    ),
+    (
+        "curl",
+        (),
+        _options("-f", "-s", "-O"),
+        _lines(P.CURL, P.HTTP_FAILURE),
+        M.REQUEST_SUCCEEDED,
+    ),
+    (
+        "curl",
+        (),
+        _options("-I", "-s"),
+        _lines(P.CURL, P.HTTP_HEADERS),
+        M.SERVER_ANSWERED,
+    ),
+    (
+        "curl",
+        (),
+        _options("-s", ("-w", "%{http_code}")),
+        ProgramOutputLines(frozenset({P.CURL}), prints_status_code=True),
+        M.SERVER_ANSWERED,
+    ),
+    # With -D the headers go to stdout only for the value -, which the row cannot tell apart, so the lines are unknown.
+    (
+        "curl",
+        (),
+        _options(("-D", "h.txt")),
+        UnknownProgramOutputLines(),
+        M.SERVER_ANSWERED,
+    ),
+    ("wget", (), _options(("-O", "f")), _lines(P.WGET), M.REQUEST_SUCCEEDED),
+    (
+        "pip",
+        ("install",),
+        _options("-q", "--upgrade", ("--target", "d")),
+        _lines(P.PIP),
+        M.NOTHING,
+    ),
+    (
+        "pip",
+        ("download",),
+        _options("-q", "--no-deps", ("-d", "d")),
+        _lines(P.PIP),
+        M.NOTHING,
+    ),
+    ("apt-get", ("install",), _options("-y", "-q"), _lines(P.APT), M.NOTHING),
+    (
+        "npm",
+        ("install",),
+        _options("--no-audit", "--no-fund"),
+        _lines(P.NPM),
+        M.NOTHING,
+    ),
+    (
+        "git",
+        ("clone",),
+        _options(("--depth", "1"), "-q"),
+        _lines(P.GIT),
+        M.REQUEST_SUCCEEDED,
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    (
+        "program_name",
+        "subcommand_words",
+        "options",
+        "output_lines",
+        "exit_zero_meaning",
+    ),
+    _ANSWERS_OF_REAL_RUNS_WITH_OPTIONS,
+)
+def test_real_catalogs_answer_for_runs_with_the_options_of_the_sample(
+    program_name, subcommand_words, options, output_lines, exit_zero_meaning
+):
+    knowledge = NetworkRequestResultKnowledge()
+    program_invocation = _invocation(program_name, subcommand_words, options=options)
+
+    assert knowledge.program_output_lines(program_invocation) == output_lines
+    assert (
+        knowledge.program_exit_code_meaning(program_invocation, 0) == exit_zero_meaning
+    )

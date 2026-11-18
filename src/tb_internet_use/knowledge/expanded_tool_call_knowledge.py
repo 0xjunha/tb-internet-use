@@ -77,7 +77,8 @@ class ExpandedToolCallKnowledge:
         """Answer how a program uses its words and stdin, from the row of its subcommand, or `UnknownProgramBehavior` for a program without a fitting row.
 
         `program_name` is the program word without its folder, e.g. python3.11 for `/usr/bin/python3.11`.
-        The row is the one whose subcommand words all come right after the program word, the longest such, and else the row without a subcommand.
+        The row is the one whose subcommand words all come right after the options of the program that stand before them, the longest such, and else the row without a subcommand.
+        An option before the subcommand is read through the rows without a subcommand and skipped with its value, e.g. `-y` of `apt-get -y install curl` or `--prefix /app` of `npm --prefix /app install`. The first word that starts with `-` and that those rows do not cover ends the search, so the row without a subcommand answers and the word stays unread as an unknown option.
         A name without rows is read without its version, e.g. python for python3.11, but only through the rows that say `name_may_end_with_version`.
         One lookup counts the row, or the input `(program_name, "")` when no row fits.
         A name read without its version is also counted as a use of `(program_name, name without version)` under `NAMES_READ_WITHOUT_VERSION`, so the counts show which spellings rest on `name_may_end_with_version`.
@@ -90,10 +91,17 @@ class ExpandedToolCallKnowledge:
                     _VERSION_AT_END.sub("", program_name), ()
                 )
             )
+        subcommand_word_index = (
+            _subcommand_word_index_of(row_keys[0][0], words_after_program, catalogs)
+            if row_keys
+            else 0
+        )
         fitting_row_keys = [
             row_key
             for row_key in row_keys
-            if _is_subcommand_of(row_key[1], words_after_program)
+            if _is_subcommand_of(
+                row_key[1], words_after_program[subcommand_word_index:]
+            )
         ]
         row_key = max(
             fitting_row_keys,
@@ -113,6 +121,7 @@ class ExpandedToolCallKnowledge:
         word: str,
         *,
         is_option_cluster: bool = False,
+        is_before_subcommand: bool = False,
     ) -> ProgramOptionWord | ProgramArgumentWord | UnknownProgramOptionWord:
         """Answer which options of a program one word of a command holds, with the row of each and the value written in the word, or `UnknownProgramOptionWord` when the rows do not cover the word.
 
@@ -129,11 +138,21 @@ class ExpandedToolCallKnowledge:
         When `takes_one_letter_options_joined` is `no` or blank, a word of several letters without a row of its own is `UnknownProgramOptionWord`, e.g. `-ne` of echo, since the letters are not read one by one.
         A word that starts with `+` is `ProgramArgumentWord` when no row of the program or its subcommand names an option that starts with `+`, e.g. `+x` of chmod.
         A row of the subcommand comes before a row of the program without a subcommand, e.g. `(git, clone, --depth)` before `(git, "", --depth)`.
+        With `is_before_subcommand`, for a word between the program word and the subcommand, e.g. `-C` of `git -C /app log`, only the rows without a subcommand answer, read as the row of the program without a subcommand reads joined letters, since such a word is an option of the program and not of the subcommand.
         The door counts one use of a row per option it gives, and when the rows do not cover the word one unknown input under the word as written with the subcommand as asked, e.g. `(find, "", -maxdepth)` or `(grep, "", -rn)`, so that the list of unknown inputs holds only words without rows. For `--name=value` that input is `--name`, since a row is named without a value.
         """
         catalogs = self._catalogs
         program_name = program_behavior.program_name
-        subcommand = " ".join(program_behavior.subcommand_words)
+        subcommand = (
+            "" if is_before_subcommand else " ".join(program_behavior.subcommand_words)
+        )
+        takes_one_letter_options_joined = (
+            catalogs.takes_one_letter_options_joined_by_program_name.get(
+                program_name, UnknownTakesOneLetterOptionsJoined()
+            )
+            if is_before_subcommand
+            else program_behavior.takes_one_letter_options_joined
+        )
         if (
             word.startswith("+")
             and not is_option_cluster
@@ -147,7 +166,7 @@ class ExpandedToolCallKnowledge:
             catalogs,
             program_name=program_name,
             subcommand=subcommand,
-            takes_one_letter_options_joined=program_behavior.takes_one_letter_options_joined,
+            takes_one_letter_options_joined=takes_one_letter_options_joined,
             is_option_cluster=is_option_cluster,
         )
         if option_parts is None:
@@ -293,8 +312,47 @@ def _option_parts_of_word(
     return option_parts
 
 
+def _subcommand_word_index_of(
+    program_name: str,
+    words_after_program: Sequence[str],
+    catalogs: _ExpandedToolCallCatalogs,
+) -> int:
+    """Find the 0-based index in `words_after_program` of the first word after the options that the rows of the program without a subcommand cover, with their values, e.g. 1 for `-y install curl` of apt-get and 2 for `--prefix /app install` of npm.
+
+    The search stops at the first word that does not start with `-`, at a lone `-` or `--`, and at a word that those rows do not cover. It reads the index made at load and counts nothing, since the step asks for each option word again.
+    """
+    takes_one_letter_options_joined = (
+        catalogs.takes_one_letter_options_joined_by_program_name.get(program_name)
+    )
+    if takes_one_letter_options_joined is None:
+        # No row without a subcommand, so no option row without one either.
+        return 0
+    word_index = 0
+    while word_index < len(words_after_program):
+        word = words_after_program[word_index]
+        if not word.startswith("-") or word in ("-", "--"):
+            return word_index
+        option_parts = _option_parts_of_word(
+            word,
+            catalogs,
+            program_name=program_name,
+            subcommand="",
+            takes_one_letter_options_joined=takes_one_letter_options_joined,
+            is_option_cluster=False,
+        )
+        if option_parts is None:
+            return word_index
+        _, last_row_key, last_attached_value = option_parts[-1]
+        takes_next_word = (
+            catalogs.option_takes_value_by_row_key[last_row_key]
+            and last_attached_value is None
+        )
+        word_index += 2 if takes_next_word else 1
+    return word_index
+
+
 def _is_subcommand_of(subcommand: str, words_after_program: Sequence[str]) -> bool:
-    """Tell whether the words of a subcommand cell all come right after the program word, which an empty cell always does."""
+    """Tell whether the words of a subcommand cell all come first among the given words, which an empty cell always does."""
     subcommand_words = tuple(subcommand.split())
     return tuple(words_after_program[: len(subcommand_words)]) == subcommand_words
 
@@ -342,6 +400,16 @@ def _load_expanded_tool_call_catalogs(catalogs_dir: Path) -> _ExpandedToolCallCa
             row_keys_allowing_version_by_program_name.setdefault(row_key[0], []).append(
                 row_key
             )
+    takes_one_letter_options_joined_by_program_name: dict[
+        str, bool | UnknownTakesOneLetterOptionsJoined
+    ] = {}
+    for program_name, subcommand in program_behaviors.row_keys:
+        if subcommand == "":
+            row = program_behaviors.lookup((program_name, subcommand), unused)
+            assert row is not None
+            takes_one_letter_options_joined_by_program_name[program_name] = (
+                row.program_behavior.takes_one_letter_options_joined
+            )
     option_takes_value_by_row_key: dict[KnowledgeRowKey, bool] = {}
     for row_key in program_option_behaviors.row_keys:
         option_row = program_option_behaviors.lookup(row_key, unused)
@@ -354,6 +422,7 @@ def _load_expanded_tool_call_catalogs(catalogs_dir: Path) -> _ExpandedToolCallCa
         _row_key_tuples_of(row_keys_by_program_name),
         _row_key_tuples_of(row_keys_allowing_version_by_program_name),
         option_takes_value_by_row_key,
+        takes_one_letter_options_joined_by_program_name,
         frozenset(
             (program_name, subcommand)
             for program_name, subcommand, option_name in program_option_behaviors.row_keys
@@ -385,6 +454,10 @@ class _ExpandedToolCallCatalogs:
     ]
     # Whether the option of each option row takes a value, so that the door can pick the rows of the options of a word, and where an attached value starts, before it counts any.
     option_takes_value_by_row_key: Mapping[KnowledgeRowKey, bool]
+    # The `takes_one_letter_options_joined` of the row without a subcommand of each program that has one, so that the door reads the options before a subcommand as that row does.
+    takes_one_letter_options_joined_by_program_name: Mapping[
+        str, bool | UnknownTakesOneLetterOptionsJoined
+    ]
     # The (program, subcommand) of the option rows whose option starts with `+`, e.g. `+o` of bash, since only for them a word such as `+x` is an option.
     programs_with_plus_options: frozenset[tuple[str, str]]
     # The keys of the code runner rows, so the door can try the name without its version.

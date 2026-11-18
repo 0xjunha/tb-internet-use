@@ -282,12 +282,13 @@ _OPTION_EFFECTS_OF_THE_OLD_TABLES = [
     ("curl", "", "--request", "HEAD", ProgramOptionEffect.ASKS_FOR_NO_CONTENT),
     ("curl", "", "-o", "-", ProgramOptionEffect.SENDS_CONTENT_TO_STDOUT),
     ("curl", "", "--output", "-", ProgramOptionEffect.SENDS_CONTENT_TO_STDOUT),
-    ("curl", "", "-o", "", ProgramOptionEffect.NONE),
-    ("curl", "", "-O", "", ProgramOptionEffect.NONE),
+    # The old tables said only that -o and -O write a file. The rows now say that the content goes there, unlike the file of -D.
+    ("curl", "", "-o", "", ProgramOptionEffect.SENDS_CONTENT_TO_FILE),
+    ("curl", "", "-O", "", ProgramOptionEffect.SENDS_CONTENT_TO_FILE),
     ("wget", "", "--spider", "", ProgramOptionEffect.ASKS_FOR_NO_CONTENT),
     ("wget", "", "-O", "-", ProgramOptionEffect.SENDS_CONTENT_TO_STDOUT),
     ("wget", "", "--output-document", "-", ProgramOptionEffect.SENDS_CONTENT_TO_STDOUT),
-    ("wget", "", "-O", "", ProgramOptionEffect.NONE),
+    ("wget", "", "-O", "", ProgramOptionEffect.SENDS_CONTENT_TO_FILE),
 ]
 # (program name, subcommand, option name, option value, effect) of options that the sample of trials uses, as the real catalog must answer them.
 # `-X` has a row for each method the sample names and none for every value, so that `curl -X $1 u`, which may be `-X HEAD`, stays unknown.
@@ -411,8 +412,6 @@ _PAIRS_WITHOUT_PROGRAM_BEHAVIOR_ROW_YET = {
     ("dig", ""),
     ("dnf", "install"),
     ("dnf", "makecache"),
-    ("git", "fetch"),
-    ("git", "submodule update"),
     ("go", "run"),
     ("host", ""),
     ("lake", "build"),

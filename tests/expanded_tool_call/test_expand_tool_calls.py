@@ -811,6 +811,25 @@ def test_a_file_that_only_reading_commands_touch_after_its_write_runs_as_written
 
 
 @pytest.mark.parametrize(
+    "running_text", ["chmod +x f.sh; ./f.sh", "chmod +x f.sh && bash f.sh"]
+)
+def test_a_file_that_chmod_makes_executable_runs_as_written_on_the_real_catalog(
+    running_text,
+):
+    """Run on the real catalog folder, whose chmod row says what its file arguments are, so that a blank or wrong role there fails here."""
+    expanded_tool_calls = _expand(
+        ExpandedToolCallKnowledge(),
+        _call(1, WriteFileAction("f.sh", "curl a")),
+        _call(2, running_text),
+    )
+
+    assert _words_of_ran_texts(expanded_tool_calls[1])[1] == (
+        FileText(1, "f.sh" if running_text.endswith("bash f.sh") else "./f.sh", K1),
+        (("curl", "a"),),
+    )
+
+
+@pytest.mark.parametrize(
     ("changing_call", "writer_tool_call_key"),
     [
         (_call(2, "sed -i s/a/b/ f.sh"), K2),
