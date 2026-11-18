@@ -12,15 +12,18 @@ from pathlib import Path
 from tb_internet_use.expanded_tool_call.model import (
     CodeLanguage,
     OutputVisibility,
+    ProgramArgumentWord,
     ProgramBehavior,
     ProgramOptionBehavior,
+    ProgramOptionWord,
+    ProgramOptionWordOption,
     ProgramWordRole,
     RanTextLanguage,
     SameAsArgumentRole,
     ShellLanguage,
     UnknownExitsWithExitCodeOfNextProgram,
     UnknownProgramBehavior,
-    UnknownProgramOptionBehavior,
+    UnknownProgramOptionWord,
     UnknownProgramWordRole,
     UnknownRanTextLanguage,
 )
@@ -98,29 +101,59 @@ class ExpandedToolCallKnowledge:
             self._count_name_read_without_version(program_name, row_key[0])
         return row.program_behavior
 
-    def program_option_behavior(
-        self, program_name: str, subcommand_words: Sequence[str], option_name: str
-    ) -> ProgramOptionBehavior | UnknownProgramOptionBehavior:
-        """Answer whether an option of a program takes a value and how it changes the roles of the other words, or `UnknownProgramOptionBehavior` for an option without a row.
+    def program_option_word(
+        self,
+        program_behavior: ProgramBehavior,
+        word: str,
+        *,
+        is_option_cluster: bool = False,
+    ) -> ProgramOptionWord | ProgramArgumentWord | UnknownProgramOptionWord:
+        """Answer which options of a program one word of a command holds, with the row of each and the value written in the word, or `UnknownProgramOptionWord` when the rows do not cover the word.
 
-        `program_name` and `subcommand_words` are those of the `ProgramBehavior` of the command, and `option_name` is the option as written, e.g. `-o` or `--output`.
+        `program_behavior` is the answer of `program_behavior` for the command, and `word` is the word as written, e.g. `-o`, `-fsSLoout`, `--output=f` or `+o`.
+        The rows are searched in this order, as the reading of a command in `expand_tool_calls` gives it.
+
+        | Word | Options it holds |
+        |---|---|
+        | `--name=value` | the row of `--name`, with the attached value `value` |
+        | a word with a row of its own, e.g. `-pe` of node or `-maxdepth` of find | that row |
+        | a `-` or `+` and several letters, when the program row says `takes_one_letter_options_joined` | the row of each letter, e.g. `-f` and `-s` for `-fs`. The rest of the word after a letter that takes a value is that value, e.g. `out` of `-oout` |
+        | a word whose role is `OPTION_CLUSTER`, with `is_option_cluster` | the row of each letter named with a `-`, e.g. `-x`, `-z` and `-f` for `xzf` of tar, with no attached values |
+
+        A word that starts with `+` is `ProgramArgumentWord` when no row of the program or its subcommand names an option that starts with `+`, e.g. `+x` of chmod.
         A row of the subcommand comes before a row of the program without a subcommand, e.g. `(git, clone, --depth)` before `(git, "", --depth)`.
-        One lookup counts the row, or the input with the subcommand as asked when neither has a row.
+        The door counts one use of a row per option it gives, and when the rows do not cover the word one unknown input under the word as written with the subcommand as asked, e.g. `(find, "", -maxdepth)` or `(grep, "", -rn)`, so that the list of unknown inputs holds only words without rows. For `--name=value` that input is `--name`, since a row is named without a value.
         """
         catalogs = self._catalogs
-        asked_row_key = (program_name, " ".join(subcommand_words), option_name)
-        row_key = next(
-            (
-                row_key
-                for row_key in (asked_row_key, (program_name, "", option_name))
-                if row_key in catalogs.program_option_behavior_row_keys
-            ),
-            asked_row_key,
+        program_name = program_behavior.program_name
+        subcommand = " ".join(program_behavior.subcommand_words)
+        if (
+            word.startswith("+")
+            and not is_option_cluster
+            and (program_name, subcommand) not in catalogs.programs_with_plus_options
+            and (program_name, "") not in catalogs.programs_with_plus_options
+        ):
+            return ProgramArgumentWord()
+        asked_option_name = word.partition("=")[0] if word.startswith("--") else word
+        option_parts = _option_parts_of_word(
+            word,
+            catalogs,
+            program_name=program_name,
+            subcommand=subcommand,
+            takes_one_letter_options_joined=program_behavior.takes_one_letter_options_joined,
+            is_option_cluster=is_option_cluster,
         )
-        row = catalogs.program_option_behaviors.lookup(row_key, self.uses)
-        if row is None:
-            return UnknownProgramOptionBehavior()
-        return row
+        if option_parts is None:
+            catalogs.program_option_behaviors.lookup(
+                (program_name, subcommand, asked_option_name), self.uses
+            )
+            return UnknownProgramOptionWord()
+        options: list[ProgramOptionWordOption] = []
+        for option_name, row_key, attached_value in option_parts:
+            row = catalogs.program_option_behaviors.lookup(row_key, self.uses)
+            assert row is not None
+            options.append(ProgramOptionWordOption(option_name, row, attached_value))
+        return ProgramOptionWord(tuple(options))
 
     def ran_text_language_of_program(
         self, program_name: str
@@ -168,6 +201,68 @@ class ExpandedToolCallKnowledge:
         self.uses.row_use_counts[
             NAMES_READ_WITHOUT_VERSION, (program_name, unversioned_program_name)
         ] += 1
+
+
+def _option_parts_of_word(
+    word: str,
+    catalogs: _ExpandedToolCallCatalogs,
+    *,
+    program_name: str,
+    subcommand: str,
+    takes_one_letter_options_joined: bool,
+    is_option_cluster: bool,
+) -> list[tuple[str, KnowledgeRowKey, str | None]] | None:
+    """Find the name, the row key and the attached value of each option that a word holds, in the order of `ExpandedToolCallKnowledge.program_option_word`, or None when a row is missing.
+
+    It reads the keys and whether each option takes a value from the index made at load, so nothing is counted until the door knows the answer.
+    """
+
+    def row_key_for(option_name: str) -> KnowledgeRowKey | None:
+        return next(
+            (
+                row_key
+                for row_key in (
+                    (program_name, subcommand, option_name),
+                    (program_name, "", option_name),
+                )
+                if row_key in catalogs.option_takes_value_by_row_key
+            ),
+            None,
+        )
+
+    option_parts: list[tuple[str, KnowledgeRowKey, str | None]] = []
+    if is_option_cluster:
+        # The letters of a cluster take their values from the words after it, e.g. a.tgz for the f of `tar xzf a.tgz`.
+        for letter in word:
+            row_key = row_key_for(f"-{letter}")
+            if row_key is None:
+                return None
+            option_parts.append((f"-{letter}", row_key, None))
+        return option_parts or None
+    if word.startswith("--"):
+        option_name, has_attached_value, attached_value = word.partition("=")
+        row_key = row_key_for(option_name)
+        if row_key is None:
+            return None
+        return [(option_name, row_key, attached_value if has_attached_value else None)]
+    row_key = row_key_for(word)
+    if row_key is not None:
+        return [(word, row_key, None)]
+    if not takes_one_letter_options_joined or len(word) <= 2:
+        return None
+    sign, letters = word[0], word[1:]
+    for position, letter in enumerate(letters):
+        row_key = row_key_for(sign + letter)
+        if row_key is None:
+            return None
+        if not catalogs.option_takes_value_by_row_key[row_key]:
+            option_parts.append((sign + letter, row_key, None))
+            continue
+        # The rest of the word after a letter that takes a value is that value, e.g. `out` of `-oout`.
+        attached_value = letters[position + 1 :] or None
+        option_parts.append((sign + letter, row_key, attached_value))
+        break
+    return option_parts
 
 
 def _is_subcommand_of(subcommand: str, words_after_program: Sequence[str]) -> bool:
@@ -219,13 +314,23 @@ def _load_expanded_tool_call_catalogs(catalogs_dir: Path) -> _ExpandedToolCallCa
             row_keys_allowing_version_by_program_name.setdefault(row_key[0], []).append(
                 row_key
             )
+    option_takes_value_by_row_key: dict[KnowledgeRowKey, bool] = {}
+    for row_key in program_option_behaviors.row_keys:
+        option_row = program_option_behaviors.lookup(row_key, unused)
+        assert option_row is not None
+        option_takes_value_by_row_key[row_key] = option_row.takes_value
     return _ExpandedToolCallCatalogs(
         program_behaviors,
         program_option_behaviors,
         code_runners,
         _row_key_tuples_of(row_keys_by_program_name),
         _row_key_tuples_of(row_keys_allowing_version_by_program_name),
-        frozenset(program_option_behaviors.row_keys),
+        option_takes_value_by_row_key,
+        frozenset(
+            (program_name, subcommand)
+            for program_name, subcommand, option_name in program_option_behaviors.row_keys
+            if option_name.startswith("+")
+        ),
         frozenset(code_runners.row_keys),
     )
 
@@ -250,8 +355,10 @@ class _ExpandedToolCallCatalogs:
     program_behavior_row_keys_allowing_version_by_program_name: Mapping[
         str, tuple[KnowledgeRowKey, ...]
     ]
-    # The keys of the option rows, so the door can try the row of the subcommand before the row without one.
-    program_option_behavior_row_keys: frozenset[KnowledgeRowKey]
+    # Whether the option of each option row takes a value, so that the door can pick the rows of the options of a word, and where an attached value starts, before it counts any.
+    option_takes_value_by_row_key: Mapping[KnowledgeRowKey, bool]
+    # The (program, subcommand) of the option rows whose option starts with `+`, e.g. `+o` of bash, since only for them a word such as `+x` is an option.
+    programs_with_plus_options: frozenset[tuple[str, str]]
     # The keys of the code runner rows, so the door can try the name without its version.
     code_runner_row_keys: frozenset[KnowledgeRowKey]
 

@@ -5,6 +5,7 @@ import subprocess
 import sys
 from collections import Counter
 from collections.abc import Mapping
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -12,14 +13,17 @@ import pytest
 from tb_internet_use.expanded_tool_call.model import (
     CodeLanguage,
     OutputVisibility,
+    ProgramArgumentWord,
     ProgramBehavior,
     ProgramOptionBehavior,
+    ProgramOptionWord,
+    ProgramOptionWordOption,
     ProgramWordRole,
     SameAsArgumentRole,
     ShellLanguage,
     UnknownExitsWithExitCodeOfNextProgram,
     UnknownProgramBehavior,
-    UnknownProgramOptionBehavior,
+    UnknownProgramOptionWord,
     UnknownProgramWordRole,
     UnknownRanTextLanguage,
 )
@@ -129,6 +133,38 @@ _UNCHANGING_OPTION_ROW_CELLS = {
     "exits_with_exit_code_of_next_program_with_option": "unchanged",
     "next_program_end_words": "none",
 }
+# What `_UNCHANGING_OPTION_ROW_CELLS` reads into, and the same with a value of unknown role.
+_OPTION_TAKING_NO_VALUE = ProgramOptionBehavior(
+    takes_value=False,
+    value_role=None,
+    argument_role_with_option=None,
+    first_argument_role_with_option=None,
+    last_argument_role_with_option=None,
+    changed_option_name=None,
+    changed_option_value_role=None,
+    gives_arguments_at_run_time=False,
+    next_program_end_words=(),
+    exits_with_exit_code_of_next_program_with_option=None,
+)
+_OPTION_TAKING_A_VALUE = replace(
+    _OPTION_TAKING_NO_VALUE, takes_value=True, value_role=UnknownProgramWordRole()
+)
+# Option rows of prog for the words of `program_option_word`. -s and -f take no value, and -o, --out and +o take one.
+_OPTION_ROWS_OF_ONE_WORD: list[Mapping[str, str]] = [
+    *(
+        {**_UNCHANGING_OPTION_ROW_CELLS, "option_name": option_name}
+        for option_name in ("-s", "-f")
+    ),
+    *(
+        {
+            **_UNCHANGING_OPTION_ROW_CELLS,
+            "option_name": option_name,
+            "takes_value": "yes",
+            "value_role": "",
+        }
+        for option_name in ("-o", "--out", "+o")
+    ),
+]
 _CODE_RUNNER_ROW_CELLS = {
     "runner_kind": "program_name",
     "runner": "prog",
@@ -201,8 +237,9 @@ _PROGRAM_ROWS_THAT_DISAGREE_ON_A_VERSION = [
 _OPTION_ROWS_THAT_CANNOT_LOAD = [
     ({"program_name": "other"}, "has no row in program_behaviors.csv"),
     ({"subcommand": "run"}, "has no row in program_behaviors.csv"),
-    # A value role on an option that takes no value.
+    # A value role on an option that takes no value, and an option that takes a value without a role for it.
     ({"takes_value": "no"}, "value role"),
+    ({"value_role": "none"}, "value role"),
     ({"changed_option_value_role": "none"}, "changed option"),
     ({"argument_role_with_option": "same"}, "'same' is not a valid ProgramWordRole"),
     ({"option_name": ""}, "option_name is empty"),
@@ -312,15 +349,29 @@ def _program_behavior_of(
 
 def _option_behavior_of(
     knowledge: ExpandedToolCallKnowledge,
+    program_behavior: ProgramBehavior,
+    option_name: str,
+) -> ProgramOptionBehavior:
+    """Ask the door about a word that is one option name, and give the row of that option."""
+    answer = knowledge.program_option_word(program_behavior, option_name)
+    assert isinstance(answer, ProgramOptionWord), (program_behavior, option_name)
+    (option,) = answer.options
+    assert option.name == option_name and option.attached_value is None, answer
+    return option.program_option_behavior
+
+
+def _real_option_behavior_of(
+    knowledge: ExpandedToolCallKnowledge,
     program_name: str,
     option_name: str,
     subcommand_words: tuple[str, ...] = (),
 ) -> ProgramOptionBehavior:
-    answer = knowledge.program_option_behavior(
-        program_name, subcommand_words, option_name
+    """Ask the door about one option of a program of the real catalog, through the row of the program."""
+    return _option_behavior_of(
+        knowledge,
+        _program_behavior_of(knowledge, program_name, *subcommand_words),
+        option_name,
     )
-    assert isinstance(answer, ProgramOptionBehavior), (program_name, option_name)
-    return answer
 
 
 def test_program_row_is_read_into_every_field_and_counted(tmp_path):
@@ -520,8 +571,8 @@ def test_program_row_that_expand_tool_calls_cannot_use_fails_the_load(
 def test_option_row_is_read_into_every_field_and_counted(tmp_path):
     knowledge = _knowledge(tmp_path, option_rows=[_OPTION_ROW_CELLS])
 
-    assert (
-        knowledge.program_option_behavior("prog", (), "-x") == _PROGRAM_OPTION_BEHAVIOR
+    assert knowledge.program_option_word(_PROGRAM_BEHAVIOR, "-x") == ProgramOptionWord(
+        (ProgramOptionWordOption("-x", _PROGRAM_OPTION_BEHAVIOR, None),)
     )
     assert knowledge.uses == KnowledgeUses(
         row_use_counts=Counter({(PROGRAM_OPTION_BEHAVIORS_CSV, ("prog", "", "-x")): 1})
@@ -543,13 +594,15 @@ def test_option_row_of_the_subcommand_comes_before_the_row_of_the_program(tmp_pa
         ],
     )
 
-    of_clone = knowledge.program_option_behavior("prog", ("clone",), "-q")
+    of_clone = _option_behavior_of(
+        knowledge, replace(_PROGRAM_BEHAVIOR, subcommand_words=("clone",)), "-q"
+    )
     # A subcommand without option rows falls back to the rows of the program.
-    of_fetch = knowledge.program_option_behavior("prog", ("fetch",), "-q")
+    of_fetch = _option_behavior_of(
+        knowledge, replace(_PROGRAM_BEHAVIOR, subcommand_words=("fetch",)), "-q"
+    )
 
-    assert isinstance(of_clone, ProgramOptionBehavior)
     assert of_clone.argument_role_with_option == ProgramWordRole.OTHER
-    assert isinstance(of_fetch, ProgramOptionBehavior)
     assert of_fetch.argument_role_with_option is None
     assert knowledge.uses.row_use_counts == Counter(
         {
@@ -565,13 +618,17 @@ def test_option_without_a_row_is_unknown_and_counted_with_the_subcommand_asked(
     knowledge = _knowledge(tmp_path, option_rows=[_OPTION_ROW_CELLS])
 
     answers = [
-        knowledge.program_option_behavior("prog", ("pip", "install"), "--foo"),
-        # The row of one spelling does not answer for another, e.g. `-xy` for `-x`.
-        knowledge.program_option_behavior("prog", (), "-xy"),
-        knowledge.program_option_behavior("other", (), "-x"),
+        knowledge.program_option_word(
+            replace(_PROGRAM_BEHAVIOR, subcommand_words=("pip", "install")), "--foo"
+        ),
+        # The row of one spelling does not answer for another, e.g. `-xy` for `-x`, since prog does not join one-letter options.
+        knowledge.program_option_word(_PROGRAM_BEHAVIOR, "-xy"),
+        knowledge.program_option_word(
+            replace(_PROGRAM_BEHAVIOR, program_name="other"), "-x"
+        ),
     ]
 
-    assert answers == [UnknownProgramOptionBehavior()] * 3
+    assert answers == [UnknownProgramOptionWord()] * 3
     assert knowledge.uses == KnowledgeUses(
         unknown_input_counts=Counter(
             {
@@ -583,6 +640,133 @@ def test_option_without_a_row_is_unknown_and_counted_with_the_subcommand_asked(
     )
 
 
+@pytest.mark.parametrize(
+    ("word", "options", "used_option_names", "unknown_option_name"),
+    [
+        (
+            "-o",
+            (("-o", _OPTION_TAKING_A_VALUE, None),),
+            ("-o",),
+            None,
+        ),
+        (
+            "--out=f",
+            (("--out", _OPTION_TAKING_A_VALUE, "f"),),
+            ("--out",),
+            None,
+        ),
+        # A value attached to a letter is the rest of the word.
+        (
+            "-oout",
+            (("-o", _OPTION_TAKING_A_VALUE, "out"),),
+            ("-o",),
+            None,
+        ),
+        # The last letter takes a value and has none attached, so the next word is its value.
+        (
+            "-sfo",
+            (
+                ("-s", _OPTION_TAKING_NO_VALUE, None),
+                ("-f", _OPTION_TAKING_NO_VALUE, None),
+                ("-o", _OPTION_TAKING_A_VALUE, None),
+            ),
+            ("-s", "-f", "-o"),
+            None,
+        ),
+        # A letter without a row is one unknown input under the word as written, and no row counts as used.
+        ("-sz", None, (), "-sz"),
+        ("--foo=f", None, (), "--foo"),
+        # prog has the option `+o`, so a word that starts with + is read like one that starts with -.
+        (
+            "+o",
+            (("+o", _OPTION_TAKING_A_VALUE, None),),
+            ("+o",),
+            None,
+        ),
+        ("+x", None, (), "+x"),
+    ],
+)
+def test_word_is_answered_with_the_options_it_holds_counting_each_row_and_at_most_one_unknown_input(
+    tmp_path, word, options, used_option_names, unknown_option_name
+):
+    knowledge = _knowledge(tmp_path, option_rows=_OPTION_ROWS_OF_ONE_WORD)
+    program_behavior = replace(_PROGRAM_BEHAVIOR, takes_one_letter_options_joined=True)
+
+    answer = knowledge.program_option_word(program_behavior, word)
+
+    assert answer == (
+        UnknownProgramOptionWord()
+        if options is None
+        else ProgramOptionWord(
+            tuple(ProgramOptionWordOption(*option) for option in options)
+        )
+    )
+    assert knowledge.uses == KnowledgeUses(
+        row_use_counts=Counter(
+            (PROGRAM_OPTION_BEHAVIORS_CSV, ("prog", "", option_name))
+            for option_name in used_option_names
+        ),
+        unknown_input_counts=Counter(
+            {(PROGRAM_OPTION_BEHAVIORS_CSV, ("prog", "", unknown_option_name)): 1}
+            if unknown_option_name
+            else {}
+        ),
+    )
+
+
+def test_word_of_letters_is_unknown_when_the_program_does_not_join_one_letter_options(
+    tmp_path,
+):
+    knowledge = _knowledge(tmp_path, option_rows=_OPTION_ROWS_OF_ONE_WORD)
+
+    assert (
+        knowledge.program_option_word(_PROGRAM_BEHAVIOR, "-sf")
+        == UnknownProgramOptionWord()
+    )
+
+
+def test_word_that_starts_with_a_plus_is_an_argument_when_the_program_has_no_plus_option(
+    tmp_path,
+):
+    knowledge = _knowledge(
+        tmp_path,
+        program_rows=[_program_row(), _program_row(program_name="other")],
+        option_rows=_OPTION_ROWS_OF_ONE_WORD,
+    )
+
+    answer = knowledge.program_option_word(
+        replace(_PROGRAM_BEHAVIOR, program_name="other"), "+x"
+    )
+
+    assert answer == ProgramArgumentWord()
+    assert knowledge.uses == KnowledgeUses()
+
+
+def test_cluster_word_holds_one_option_per_letter_whose_values_come_from_later_words(
+    tmp_path,
+):
+    knowledge = _knowledge(tmp_path, option_rows=_OPTION_ROWS_OF_ONE_WORD)
+
+    cluster = knowledge.program_option_word(
+        _PROGRAM_BEHAVIOR, "osf", is_option_cluster=True
+    )
+    cluster_with_a_letter_without_a_row = knowledge.program_option_word(
+        _PROGRAM_BEHAVIOR, "sz", is_option_cluster=True
+    )
+
+    assert cluster == ProgramOptionWord(
+        (
+            ProgramOptionWordOption("-o", _OPTION_TAKING_A_VALUE, None),
+            ProgramOptionWordOption("-s", _OPTION_TAKING_NO_VALUE, None),
+            ProgramOptionWordOption("-f", _OPTION_TAKING_NO_VALUE, None),
+        )
+    )
+    assert cluster_with_a_letter_without_a_row == UnknownProgramOptionWord()
+    assert knowledge.uses.unknown_input_counts == Counter(
+        {(PROGRAM_OPTION_BEHAVIORS_CSV, ("prog", "", "sz")): 1}
+    )
+
+
 @pytest.mark.parametrize(("column", "answer"), _BLANK_OPTION_CELLS_THAT_ARE_UNKNOWN)
 def test_blank_role_or_exit_code_cell_of_an_option_row_is_unknown(
     tmp_path, column, answer
@@ -591,7 +775,7 @@ def test_blank_role_or_exit_code_cell_of_an_option_row_is_unknown(
         tmp_path, option_rows=[{**_UNCHANGING_OPTION_ROW_CELLS, column: ""}]
     )
 
-    option_behavior = knowledge.program_option_behavior("prog", (), "-x")
+    option_behavior = _option_behavior_of(knowledge, _PROGRAM_BEHAVIOR, "-x")
 
     assert getattr(option_behavior, column) == answer
 
@@ -601,9 +785,8 @@ def test_blank_value_role_of_an_option_that_takes_a_value_is_unknown(tmp_path):
         tmp_path, option_rows=[{**_OPTION_ROW_CELLS, "value_role": ""}]
     )
 
-    option_behavior = knowledge.program_option_behavior("prog", (), "-x")
+    option_behavior = _option_behavior_of(knowledge, _PROGRAM_BEHAVIOR, "-x")
 
-    assert isinstance(option_behavior, ProgramOptionBehavior)
     assert option_behavior.value_role == UnknownProgramWordRole()
 
 
@@ -612,17 +795,9 @@ def test_option_row_that_changes_nothing_answers_none_for_each_unchanged_cell(
 ):
     knowledge = _knowledge(tmp_path, option_rows=[_UNCHANGING_OPTION_ROW_CELLS])
 
-    assert knowledge.program_option_behavior("prog", (), "-x") == ProgramOptionBehavior(
-        takes_value=False,
-        value_role=None,
-        argument_role_with_option=None,
-        first_argument_role_with_option=None,
-        last_argument_role_with_option=None,
-        changed_option_name=None,
-        changed_option_value_role=None,
-        gives_arguments_at_run_time=False,
-        next_program_end_words=(),
-        exits_with_exit_code_of_next_program_with_option=None,
+    assert (
+        _option_behavior_of(knowledge, _PROGRAM_BEHAVIOR, "-x")
+        == _OPTION_TAKING_NO_VALUE
     )
 
 
@@ -811,7 +986,9 @@ def test_wrappers_of_the_old_tables_run_the_next_program_with_their_options(
             ProgramWordRole.OTHER if wrapper.operand_count else SameAsArgumentRole()
         ), name
         for option_name in wrapper.options_with_value:
-            assert _option_behavior_of(real_knowledge, name, option_name).takes_value
+            assert _real_option_behavior_of(
+                real_knowledge, name, option_name
+            ).takes_value
 
 
 def test_shells_and_code_programs_of_the_old_tables_run_their_texts(real_knowledge):
@@ -819,25 +996,29 @@ def test_shells_and_code_programs_of_the_old_tables_run_their_texts(real_knowled
         program_behavior = _program_behavior_of(real_knowledge, name)
         assert program_behavior.first_argument_role == ProgramWordRole.RUN_FILE
         assert program_behavior.stdin_role == ProgramWordRole.RUN_TEXT
-        shell_c = _option_behavior_of(real_knowledge, name, "-c")
+        shell_c = _real_option_behavior_of(real_knowledge, name, "-c")
         # The text after -c is the first argument and no value of -c, so that `bash -c -e a` runs a.
         assert not shell_c.takes_value
         assert shell_c.first_argument_role_with_option == ProgramWordRole.RUN_TEXT
         for option_name in ("-o", "+o", "-O", "+O"):
             if name != "bash" and option_name in _SHELL_OPTIONS_OF_BASH_ONLY:
                 assert (
-                    real_knowledge.program_option_behavior(name, (), option_name)
-                    == UnknownProgramOptionBehavior()
+                    real_knowledge.program_option_word(
+                        _program_behavior_of(real_knowledge, name), option_name
+                    )
+                    == UnknownProgramOptionWord()
                 ), (name, option_name)
                 continue
-            assert _option_behavior_of(real_knowledge, name, option_name).takes_value
+            assert _real_option_behavior_of(
+                real_knowledge, name, option_name
+            ).takes_value
         for option_name in ("-s", "-n"):
-            assert not _option_behavior_of(
+            assert not _real_option_behavior_of(
                 real_knowledge, name, option_name
             ).takes_value
         # With -s the shell runs its stdin, so the first argument is no file.
         assert isinstance(
-            _option_behavior_of(
+            _real_option_behavior_of(
                 real_knowledge, name, "-s"
             ).first_argument_role_with_option,
             SameAsArgumentRole,
@@ -867,20 +1048,24 @@ def test_shells_and_code_programs_of_the_old_tables_run_their_texts(real_knowled
             == ProgramWordRole.RUN_FILE
         ), name
         for option_name in code_program.inline_code_options:
-            option_behavior = _option_behavior_of(real_knowledge, name, option_name)
+            option_behavior = _real_option_behavior_of(
+                real_knowledge, name, option_name
+            )
             # python -c takes no value and makes the first argument the code, so that the words after it are not read as options of python.
             assert ProgramWordRole.RUN_TEXT in (
                 option_behavior.value_role,
                 option_behavior.first_argument_role_with_option,
             ), (name, option_name)
     assert (
-        _option_behavior_of(
+        _real_option_behavior_of(
             real_knowledge, "python", "-m"
         ).first_argument_role_with_option
         == ProgramWordRole.PROGRAM
     )
     for option_name in PYTHON_OPTIONS_WITH_VALUE_BEFORE_MODULE:
-        assert _option_behavior_of(real_knowledge, "python", option_name).takes_value
+        assert _real_option_behavior_of(
+            real_knowledge, "python", option_name
+        ).takes_value
     for extension, language in LANGUAGE_OF_FILE_EXTENSION.items():
         assert real_knowledge.ran_text_language_of_file_extension(extension) == (
             language.value
@@ -921,19 +1106,21 @@ def test_option_syntax_of_the_old_tables_is_in_the_option_rows(real_knowledge):
         taking_no_value = _OPTIONS_THAT_TAKE_NO_VALUE_BY_THE_PAGE.get(name, set())
         for option_name in value_options | syntax.script_options:
             option_behavior = _option_behavior_of(
-                real_knowledge, name, option_name, subcommand_words
+                real_knowledge, program_behavior, option_name
             )
             assert option_behavior.takes_value != (option_name in taking_no_value), (
                 name,
                 option_name,
             )
         for option_name in syntax.one_dash_long_options:
-            assert _option_behavior_of(real_knowledge, name, option_name).takes_value
+            assert _option_behavior_of(
+                real_knowledge, program_behavior, option_name
+            ).takes_value
         for option_name in syntax.script_options - taking_no_value:
             # Without the script as the first argument, the first argument is one of the files.
             assert isinstance(
                 _option_behavior_of(
-                    real_knowledge, name, option_name
+                    real_knowledge, program_behavior, option_name
                 ).first_argument_role_with_option,
                 SameAsArgumentRole,
             ), (name, option_name)

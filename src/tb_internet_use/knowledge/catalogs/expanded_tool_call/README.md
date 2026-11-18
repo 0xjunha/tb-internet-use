@@ -27,6 +27,8 @@ The role columns hold a `ProgramWordRole` value, e.g. `read_file` for the argume
 
 [`program_option_behaviors.csv`](program_option_behaviors.csv) has one row per option, keyed by `program_name`, `subcommand` and `option_name` as written, e.g. `-o`. An option that takes no value needs a row too, since the first option without a row stops the reading of the command. Its program and subcommand must have a row of `program_behaviors.csv`. A row of the subcommand answers before the row without one.
 
+The door answers for a whole word of a command, e.g. `-fsSLoout` or `--output=f`, with the rows of the options it holds, and counts one use per option. When the rows do not cover the word it counts one unknown input under the word as written, e.g. `-rn` of grep when `-n` has no row, or under `--name` for `--name=value`, so a row is added for the option the word misses. A word that starts with `+`, e.g. `+o` of bash, is read like one that starts with `-` only when the program has a row for an option that starts with `+`. Otherwise it is an argument, e.g. `+x` of chmod.
+
 | Column | Cell | Blank |
 |---|---|---|
 | `program_name` | The `program_name` of the row of `program_behaviors.csv` the option belongs to | Fails the load |

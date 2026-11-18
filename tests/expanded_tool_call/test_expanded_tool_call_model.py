@@ -36,7 +36,7 @@ RAN_TEXT_SOURCE_BY_TYPE_NAME: dict[str, RanTextSource] = {
     "StdinText": StdinText(0),
     "ArgumentText": ArgumentText(0),
 }
-# The names of the source types that each reason fits, written out by hand from the cases of the decision document, e.g. only stdin gets text through a pipe, and only a file can already be running.
+# The names of the source types that each reason fits, written out by hand, e.g. only stdin gets text through a pipe, and only a file can already be running.
 SOURCE_TYPE_NAMES_OF_REASON = {
     UnknownRanTextReason.NOT_WRITTEN_IN_TRIAL: {"FileTextWithoutKnownWriter"},
     UnknownRanTextReason.FITS_SEVERAL_WRITTEN_FILES: {"FileTextWithoutKnownWriter"},

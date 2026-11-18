@@ -244,7 +244,7 @@ class ProgramInvocation:
     # The words from the first option that no fact covers to the end, e.g. ("--foo", "x", "u") for `curl --foo x u`.
     # After such an option nobody knows whether the next word is its value, so these words are not read.
     unread_words: tuple[str, ...]
-    # It runs the next program and ends with that program's exit code, e.g. sudo. False when it runs none, e.g. cat.
+    # It runs the next program and ends with that program's exit code, e.g. sudo. False when it runs none, e.g. cat, or `sudo` alone, whose words are all read and name no next program.
     # An `UnknownExitsWithExitCodeOfNextProgram` when its row of `program_behaviors.csv` leaves the cell blank, so later steps never read a missing fact as true.
     exits_with_exit_code_of_next_program: bool | UnknownExitsWithExitCodeOfNextProgram
 
@@ -501,8 +501,32 @@ class ProgramOptionBehavior:
 
 
 @dataclass(frozen=True, slots=True)
-class UnknownProgramOptionBehavior:
-    """Answer of `ExpandedToolCallKnowledge` for an option without a row of `program_option_behaviors.csv`."""
+class ProgramOptionWord:
+    """Answer of `ExpandedToolCallKnowledge` for a word of a command that holds options of its program, e.g. `-fsSL`, `-oout` or `--output=f`, with the row of each option."""
+
+    # One or more, in the order of the word, e.g. four for `-fsSL`.
+    options: tuple[ProgramOptionWordOption, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class ProgramOptionWordOption:
+    """Option that a `ProgramOptionWord` holds, with its row of `program_option_behaviors.csv` and the value written in the same word."""
+
+    # As `ProgramOption.name` holds it, e.g. `-o` for `-oout`.
+    name: str
+    program_option_behavior: ProgramOptionBehavior
+    # The value written in the same word, e.g. `out` of `-oout` or `f` of `--output=f`. None when the word holds none, so that an option that takes a value takes the next word.
+    attached_value: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class ProgramArgumentWord:
+    """Answer of `ExpandedToolCallKnowledge` for a word that starts with `+` and is no option of its program, since no row of the program names an option that starts with `+`, e.g. `+x` of chmod."""
+
+
+@dataclass(frozen=True, slots=True)
+class UnknownProgramOptionWord:
+    """Answer of `ExpandedToolCallKnowledge` for a word that the option rows of its program do not cover, e.g. `-maxdepth` of find without its row, or `-rn` of grep when `-n` has no row."""
 
 
 @dataclass(frozen=True, slots=True)
