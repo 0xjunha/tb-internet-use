@@ -94,16 +94,6 @@ _ROWS_THAT_CANNOT_LOAD = [
 # The (program, subcommand) pairs of the real program package registry catalog that `program_behaviors.csv` has no row for yet.
 # The rows come with the program catalog of `extract_network_requests`, which needs the same programs, and the set then shrinks, so that a pair that is misspelled never hides in it.
 _PAIRS_WITHOUT_PROGRAM_BEHAVIOR_ROW_YET = {
-    ("pip", "install"),
-    ("pip", "download"),
-    ("pip", "index versions"),
-    ("uv", "pip install"),
-    ("npm", "install"),
-    ("npm", "i"),
-    ("npm", "ci"),
-    ("npm", "view"),
-    ("apt-get", "update"),
-    ("apt-get", "install"),
     ("apt", "update"),
     ("apt", "install"),
     ("sbt", "compile"),

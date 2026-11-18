@@ -261,11 +261,8 @@ _CODE_RUNNER_ROWS_THAT_CANNOT_LOAD = [
 _PROGRAMS_LEFT_OUT = frozenset(
     {
         "clang",
-        "conda",
         "diff",
         "exec",
-        "gh",
-        "git",
         "setsid",
         "stdbuf",
         "strings",
@@ -280,6 +277,9 @@ _SHELL_OPTIONS_OF_BASH_ONLY = frozenset({"-O", "+O"})
 # Programs whose row without a subcommand was left out while a subcommand row was kept, with the subcommand that took over the option rows of the old tables, or None when they were left out too.
 _SUBCOMMAND_HOLDING_OPTIONS_BY_PROGRAM_NAME = {
     "bun": None,
+    "conda": None,
+    "gh": None,
+    "git": None,
     "npm": "exec",
     "pnpm": "exec",
     "uv": "run",
