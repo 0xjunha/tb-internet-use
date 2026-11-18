@@ -117,10 +117,10 @@ class _Steps:
     knowledge_uses: KnowledgeUses
 
 
-def _steps() -> _Steps:
+def _steps(harness_tool_calls: tuple[HarnessToolCall, ...] = _MADE_UP_TRIAL) -> _Steps:
     knowledge_doors = KnowledgeDoors()
     expanded_tool_calls = run_steps_to_expanded_tool_calls(
-        _MADE_UP_TRIAL,
+        harness_tool_calls,
         knowledge_doors=knowledge_doors,
         tool_call_judgment_rule_use_counts=Counter(),
         expanded_tool_call_judgment_rule_use_counts=Counter(),
@@ -506,6 +506,99 @@ def test_a_broken_input_makes_its_equation_differ(equation, broken_input_of):
     trial_audit = _checked(broken_input_of(_steps()))
 
     assert equation in _differing_equations(trial_audit)
+
+
+# (equation, made-up Claude Code calls of a shape that the full data of 2026-10-08 showed, with the requests right and the recount once wrong). The comments name the shape.
+SHAPES_THAT_HOLD: list[tuple[str, tuple[HarnessToolCall, ...]]] = [
+    # A variable of one value fills the host of a URL with localhost.
+    (
+        "command_request_runs_equal_fetching_and_public_url_runs",
+        (
+            _harness_tool_call(
+                1, "Bash", {"command": "H=localhost; mytool http://$H:8000/x"}
+            ),
+        ),
+    ),
+    # A call name of a sending row in a string is no call, as in code that edits code.
+    (
+        "code_texts_without_request_show_no_request",
+        (
+            _harness_tool_call(
+                1,
+                "Bash",
+                {"command": """python3 -c 'x = "requests.get(u)"; print(x)'"""},
+            ),
+        ),
+    ),
+    # A JavaScript method named like a sending call is a definition, and a comment is no call.
+    (
+        "code_texts_without_request_show_no_request",
+        (
+            _harness_tool_call(
+                1,
+                "Bash",
+                {
+                    "command": "node -e '// fetch(u)\nconst o = { fetch(u) { return 1 } }; console.log(o)'"
+                },
+            ),
+        ),
+    ),
+    # The step reads no call after a string that never closes.
+    (
+        "code_texts_without_request_show_no_request",
+        (
+            _harness_tool_call(
+                1, "Bash", {"command": """python3 -c 'x = \"\"\"a\nrequests.get(u)'"""}
+            ),
+        ),
+    ),
+    # The curl of a script pipes into tail of the text that runs the script.
+    (
+        "request_fields_agree",
+        (
+            _harness_tool_call(
+                1,
+                "Write",
+                {"file_path": "fetch.sh", "content": "curl https://a.org/x"},
+                "File created successfully at: fetch.sh",
+            ),
+            _harness_tool_call(2, "Bash", {"command": "bash fetch.sh | tail -1"}),
+        ),
+    ),
+    # A pattern in code that starts like a URL gives a request whose host cannot be read.
+    (
+        "code_requests_within_urls_and_calls",
+        (
+            _harness_tool_call(
+                1,
+                "Bash",
+                {"command": """python3 -c 'mylib.match(r"http://[^ ]+", s)'"""},
+            ),
+        ),
+    ),
+    # An f-string URL with a `{...}` host is a URL of a call without a row.
+    (
+        "code_requests_within_urls_and_calls",
+        (
+            _harness_tool_call(
+                1,
+                "Bash",
+                {"command": """python3 -c 'mylib.fetch(f"http://{h}:80/x")'"""},
+            ),
+        ),
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    ("equation", "harness_tool_calls"),
+    SHAPES_THAT_HOLD,
+    ids=[equation for equation, _ in SHAPES_THAT_HOLD],
+)
+def test_a_shape_of_the_full_data_holds_its_equation(equation, harness_tool_calls):
+    trial_audit = _checked(_steps(harness_tool_calls))
+
+    assert equation not in _differing_equations(trial_audit)
 
 
 def test_requests_of_calls_that_run_a_program_stay_within_the_bound_of_their_code_text():

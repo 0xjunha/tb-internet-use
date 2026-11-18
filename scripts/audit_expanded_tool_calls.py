@@ -13,9 +13,9 @@ Every equation starts at 0 for every trial, so that one the trials never reach s
 | `unreadable_texts_equal_unreadable_call_texts` | `UnreadableShellText`s of the `RunCommandAction`s | `UnknownRanText`s of reason `UNREADABLE_SHELL_TEXT` whose source is `CallCommandText` or `ScriptStepText` |
 | `commands_of_runner_names_fall_in_a_branch` | Commands whose first word, without its folder, is one of `RUNNER_NAMES` | Those with a ran text whose runner is the command, plus four branches, i.e. unread words, a next program, no argument and no stdin, a program without a row |
 | `program_invocations_hold_the_words_of_their_command` | Commands | Commands whose words and program invocations hold the same characters, `-` and `=` left out |
-| `cat_arguments_equal_file_uses` | Arguments of `cat` that are no glob, no `-`, no repeat and no harness output file | Uses of a file without a known writer plus groups of `FileUse`s of the same command |
+| `cat_arguments_equal_file_uses` | Arguments of `cat`, with variables of one sure value filled, or its stdin file when no argument names a file, that are no glob, no `-`, no repeat of the file of an earlier one and no harness output file | Uses of a file without a known writer plus groups of `FileUse`s of the same command, i.e. of written files that can name one file or that one argument fits when the path fits several |
 | `unknown_program_invocations_equal_unknown_program_lookups` | `UnknownProgramInvocation`s | Unknown inputs of `program_behaviors.csv` plus program words that are expansions |
-| `unread_words_equal_unknown_option_lookups` | `ProgramInvocation`s with unread words | Unknown inputs of `program_option_behaviors.csv` plus blank `options_end_at_first_argument` cells that left a word unread, i.e. unknown inputs under `BLANK_PROGRAM_BEHAVIOR_CELLS` |
+| `unread_words_equal_unknown_option_lookups` | `ProgramInvocation`s with unread words, plus those whose unread option cluster word without a row comes after an unread option without a row, which give a second unknown input | Unknown inputs of `program_option_behaviors.csv` plus blank `options_end_at_first_argument` cells that left a word unread, i.e. unknown inputs under `BLANK_PROGRAM_BEHAVIOR_CELLS`, plus options with a row that take a value and are the last word, which give none |
 | `pointers_stay_inside_trial` | `OutputPlace`s and `FileUse`s | Those whose call is in the trial and whose command ids are commands of that call |
 | `routes_without_pipe_reader_are_whole` | `OutputRoute`s without a pipe reader | Those that are `WHOLE` |
 | `route_visibility_follows_pipe_readers` | `OutputRoute`s with a pipe reader | Those whose visibility this script gets again from the rows of the readers |
@@ -54,10 +54,10 @@ import functools
 import re
 import sys
 from collections import Counter
-from collections.abc import Iterable, Iterator, Sequence
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 
 from tb_internet_use.expanded_tool_call import judgment_rules
 from tb_internet_use.expanded_tool_call.model import (
@@ -73,14 +73,17 @@ from tb_internet_use.expanded_tool_call.model import (
     PollInputText,
     ProgramBehavior,
     ProgramInvocation,
+    ProgramOptionWord,
     ProgramWordRole,
     RanCodeText,
     RanCommand,
     RanShellText,
     ScriptStepText,
     StdinText,
+    UnknownOptionsEndAtFirstArgument,
     UnknownProgramBehavior,
     UnknownProgramInvocation,
+    UnknownProgramOptionWord,
     UnknownProgramWordRole,
     UnknownRanText,
     UnknownRanTextReason,
@@ -110,6 +113,7 @@ from tb_internet_use.tool_call.model import (
     PipeDestination,
     PollAction,
     ReadFileAction,
+    ResultDestination,
     RunCommandAction,
     SearchFilesAction,
     ShellCommand,
@@ -174,6 +178,12 @@ RUNNER_NAMES = frozenset(
 )
 # The characters that a glob of a word holds, which the expansion does not read as one file.
 _GLOB_CHARACTERS = ("*", "?", "[", "{")
+# The word that stands for stdin instead of a file, e.g. in `python -` or `cat - log`.
+_STDIN_WORD = "-"
+# A variable in braces, e.g. `${D}` of `${D}/f.sh`, whose braces make no brace list.
+_PARAMETER_IN_BRACES = re.compile(r"\$\{[^}]*\}")
+# A variable as `$NAME` or `${NAME}`, filled where it has one sure value.
+_PLAIN_VARIABLE = re.compile(r"\$(?:\{(\w+)\}|(\w+))")
 # The characters of typed input that only presses keys, i.e. space, Enter, Ctrl-C and Ctrl-D, written again here so that the recount does not go through the code it checks.
 _KEY_PRESS_CHARACTERS = " \n\x03\x04"
 # The rule names that the counter of `expand_tool_calls` may hold.
@@ -186,8 +196,8 @@ JUDGMENT_RULE_NAMES = frozenset(
     | {treat_lines_joined_after_three_repairs_as_left_joined.__name__}
 )
 _VERSION_AT_END = re.compile(r"-?\d+(?:\.\d+)*$")
-# A leading part of a path that stands for a folder the text does not show.
-_UNSHOWN_FOLDER_PART = re.compile(r"^(\$\{?\w+\}?|~|\.\.)$")
+# A leading part of a path that stands for a folder the text does not show, i.e. one that starts with `$`, e.g. `$LOG` or `$(dirname "$0")`, `~` or `..`.
+_UNSHOWN_FOLDER_PART = re.compile(r"^(?:\$|~|\.\.$)")
 
 
 def main() -> None:
@@ -644,8 +654,12 @@ class TrialChecker:
         )
         trial_audit.add_sides(
             "unread_words_equal_unknown_option_lookups",
-            trial_audit.counts["all", "program_invocations_with_unread_words"],
-            sum(
+            trial_audit.counts["all", "program_invocations_with_unread_words"]
+            + trial_audit.counts[
+                "all", "unread option clusters after an unread option"
+            ],
+            trial_audit.counts["all", "unread options that take a value written last"]
+            + sum(
                 count
                 for (
                     catalog,
@@ -857,6 +871,7 @@ class TrialChecker:
                         trial_audit.count("program_words_that_are_expansions")
                 elif program_invocation.unread_words:
                     trial_audit.count("program_invocations_with_unread_words")
+                    self.count_unread_words_beside_lookups(program_invocation)
             if (
                 shell_command.words
                 and _file_name_of(shell_command.words[0]) in RUNNER_NAMES
@@ -891,6 +906,59 @@ class TrialChecker:
                 self.check_route(route, ran_commands, tool_call_key)
             if self.is_checked_cat_command(expanded_tool_call, ran_command):
                 self.check_cat_arguments(expanded_tool_call, ran_command)
+
+    def count_unread_words_beside_lookups(
+        self, program_invocation: ProgramInvocation
+    ) -> None:
+        """Count, by this script's own door, the two shapes of unread words that do not give one unknown input each.
+
+        An option with a row that takes a value and is the last word leaves the word unread with no unknown input, e.g. `-e` of `node -e`.
+        An option cluster word without a row, e.g. `cf` of `tar cf - --exclude=x .`, is read after the words after it, so an option without a row among them gives a second unknown input, e.g. `--exclude`, while the words stay unread from the cluster word. Options with a row before it are read as options, e.g. `-C` of `tar xJf a.tar.xz -C out --strip-components=0`.
+        """
+        program_behavior = self.own_knowledge.program_behavior(
+            program_invocation.program_name, program_invocation.subcommand_words
+        )
+        if isinstance(program_behavior, UnknownProgramBehavior):
+            return
+        first_unread_word, *later_unread_words = program_invocation.unread_words
+        if (
+            first_unread_word.startswith("-")
+            and not later_unread_words
+            and not (
+                program_invocation.arguments
+                and isinstance(
+                    program_behavior.options_end_at_first_argument,
+                    UnknownOptionsEndAtFirstArgument,
+                )
+            )
+        ):
+            option_word = self.own_knowledge.program_option_word(
+                program_behavior, first_unread_word
+            )
+            if (
+                isinstance(option_word, ProgramOptionWord)
+                and option_word.options[-1].program_option_behavior.takes_value
+                and option_word.options[-1].attached_value is None
+            ):
+                self.trial_audit.count("unread options that take a value written last")
+            return
+        if first_unread_word.startswith("-") or not isinstance(
+            self.own_knowledge.program_option_word(
+                program_behavior, first_unread_word, is_option_cluster=True
+            ),
+            UnknownProgramOptionWord,
+        ):
+            return
+        if any(
+            word.startswith("-")
+            and word not in (_STDIN_WORD, "--")
+            and isinstance(
+                self.own_knowledge.program_option_word(program_behavior, word),
+                UnknownProgramOptionWord,
+            )
+            for word in later_unread_words
+        ):
+            self.trial_audit.count("unread option clusters after an unread option")
 
     def check_route(
         self,
@@ -974,28 +1042,20 @@ class TrialChecker:
     def check_cat_arguments(
         self, expanded_tool_call: ExpandedToolCall, ran_command: RanCommand
     ) -> None:
-        """Hold the file arguments of one cat command against its uses of files, grouping the `FileUse`s of written files that name one file."""
+        """Hold the files that one cat command reads against its uses of files, grouping the `FileUse`s of written files that name one file.
+
+        The files are its arguments, with each variable of one sure value filled, and its stdin file when no argument names a file, e.g. `/dev/tcp/kafka/9092` of `cat < /dev/tcp/kafka/9092`.
+        An argument that names a written file that an earlier argument also names is a repeat, since the expansion records one use of a written file per command, e.g. `out/a.txt` and `a.txt` after a write to `a.txt`.
+        """
         innermost = ran_command.program_invocations[-1]
         assert isinstance(innermost, ProgramInvocation)
         tool_call_key = expanded_tool_call.tool_call.harness_tool_call.key
         command_id = ran_command.shell_command.id
         output_paths = self.earlier_output_paths_for(tool_call_key)
-        seen: set[str] = set()
-        counted = 0
-        for word in innermost.arguments:
-            if any(character in word for character in _GLOB_CHARACTERS):
-                branch = "glob"
-            elif word == "-":
-                branch = "stdin"
-            elif word in seen:
-                branch = "repeat"
-            elif any(_is_same_file(word, output_path) for output_path in output_paths):
-                branch = "harness output file"
-            else:
-                branch = "other"
-                counted += 1
-            seen.add(word)
-            self.trial_audit.count(f"cat_arguments {branch}")
+        words = [_filled_word_of(word, ran_command) for word in innermost.arguments]
+        stdin_file_path = ran_command.shell_command.stdin_file_path
+        if stdin_file_path is not None and all(word == _STDIN_WORD for word in words):
+            words.append(_filled_word_of(stdin_file_path, ran_command))
         uses_without_writer = sum(
             file_use.command_id == command_id
             for file_use in expanded_tool_call.file_uses_without_known_writer
@@ -1008,18 +1068,50 @@ class TrialChecker:
             if file_use.using_tool_call_key == tool_call_key
             and file_use.command_id == command_id
         ]
-        groups: list[list[str]] = []
-        for path in dict.fromkeys(path for path, _ in uses_of_command):
-            for group in groups:
-                if any(_is_same_file(path, grouped_path) for grouped_path in group):
-                    group.append(path)
-                    break
+        used_paths = {path for path, _ in uses_of_command}
+        seen: set[str] = set()
+        counted = 0
+        for word in words:
+            if any(
+                character in _PARAMETER_IN_BRACES.sub("", word)
+                for character in _GLOB_CHARACTERS
+            ):
+                branch = "glob"
+            elif word == _STDIN_WORD:
+                branch = "stdin"
+            elif word in seen or any(
+                _is_same_file(word, used_path) and _is_same_file(seen_word, used_path)
+                for seen_word in seen
+                for used_path in used_paths
+            ):
+                branch = "repeat"
+            elif any(_is_same_file(word, output_path) for output_path in output_paths):
+                branch = "harness output file"
             else:
-                groups.append([path])
-        fits_several = any(
-            file_use.fits_several_written_files for _, file_use in uses_of_command
+                branch = "other"
+                counted += 1
+            seen.add(word)
+            self.trial_audit.count(f"cat_arguments {branch}")
+        counted_words = [word for word in dict.fromkeys(words) if word != _STDIN_WORD]
+        several_paths = {
+            path
+            for path, file_use in uses_of_command
+            if file_use.fits_several_written_files
+        }
+        group_count = _group_count_of(
+            list(dict.fromkeys(path for path, _ in uses_of_command)),
+            lambda path, other_path: (
+                _is_same_file(path, other_path)
+                or (
+                    path in several_paths
+                    and other_path in several_paths
+                    and any(
+                        _is_same_file(word, path) and _is_same_file(word, other_path)
+                        for word in counted_words
+                    )
+                )
+            ),
         )
-        group_count = 1 if fits_several and groups else len(groups)
         self.trial_audit.add_sides(
             "cat_arguments_equal_file_uses",
             counted,
@@ -1287,15 +1379,16 @@ class TrialChecker:
                 ):
                     continue
                 reading_key = reader.tool_call.harness_tool_call.key
-                is_place = reading_key in place_keys
-                self.trial_audit.add_sides(
-                    "harness_output_file_reads_are_output_places",
-                    1,
-                    is_place,
-                    reading_key,
-                )
-                if not is_place:
-                    self.count_read_that_is_no_place(reader, output_path)
+                if place_keys and self.shows_content_of(reader, output_path):
+                    is_place = reading_key in place_keys
+                    self.trial_audit.add_sides(
+                        "harness_output_file_reads_are_output_places",
+                        1,
+                        is_place,
+                        reading_key,
+                    )
+                    if not is_place:
+                        self.count_read_that_is_no_place(reader, output_path)
                 self.trial_audit.add_sides(
                     "harness_output_file_reads_are_no_uses_without_writer",
                     sum(
@@ -1305,6 +1398,71 @@ class TrialChecker:
                     0,
                     reading_key,
                 )
+
+    def shows_content_of(self, reader: ExpandedToolCall, path: str) -> bool:
+        """Tell whether a call may have run, has a result with text and names a path with a read or search tool, or as an argument of a command whose program reads its arguments as files to show, by this script's own door.
+
+        A command reads its arguments as files to show when its program's row gives them the role `read_file` and no option of the command has a row that gives them another role, e.g. `tail out` and not `wc -l out`, `grep -c x out` or `find / -name out`.
+        A command whose program or options have no row makes a use of unknown kind, which is no place, and so does a command whose stdout ends anywhere but in the result, e.g. `cat P > /dev/null` or `echo "$(tail -1 P)"`.
+        """
+        result = reader.tool_call.result
+        if (
+            _is_not_run(reader.tool_call)
+            or result is None
+            or result.tool_output_text is None
+        ):
+            return False
+        for _, step in indexed_action_steps_of(reader.tool_call.action):
+            tool_paths = (
+                [step.path]
+                if isinstance(step, ReadFileAction) and step.path is not None
+                else step.paths
+                if isinstance(step, SearchFilesAction)
+                else []
+            )
+            if any(_is_same_file(tool_path, path) for tool_path in tool_paths):
+                return True
+        return any(
+            any(
+                isinstance(route.end, ResultDestination)
+                for route in ran_command.stdout_routes
+            )
+            and self.reads_arguments_to_show(ran_command.program_invocations[-1])
+            and any(
+                _is_same_file(argument, path)
+                for argument in ran_command.program_invocations[-1].arguments  # type: ignore[union-attr]
+            )
+            for ran_command in ran_commands_by_id_of(reader).values()
+        )
+
+    def reads_arguments_to_show(
+        self, program_invocation: ProgramInvocation | UnknownProgramInvocation
+    ) -> bool:
+        """Tell whether a program run reads its arguments as files to show, i.e. its row gives them the role `read_file`, it has no unread words and no option row gives them another role."""
+        if (
+            isinstance(program_invocation, UnknownProgramInvocation)
+            or program_invocation.unread_words
+        ):
+            return False
+        program_behavior = self.own_knowledge.program_behavior(
+            program_invocation.program_name, program_invocation.subcommand_words
+        )
+        if (
+            isinstance(program_behavior, UnknownProgramBehavior)
+            or program_behavior.argument_role != ProgramWordRole.READ_FILE
+        ):
+            return False
+        for option in program_invocation.options:
+            option_word = self.own_knowledge.program_option_word(
+                program_behavior, option.name
+            )
+            if not isinstance(option_word, ProgramOptionWord) or any(
+                option_word_option.program_option_behavior.argument_role_with_option
+                not in (None, ProgramWordRole.READ_FILE)
+                for option_word_option in option_word.options
+            ):
+                return False
+        return True
 
     def count_read_that_is_no_place(
         self, reader: ExpandedToolCall, output_path: str
@@ -1433,7 +1591,10 @@ def _unknown_ran_text_count_of(
 def _runner_name_branch_of(
     ran_command: RanCommand, runs_a_text: bool, reads_a_pipe: bool
 ) -> str:
-    """Name the branch of `commands_of_runner_names_fall_in_a_branch` that a command whose first word is a runner name falls in, the first that fits."""
+    """Name the branch of `commands_of_runner_names_fall_in_a_branch` that a command whose first word is a runner name falls in, the first that fits.
+
+    A first argument `-` names stdin and no file, and the words after it are arguments of the code, so `python3 -` with nothing on its stdin falls in the branch without an argument and stdin, e.g. `python3 - 2>&1 | tail <<'EOF'`, where the heredoc goes to tail.
+    """
     first = ran_command.program_invocations[0]
     shell_command = ran_command.shell_command
     if runs_a_text:
@@ -1445,7 +1606,7 @@ def _runner_name_branch_of(
     if len(ran_command.program_invocations) > 1:
         return "runs a next program"
     if (
-        not first.arguments
+        first.arguments[:1] in ((), (_STDIN_WORD,))
         and shell_command.stdin_text is None
         and shell_command.stdin_file_path is None
         and not reads_a_pipe
@@ -1455,35 +1616,80 @@ def _runner_name_branch_of(
 
 
 def _has_words_of_its_program_invocations(ran_command: RanCommand) -> bool:
-    """Tell whether the words of a command and the parts of its program invocations hold the same characters, `-` and `=` left out, with each program word taken as written."""
-    words = list(ran_command.shell_command.words)
-    parts: list[str] = []
-    for program_invocation in ran_command.program_invocations:
-        program_word = next(
-            (
-                word
-                for word in words
-                if _is_written_program_word(word, program_invocation.program_name)
-            ),
-            None,
+    """Tell whether the words of a command and the parts of its program invocations hold the same characters, `-` and `=` left out, with each program word taken as written.
+
+    The program word of each invocation is a word after that of the invocation before it which can name its program, and some choice of them must make the characters equal.
+    An assignment or an option value can end with the program name, e.g. `PYTHONPATH=/app/python` before `python` in `env PYTHONPATH=/app/python python -m pytest`, or `/usr/bin/python3` of `uv run --python /usr/bin/python3 python`, while a program whose row skips no assignments reads such a word as its next program, e.g. `time A=/app/python b`.
+    """
+    words = ran_command.shell_command.words
+    word_characters = _characters_of(words)
+    program_invocations = ran_command.program_invocations
+
+    def has_choice_from(position: int, after_index: int, parts: Counter[str]) -> bool:
+        if position == len(program_invocations):
+            return parts == word_characters
+        program_invocation = program_invocations[position]
+        own_parts = _characters_of(_parts_of(program_invocation))
+        return any(
+            has_choice_from(
+                position + 1, index, parts + own_parts + _characters_of([words[index]])
+            )
+            for index in range(after_index + 1, len(words))
+            if _is_written_program_word(words[index], program_invocation.program_name)
         )
-        if program_word is None:
-            return False
-        words.remove(program_word)
-        parts.append(program_word)
-        if isinstance(program_invocation, UnknownProgramInvocation):
-            parts += program_invocation.words
-        else:
-            parts += program_invocation.subcommand_words
-            for option in program_invocation.options:
-                parts += (
-                    [option.name]
-                    if option.value is None
-                    else [option.name, option.value]
-                )
-            parts += program_invocation.arguments
-            parts += program_invocation.unread_words
-    return _characters_of(ran_command.shell_command.words) == _characters_of(parts)
+
+    return has_choice_from(0, -1, Counter())
+
+
+def _parts_of(
+    program_invocation: ProgramInvocation | UnknownProgramInvocation,
+) -> list[str]:
+    """List the words that a program invocation reads after its program word, i.e. its subcommand words, options with their values, arguments and unread words, or the words of an unknown program."""
+    if isinstance(program_invocation, UnknownProgramInvocation):
+        return list(program_invocation.words)
+    parts = list(program_invocation.subcommand_words)
+    for option in program_invocation.options:
+        parts += [option.name] if option.value is None else [option.name, option.value]
+    return (
+        parts
+        + list(program_invocation.arguments)
+        + list(program_invocation.unread_words)
+    )
+
+
+def _group_count_of(paths: Sequence[str], is_joined: Callable[[str, str], bool]) -> int:
+    """Count the groups of paths that pairs joined by `is_joined` make, directly or through other paths of the list.
+
+    A use whose path fits several written files is recorded on each of them, so the written files that one argument fits are one group, e.g. `/a/fetch.log` and `/b/fetch.log` for `cat fetch.log`.
+    """
+    group_of = list(range(len(paths)))
+
+    def root_of(index: int) -> int:
+        while group_of[index] != index:
+            index = group_of[index]
+        return index
+
+    for index, path in enumerate(paths):
+        for other_index in range(index):
+            if is_joined(path, paths[other_index]):
+                group_of[root_of(index)] = root_of(other_index)
+    return len({root_of(index) for index in range(len(paths))})
+
+
+def _filled_word_of(word: str, ran_command: RanCommand) -> str:
+    """Fill each `$NAME` or `${NAME}` of a word whose variable has exactly one value and no value set at run time, e.g. fetch.log for `$F` after `F=fetch.log`, written again here so that the recount does not go through the code it checks."""
+    sure_value_of_name = {
+        variable_values.name: variable_values.values[0]
+        for variable_values in ran_command.variable_values
+        if len(variable_values.values) == 1
+        and not variable_values.has_value_set_at_run_time
+    }
+    return _PLAIN_VARIABLE.sub(
+        lambda match: sure_value_of_name.get(
+            match.group(1) or match.group(2), match.group(0)
+        ),
+        word,
+    )
 
 
 def _is_written_program_word(word: str, program_name: str) -> bool:
@@ -1500,10 +1706,20 @@ def _characters_of(words: Iterable[str]) -> Counter[str]:
 
 
 def _is_expansion_word(shell_command: ShellCommand, program_name: str) -> bool:
-    """Tell whether a program name is a word of the command that holds an expansion, e.g. `$P`."""
+    """Tell whether a program name is a word of the command that holds an expansion, e.g. `$P`, and no word without an expansion can be its program word.
+
+    A word with an expansion can end with the name of a program that a word as written names, e.g. `$D/venv` beside `venv` in `python -m venv $D/venv`.
+    """
+    expansion_word_indexes = set(shell_command.expansion_word_indexes)
+    if any(
+        _is_written_program_word(word, program_name)
+        for index, word in enumerate(shell_command.words)
+        if index not in expansion_word_indexes
+    ):
+        return False
     return any(
         _is_written_program_word(shell_command.words[index], program_name)
-        for index in shell_command.expansion_word_indexes
+        for index in expansion_word_indexes
         if index < len(shell_command.words)
     )
 
@@ -1579,23 +1795,30 @@ def _is_same_file(path: str, other_path: str) -> bool:
         return parts == other_parts
     if not is_absolute and not other_is_absolute and len(parts) != len(other_parts):
         shorter, longer = sorted((parts, other_parts), key=len)
-        return len(shorter) > 1 and longer[-len(shorter) :] == shorter
+        return longer[-len(shorter) :] == shorter
     relative = other_parts if is_absolute else parts
     whole = parts if is_absolute else other_parts
     return len(relative) <= len(whole) and whole[-len(relative) :] == relative
 
 
 def _path_parts_of(path: str) -> tuple[bool, list[str]] | None:
-    """Split a path text into whether it is absolute and its parts without `.`, leading parts that stand for an unshown folder dropped, or None for an empty path."""
+    """Split a path text into whether it is absolute and its parts without `.` and `x/..`, the leading parts of a relative path that stand for an unshown folder dropped, or None for an empty path.
+
+    A `..` right after the root stays at the root, as in `/../f`, which names `/f`.
+    """
     if not path:
         return None
-    parts = [part for part in PurePosixPath(path).parts if part not in (".", "")]
     is_absolute = path.startswith("/")
-    if is_absolute:
+    parts: list[str] = []
+    for part in path.split("/"):
+        if part in ("", "."):
+            continue
+        if part == ".." and parts and parts[-1] != "..":
+            parts.pop()
+        elif not (part == ".." and is_absolute and not parts):
+            parts.append(part)
+    while not is_absolute and parts and _UNSHOWN_FOLDER_PART.match(parts[0]):
         parts = parts[1:]
-    while parts and _UNSHOWN_FOLDER_PART.match(parts[0]):
-        parts = parts[1:]
-        is_absolute = False
     return is_absolute, parts
 
 

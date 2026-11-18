@@ -2062,11 +2062,14 @@ class TrialFileContents:
         ]
 
     def _written_file_histories_fitting(self, path: str) -> list[_WrittenFileHistory]:
-        """List the written files that a path can name, in the order of their first writes."""
+        """List the written files that a path can name, in the order of their first writes, i.e. those that it can name by each path that a write named them by.
+
+        A file written by several paths is one file under each of them, so a path that cannot name one of them names another file, e.g. `/app/run.sh` for a file written as `run.sh` and then as `/app/v3/run.sh`, since two absolute paths that differ never name one file.
+        """
         return [
             written_file_history
             for written_file_history in self._written_file_histories
-            if any(
+            if all(
                 self._may_name_same_file(path, written_path)
                 for written_path in written_file_history.paths
             )
@@ -2118,7 +2121,7 @@ class TrialFileContents:
 class _WrittenFileHistory:
     """State of one file that the calls of a trajectory wrote, kept by `TrialFileContents` from its first write on."""
 
-    # Every path that a write named it by, so that a later path can fit any of them.
+    # Every path that a write named it by. A later path names the file only when it can name each of them.
     paths: list[str]
     # The writes since the last write that replaced the content, in call order. Several when a later call appended.
     written_file_keys: list[WrittenFileKey]

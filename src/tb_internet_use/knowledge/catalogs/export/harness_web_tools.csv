@@ -1,2 +1,5 @@
 harness,tool,sender,checked_against,reviewed,note
 codex,web_search_call,provider_server,"1,610 web_search_call calls in the trajectories (terminal-bench 2026-10-08), none with result content and each followed by another call in the same model response",,"The search runs on the model provider's server while the model writes its response, so the trajectory holds the query and no result"
+claude-code,WebFetch,harness_process,"code.claude.com/docs/en/sandboxing section 'Network isolation' and code.claude.com/docs/en/data-usage section 'Local Claude Code: Data flow and dependencies', read 2026-11-18",,"The docs call WebFetch an in-process tool of Claude Code and say Claude Code runs locally, so the page is fetched by the Claude Code process"
+claude-code,WebSearch,provider_server,"code.claude.com/docs/en/tools-reference section 'WebSearch tool behavior', read 2026-11-18",,"The docs say WebSearch runs the query against Anthropic's web search backend, a server-side tool"
+devin,webfetch,harness_process,"docs.devin.ai/cli/enterprise/team-settings section 'Enable Web Search', read 2026-11-18",,"The docs say Devin CLI reads specific URLs locally on the user's machine"

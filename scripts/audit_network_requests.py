@@ -7,13 +7,13 @@ Every equation starts at 0 for every trial, so that one the trials never reach s
 | Equation | Left | Right |
 |---|---|---|
 | `program_invocations_equal_program_lookups` | `ProgramInvocation`s and `UnknownProgramInvocation`s of the commands | Lookups of program rows of `program_network_requests.csv`, i.e. uses and unknown inputs without an option and not under `any subcommand`, plus `UnknownProgramInvocation`s |
-| `command_request_runs_equal_fetching_and_public_url_runs` | Program runs with a request, i.e. distinct (call, command id, program invocation) of the `FromCommand` requests | Runs that a door of this script answers with `FetchingProgramLabel`, minus the counts `option_sends_no_request` and `no_target_arguments`, plus runs without a row that run nothing else and have a URL in their words, found with this script's own pattern, whose host `parse_host_name` does not read as local or reserved |
+| `command_request_runs_equal_fetching_and_public_url_runs` | Program runs with a request, i.e. distinct (call, command id, program invocation) of the `FromCommand` requests | Runs that a door of this script answers with `FetchingProgramLabel`, minus the counts `option_sends_no_request` and `no_target_arguments`, plus runs without a row that run nothing else and have a URL in their words, with the variables of one sure value filled, found with this script's own pattern, whose host `parse_host_name` does not read as local or reserved |
 | `code_texts_without_request_show_no_request` | `RanCodeText`s without a `FromCode` request | Those whose URLs, found with this script's own pattern, are all local, reserved, of a namespace host or on a line with a call of a `sends_no_network_request` row, and in which no call name of a `sends_network_request` row is followed by `(` |
 | `indexes_run_from_zero_in_each_call` | Calls with a request | Those whose requests have the indexes 0, 1, 2 and so on in order |
 | `no_request_repeats_a_request_of_the_text_it_runs` | Pairs of requests of one call with the same target where one comes from the command that runs the text of the other, e.g. `python -c` and its code | 0 |
-| `request_fields_agree` | Requests whose saved path is neither a written file of the call nor a file its command's stdout goes to, whose pipe reader is not a command of the same text, or whose URL target has a host missing from `host_names` | 0 |
+| `request_fields_agree` | Requests whose saved path is neither a written file of the call nor a file its command's stdout goes to, whose pipe reader is not a command of the same call that reads a stdout route of its command, e.g. tail that reads the output of `bash fetch.sh` for the curl in fetch.sh, or whose URL target has a host missing from `host_names` | 0 |
 | `pip_install_requests_equal_targets` | Requests of `pip install` runs with arguments and without unread words, file options, value options, options that send no request, run time arguments or `$` in a word | Arguments that are no local path, plus 1 when one argument is a local path, by this script's own reading of a local path |
-| `code_requests_within_urls_and_calls` | `FromCode` requests over the bound of a code text | 0, where the bound is the places of URLs in the code, since each call without a row gives one request per URL of its own, plus the places where a call name of a `sends_network_request` or `runs_program` row is followed by `(` |
+| `code_requests_within_urls_and_calls` | `FromCode` requests over the bound of a code text | 0, where the bound is the places of `http://` or `https://` in the code, since each call without a row gives one request per URL of its own, plus the places where a call name of a `sends_network_request` or `runs_program` row is followed by `(` |
 | `web_tool_requests_equal_web_targets` | `FromWebTool` requests | Queries and URLs of the web actions of the calls and their script steps, plus 1 for each such action without one |
 | `judgment_rule_names_are_of_this_step` | Names counted in the counter of `extract_network_requests` | Those of `network_request/judgment_rules.py` |
 
@@ -42,9 +42,11 @@ Run it as `nice -n 10 uv run python -I scripts/audit_network_requests.py <raw_tr
 import argparse
 import csv
 import functools
+import io
 import json
 import re
 import sys
+import tokenize
 from collections import Counter
 from collections.abc import Sequence
 from concurrent.futures import ProcessPoolExecutor
@@ -144,8 +146,10 @@ JUDGMENT_RULE_NAMES = frozenset(
     for name in dir(judgment_rules)
     if name.startswith("treat_") and callable(getattr(judgment_rules, name))
 )
-# An http or https URL, written again here so that the recounts do not go through `parse_urls_in_text`.
-_URL = re.compile(r"""https?://[^\s'"`<>()\[\]{}\\]+""")
+# An http or https URL, written again here so that the recounts do not go through `parse_urls_in_text`. A `{...}` or `${...}` part stays in it, as in the f-string `f"http://{host}:{port}/x"` or `http://${HOST}/x`.
+_URL = re.compile(r"""https?://(?:\$?\{[^{}\s]*\}|[^\s'"`<>()\[\]{}\\])+""")
+# The start of a URL, whose places bound the code requests even when the rest is no URL that `_URL` reads, e.g. `http://[^` of a pattern in code, which the step reads as a URL whose host cannot be read.
+_URL_START = re.compile(r"https?://")
 # The hosts whose URLs name an XML or JSON namespace, written again here from `treat_url_of_namespace_host_as_no_target`.
 _NAMESPACE_HOST_NAMES = frozenset(
     {"schemas.openxmlformats.org", "www.w3.org", "purl.org", "json-schema.org"}
@@ -153,6 +157,19 @@ _NAMESPACE_HOST_NAMES = frozenset(
 # The archive file name endings that a pip requirement can name as a local file.
 _ARCHIVE_ENDINGS = (".whl", ".zip", ".tar.gz", ".tgz")
 _NOT_LOCAL_OR_RESERVED = "may be public"
+# A comment or a quoted string of JavaScript, i.e. `//` to the line end, `/* */`, or text in single, double or back quotes, the leftmost first.
+_JAVASCRIPT_STRING = re.compile(
+    r"""//[^\n]*|/\*.*?\*/|'(?:\\.|[^'\\\n])*'|"(?:\\.|[^"\\\n])*"|`(?:\\.|[^`\\])*`""",
+    re.DOTALL,
+)
+# A method definition of JavaScript after its name, i.e. its parameters and `{`, e.g. `(url) {` of `fetch(url) { return p }` in a class or an object.
+_JAVASCRIPT_METHOD_DEFINITION_END = re.compile(r"[^()]*\)\s*\{")
+# The tokens of Python that hold a string or a comment, i.e. the text of an f-string but not its `{...}` parts.
+_PYTHON_STRING_TOKEN_TYPES = frozenset(
+    {tokenize.STRING, tokenize.FSTRING_MIDDLE, tokenize.COMMENT}
+)
+# A variable as `$NAME` or `${NAME}`, filled where it has one sure value.
+_PLAIN_VARIABLE = re.compile(r"\$(?:\{(\w+)\}|(\w+))")
 
 
 def main() -> None:
@@ -803,7 +820,7 @@ class TrialChecker:
             if not runs_something_else and any(
                 _scope_of_url(url) == _NOT_LOCAL_OR_RESERVED
                 for word in words
-                for url in _URL.findall(word)
+                for url in _URL.findall(_filled_word_of(word, ran_command))
             ):
                 expected_run_count += 1
         return expected_run_count
@@ -837,7 +854,7 @@ class TrialChecker:
                     tool_call_key,
                     missed_name or "",
                 )
-            bound = len(_URL.findall(ran_text.code)) + sum(
+            bound = len(_URL_START.findall(ran_text.code)) + sum(
                 len(_call_places(name, ran_text.code))
                 for name in self.code_call_names.names_of(
                     code_language, "sends_network_request", "runs_program"
@@ -853,10 +870,26 @@ class TrialChecker:
     def _name_of_missed_request(
         self, ran_code_text: RanCodeText, sending_names: Sequence[str]
     ) -> str | None:
-        """Name the call of a code text that sends a request, or `url` for a URL that may be public, or None when the text shows neither."""
+        """Name the call of a code text that sends a request, or `url` for a URL that may be public, or None when the text shows neither.
+
+        A call name counts outside strings and comments, before the point where `parse_code` stops reading, since the step reads no call after it, and not as the name of a JavaScript method definition, e.g. `fetch(url) {`.
+        """
         code = ran_code_text.code
+        code_language = ran_code_text.code_language.value
+        unreadable_text_start = parse_code(
+            code, ran_code_text.code_language
+        ).unreadable_text_start
+        code_outside_strings = _code_outside_strings(
+            code[:unreadable_text_start], code_language
+        )
         for name in sending_names:
-            if _call_places(name, code):
+            if any(
+                code_language == "python"
+                or not _JAVASCRIPT_METHOD_DEFINITION_END.match(
+                    code_outside_strings, call_place.end()
+                )
+                for call_place in _call_places(name, code_outside_strings)
+            ):
                 return name
         non_fetching_names = self.code_call_names.names_of(
             ran_code_text.code_language.value, "sends_no_network_request"
@@ -953,11 +986,12 @@ class TrialChecker:
             if isinstance(destination, ContentPipedToCommand):
                 broken_count += (
                     ran_text_and_command is None
-                    or destination.reader_command_id
-                    not in {
-                        ran_command.shell_command.id
-                        for ran_command in ran_text_and_command[0].ran_commands
-                    }
+                    or destination.reader_command_id not in ran_commands_by_id
+                    or not any(
+                        destination.reader_command_id
+                        in output_route.pipe_reader_command_ids
+                        for output_route in ran_text_and_command[1].stdout_routes
+                    )
                 )
             if (
                 isinstance(network_request.target, str)
@@ -1068,6 +1102,22 @@ def _runs_held_text(command_id: int, expanded_tool_call: ExpandedToolCall) -> bo
     )
 
 
+def _filled_word_of(word: str, ran_command: RanCommand) -> str:
+    """Fill each `$NAME` or `${NAME}` of a word whose variable has exactly one value and no value set at run time, e.g. `http://localhost:8000/` for `http://$H:8000/` after `H=localhost`, written again here so that the recount does not go through the code it checks."""
+    sure_value_of_name = {
+        variable_values.name: variable_values.values[0]
+        for variable_values in ran_command.variable_values
+        if len(variable_values.values) == 1
+        and not variable_values.has_value_set_at_run_time
+    }
+    return _PLAIN_VARIABLE.sub(
+        lambda match: sure_value_of_name.get(
+            match.group(1) or match.group(2), match.group(0)
+        ),
+        word,
+    )
+
+
 def _words_of(program_invocation: ProgramInvocation) -> tuple[str, ...]:
     """Give the option values, arguments and unread words of a program run."""
     return (
@@ -1108,6 +1158,31 @@ def _is_namespace_url(url: str) -> bool:
     host_name = parse_url(url)
     last_path_part = url.rstrip("/").rsplit("/", 1)[-1]
     return host_name in _NAMESPACE_HOST_NAMES and "." not in last_path_part
+
+
+def _code_outside_strings(code: str, code_language: str) -> str:
+    """Blank the string literals and comments of a code text, keeping its lines and columns, so that a call name written in a string is not read as a call, e.g. `urlopen(` in `src.replace("urlopen(u)", "")`.
+
+    Python is split by `tokenize`, and a text that it cannot split is kept whole. JavaScript loses its comments and quoted strings by a pattern written here, so a call inside a template expression is blanked too.
+    """
+    if code_language != "python":
+        return _JAVASCRIPT_STRING.sub(lambda match: " " * len(match.group(0)), code)
+    line_starts = [0]
+    for line in code.splitlines(keepends=True):
+        line_starts.append(line_starts[-1] + len(line))
+    characters = list(code)
+    try:
+        for token in tokenize.generate_tokens(io.StringIO(code).readline):
+            if token.type not in _PYTHON_STRING_TOKEN_TYPES:
+                continue
+            start = line_starts[token.start[0] - 1] + token.start[1]
+            end = line_starts[token.end[0] - 1] + token.end[1]
+            for index in range(start, end):
+                if characters[index] != "\n":
+                    characters[index] = " "
+    except tokenize.TokenError, SyntaxError:
+        return code
+    return "".join(characters)
 
 
 def _call_places(call_name: str, text: str) -> list[re.Match[str]]:

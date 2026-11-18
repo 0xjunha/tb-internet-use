@@ -120,7 +120,7 @@ def treat_path_that_ends_another_as_same_file(
 
     The working folder of a call is not in the trajectory, so a relative path can name any file whose path ends with it.
     A leading `$NAME`, `~` or `..` part stands for a folder that the text does not show, so such parts are dropped and the rest is read as relative, e.g. `out` for `$LOG/out`.
-    `expand_ran_texts` asks it for two paths of different text whose parts, without `.` and `x/..`, match in this way. Two absolute paths never do, and neither does a base name alone against a longer relative path, e.g. `a/f` and `b/f`.
+    `expand_ran_texts` asks it for two paths of different text whose parts, without `.` and `x/..`, match in this way. Two absolute paths never do, and neither do two relative paths of as many parts that differ, e.g. `a/f` and `b/f`. A base name alone does end a longer relative path, e.g. `f` and `a/f`.
     On `True` the two paths name one file, so a read of one is a read of what was written to the other. On `False` they name different files.
     A use is such a pair of paths.
 

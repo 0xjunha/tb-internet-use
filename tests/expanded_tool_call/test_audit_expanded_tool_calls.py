@@ -1,5 +1,6 @@
 """Tests for scripts/audit_expanded_tool_calls.py, with made-up trials expanded on a made-up program catalog, made-up expanded calls that break one equation each, and made-up trial folders run through `audit_trial` and `main`."""
 
+import copy
 import csv
 import dataclasses
 import importlib.util
@@ -85,6 +86,25 @@ PROGRAM_BEHAVIOR_ROWS: list[dict[str, str]] = [
     {"program_name": "curl", "argument_role": ""},
     {"program_name": "echo"},
     {"program_name": "printf", "options_end_at_first_argument": ""},
+    {
+        "program_name": "python",
+        "first_argument_role": "run_file",
+        "stdin_role": "run_text",
+        "options_end_at_first_argument": "yes",
+    },
+    {
+        "program_name": "env",
+        "argument_role": "program",
+        "skips_assignment_words": "yes",
+        "options_end_at_first_argument": "yes",
+    },
+    {"program_name": "wc", "argument_role": "size_or_type_file"},
+    {
+        "program_name": "grep",
+        "argument_role": "read_file",
+        "first_argument_role": "pattern",
+    },
+    {"program_name": "tar", "first_argument_role": "option_cluster"},
 ]
 PROGRAM_OPTION_BEHAVIOR_ROWS: list[dict[str, str]] = [
     {
@@ -92,9 +112,27 @@ PROGRAM_OPTION_BEHAVIOR_ROWS: list[dict[str, str]] = [
         "option_name": "-c",
         "first_argument_role_with_option": "run_text",
     },
+    {
+        "program_name": "curl",
+        "option_name": "-o",
+        "takes_value": "yes",
+        "value_role": "",
+    },
+    {
+        "program_name": "grep",
+        "option_name": "-c",
+        "argument_role_with_option": "used_file",
+    },
+    {
+        "program_name": "tar",
+        "option_name": "-f",
+        "takes_value": "yes",
+        "value_role": "",
+    },
 ]
 CODE_RUNNER_ROWS: list[dict[str, str]] = [
     {"runner_kind": "program_name", "runner": "bash"},
+    {"runner_kind": "program_name", "runner": "python", "ran_text_language": "python"},
 ]
 
 
@@ -152,11 +190,14 @@ def _checked(
         judgment_rule_use_counts=judgment_rule_use_counts,
         knowledge_uses=knowledge.uses,
     )
+    # The checker asks a door of its own, as `audit_trial` gives it, so that its lookups do not count as lookups of the expansion.
+    own_knowledge = copy.copy(knowledge)
+    own_knowledge.uses = KnowledgeUses()
     audit.TrialChecker(
         trial_audit,
         tool_calls,
         expanded if expanded_tool_calls is None else expanded_tool_calls,
-        knowledge,
+        own_knowledge,
     ).check()
     return trial_audit
 
@@ -596,6 +637,115 @@ def test_text_typed_into_a_program_that_runs_no_text_is_counted_by_the_row_of_th
     assert trial_audit.equation_sides["poll_inputs_fall_in_a_branch", "left"] == 1
 
 
+def _running_result(output_path: str) -> ToolCallResult:
+    return ToolCallResult(
+        tool_output_text="",
+        execution_status=ExecutionStatus.RUNNING,
+        handles=(TASK_1,),
+        output_path=output_path,
+    )
+
+
+# (equation, made-up calls of a shape that the full data of 2026-10-08 showed, with the expansion right and the recount once wrong). The comments name the shape.
+SHAPES_THAT_HOLD: list[tuple[str, tuple[ToolCall, ...]]] = [
+    # `python3 - 2>&1 | tail <<'EOF'` gives the heredoc to tail, so python reads no text.
+    (
+        "commands_of_runner_names_fall_in_a_branch",
+        (_call(1, "python - 2>&1 | tail <<'EOF'\nprint(1)\nEOF"),),
+    ),
+    # An assignment before the program can end with the program name.
+    (
+        "program_invocations_hold_the_words_of_their_command",
+        (_call(1, "env X=/opt/cat cat log"),),
+    ),
+    # A `${D}` is no brace list, and the value of D is filled.
+    (
+        "cat_arguments_equal_file_uses",
+        (_call(1, "D=/app; cat ${D}/a.txt"),),
+    ),
+    # cat reads the file of its stdin, e.g. `/dev/tcp/kafka/9092`.
+    ("cat_arguments_equal_file_uses", (_call(1, "cat < /dev/tcp/h/80"),)),
+    # A variable whose one value is the harness output file of an earlier call.
+    (
+        "cat_arguments_equal_file_uses",
+        (
+            _call(1, "sleep 9", _running_result("/tmp/b1.output")),
+            _call(2, 'F=/tmp/b1.output; cat "$F"'),
+        ),
+    ),
+    # Two arguments that each fit two written files are two files.
+    (
+        "cat_arguments_equal_file_uses",
+        (
+            _call(1, WriteFileAction("/a/x.log", "1")),
+            _call(2, WriteFileAction("/b/x.log", "2")),
+            _call(3, WriteFileAction("/a/y.log", "3")),
+            _call(4, WriteFileAction("/b/y.log", "4")),
+            _call(5, "cat x.log y.log"),
+        ),
+    ),
+    # Two paths of one file that no call wrote are two uses without a known writer.
+    ("cat_arguments_equal_file_uses", (_call(1, "cat ~/.h /root/.h"),)),
+    # Two arguments that can name one written file are one use of it.
+    (
+        "cat_arguments_equal_file_uses",
+        (_call(1, WriteFileAction("x.py", "1")), _call(2, "cat d/x.py x.py")),
+    ),
+    # A base name alone ends a longer relative path, so run.sh is the file written as d/run.sh.
+    (
+        "file_text_writers_hold_the_file",
+        (_call(1, WriteFileAction("d/run.sh", "echo a")), _call(2, "bash run.sh")),
+    ),
+    # wc shows the size of the harness output file, not its content.
+    (
+        "harness_output_file_reads_are_output_places",
+        (
+            _call(1, "mytool", _running_result("/tmp/b1.output")),
+            _call(2, "wc -l /tmp/b1.output"),
+        ),
+    ),
+    # A read of the output file of a command whose output all goes to a log shows nothing of it.
+    (
+        "harness_output_file_reads_are_output_places",
+        (
+            _call(1, "mytool > /tmp/m.log 2>&1", _running_result("/tmp/b1.output")),
+            _call(2, "cat /tmp/b1.output"),
+        ),
+    ),
+    # `grep -c` shows a count, not the content.
+    (
+        "harness_output_file_reads_are_output_places",
+        (
+            _call(1, "mytool", _running_result("/tmp/b1.output")),
+            _call(2, "grep -c x /tmp/b1.output"),
+        ),
+    ),
+    # An option with a row that takes a value is the last word, so no unknown input.
+    ("unread_words_equal_unknown_option_lookups", (_call(1, "curl u -o"),)),
+    # The cluster letter c and --exclude both lack a row, so one run gives two unknown inputs.
+    (
+        "unread_words_equal_unknown_option_lookups",
+        (_call(1, "tar cf - --exclude=x ."),),
+    ),
+    # An expansion word ends with the name of a program that a word as written names.
+    (
+        "unknown_program_invocations_equal_unknown_program_lookups",
+        (_call(1, "mytool $D/mytool"),),
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    ("equation", "tool_calls"),
+    SHAPES_THAT_HOLD,
+    ids=[f"{equation}-{index}" for index, (equation, _) in enumerate(SHAPES_THAT_HOLD)],
+)
+def test_a_shape_of_the_full_data_holds_its_equation(knowledge, equation, tool_calls):
+    trial_audit = _checked(knowledge, tool_calls)
+
+    assert equation not in _differing_equations(trial_audit)
+
+
 @pytest.mark.parametrize(
     ("path", "other_path", "is_same"),
     [
@@ -605,8 +755,11 @@ def test_text_typed_into_a_program_that_runs_no_text_is_counted_by_the_row_of_th
         ("$LOG/out", "/var/log/out", True),
         ("/a/fetch.sh", "/b/fetch.sh", False),
         ("a/f", "b/f", False),
-        ("f", "a/f", False),
+        ("f", "a/f", True),
         ("./f", "/app/f", True),
+        ("logs/../f", "/app/f", True),
+        ('$(dirname "$0")/f.sh', "/app/f.sh", True),
+        ("/$D/f", "/f", False),
     ],
 )
 def test_two_path_texts_name_one_file_in_the_way_of_the_rule(path, other_path, is_same):

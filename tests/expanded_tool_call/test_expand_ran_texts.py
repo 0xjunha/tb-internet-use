@@ -996,6 +996,24 @@ def test_a_path_that_fits_several_written_files(knowledge: ExpandedToolCallKnowl
     )
 
 
+def test_a_path_names_a_file_written_by_several_paths_only_if_it_can_name_each(
+    knowledge: ExpandedToolCallKnowledge,
+):
+    """A file written as `run.sh` and then as `/app/v3/run.sh` is one file under both paths, so `/app/run.sh` names another file, which no call wrote, as in a trajectory where the agent ran `/app/run.sh` after writing `run.sh` and `/app/v3/run.sh`."""
+    results = _expand(
+        knowledge,
+        _call(1, WriteFileAction("run.sh", "curl a")),
+        _call(2, WriteFileAction("/app/v3/run.sh", "curl b")),
+        _call(3, "bash /app/run.sh"),
+        _call(4, "bash run.sh"),
+    )
+
+    assert results[2].ran_texts[-1] == UnknownRanText(
+        FileTextWithoutKnownWriter(0, "/app/run.sh"), Reason.NOT_WRITTEN_IN_TRIAL
+    )
+    assert results[3].ran_texts[-1].source == FileText(0, "run.sh", K2)
+
+
 @pytest.mark.parametrize(
     ("old", "followed", "rule_uses"),
     [
