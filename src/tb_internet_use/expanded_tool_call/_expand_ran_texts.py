@@ -1804,10 +1804,20 @@ class TrialFileContents:
         """
         if may_be_glob and self._is_glob(path):
             return None
-        written_file_key = self._written_file_key_for(tool_call_key, path)
+        fitting_written_file_keys = self._written_file_keys_of_tool_call_fitting(
+            tool_call_key, path
+        )
+        written_file_key = self._written_file_key_for(
+            tool_call_key, path, fitting_written_file_keys
+        )
         if may_have_run:
             self._record_written_content(
-                written_file_key, path, content, appends=appends
+                written_file_key,
+                path,
+                content,
+                appends=appends,
+                fits_several_written_files_of_tool_call=len(fitting_written_file_keys)
+                > 1,
             )
             if not appends:
                 self._forget_harness_output_files_named_by(path)
@@ -1990,8 +2000,26 @@ class TrialFileContents:
             if not self._may_name_same_file(path, harness_output_path)
         ]
 
-    def _written_file_key_for(
+    def _written_file_keys_of_tool_call_fitting(
         self, tool_call_key: ToolCallKey, path: str
+    ) -> list[WrittenFileKey]:
+        """List the keys of the files that the call wrote earlier and that a path can name by each path they were written by."""
+        return [
+            written_file_key
+            for written_file_key in self._written_file_keys_of_tool_call.get(
+                tool_call_key, []
+            )
+            if all(
+                self._may_name_same_file(path, written_path)
+                for written_path in self._written_paths_of_key(written_file_key)
+            )
+        ]
+
+    def _written_file_key_for(
+        self,
+        tool_call_key: ToolCallKey,
+        path: str,
+        fitting_written_file_keys: list[WrittenFileKey],
     ) -> WrittenFileKey:
         """Give the key of the one file that the call wrote earlier and that a path can name by each path it was written by, or a new key with this path.
 
@@ -2000,14 +2028,6 @@ class TrialFileContents:
         written_file_keys = self._written_file_keys_of_tool_call.setdefault(
             tool_call_key, []
         )
-        fitting_written_file_keys = [
-            written_file_key
-            for written_file_key in written_file_keys
-            if all(
-                self._may_name_same_file(path, written_path)
-                for written_path in self._written_paths_of_key(written_file_key)
-            )
-        ]
         if len(fitting_written_file_keys) == 1:
             (written_file_key,) = fitting_written_file_keys
         else:
@@ -2033,13 +2053,18 @@ class TrialFileContents:
         content: str | None,
         *,
         appends: bool,
+        fits_several_written_files_of_tool_call: bool,
     ) -> None:
         """Change the state of the file that a write of a call that may have run writes.
 
         A later write of the same call to the same file keeps the writes as they are and adds its path to those of the file, so that later paths must fit it too. It leaves the content of each other written file that the path fits unknown, as a write of another call does.
         A path that fits several written files starts a file of its own, since the text does not say which of them it writes, and leaves the content of each of them unknown, since it may have changed any of them.
+        A path that fits several files that the same call wrote earlier joins the file of the key it was given and leaves its content unknown too, since the text does not say which of them it writes, e.g. the fourth write to run.sh after writes to run.sh, /a/run.sh and /b/run.sh in one call.
+        A later run of /a/run.sh then sees content changed by a command that was not read, while after the same writes in four calls it sees a path that fits several written files.
         """
-        written_content = None if appends else content
+        written_content = (
+            None if appends or fits_several_written_files_of_tool_call else content
+        )
         written_file_history = self._written_file_history_of_key.get(written_file_key)
         if written_file_history is None:
             written_file_histories = self._written_file_histories_fitting(path)

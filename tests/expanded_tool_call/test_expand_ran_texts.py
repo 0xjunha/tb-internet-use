@@ -1098,6 +1098,73 @@ def test_a_write_and_an_append_of_one_call_by_two_paths_of_one_file(
     assert runner.file_touches == (_touch(0, "run.sh", Kind.USES_CONTENT, run_sh),)
 
 
+def test_a_write_of_one_call_that_fits_several_of_its_files_leaves_them_unknown(
+    knowledge: ExpandedToolCallKnowledge,
+):
+    """A fourth write to `run.sh` after writes to `run.sh`, `/a/run.sh` and `/b/run.sh` in one call may write either file, so a later run of `/a/run.sh` runs no known content."""
+    _, runner = _expand(
+        knowledge,
+        _call(
+            1,
+            "\n".join(
+                [
+                    _heredoc_write("run.sh", "curl x"),
+                    _heredoc_write("/a/run.sh", "curl a"),
+                    _heredoc_write("/b/run.sh", "curl b"),
+                    _heredoc_write("run.sh", "curl y"),
+                ]
+            ),
+        ),
+        _call(2, "bash /a/run.sh"),
+    )
+
+    assert runner.ran_texts[-1] == UnknownRanText(
+        FileText(0, "/a/run.sh", K1), Reason.CHANGED_BY_UNREAD_COMMAND
+    )
+
+
+def test_a_write_of_one_call_joins_its_file_only_if_it_fits_the_paths_of_earlier_calls(
+    knowledge: ExpandedToolCallKnowledge,
+):
+    """After a write to `/b/run.sh`, one call that writes `run.sh` and then `/a/run.sh` writes the file at `/b/run.sh` and another file, since `/a/run.sh` cannot name the file at `/b/run.sh`, as when two calls make the last two writes."""
+    results = _expand(
+        knowledge,
+        _call(1, _heredoc_write("/b/run.sh", "curl b")),
+        _call(
+            2,
+            _heredoc_write("run.sh", "curl r")
+            + "\n"
+            + _heredoc_write("/a/run.sh", "curl a"),
+        ),
+        _call(3, "bash /a/run.sh"),
+        _call(4, "bash /b/run.sh"),
+    )
+
+    assert _texts_with_words(results[2].ran_texts)[-1][1] == (("curl", "a"),)
+    assert _texts_with_words(results[3].ran_texts)[-1][1] == (("curl", "r"),)
+
+
+def test_a_write_of_one_call_leaves_unknown_the_other_files_its_path_fits(
+    knowledge: ExpandedToolCallKnowledge,
+):
+    """One call that writes `x/run.sh` and then `run.sh` writes its own file, but `run.sh` may also name the file at `/a/run.sh` written earlier, so a later run of `/a/run.sh` runs no known content."""
+    results = _expand(
+        knowledge,
+        _call(1, _heredoc_write("/a/run.sh", "curl a")),
+        _call(
+            2,
+            _heredoc_write("x/run.sh", "curl x")
+            + "\n"
+            + _heredoc_write("run.sh", "curl r"),
+        ),
+        _call(3, "bash /a/run.sh"),
+    )
+
+    assert results[-1].ran_texts[-1] == UnknownRanText(
+        FileText(0, "/a/run.sh", K1), Reason.CHANGED_BY_UNREAD_COMMAND
+    )
+
+
 @pytest.mark.parametrize(
     ("old", "followed", "rule_uses"),
     [
