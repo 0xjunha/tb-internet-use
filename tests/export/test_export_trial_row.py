@@ -4,6 +4,7 @@ import dataclasses
 from collections import Counter
 
 import pytest
+from made_up_network_request_rows import build_network_request_row
 
 from tb_internet_use.export import _export_trial_row
 from tb_internet_use.export._export_trial_row import export_trial_row
@@ -13,16 +14,9 @@ from tb_internet_use.export.judgment_rules import (
 from tb_internet_use.export.model import (
     MeasureBound,
     NetworkRequestCategory,
-    NetworkRequestResultView,
     NetworkRequestRow,
     NetworkRequestSender,
-    NetworkRequestSourceKind,
     TrialRow,
-)
-from tb_internet_use.network_request.model import NetworkRequestCertainty
-from tb_internet_use.network_request_result.model import (
-    NetworkRequestResultCertainty,
-    NetworkRequestResultLevel,
 )
 from tb_internet_use.trial.model import (
     Trial,
@@ -61,44 +55,6 @@ TRIAL_ROW_OF_READ_TRIAL_WITHOUT_REQUESTS = TrialRow(
     any_category_request_measure_bound=NEITHER,
     any_category_received_measure_bound=NEITHER,
 )
-
-
-def build_network_request_row(
-    category: NetworkRequestCategory,
-    sender: NetworkRequestSender,
-    request_measure_bound: MeasureBound,
-    received_measure_bound: MeasureBound,
-) -> NetworkRequestRow:
-    return NetworkRequestRow(
-        trial_id="t1",
-        trajectory_id="main",
-        step_id=1,
-        call_index=0,
-        request_index=0,
-        source_kind=NetworkRequestSourceKind.COMMAND,
-        source="command 0",
-        made_by="curl",
-        target="https://a.org/x",
-        unknown_target_reason=None,
-        target_kind=None,
-        host_names="a.org",
-        received_content_destination="saved",
-        request_certainty=NetworkRequestCertainty.CONFIRMED,
-        request_uncertainty_reason=None,
-        level=NetworkRequestResultLevel.RECEIVED,
-        stop_reason=None,
-        level_certainty=NetworkRequestResultCertainty.CONFIRMED,
-        evidence="",
-        category=category,
-        host_scope="public",
-        host_service="unknown",
-        package_registry="",
-        is_internet_use=True,
-        sender=sender,
-        result_view=NetworkRequestResultView.RECEIVED,
-        request_measure_bound=request_measure_bound,
-        received_measure_bound=received_measure_bound,
-    )
 
 
 # Request rows of one trial, i.e. a confirmed receipt of a file, a receipt whose internet use is not known, a search sent from the provider server, a page read by a fetch tool of the harness and a page read by a web tool whose sender is not known.

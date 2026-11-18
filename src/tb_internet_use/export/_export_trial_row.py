@@ -1,17 +1,17 @@
 """Export the row of one trial, with the facts of its `Trial` and the bounds of the main measure over all categories of its requests."""
 
 from collections import Counter
-from collections.abc import Iterable, Sequence
+from collections.abc import Sequence
 
 from tb_internet_use.export.judgment_rules import (
     treat_request_of_unknown_sender_as_possibly_from_task_environment,
 )
 from tb_internet_use.export.model import (
-    MEASURE_BOUNDS_FROM_STRONGEST,
     MeasureBound,
     NetworkRequestRow,
     NetworkRequestSender,
     TrialRow,
+    strongest_measure_bound_of,
 )
 from tb_internet_use.trial.model import Trial
 
@@ -29,13 +29,7 @@ def export_trial_row(
     A trial whose trajectory could not be read gets `UPPER_ONLY` for both, since its requests are not known.
     Request rows of another trial raise `ValueError`, since they would give this trial the bounds of that one.
     """
-    other_trial_ids = sorted(
-        {row.trial_id for row in network_request_rows} - {trial.trial_id}
-    )
-    if other_trial_ids:
-        raise ValueError(
-            f"request rows of trials {other_trial_ids} given for trial {trial.trial_id}"
-        )
+    check_network_request_rows_of_trial(trial, network_request_rows)
     if trial.unreadable_trajectory is None:
         unreadable_trajectory_reason = None
         task_environment_measure_bounds = [
@@ -44,11 +38,11 @@ def export_trial_row(
             )
             for row in network_request_rows
         ]
-        request_measure_bound = _strongest_measure_bound_of(
+        request_measure_bound = strongest_measure_bound_of(
             request_measure_bound
             for request_measure_bound, _ in task_environment_measure_bounds
         )
-        received_measure_bound = _strongest_measure_bound_of(
+        received_measure_bound = strongest_measure_bound_of(
             received_measure_bound
             for _, received_measure_bound in task_environment_measure_bounds
         )
@@ -105,10 +99,17 @@ def _measure_bound_capped_at_upper_only_of(measure_bound: MeasureBound) -> Measu
     return measure_bound
 
 
-def _strongest_measure_bound_of(measure_bounds: Iterable[MeasureBound]) -> MeasureBound:
-    """Give the first of the bounds in `MEASURE_BOUNDS_FROM_STRONGEST`, and `NEITHER` for no bound."""
-    return min(
-        measure_bounds,
-        key=MEASURE_BOUNDS_FROM_STRONGEST.index,
-        default=MeasureBound.NEITHER,
+def check_network_request_rows_of_trial(
+    trial: Trial, network_request_rows: Sequence[NetworkRequestRow]
+) -> None:
+    """Refuse request rows of another trial with `ValueError`, since they would give a trial the bounds of that one, e.g. a row of `t2` given with the `Trial` of `t1`.
+
+    `export_trial_category_measure_rows` makes the same check, so it lives here once.
+    """
+    other_trial_ids = sorted(
+        {row.trial_id for row in network_request_rows} - {trial.trial_id}
     )
+    if other_trial_ids:
+        raise ValueError(
+            f"request rows of trials {other_trial_ids} given for trial {trial.trial_id}"
+        )

@@ -1,25 +1,19 @@
 """Tests for the checks that the types of export/model.py make when they are built."""
 
+import functools
 import itertools
 from collections.abc import Callable
 
 import pytest
+from made_up_network_request_rows import build_network_request_row
 
 from tb_internet_use.export.model import (
     MeasureBound,
     NetworkRequestCategory,
-    NetworkRequestResultView,
-    NetworkRequestRow,
     NetworkRequestSender,
-    NetworkRequestSourceKind,
     TrialCategoryMeasureRow,
     TrialRow,
     UnknownPackageRegistry,
-)
-from tb_internet_use.network_request.model import NetworkRequestCertainty
-from tb_internet_use.network_request_result.model import (
-    NetworkRequestResultCertainty,
-    NetworkRequestResultLevel,
 )
 from tb_internet_use.trial.model import UnreadableTrajectoryReason
 
@@ -33,41 +27,11 @@ RECEIVED_STRONGER_PAIRS = {
     (NEITHER, UPPER_ONLY),
 }
 BOUND_PAIRS = list(itertools.product(MeasureBound, MeasureBound))
-
-
-def build_network_request_row(
-    request_measure_bound: MeasureBound, received_measure_bound: MeasureBound
-) -> NetworkRequestRow:
-    return NetworkRequestRow(
-        trial_id="t1",
-        trajectory_id="main",
-        step_id=1,
-        call_index=0,
-        request_index=0,
-        source_kind=NetworkRequestSourceKind.WEB_TOOL,
-        source="web tool",
-        made_by="WebFetch",
-        target="https://a.org/x",
-        unknown_target_reason=None,
-        target_kind=None,
-        host_names="a.org",
-        received_content_destination="shown",
-        request_certainty=NetworkRequestCertainty.CONFIRMED,
-        request_uncertainty_reason=None,
-        level=NetworkRequestResultLevel.RECEIVED,
-        stop_reason=None,
-        level_certainty=NetworkRequestResultCertainty.CONFIRMED,
-        evidence="",
-        category=NetworkRequestCategory.PAGE_READ,
-        host_scope="public",
-        host_service="unknown",
-        package_registry="",
-        is_internet_use=True,
-        sender=NetworkRequestSender.UNKNOWN,
-        result_view=NetworkRequestResultView.RECEIVED,
-        request_measure_bound=request_measure_bound,
-        received_measure_bound=received_measure_bound,
-    )
+build_package_row = functools.partial(
+    build_network_request_row,
+    NetworkRequestCategory.PACKAGE,
+    NetworkRequestSender.TASK_ENVIRONMENT,
+)
 
 
 def build_trial_row(
@@ -105,7 +69,7 @@ def build_trial_category_measure_row(
 
 @pytest.mark.parametrize(
     "build_row",
-    [build_network_request_row, build_trial_row, build_trial_category_measure_row],
+    [build_package_row, build_trial_row, build_trial_category_measure_row],
 )
 @pytest.mark.parametrize(
     ("request_measure_bound", "received_measure_bound"), BOUND_PAIRS

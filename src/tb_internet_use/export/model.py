@@ -5,6 +5,7 @@ A trial without requests still counts in the share of trials that have one, so e
 The module also holds the answers of `ExportKnowledge` that `export_rows` tells apart when it runs, e.g. `UnknownPublicHost`, since a step never imports the door when it runs.
 """
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from enum import StrEnum
 
@@ -171,6 +172,15 @@ MEASURE_BOUNDS_FROM_STRONGEST = (
     MeasureBound.UPPER_ONLY,
     MeasureBound.NEITHER,
 )
+
+
+def strongest_measure_bound_of(measure_bounds: Iterable[MeasureBound]) -> MeasureBound:
+    """Give the first of the bounds in `MEASURE_BOUNDS_FROM_STRONGEST`, and `NEITHER` for no bound, since one row is enough for a trial to count in a bound."""
+    return min(
+        measure_bounds,
+        key=MEASURE_BOUNDS_FROM_STRONGEST.index,
+        default=MeasureBound.NEITHER,
+    )
 
 
 class HostService(StrEnum):
