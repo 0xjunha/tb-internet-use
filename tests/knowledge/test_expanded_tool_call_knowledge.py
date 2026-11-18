@@ -264,6 +264,8 @@ _CODE_RUNNER_ROWS_THAT_CANNOT_LOAD = [
 _PROGRAMS_LEFT_OUT = frozenset({"clang", "exec", "stdbuf", "tac", "tsx"})
 # Wrappers whose page shows no `NAME=value` words before the command, which the old tables let them skip, e.g. `time [option ...] command [argument ...]` of time(1), since the bash reserved word time is no program.
 _WRAPPERS_THAT_SKIP_NO_ASSIGNMENT_WORDS_BY_THE_PAGE = frozenset({"time"})
+# Programs that the old tables let read stdin, whose page says what they show when they read stdin but not that they read it when no file is given, e.g. strings(1).
+_FILE_READERS_WITHOUT_STDIN_BY_THE_PAGE = frozenset({"strings"})
 # Options that the old tables gave every shell and that only bash has, since dash(1) lists no -O or +O.
 _SHELL_OPTIONS_OF_BASH_ONLY = frozenset({"-O", "+O"})
 # Programs whose option rows of the old tables went to a subcommand row, since the old tables gave them to every subcommand, with that subcommand, or None when they were left out, e.g. git `-b` of `git clone` and `git checkout`.
@@ -1167,7 +1169,11 @@ def test_old_program_catalog_rows_that_read_files_or_run_the_next_program_are_ke
             if row.reads_file_arguments:
                 program_behavior = _program_behavior_of(real_knowledge, name)
                 assert program_behavior.argument_role == ProgramWordRole.READ_FILE, name
-                assert program_behavior.stdin_role == ProgramWordRole.READ_FILE, name
+                assert program_behavior.stdin_role == (
+                    UnknownProgramWordRole()
+                    if name in _FILE_READERS_WITHOUT_STDIN_BY_THE_PAGE
+                    else ProgramWordRole.READ_FILE
+                ), name
             if row.runs_next_program:
                 program_behavior = _program_behavior_of(
                     real_knowledge, name, *row.subcommand_words

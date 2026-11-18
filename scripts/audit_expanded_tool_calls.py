@@ -15,7 +15,7 @@ Every equation starts at 0 for every trial, so that one the trials never reach s
 | `program_invocations_hold_the_words_of_their_command` | Commands | Commands whose words and program invocations hold the same characters, `-` and `=` left out |
 | `cat_arguments_equal_file_uses` | Arguments of `cat` that are no glob, no `-`, no repeat and no harness output file | Uses of a file without a known writer plus groups of `FileUse`s of the same command |
 | `unknown_program_invocations_equal_unknown_program_lookups` | `UnknownProgramInvocation`s | Unknown inputs of `program_behaviors.csv` plus program words that are expansions |
-| `unread_words_equal_unknown_option_lookups` | `ProgramInvocation`s with unread words | Unknown inputs of `program_option_behaviors.csv` |
+| `unread_words_equal_unknown_option_lookups` | `ProgramInvocation`s with unread words | Unknown inputs of `program_option_behaviors.csv` plus blank `options_end_at_first_argument` cells that left a word unread, i.e. unknown inputs under `BLANK_PROGRAM_BEHAVIOR_CELLS` |
 | `pointers_stay_inside_trial` | `OutputPlace`s and `FileUse`s | Those whose call is in the trial and whose command ids are commands of that call |
 | `routes_without_pipe_reader_are_whole` | `OutputRoute`s without a pipe reader | Those that are `WHOLE` |
 | `route_visibility_follows_pipe_readers` | `OutputRoute`s with a pipe reader | Those whose visibility this script gets again from the rows of the readers |
@@ -42,7 +42,7 @@ They hold counts, harness names, trial ids, exception type names, program and op
 | `equation_examples.csv` | A call where an equation differs, the first 20 per equation |
 | `judgment_rule_uses.csv` | A judgment rule, with its uses and trials |
 | `knowledge_row_uses.csv` | A row of a catalog of `ExpandedToolCallKnowledge`, with its uses and trials |
-| `unknown_inputs.csv` | A program or option without a row, with its lookups, i.e. commands, its trials and its tasks, most lookups first |
+| `unknown_inputs.csv` | A program or option without a row, or a blank cell of a program row that left a word unread, with its lookups, i.e. commands, its trials and its tasks, most lookups first |
 | `unknown_touch_programs.csv` | A program whose commands made a file use of unknown kind, changed a followed file text so that it is unknown, or read a pipe whose visibility is unknown, with those commands, their trials and their tasks. A tool that made a use of unknown kind counts as one command of its call |
 
 The script ends with exit code 1 when a trial raised an exception or an equation differs.
@@ -87,6 +87,7 @@ from tb_internet_use.expanded_tool_call.model import (
 )
 from tb_internet_use.knowledge.catalog import KnowledgeUses, KnowledgeUsesTotal
 from tb_internet_use.knowledge.expanded_tool_call_knowledge import (
+    BLANK_PROGRAM_BEHAVIOR_CELLS,
     PROGRAM_BEHAVIORS_CSV,
     PROGRAM_OPTION_BEHAVIORS_CSV,
     ExpandedToolCallKnowledge,
@@ -650,7 +651,8 @@ class TrialChecker:
                     catalog,
                     _,
                 ), count in trial_audit.knowledge_uses.unknown_input_counts.items()
-                if catalog == PROGRAM_OPTION_BEHAVIORS_CSV
+                if catalog
+                in (PROGRAM_OPTION_BEHAVIORS_CSV, BLANK_PROGRAM_BEHAVIOR_CELLS)
             ),
             None,
         )

@@ -45,6 +45,9 @@ PROGRAM_OPTION_BEHAVIORS_CSV = "program_option_behaviors.csv"
 CODE_RUNNERS_CSV = "code_runners.csv"
 # The source name under which the door counts a name that it read without its version, keyed by the name as asked and the name without its version, e.g. `("python3.11", "python")`.
 NAMES_READ_WITHOUT_VERSION = "names_read_without_version"
+# The source name under which the door counts a blank cell of a program row that a word needed, keyed by the program name, the subcommand and the column, e.g. `("echo", "", "options_end_at_first_argument")`.
+BLANK_PROGRAM_BEHAVIOR_CELLS = "blank_program_behavior_cells"
+_OPTIONS_END_AT_FIRST_ARGUMENT_COLUMN = "options_end_at_first_argument"
 # A version at the end of a program name, i.e. digits and dots with at most one dash before them, e.g. 3.11 in python3.11 or -12 in gcc-12.
 _VERSION_AT_END = re.compile(r"-?\d+(?:\.\d+)*$")
 # The values of `runner_kind` in `code_runners.csv`.
@@ -158,6 +161,26 @@ class ExpandedToolCallKnowledge:
             assert row is not None
             options.append(ProgramOptionWordOption(option_name, row, attached_value))
         return ProgramOptionWord(tuple(options))
+
+    def options_end_at_first_argument(
+        self, program_behavior: ProgramBehavior
+    ) -> bool | UnknownOptionsEndAtFirstArgument:
+        """Answer whether the options of a program end at its first argument, from the row that `program_behavior` holds, for a word after the first argument that may be an option, e.g. `-n` of `echo hello -n`.
+
+        A known answer counts nothing, since `program_behavior` counted the row when it answered.
+        A blank cell counts one unknown input `(program_name, subcommand, "options_end_at_first_argument")` under `BLANK_PROGRAM_BEHAVIOR_CELLS`, so that each word left unread for want of it shows in the list of unknown inputs.
+        """
+        options_end_at_first_argument = program_behavior.options_end_at_first_argument
+        if isinstance(options_end_at_first_argument, UnknownOptionsEndAtFirstArgument):
+            self.uses.unknown_input_counts[
+                BLANK_PROGRAM_BEHAVIOR_CELLS,
+                (
+                    program_behavior.program_name,
+                    " ".join(program_behavior.subcommand_words),
+                    _OPTIONS_END_AT_FIRST_ARGUMENT_COLUMN,
+                ),
+            ] += 1
+        return options_end_at_first_argument
 
     def ran_text_language_of_program(
         self, program_name: str

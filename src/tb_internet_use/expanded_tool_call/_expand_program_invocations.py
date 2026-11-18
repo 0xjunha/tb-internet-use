@@ -272,8 +272,7 @@ class _ProgramWordsState:
                 and word_index not in command_state.expansion_word_indexes
                 and self.may_be_option_word(word)
             ):
-                is_option_place_unknown = self.is_option_place_unknown()
-                if is_option_place_unknown and word.startswith("-"):
+                if word.startswith("-") and self.is_option_place_unknown():
                     # The word may be an option or an argument, e.g. `-n` of `echo hello -n`, so it is read as neither, as a word without an option row is not.
                     self.first_unread_word_index = word_index
                     return
@@ -284,10 +283,11 @@ class _ProgramWordsState:
                 program_option_word = command_state.knowledge.program_option_word(
                     self.program_behavior, word
                 )
-                if is_option_place_unknown and not isinstance(
-                    program_option_word, ProgramArgumentWord
+                if (
+                    isinstance(program_option_word, ProgramOptionWord)
+                    and self.is_option_place_unknown()
                 ):
-                    # A word that starts with `+` is an option only for a program with such an option, and here even that is not known.
+                    # A word that starts with `+` is an option only for a program with such an option, e.g. `+o` of `plusprog a +o`, and here even that is not known.
                     self.first_unread_word_index = word_index
                     return
             if program_option_word is None or isinstance(
@@ -342,13 +342,15 @@ class _ProgramWordsState:
         return word.startswith(("-", "+")) and word not in _WORDS_WITHOUT_OPTIONS
 
     def is_option_place_unknown(self) -> bool:
-        """Tell whether the program has an argument and its row leaves `options_end_at_first_argument` blank, so that whether a later word can be an option is not known."""
-        return (
-            isinstance(
-                self.program_behavior.options_end_at_first_argument,
-                UnknownOptionsEndAtFirstArgument,
-            )
-            and self.has_argument()
+        """Tell whether the program has an argument and its row leaves `options_end_at_first_argument` blank, so that whether a later word can be an option is not known.
+
+        It asks the door only after an argument, and is called only for a word that the program then leaves unread when the answer is yes, so the door counts one unknown input per such word.
+        """
+        return self.has_argument() and isinstance(
+            self.command_state.knowledge.options_end_at_first_argument(
+                self.program_behavior
+            ),
+            UnknownOptionsEndAtFirstArgument,
         )
 
     def has_argument(self) -> bool:

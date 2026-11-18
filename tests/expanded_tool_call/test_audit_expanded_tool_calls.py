@@ -63,7 +63,7 @@ FINISHED = ToolCallResult(
 )
 TASK_1 = ExecutionHandle(ExecutionHandleKind.COMMAND, "task-1")
 
-# Made-up rows, each named by the program and the cells that differ from the defaults of `conftest.py`. mytool has no row, and tail has no row for `-5`.
+# Made-up rows, each named by the program and the cells that differ from the defaults of `conftest.py`. mytool has no row, tail has no row for `-5`, and printf leaves blank whether its options end at its first argument.
 PROGRAM_BEHAVIOR_ROWS: list[dict[str, str]] = [
     {
         "program_name": "bash",
@@ -84,6 +84,7 @@ PROGRAM_BEHAVIOR_ROWS: list[dict[str, str]] = [
     },
     {"program_name": "curl", "argument_role": ""},
     {"program_name": "echo"},
+    {"program_name": "printf", "options_end_at_first_argument": ""},
 ]
 PROGRAM_OPTION_BEHAVIOR_ROWS: list[dict[str, str]] = [
     {
@@ -209,6 +210,8 @@ _MADE_UP_TRIAL = (
         FINISHED,
     ),
     _call(13, "bash sub.sh"),
+    # printf leaves `-v` unread for want of a cell of its row, which the door counts.
+    _call(14, "printf a -v x"),
 )
 
 
@@ -216,10 +219,10 @@ def test_every_equation_holds_on_a_made_up_trial_of_the_kinds_it_counts(knowledg
     trial_audit = _checked(knowledge, _MADE_UP_TRIAL)
 
     assert _differing_equations(trial_audit) == set()
-    assert trial_audit.counts["all", "calls"] == 13
+    assert trial_audit.counts["all", "calls"] == 14
     assert trial_audit.counts["harness", "ran_texts shell from FileText"] == 1
     assert trial_audit.counts["all", "unknown_program_invocations"] == 1
-    assert trial_audit.counts["all", "program_invocations_with_unread_words"] == 1
+    assert trial_audit.counts["all", "program_invocations_with_unread_words"] == 2
     # bash fetch.sh, bash -c and bash sub.sh each run a text, the last one unknown since no call of its trajectory wrote sub.sh.
     assert trial_audit.counts["all", "commands_of_runner_names runs a text"] == 3
     # Both arguments of the later cat count, one as a use of a written file and one without a known writer.

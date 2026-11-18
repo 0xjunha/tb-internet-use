@@ -25,6 +25,7 @@ from tb_internet_use.expanded_tool_call.model import (
 )
 from tb_internet_use.knowledge.catalog import KnowledgeUses
 from tb_internet_use.knowledge.expanded_tool_call_knowledge import (
+    BLANK_PROGRAM_BEHAVIOR_CELLS,
     EXPANDED_TOOL_CALL_CATALOGS_DIR,
     PROGRAM_BEHAVIORS_CSV,
     PROGRAM_OPTION_BEHAVIORS_CSV,
@@ -1423,8 +1424,6 @@ def test_door_is_asked_once_per_program_and_option_and_counts_an_option_without_
         (("sed", "-n", "1p", "f"), (("sed", "", "-n"),)),
         # echo may not join one-letter options, so -ne is one unknown input.
         (("echo", "-ne", "a"), (("echo", "", "-ne"),)),
-        # A word after the first argument of echo is not asked, since no row could tell whether it is an option there.
-        (("echo", "a", "-foo"), ()),
     ],
 )
 def test_each_word_of_options_is_one_question_of_the_door_and_at_most_one_unknown_input(
@@ -1434,6 +1433,37 @@ def test_each_word_of_options_is_one_question_of_the_door_and_at_most_one_unknow
 
     assert uses.unknown_input_counts == Counter(
         (PROGRAM_OPTION_BEHAVIORS_CSV, row_key) for row_key in unknown_option_inputs
+    )
+
+
+@pytest.mark.parametrize(
+    ("words", "blank_cell_count"),
+    [
+        # A word after the first argument of echo is not asked as an option, since no row could tell whether it is an option there, so the blank cell is the one unknown input. The words after it are not asked either.
+        (("echo", "a", "-foo", "-n"), 1),
+        (("echo", "a", "--", "b"), 1),
+        # +o has a row of plusprog, so after the first argument it may be that option or an argument.
+        (("plusprog", "a", "+o", "b"), 1),
+        # Before the first argument the cell is not needed.
+        (("echo", "-n", "a"), 0),
+        # +x is no option of echo, so it is an argument whatever the cell says.
+        (("echo", "a", "+x"), 0),
+        # node says yes in the cell, so -v after the script is its argument.
+        (("node", "x.js", "-v"), 0),
+    ],
+)
+def test_each_word_left_unread_for_a_blank_options_end_cell_is_one_unknown_input(
+    catalogs_dir, words, blank_cell_count
+):
+    uses = _expansion_of(catalogs_dir, words).uses
+
+    assert uses.unknown_input_counts == Counter(
+        {
+            (
+                BLANK_PROGRAM_BEHAVIOR_CELLS,
+                (words[0], "", "options_end_at_first_argument"),
+            ): blank_cell_count
+        }
     )
 
 
