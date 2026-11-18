@@ -11,6 +11,7 @@ A rule is provisional until the user decides it. The last paragraph of each docs
 
 from collections import Counter
 
+from tb_internet_use.expanded_tool_call.model import VariableValues
 from tb_internet_use.network_request.model import (
     HostNameScope,
     UnknownHostNameScope,
@@ -57,3 +58,20 @@ def treat_single_label_or_templated_host_name_as_possibly_public(
         treat_single_label_or_templated_host_name_as_possibly_public.__name__
     ] += 1
     return True
+
+
+def treat_values_outside_their_for_loop_as_one_request_each(
+    variable_values: VariableValues, *, use_counts: Counter[str]
+) -> tuple[str, ...]:
+    """Read each value of a variable that the command runs with only one of as the value of a request of its own, e.g. `pkg1` and `pkg2` for `pip install pkg$A` after `A=1` in one if branch and `A=2` in the other.
+
+    The trial does not show which of the values the command ran with, since `takes_each_value_in_turn` is False.
+    `extract_network_request_targets` asks it for a target word whose only variable of several values is such a variable.
+    It returns the values that each give a request, here all of them, so the requests may count targets that never ran and the lower bound may be too high.
+    Were it to return no value, the word would give one request whose target is unknown.
+    A use is such a target word.
+
+    Provisional. It keeps the choice of the earlier code, which made a target of each value.
+    """
+    use_counts[treat_values_outside_their_for_loop_as_one_request_each.__name__] += 1
+    return variable_values.values

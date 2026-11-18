@@ -4,9 +4,11 @@ from collections import Counter
 
 import pytest
 
+from tb_internet_use.expanded_tool_call.model import VariableValues
 from tb_internet_use.network_request.judgment_rules import (
     treat_dotted_host_name_as_public,
     treat_single_label_or_templated_host_name_as_possibly_public,
+    treat_values_outside_their_for_loop_as_one_request_each,
 )
 from tb_internet_use.network_request.model import (
     HostNameScope,
@@ -49,4 +51,16 @@ def test_single_label_or_templated_host_name_is_read_as_possibly_public_and_coun
         )
     assert use_counts == Counter(
         {"treat_single_label_or_templated_host_name_as_possibly_public": 2}
+    )
+
+
+def test_values_outside_their_for_loop_each_give_a_request_and_are_counted():
+    use_counts: Counter[str] = Counter()
+    branches = VariableValues("A", ("1", "2"), False, False)
+
+    assert treat_values_outside_their_for_loop_as_one_request_each(
+        branches, use_counts=use_counts
+    ) == ("1", "2")
+    assert use_counts == Counter(
+        {"treat_values_outside_their_for_loop_as_one_request_each": 1}
     )

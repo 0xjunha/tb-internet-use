@@ -182,6 +182,8 @@ class UnknownNetworkRequestTargetReason(StrEnum):
     LOCAL_PATH = "local_path"
     # An option that no fact covers, so which word is the target is not known, e.g. `curl --foo x u`.
     UNREAD_WORDS = "unread_words"
+    # An option whose effect no fact of the request catalog covers stands where no word names a target, so its value may name one, e.g. `curl -K cfg`.
+    UNKNOWN_OPTION_EFFECT = "unknown_option_effect"
     # Code builds the target or passes it to a program it runs, e.g. `requests.get(base + path)` or `subprocess.run(["pip", "install", "x"])`.
     BUILT_IN_CODE = "built_in_code"
 
