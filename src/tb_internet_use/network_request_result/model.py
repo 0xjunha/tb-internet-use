@@ -316,6 +316,11 @@ class ToolOutputLine:
 
 
 @dataclass(frozen=True, slots=True)
+class UnreadablePackageNamesText:
+    """Result of `parse_package_names_text` for a text that holds no word or a word without a package name, e.g. `==2.0`."""
+
+
+@dataclass(frozen=True, slots=True)
 class OutputPlaceSourceCommands:
     """Commands of one call whose output reaches an output place."""
 
