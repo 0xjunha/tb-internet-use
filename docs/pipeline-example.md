@@ -154,43 +154,68 @@ Where the step cannot follow, it records what is unknown.
 ```python
 c3_expanded = ExpandedToolCall(
     tool_call=c3,
-    ran_shell_texts=(
+    ran_texts=(
         # This is c3's own command text, with the two commands that step 1 split it into.
-        RanShellText(source=CallCommandText(), commands=(bash_fetch_sh, pip_install_requests)),
-        # c2 wrote fetch.sh, and command 0 runs it.
-        # Its curl command gets id 2 and the output destination of command 0.
         RanShellText(
-            source=FileText(runner_command_id=0, path="fetch.sh", written_by=c2),
-            commands=(curl_a_tgz,),
+            source=CallCommandText(),
+            ran_commands=(
+                RanCommand(bash_fetch_sh, program_invocations=(ProgramInvocation("bash", arguments=("fetch.sh",)),), stdout_routes=(OutputRoute((), FileDestination("fetch.log"), WHOLE),), ...),
+                RanCommand(pip_install_requests, program_invocations=(ProgramInvocation("pip", subcommand_words=("install",), arguments=("requests",)),), stdout_routes=(OutputRoute((), ResultDestination(), WHOLE),), ...),
+            ),
+        ),
+        # c2 wrote fetch.sh, and command 0 runs it. Its curl command gets id 2 and the redirects of command 0.
+        RanShellText(
+            source=FileText(runner_command_id=0, path="fetch.sh", writer_tool_call_key=c2),
+            ran_commands=(
+                RanCommand(
+                    curl_a_tgz,
+                    program_invocations=(
+                        ProgramInvocation("curl", options=(ProgramOption("-s"), ProgramOption("-S"), ProgramOption("-O")), arguments=("https://data.example.org/a.tgz",)),
+                    ),
+                    stdout_routes=(OutputRoute((), FileDestination("fetch.log"), WHOLE),),
+                    ...
+                ),
+            ),
         ),
     ),
-    output_places=(
-        # c3 returned while running and c4 polls task-1, so pip's output shows up in c4.
-        OutputPlace(shown_in=c4, reached_through=Poll(handle="task-1"), command_ids=(1,)),
-        # c5 reads fetch.log, where the output of bash and of curl went.
-        OutputPlace(shown_in=c5, reached_through=FileRead(path="fetch.log"), command_ids=(0, 2)),
+    # c3 returned while running, so the end state is the one its poll c4 saw.
+    command_text_status=CommandTextStatus(FINISHED, exit_code=0, reporter_tool_call_key=c4),
+    # Only pip's output reaches a result, c3's own and that of its poll c4.
+    output_places=(OutputPlace(c3, command_ids=(1,)), OutputPlace(c4, command_ids=(1,))),
+    written_files=(
+        # The output of bash and curl went to fetch.log, and c5 reads it with the read tool.
+        WrittenFile("fetch.log", writers=(WrittenFileWriter(0, STDOUT), WrittenFileWriter(0, STDERR), WrittenFileWriter(2, STDOUT), WrittenFileWriter(2, STDERR)), file_uses=(FileUse(c5, None, SHOWS_CONTENT),)),
+        # curl writes this file itself if it succeeds. No later call uses it.
+        WrittenFile("a.tgz", writers=(WrittenFileWriter(2, OWN_OUTPUT_FILE),), file_uses=()),
     ),
-    # curl writes this file if it succeeds. No later call reads or uses it.
-    written_files=(WrittenFile(command_id=2, path="a.tgz", later_uses=()),),
-    unknowns=(),
-)
-
-curl_a_tgz.program_invocation = ProgramInvocation(
-    program_name="curl",
-    options=("-s", "-S", "-O"),
-    arguments=("https://data.example.org/a.tgz",),
-    unread_words=(),
+    file_uses_without_known_writer=(),
 )
 
 c6_expanded = ExpandedToolCall(
     tool_call=c6,
-    ran_shell_texts=(RanShellText(source=CallCommandText(), commands=(bash_setup_sh,)),),
-    output_places=(OutputPlace(shown_in=c6, reached_through=OwnResult(), command_ids=(0,)),),
+    ran_texts=(
+        RanShellText(source=CallCommandText(), ran_commands=(RanCommand(bash_setup_sh, ...),)),
+        # No call of the trial wrote setup.sh, so what it ran is unknown.
+        UnknownRanText(source=FileTextWithoutKnownWriter(runner_command_id=0, path="setup.sh"), reason=NOT_WRITTEN_IN_TRIAL),
+    ),
+    command_text_status=CommandTextStatus(FINISHED, exit_code=0, reporter_tool_call_key=c6),
+    output_places=(OutputPlace(c6, command_ids=(0,)),),
     written_files=(),
-    # No call of the trial wrote setup.sh, so what it ran is unknown.
-    unknowns=(UnknownFileContent(runner_command_id=0, path="setup.sh"),),
+    # A line in c6's result can be content of setup.sh, which the task image holds.
+    file_uses_without_known_writer=(FileUseWithoutKnownWriter(0, "setup.sh", USES_CONTENT),),
 )
 ```
+
+The values above are those of the test `tests/expanded_tool_call/test_expand_tool_calls.py`, with fields that hold their empty value left out as `...`. The entry function `expand_tool_calls` gets them by calling its pieces in this order.
+
+| Piece | What it gives |
+|---|---|
+| `expand_poll_links` | c4 polls task-1, which c3 started |
+| `expand_ran_texts` | The texts each call ran, following fetch.sh as c2 wrote it, and each touch of a file |
+| `expand_command_text_status` | The end state of c3's text, from c4 |
+| `expand_output_places` | The results where the output of each call's commands shows |
+| `expand_written_files` | fetch.log and a.tgz with their writers, and c5's read of fetch.log |
+| `expand_file_uses_without_known_writer` | c6's use of setup.sh |
 
 In case A, `c1_expanded` holds only c1's own text. All three commands reach c1's result, and the two curl commands are to write x.tgz and y.tgz, which no later call uses.
 

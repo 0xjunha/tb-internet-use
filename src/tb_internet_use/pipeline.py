@@ -1,7 +1,17 @@
-"""Open the files of one trial for the steps of the pipeline, which take text and types and never a path."""
+"""Open the files of one trial, make the doors of outside knowledge and call the steps of the pipeline in order, which take text and types and never a path."""
 
+from collections import Counter
+from collections.abc import Sequence
+from dataclasses import dataclass, field
 from pathlib import Path
 
+from tb_internet_use.expanded_tool_call import expand_tool_calls
+from tb_internet_use.expanded_tool_call.model import ExpandedToolCall
+from tb_internet_use.knowledge.expanded_tool_call_knowledge import (
+    ExpandedToolCallKnowledge,
+)
+from tb_internet_use.knowledge.tool_call_knowledge import ToolCallKnowledge
+from tb_internet_use.tool_call import convert_tool_calls
 from tb_internet_use.tool_call.model import HarnessToolCall
 from tb_internet_use.tool_call.parse_trajectory import parse_trajectory
 from tb_internet_use.trial.model import (
@@ -39,4 +49,41 @@ def read_trial_file_texts(trial_dir: Path) -> TrialFileTexts:
         trial_id=trial_dir.name,
         detail_text=(trial_dir / _DETAIL_FILE_NAME).read_bytes(),
         status_text=(trial_dir / _STATUS_FILE_NAME).read_bytes(),
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class KnowledgeDoors:
+    """Doors of outside knowledge that the steps of one run ask, made from the catalogs of the repo and passed to each entry function as its `knowledge`.
+
+    Each door counts its lookups in its `uses`, so a caller that makes new doors for each trial gets the lookups of that trial.
+    """
+
+    tool_call_knowledge: ToolCallKnowledge = field(default_factory=ToolCallKnowledge)
+    expanded_tool_call_knowledge: ExpandedToolCallKnowledge = field(
+        default_factory=ExpandedToolCallKnowledge
+    )
+
+
+def run_steps_to_expanded_tool_calls(
+    harness_tool_calls: Sequence[HarnessToolCall],
+    *,
+    knowledge_doors: KnowledgeDoors,
+    tool_call_judgment_rule_use_counts: Counter[str],
+    expanded_tool_call_judgment_rule_use_counts: Counter[str],
+) -> tuple[ExpandedToolCall, ...]:
+    """Run `convert_tool_calls` and then `expand_tool_calls` on the tool calls of one trial, with the doors of `knowledge_doors`.
+
+    Each step counts the uses of its judgment rules in its own counter, e.g. `treat_lines_joined_after_three_repairs_as_left_joined` in `tool_call_judgment_rule_use_counts` when `convert_tool_calls` splits a shell text and in `expanded_tool_call_judgment_rule_use_counts` when `expand_tool_calls` splits the text of a file it follows.
+    Each `ExpandedToolCall` holds its `ToolCall`, so the output of `convert_tool_calls` is not returned apart.
+    """
+    tool_calls = convert_tool_calls(
+        harness_tool_calls,
+        knowledge=knowledge_doors.tool_call_knowledge,
+        judgment_rule_use_counts=tool_call_judgment_rule_use_counts,
+    )
+    return expand_tool_calls(
+        tool_calls,
+        knowledge=knowledge_doors.expanded_tool_call_knowledge,
+        judgment_rule_use_counts=expanded_tool_call_judgment_rule_use_counts,
     )

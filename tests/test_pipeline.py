@@ -1,13 +1,32 @@
-"""Tests for pipeline.py, with made-up trial folders."""
+"""Tests for pipeline.py, with made-up trial folders and made-up tool calls run through the steps with the doors made from the catalogs of the repo."""
 
 import json
+from collections import Counter
 from collections.abc import Mapping
 from pathlib import Path
 
 import pytest
 
-from tb_internet_use.pipeline import read_trajectory, read_trial_file_texts
-from tb_internet_use.tool_call.model import ToolCallKey
+from tb_internet_use.expanded_tool_call.model import (
+    CallCommandText,
+    FileText,
+    FileUse,
+    FileUseKind,
+    RanShellText,
+)
+from tb_internet_use.pipeline import (
+    KnowledgeDoors,
+    read_trajectory,
+    read_trial_file_texts,
+    run_steps_to_expanded_tool_calls,
+)
+from tb_internet_use.tool_call.model import (
+    HarnessTool,
+    HarnessToolCall,
+    RunCommandAction,
+    ToolCallKey,
+    WriteFileAction,
+)
 from tb_internet_use.trial.model import (
     TrialFileTexts,
     UnreadableTrajectory,
@@ -99,3 +118,156 @@ def test_folder_without_the_detail_or_status_file_raises(tmp_path, missing_file_
 
     with pytest.raises(FileNotFoundError, match=missing_file_name):
         read_trial_file_texts(_trial_dir(tmp_path, bytes_by_file_name))
+
+
+def _claude_code_tool_calls_writing_and_running_a_script() -> tuple[
+    HarnessToolCall, HarnessToolCall
+]:
+    """Give a made-up Claude Code `Write` of fetch.sh and a later `Bash` call that runs it, both with a result the harness result formats read."""
+    return (
+        HarnessToolCall(
+            ToolCallKey("t1", "main", 1, 0),
+            HarnessTool("claude-code", "Write"),
+            "a",
+            {"file_path": "fetch.sh", "content": "cat notes.txt"},
+            {"content": "File created successfully at: fetch.sh"},
+        ),
+        HarnessToolCall(
+            ToolCallKey("t1", "main", 2, 0),
+            HarnessTool("claude-code", "Bash"),
+            "b",
+            {"command": "bash fetch.sh"},
+            {"content": "hello"},
+        ),
+    )
+
+
+def test_runs_the_conversion_and_then_the_expansion_of_the_tool_calls():
+    harness_tool_calls = _claude_code_tool_calls_writing_and_running_a_script()
+
+    write_call, bash_call = run_steps_to_expanded_tool_calls(
+        harness_tool_calls,
+        knowledge_doors=KnowledgeDoors(),
+        tool_call_judgment_rule_use_counts=Counter(),
+        expanded_tool_call_judgment_rule_use_counts=Counter(),
+    )
+
+    assert write_call.tool_call.action == WriteFileAction("fetch.sh", "cat notes.txt")
+    assert isinstance(bash_call.tool_call.action, RunCommandAction)
+    assert [ran_text.source for ran_text in bash_call.ran_texts] == [
+        CallCommandText(),
+        FileText(0, "fetch.sh", ToolCallKey("t1", "main", 1, 0)),
+    ]
+    ran_file_text = bash_call.ran_texts[1]
+    assert isinstance(ran_file_text, RanShellText)
+    assert [
+        ran_command.shell_command.words for ran_command in ran_file_text.ran_commands
+    ] == [("cat", "notes.txt")]
+    assert write_call.written_files[0].file_uses == (
+        FileUse(ToolCallKey("t1", "main", 2, 0), 0, FileUseKind.USES_CONTENT, False),
+    )
+
+
+def _claude_code_tool_calls_running_a_script_in_the_background() -> tuple[
+    HarnessToolCall, ...
+]:
+    """Give the made-up `Write` and `Bash` calls of `_claude_code_tool_calls_writing_and_running_a_script` with the `Bash` call run in the background, a later `TaskOutput` call that saw it end and a later `Bash` call whose result has no exit code line."""
+    write_call, bash_call = _claude_code_tool_calls_writing_and_running_a_script()
+    background_bash_call = HarnessToolCall(
+        bash_call.key,
+        bash_call.tool,
+        bash_call.tool_call_id,
+        {"command": "bash fetch.sh", "run_in_background": True},
+        {
+            "content": "Command running in background with ID: b1. Output is being written to: /tmp/b1.output. You will be notified when it completes. To check interim output, use Read on that file path."
+        },
+    )
+    task_output_call = HarnessToolCall(
+        ToolCallKey("t1", "main", 3, 0),
+        HarnessTool("claude-code", "TaskOutput"),
+        "c",
+        {"task_id": "b1"},
+        {
+            "content": "(harbor view)",
+            "extra": {
+                "tool_result_metadata": {
+                    "raw_tool_result": {
+                        "type": "tool_result",
+                        "content": "<retrieval_status>success</retrieval_status>",
+                    },
+                    "tool_use_result": {
+                        "retrieval_status": "success",
+                        "task": {
+                            "task_id": "b1",
+                            "task_type": "local_bash",
+                            "status": "completed",
+                            "output": "hello",
+                            "exitCode": 0,
+                        },
+                    },
+                }
+            },
+        },
+    )
+    later_bash_call = HarnessToolCall(
+        ToolCallKey("t1", "main", 4, 0),
+        bash_call.tool,
+        "d",
+        {"command": "echo done"},
+        {"content": "hello"},
+    )
+    return write_call, background_bash_call, task_output_call, later_bash_call
+
+
+def test_each_step_counts_its_lookups_in_its_own_door_and_its_rules_in_its_own_counter():
+    knowledge_doors = KnowledgeDoors()
+    tool_call_judgment_rule_use_counts: Counter[str] = Counter()
+    expanded_tool_call_judgment_rule_use_counts: Counter[str] = Counter()
+
+    run_steps_to_expanded_tool_calls(
+        _claude_code_tool_calls_running_a_script_in_the_background(),
+        knowledge_doors=knowledge_doors,
+        tool_call_judgment_rule_use_counts=tool_call_judgment_rule_use_counts,
+        expanded_tool_call_judgment_rule_use_counts=expanded_tool_call_judgment_rule_use_counts,
+    )
+
+    # The two `Bash` calls ask `convert_tool_calls` the row of the tool, and cat in fetch.sh asks `expand_tool_calls` the row of the program.
+    assert (
+        knowledge_doors.tool_call_knowledge.uses.row_use_counts[
+            "harness_tools.csv", ("claude-code", "Bash")
+        ]
+        == 2
+    )
+    assert (
+        knowledge_doors.expanded_tool_call_knowledge.uses.row_use_counts[
+            "program_behaviors.csv", ("cat", "")
+        ]
+        == 1
+    )
+    # The end state of the background `Bash` call comes from the `TaskOutput` call that saw it end, and that call shows the output of both commands the `Bash` call ran, which rules of `expand_tool_calls` choose.
+    assert expanded_tool_call_judgment_rule_use_counts == Counter(
+        {
+            "treat_first_poll_that_saw_end_as_command_text_status": 1,
+            "treat_poll_result_as_showing_every_command_of_starter": 1,
+        }
+    )
+    # The last `Bash` result has no exit code line, which a rule of `convert_tool_calls` reads.
+    assert tool_call_judgment_rule_use_counts == Counter(
+        {"treat_bash_output_without_exit_code_line_as_finished": 1}
+    )
+
+
+def test_new_doors_count_only_their_own_lookups():
+    first_doors = KnowledgeDoors()
+    run_steps_to_expanded_tool_calls(
+        _claude_code_tool_calls_writing_and_running_a_script(),
+        knowledge_doors=first_doors,
+        tool_call_judgment_rule_use_counts=Counter(),
+        expanded_tool_call_judgment_rule_use_counts=Counter(),
+    )
+
+    second_doors = KnowledgeDoors()
+
+    assert first_doors.expanded_tool_call_knowledge.uses.row_use_counts
+    assert not second_doors.tool_call_knowledge.uses.row_use_counts
+    assert not second_doors.expanded_tool_call_knowledge.uses.row_use_counts
