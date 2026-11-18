@@ -347,7 +347,7 @@ _PIP_INSTALL = _program_invocation(
 )
 _CURL_U = _program_invocation("curl", arguments=("u",))
 
-# (words, 0-based indexes of the words with an expansion, the programs they run). Made-up commands that the reading was designed for, cases of the tests of the old code and cases that showed a bug in an earlier version.
+# (words, 0-based indexes of the words with an expansion, the programs they run). Made-up commands that the reading was designed for, cases carried over from earlier tests and cases that showed a bug in an earlier version.
 INVOCATION_CASES = [
     # The made-up commands that the reading was designed for.
     (

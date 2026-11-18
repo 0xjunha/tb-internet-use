@@ -307,8 +307,8 @@ class _OldOptionSyntax:
     script_options: frozenset[str]
 
 
-# The old program tables as they were at commit `58d5bdb`, in `parse/shell/program_tables.py`, `parse/program/option_syntax_tables.py`, `interpret/callrun/code_program_tables.py` and the program catalog `parse/program/catalogs/program_catalog.csv`.
-# The tests that hold the real catalogs against the old tables read them here, since the old code is gone.
+# The rows of the earlier program tables and of the earlier program catalog that the real catalogs carry over.
+# The tests that hold the real catalogs against those rows read them here.
 _OLD_WRAPPERS = {
     "sudo": _OldWrapper(
         options_with_value=frozenset({"-u"}), operand_count=0, takes_assignments=True

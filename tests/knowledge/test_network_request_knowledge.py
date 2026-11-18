@@ -303,7 +303,7 @@ _OPTION_EFFECTS_OF_THE_SAMPLE = [
     ("npm", "ci", "--no-audit", "", ProgramOptionEffect.NONE),
     ("git", "clone", "--depth", "1", ProgramOptionEffect.NONE),
 ]
-# (program name, subcommand words, full label) of the real catalog for the rows that the decision document names, so that a change of any fact cell of these rows fails.
+# (program name, subcommand words, full label) of the real catalog for the rows of the most used fetching programs, so that a change of any fact cell of these rows fails.
 _FETCHING_PROGRAM_LABELS_OF_NAMED_ROWS = [
     (
         "curl",

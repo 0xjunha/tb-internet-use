@@ -41,7 +41,7 @@ They hold counts, harness names, task names, trial ids, call keys, exception typ
 | `received_trials.csv` | All trials, a harness or a task, with its trials, those with a request, with a confirmed received result, with one whose request is also confirmed, and with any received result |
 | `knowledge_row_uses.csv` | A row of a catalog or an output line pattern of `NetworkRequestResultKnowledge`, with its uses and trials |
 | `unknown_inputs.csv` | A program run, option or exit code without a row, with its lookups, its trials and its tasks, most lookups first |
-| `output_line_meanings.csv` | A matched output line by trial, call key, line index and index in the JSON string, with its kind, host name, package names and status code, to compare with the observations of the old code |
+| `output_line_meanings.csv` | A matched output line by trial, call key, line index and index in the JSON string, with its kind, host name, package names and status code, to compare with an earlier reading of the same lines |
 
 The script ends with exit code 1 when a trial raised an exception or an equation differs.
 Run it as `nice -n 10 uv run python -I scripts/audit_network_request_results.py <raw_trials_dir> [--limit N | --trial-ids FILE] [--out-dir DIR]`.
