@@ -342,10 +342,10 @@ def test_commands_without_a_request_count_their_reason(
             id="npm install --prefer-offline x",
         ),
         pytest.param(
-            (_program("curl", options=(("-L", None),), arguments=(U,)),),
+            (_program("curl", options=(("--compressed", None),), arguments=(U,)),),
             [U],
             [(UNCERTAIN, UNKNOWN_OPTION_EFFECT)],
-            id="curl -L u without a row of -L",
+            id="curl --compressed u without a row of --compressed",
         ),
         pytest.param(
             (_program("sbt", options=(("--version", None),)),),

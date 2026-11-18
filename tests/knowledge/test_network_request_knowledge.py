@@ -293,6 +293,19 @@ _OPTION_EFFECTS_OF_THE_OLD_TABLES = [
     ("wget", "", "--output-document", "-", ProgramOptionEffect.SENDS_CONTENT_TO_STDOUT),
     ("wget", "", "-O", "", ProgramOptionEffect.NONE),
 ]
+# (program name, subcommand, option name, option value, effect) of options that the sample of trials uses, as the real catalog must answer them.
+# `-X` has a row for each method the sample names and none for every value, so that `curl -X $1 u`, which may be `-X HEAD`, stays unknown.
+_OPTION_EFFECTS_OF_THE_SAMPLE = [
+    ("curl", "", "-s", "", ProgramOptionEffect.NONE),
+    ("curl", "", "-X", "POST", ProgramOptionEffect.NONE),
+    ("curl", "", "-X", "$1", UnknownProgramOptionEffect()),
+    ("pip", "install", "-q", "", ProgramOptionEffect.NONE),
+    ("pip", "install", "--target", "/app", ProgramOptionEffect.NONE),
+    ("pip", "wheel", "--target", "/app", UnknownProgramOptionEffect()),
+    ("apt-get", "install", "-y", "", ProgramOptionEffect.NONE),
+    ("npm", "ci", "--no-audit", "", ProgramOptionEffect.NONE),
+    ("git", "clone", "--depth", "1", ProgramOptionEffect.NONE),
+]
 # (program name, subcommand words, full label) of the real catalog for the rows that the decision document names, so that a change of any fact cell of these rows fails.
 _FETCHING_PROGRAM_LABELS_OF_NAMED_ROWS = [
     (
@@ -746,6 +759,23 @@ def test_real_catalog_holds_the_option_effects_of_the_old_tables(
 
     assert answer == effect
     assert not knowledge.uses.unknown_input_counts
+
+
+@pytest.mark.parametrize(
+    ("program_name", "subcommand", "option_name", "option_value", "effect"),
+    _OPTION_EFFECTS_OF_THE_SAMPLE,
+)
+def test_real_catalog_answers_the_options_of_the_sample_and_no_other_value_or_subcommand(
+    program_name, subcommand, option_name, option_value, effect
+):
+    knowledge = NetworkRequestKnowledge()
+    invocation = _invocation(program_name, tuple(subcommand.split()))
+
+    answer = knowledge.program_option_effect(
+        invocation, ProgramOption(option_name, option_value or None)
+    )
+
+    assert answer == effect
 
 
 @pytest.mark.parametrize(

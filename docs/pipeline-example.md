@@ -235,6 +235,8 @@ The step looks only at what ran, and step 4 reads what came back.
 | Does `echo` fetch? | No |
 | Does `bash` fetch? | There is no row, and it runs fetch.sh, whose commands give the requests |
 
+An option that has no row in the catalog of this step makes the request uncertain, since it may be one that sends nothing, e.g. `--version`. The catalog has rows for the options of fetching programs that the sample of trials uses, e.g. `-s`, `-L` and `-X POST` of curl, `-q` of pip and `-y` of apt-get, while `curl -X $1 u` stays uncertain because `$1` may be `HEAD`.
+
 ```python
 # c3's own text has `bash fetch.sh` with id 0 and `pip install requests` with id 1, and the curl of fetch.sh gets the next id 2 of the call.
 # The requests of a call follow the command ids, then the code texts, then the web tool steps, and are numbered from 0 in the call.
