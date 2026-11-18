@@ -44,3 +44,51 @@ def treat_word_with_expansion_as_one_argument(
     """
     use_counts[treat_word_with_expansion_as_one_argument.__name__] += 1
     return True
+
+
+def treat_poll_as_reading_latest_earlier_start_of_handle(
+    *, use_counts: Counter[str]
+) -> bool:
+    """Link a poll to the latest of the earlier calls of its trajectory that started a handle of the id it names, when several did, e.g. call 9 that polls handle `3` after calls 2 and 7 both started a handle `3`.
+
+    A harness can give a handle id again once the work it named has ended, and the trajectory does not say which of the starts a poll means.
+    `expand_poll_links` asks it for each handle of a poll that more than one earlier call of the poll's trajectory started.
+    On `True` the poll is linked to the latest of them, and on `False` to none, so that handle of the poll has no starter.
+    A use is such a handle of a poll.
+
+    Provisional. It keeps the choice of the earlier code, which linked a poll to the latest earlier call that started the id.
+    """
+    use_counts[treat_poll_as_reading_latest_earlier_start_of_handle.__name__] += 1
+    return True
+
+
+def treat_calls_of_other_trajectory_as_not_linked(*, use_counts: Counter[str]) -> bool:
+    """Leave a link that only a call of another trajectory of the trial would give unmade, e.g. a poll in a subagent of the handle `3` that a call of the main trajectory started.
+
+    The trajectory of a call is its `ToolCallKey.trajectory_id` with its `HarnessToolCall.is_subagent`.
+    The trajectories do not say how the calls of the main trajectory and of each subagent interleave, or whether they share handles, e.g. Muse puts the calls of a subagent after all calls of the main trajectory.
+    `expand_poll_links` asks it for each handle of a poll that no earlier call of the poll's trajectory started and a call of another trajectory did start, wherever that call sits in the trial.
+    On `True` that handle of the poll has no starter, and on `False` it is linked as if the trial had one trajectory, to the latest call before the poll that started the id.
+    A use is such a handle of a poll.
+
+    Provisional. It claims least, since the earlier code linked across the whole trial.
+    """
+    use_counts[treat_calls_of_other_trajectory_as_not_linked.__name__] += 1
+    return True
+
+
+def treat_script_poll_step_naming_no_handle_as_polling_none(
+    *, use_counts: Counter[str]
+) -> bool:
+    """Read a poll step of a tool script that names no handle as reading no handle, even when the script's result names one, e.g. a Codex `exec` script whose step `wait()` has no session id and whose result names session `3`.
+
+    The trajectory has one result for the whole script, so it does not say whether the handle in it is the one the step read, one that another step started, or one the script only printed.
+    `expand_poll_links` asks it for each such step of a script whose result names at least one handle.
+    On `True` the step reads no handle and has no starter, and on `False` it reads every handle that the script's result names, as a poll that is the call's action does.
+    So on `False`, when an earlier call started the same id, the step and the later polls of that id link to that earlier call, which is wrong when the script started the id again, as 2 scripts in the 100 sample trials did.
+    A use is such a step.
+
+    Provisional. It keeps the choice of the earlier code, which read no handle for such a step.
+    """
+    use_counts[treat_script_poll_step_naming_no_handle_as_polling_none.__name__] += 1
+    return True
