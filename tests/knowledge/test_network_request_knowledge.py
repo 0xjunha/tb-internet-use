@@ -5,6 +5,7 @@ import re
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from pathlib import Path
+from typing import NamedTuple
 
 import pytest
 
@@ -12,11 +13,6 @@ from tb_internet_use.expanded_tool_call.model import (
     CodeLanguage,
     ProgramInvocation,
     ProgramOption,
-)
-from tb_internet_use.interpret.callrun.model import CodeLanguage as OldCodeLanguage
-from tb_internet_use.interpret.request.code_request_tables import (
-    NETWORK_CALL_OF_LANGUAGE,
-    PROGRAM_RUN_BY_CODE,
 )
 from tb_internet_use.knowledge.catalog import KnowledgeLookupKey, KnowledgeUses
 from tb_internet_use.knowledge.expanded_tool_call_knowledge import (
@@ -426,10 +422,105 @@ _PAIRS_WITHOUT_PROGRAM_BEHAVIOR_ROW_YET = {
     ("sbt", ""),
     ("tac", ""),
 }
-# The old program catalog, which the program rows came from.
-_OLD_PROGRAM_CATALOG_CSV = (
-    Path(__file__).parents[2]
-    / "src/tb_internet_use/parse/program/catalogs/program_catalog.csv"
+
+
+class _OldProgramRow(NamedTuple):
+    """Row of the earlier program catalog, with the columns that the tests of carried over rows read."""
+
+    program_name: str
+    subcommand: str
+    # The kind of target the program fetches, blank when it fetches nothing.
+    request_kind: str
+    fetches_only_to_run_or_build: str
+    asks_for_no_content: str
+    prints_response_body: str
+
+
+# The rows of the earlier program catalog, all of which `program_network_requests.csv` carries over.
+_OLD_PROGRAM_ROWS = [
+    _OldProgramRow("agent-browser", "install", "url", "no", "no", "no"),
+    _OldProgramRow("apt", "install", "system_package", "no", "no", "no"),
+    _OldProgramRow("apt", "update", "system_package", "no", "no", "no"),
+    _OldProgramRow("apt-get", "download", "system_package", "no", "no", "no"),
+    _OldProgramRow("apt-get", "install", "system_package", "no", "no", "no"),
+    _OldProgramRow("apt-get", "source", "system_package", "no", "no", "no"),
+    _OldProgramRow("apt-get", "update", "system_package", "no", "no", "no"),
+    _OldProgramRow("awk", "", "", "", "", ""),
+    _OldProgramRow("bun", "add", "package", "no", "no", "no"),
+    _OldProgramRow("bun", "x", "package", "yes", "no", "no"),
+    _OldProgramRow("bunx", "", "package", "yes", "no", "no"),
+    _OldProgramRow("cat", "", "", "", "", ""),
+    _OldProgramRow("conda", "install", "package", "no", "no", "no"),
+    _OldProgramRow("curl", "", "url", "no", "no", "yes"),
+    _OldProgramRow("cut", "", "", "", "", ""),
+    _OldProgramRow("diff", "", "", "", "", ""),
+    _OldProgramRow("dig", "", "remote_host", "no", "no", "yes"),
+    _OldProgramRow("dnf", "install", "system_package", "no", "no", "no"),
+    _OldProgramRow("dnf", "makecache", "system_package", "no", "no", "no"),
+    _OldProgramRow("egrep", "", "", "", "", ""),
+    _OldProgramRow("getent", "hosts", "remote_host", "no", "no", "yes"),
+    _OldProgramRow("gh", "api", "git", "no", "no", "yes"),
+    _OldProgramRow("git", "clone", "git", "no", "no", "no"),
+    _OldProgramRow("git", "fetch", "git", "no", "no", "no"),
+    _OldProgramRow("git", "ls-remote", "git", "no", "no", "yes"),
+    _OldProgramRow("git", "submodule update", "git", "no", "no", "no"),
+    _OldProgramRow("go", "build", "package", "yes", "no", "no"),
+    _OldProgramRow("go", "mod tidy", "package", "no", "no", "no"),
+    _OldProgramRow("go", "run", "package", "yes", "no", "no"),
+    _OldProgramRow("grep", "", "", "", "", ""),
+    _OldProgramRow("head", "", "", "", "", ""),
+    _OldProgramRow("host", "", "remote_host", "no", "no", "yes"),
+    _OldProgramRow("huggingface-cli", "download", "url", "no", "no", "no"),
+    _OldProgramRow("jq", "", "", "", "", ""),
+    _OldProgramRow("lake", "build", "package", "yes", "no", "no"),
+    _OldProgramRow("nc", "", "remote_host", "no", "no", "no"),
+    _OldProgramRow("nl", "", "", "", "", ""),
+    _OldProgramRow("npm", "audit", "package", "no", "no", "yes"),
+    _OldProgramRow("npm", "ci", "package", "no", "no", "no"),
+    _OldProgramRow("npm", "create", "package", "no", "no", "no"),
+    _OldProgramRow("npm", "exec", "package", "yes", "no", "no"),
+    _OldProgramRow("npm", "i", "package", "no", "no", "no"),
+    _OldProgramRow("npm", "install", "package", "no", "no", "no"),
+    _OldProgramRow("npm", "ping", "package", "no", "yes", "no"),
+    _OldProgramRow("npm", "view", "package", "no", "no", "yes"),
+    _OldProgramRow("npx", "", "package", "yes", "no", "no"),
+    _OldProgramRow("nslookup", "", "remote_host", "no", "no", "yes"),
+    _OldProgramRow("od", "", "", "", "", ""),
+    _OldProgramRow("ping", "", "remote_host", "no", "no", "no"),
+    _OldProgramRow("pip", "download", "package", "no", "no", "no"),
+    _OldProgramRow("pip", "index versions", "package", "no", "no", "yes"),
+    _OldProgramRow("pip", "install", "package", "no", "no", "no"),
+    _OldProgramRow("pip", "search", "package", "no", "no", "yes"),
+    _OldProgramRow("pip", "wheel", "package", "no", "no", "no"),
+    _OldProgramRow("playwright", "install", "url", "no", "no", "no"),
+    _OldProgramRow("playwright", "install-deps", "system_package", "no", "no", "no"),
+    _OldProgramRow("pnpm", "add", "package", "no", "no", "no"),
+    _OldProgramRow("pnpm", "exec", "package", "yes", "no", "no"),
+    _OldProgramRow("pnpm", "install", "package", "no", "no", "no"),
+    _OldProgramRow("rg", "", "", "", "", ""),
+    _OldProgramRow("rsync", "", "remote_host", "no", "no", "no"),
+    _OldProgramRow("sbt", "", "package", "yes", "no", "no"),
+    _OldProgramRow("sed", "", "", "", "", ""),
+    _OldProgramRow("sort", "", "", "", "", ""),
+    _OldProgramRow("strings", "", "", "", "", ""),
+    _OldProgramRow("tac", "", "", "", "", ""),
+    _OldProgramRow("tail", "", "", "", "", ""),
+    _OldProgramRow("uv", "pip install", "package", "no", "no", "no"),
+    _OldProgramRow("uv", "run", "package", "yes", "no", "no"),
+    _OldProgramRow("uv", "venv", "package", "yes", "no", "no"),
+    _OldProgramRow("wget", "", "url", "no", "no", "no"),
+    _OldProgramRow("xxd", "", "", "", "", ""),
+]
+# The patterns of network calls in code, by language, of the earlier code request tables that `code_calls.csv` carries over.
+_OLD_NETWORK_CALL_OF_LANGUAGE = {
+    CodeLanguage.PYTHON: re.compile(
+        r"""\brequests\.(?:get|post|put|head|request|Session)\b|\bhttpx\.(?:get|post|stream|Client|AsyncClient)\b|\baiohttp\.ClientSession\b|\burlopen\(|\burlretrieve\(|\b(?:snapshot_download|hf_hub_download|from_pretrained|load_dataset)\(|\bnltk\.download\(|\bsocket\.(?:create_connection|getaddrinfo|gethostbyname)\b"""
+    ),
+    CodeLanguage.JAVASCRIPT: re.compile(r"""\bfetch\(|\bhttps?\.get\("""),
+}
+# The pattern of a program that code runs, e.g. pip in `subprocess.run(["pip", "install", "x"])`, of the same earlier tables.
+_OLD_PROGRAM_RUN_BY_CODE = re.compile(
+    r"""\b(?:subprocess\.\w+|os\.system|os\.popen)\([^)]*?(?<=['"\s/])(pip|curl|git|npm|apt-get)(?=['"\s])"""
 )
 _NOT_CHECKED = "not checked, from the old table"
 # A manual page named as `name(section)`, e.g. `git-clone(1)` or `ping(8)`.
@@ -497,11 +588,6 @@ def _real_rows() -> list[dict[str, str]]:
     with (NETWORK_REQUEST_CATALOGS_DIR / PROGRAM_NETWORK_REQUESTS_CSV).open(
         newline=""
     ) as csv_file:
-        return list(csv.DictReader(csv_file))
-
-
-def _old_program_rows() -> list[dict[str, str]]:
-    with _OLD_PROGRAM_CATALOG_CSV.open(newline="") as csv_file:
         return list(csv.DictReader(csv_file))
 
 
@@ -711,15 +797,15 @@ def test_every_program_row_of_the_old_catalog_has_a_row_with_the_cells_it_states
         if not row["option_name"]
     }
     broken: list[str] = []
-    for old in _old_program_rows():
-        key = (old["program"], old["subcommand"])
+    for old in _OLD_PROGRAM_ROWS:
+        key = (old.program_name, old.subcommand)
         row = real_rows.get(key)
         if row is None:
             broken.append(f"{key} has no row")
             continue
-        if not old["request_kind"]:
+        if not old.request_kind:
             expected_fetches = "no"
-        elif old["fetches_only_to_run_or_build"] == "yes":
+        elif old.fetches_only_to_run_or_build == "yes":
             expected_fetches = "only_what_is_missing"
         else:
             expected_fetches = "yes"
@@ -731,9 +817,9 @@ def test_every_program_row_of_the_old_catalog_has_a_row_with_the_cells_it_states
         if expected_fetches != "no" and "content_route" not in row["checked_against"]:
             expected_route = (
                 "no_content"
-                if old["asks_for_no_content"] == "yes"
+                if old.asks_for_no_content == "yes"
                 else "stdout"
-                if old["prints_response_body"] == "yes"
+                if old.prints_response_body == "yes"
                 else ""
             )
             if row["content_route"] != expected_route:
@@ -950,18 +1036,14 @@ def test_real_code_call_catalog_loads_and_holds_no_invisible_control_characters(
 
 
 def test_real_code_call_rows_are_carried_from_the_old_tables_or_name_a_documentation_page():
-    old_pattern_of_language = {
-        "python": NETWORK_CALL_OF_LANGUAGE[OldCodeLanguage.PYTHON],
-        "javascript": NETWORK_CALL_OF_LANGUAGE[OldCodeLanguage.JAVASCRIPT],
-    }
     broken: list[str] = []
     for row in _real_code_call_rows():
         call_text = f"{row['call_name']}("
         if row["checked_against"] == _NOT_CHECKED:
             old_pattern = (
-                PROGRAM_RUN_BY_CODE
+                _OLD_PROGRAM_RUN_BY_CODE
                 if row["effect"] == "runs_program"
-                else old_pattern_of_language[row["code_language"]]
+                else _OLD_NETWORK_CALL_OF_LANGUAGE[CodeLanguage(row["code_language"])]
             )
             program_words = '["pip"])' if row["effect"] == "runs_program" else ""
             if not old_pattern.search(call_text + program_words):

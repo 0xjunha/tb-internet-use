@@ -29,11 +29,6 @@ STEPS = [
     ("network_request_result", "decide_network_request_results"),
     ("export", "export_rows"),
 ]
-# Old code that a step will replace. Remove an entry when its code is deleted.
-OLD_CODE = {
-    "parse",
-    "interpret",
-}
 STEP_FILE_NAMES = {"__init__.py", "model.py", "judgment_rules.py"}
 # A reading function `parse_<x>.py` or a piece of the work `_<x>.py`, each named after a function in it.
 STEP_PIECE_FILE = re.compile(r"(parse_\w+|_(\w+))\.py")
@@ -282,12 +277,12 @@ def _is_no_piece_of_the_work(file: Path, package: str) -> bool:
     )
 
 
-def test_top_level_holds_only_steps_knowledge_pipeline_and_listed_old_code():
-    allowed = (
-        {package for package, _ in STEPS}
-        | {"knowledge", "pipeline.py", "__init__.py"}
-        | OLD_CODE
-    )
+def test_top_level_holds_only_steps_knowledge_and_pipeline():
+    allowed = {package for package, _ in STEPS} | {
+        "knowledge",
+        "pipeline.py",
+        "__init__.py",
+    }
     entries = {
         entry.name
         for entry in PACKAGE_DIR.iterdir()
@@ -295,12 +290,8 @@ def test_top_level_holds_only_steps_knowledge_pipeline_and_listed_old_code():
     }
 
     unexpected = sorted(entries - allowed)
-    gone_old_code = sorted(OLD_CODE - entries)
     assert not unexpected, (
-        f"{unexpected} in {_relative(PACKAGE_DIR)} break the rule that its top level holds only the step packages, knowledge/, pipeline.py and the listed old code"
-    )
-    assert not gone_old_code, (
-        f"{gone_old_code} no longer exist, so remove them from OLD_CODE in tests/test_package_rules.py"
+        f"{unexpected} in {_relative(PACKAGE_DIR)} break the rule that its top level holds only the step packages, knowledge/ and pipeline.py"
     )
 
 
