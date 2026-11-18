@@ -9,12 +9,13 @@ from dataclasses import dataclass
 
 import pytest
 
-from tb_internet_use.expanded_tool_call.model import ExpandedToolCall
+from tb_internet_use.expanded_tool_call.model import ExpandedToolCall, FileUseKind
 from tb_internet_use.knowledge.network_request_result_knowledge import (
     NetworkRequestResultKnowledge,
 )
 from tb_internet_use.network_request import extract_network_requests
 from tb_internet_use.network_request.model import (
+    ContentSaved,
     NetworkRequest,
     NetworkRequestCertainty,
 )
@@ -22,6 +23,7 @@ from tb_internet_use.network_request_result import decide_network_request_result
 from tb_internet_use.network_request_result.model import (
     ExecutionStatusEvidence,
     ExitCodeEvidence,
+    FileUseEvidence,
     NetworkRequestResult,
     NetworkRequestResultCertainty,
     NetworkRequestResultLevel,
@@ -485,6 +487,172 @@ def test_each_row_of_the_result_table_comes_out_of_its_case(
         (result.level, result.stop_reason, result.level_certainty)
         for result in decided.results
     ] == [expected]
+
+
+# Made-up inputs where a request saves a file and a command uses it, each with where the request saved its content, its level, stop reason and level certainty, the kinds of its file use evidence and the rule uses of the trial.
+# The kinds of use come from the rows of `program_behaviors.csv` and `program_option_behaviors.csv`, e.g. those of tar and gunzip.
+SAVED_FILE_USE_CASES = [
+    pytest.param(
+        (_bash_call(1, "curl -sL -o a.tgz https://a.org/a.tgz && tar xzf a.tgz", ""),),
+        (ContentSaved("a.tgz"), _RECEIVED, None, _CONFIRMED),
+        (FileUseKind.USES_CONTENT,),
+        Counter({"treat_exit_code_meaning_as_assumed_level": 1}),
+        id="tar xzf after && with exit 0 surely used the content",
+    ),
+    pytest.param(
+        (_bash_call(1, "curl -o a.tgz https://a.org/a.tgz; tar xzf a.tgz", ""),),
+        (ContentSaved("a.tgz"), _RECEIVED, None, _CONFIRMED),
+        (FileUseKind.USES_CONTENT,),
+        Counter({"treat_command_without_own_evidence_as_no_evidence_of_run": 1}),
+        id="tar xzf as the last command of a ; b owns the exit 0",
+    ),
+    pytest.param(
+        (_bash_call(1, "curl -o a.tgz https://a.org/a.tgz; tar xzf a.tgz; ls", ""),),
+        (ContentSaved("a.tgz"), _RECEIVED, None, _ASSUMED),
+        (FileUseKind.USES_CONTENT,),
+        Counter(
+            {
+                "treat_command_without_own_evidence_as_no_evidence_of_run": 1,
+                "treat_file_use_that_may_not_have_happened_as_assumed_evidence": 1,
+            }
+        ),
+        id="tar xzf before ; ls may not have run",
+    ),
+    pytest.param(
+        (
+            _bash_call(1, "curl -sL -o /tmp/a.tgz https://a.org/a.tgz", ""),
+            _bash_call(2, "tar xzf /tmp/a.tgz -C /opt", ""),
+        ),
+        (ContentSaved("/tmp/a.tgz"), _RECEIVED, None, _CONFIRMED),
+        (FileUseKind.USES_CONTENT,),
+        Counter({"treat_exit_code_meaning_as_assumed_level": 1}),
+        id="a later tar with the cluster xzf and -C after the archive",
+    ),
+    pytest.param(
+        (
+            _bash_call(1, "curl -sL -o /tmp/a.tgz https://a.org/a.tgz", ""),
+            _bash_call(2, "tar -C /opt -xzf /tmp/a.tgz", ""),
+        ),
+        (ContentSaved("/tmp/a.tgz"), _RECEIVED, None, _CONFIRMED),
+        (FileUseKind.USES_CONTENT,),
+        Counter({"treat_exit_code_meaning_as_assumed_level": 1}),
+        id="a later tar with -C before -xzf after one dash",
+    ),
+    pytest.param(
+        (
+            _bash_call(1, "curl -sL -o a.tgz https://a.org/a.tgz", ""),
+            _bash_call(2, "tar tzf a.tgz", "a/\na/b"),
+        ),
+        (ContentSaved("a.tgz"), _RECEIVED, None, _ASSUMED),
+        (FileUseKind.SHOWS_CONTENT,),
+        Counter(
+            {
+                "treat_exit_code_meaning_as_assumed_level": 1,
+                "treat_shown_content_of_saved_file_as_assumed_content": 1,
+            }
+        ),
+        id="tar tzf lists the content of the archive",
+    ),
+    pytest.param(
+        (
+            _bash_call(1, "curl -sL -o a.gz https://a.org/a.gz", ""),
+            _bash_call(2, "gunzip -k a.gz", ""),
+        ),
+        (ContentSaved("a.gz"), _RECEIVED, None, _CONFIRMED),
+        (FileUseKind.USES_CONTENT,),
+        Counter({"treat_exit_code_meaning_as_assumed_level": 1}),
+        id="gunzip -k uses the file and keeps it",
+    ),
+    pytest.param(
+        (
+            _bash_call(1, "curl -O https://a.org/x.tgz", ""),
+            _bash_call(2, "tar xzf x.tgz", ""),
+        ),
+        (ContentSaved("x.tgz"), _RECEIVED, None, _CONFIRMED),
+        (FileUseKind.USES_CONTENT,),
+        Counter({"treat_exit_code_meaning_as_assumed_level": 1}),
+        id="curl -O saves under the last part of the URL path",
+    ),
+    pytest.param(
+        (
+            _bash_call(1, "wget https://a.org/x.tgz", ""),
+            _bash_call(2, "tar xzf x.tgz", ""),
+        ),
+        (ContentSaved(None), _RECEIVED, None, _ASSUMED),
+        (),
+        Counter({"treat_exit_code_meaning_as_assumed_level": 1}),
+        id="wget without -O names no file, so the later tar is not linked",
+    ),
+    pytest.param(
+        (
+            _bash_call(1, "curl -o page.html https://a.org/p", ""),
+            _bash_call(2, "cat page.html", "<html>"),
+        ),
+        (ContentSaved("page.html"), _RECEIVED, None, _ASSUMED),
+        (FileUseKind.SHOWS_CONTENT,),
+        Counter(
+            {
+                "treat_exit_code_meaning_as_assumed_level": 1,
+                "treat_shown_content_of_saved_file_as_assumed_content": 1,
+            }
+        ),
+        id="cat of a saved page is assumed content",
+    ),
+    pytest.param(
+        (
+            _bash_call(1, "curl -o f https://a.org/f", ""),
+            _bash_call(2, "ls -la f", "-rw-r--r-- 1 root root 10 f"),
+        ),
+        (ContentSaved("f"), _REACHED, _NOT_VISIBLE, _ASSUMED),
+        (),
+        Counter(
+            {
+                "treat_exit_code_meaning_as_assumed_level": 1,
+                "treat_size_or_type_of_saved_file_as_no_evidence_of_content": 1,
+            }
+        ),
+        id="ls -la shows only the size, which the rule takes as no evidence",
+    ),
+    pytest.param(
+        (_bash_call(1, "curl -o f.sh https://a.org/f.sh && bash f.sh", ""),),
+        (ContentSaved("f.sh"), _RECEIVED, None, _CONFIRMED),
+        (FileUseKind.USES_CONTENT,),
+        Counter({"treat_exit_code_meaning_as_assumed_level": 1}),
+        id="bash runs the saved script after && with exit 0",
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    (
+        "harness_tool_calls",
+        "expected_result",
+        "expected_file_use_kinds",
+        "expected_rule_uses",
+    ),
+    SAVED_FILE_USE_CASES,
+)
+def test_a_later_use_of_a_saved_file_gives_the_evidence_of_its_kind(
+    harness_tool_calls, expected_result, expected_file_use_kinds, expected_rule_uses
+):
+    decided = _decided(_steps(*harness_tool_calls))
+
+    (result,) = decided.results
+    assert (
+        result.network_request.received_content_destination,
+        result.level,
+        result.stop_reason,
+        result.level_certainty,
+    ) == expected_result
+    assert (
+        tuple(
+            evidence.file_use.kind
+            for evidence in result.evidence
+            if isinstance(evidence, FileUseEvidence)
+        )
+        == expected_file_use_kinds
+    )
+    assert decided.judgment_rule_use_counts == expected_rule_uses
 
 
 def test_a_trial_without_requests_still_reads_every_result_and_counts_its_lines():

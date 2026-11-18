@@ -13,7 +13,7 @@ The role columns hold a `ProgramWordRole` value, e.g. `read_file` for the argume
 | `program_name` | The name without folder or version, e.g. `pip` for `/usr/bin/pip3`. It becomes `ProgramInvocation.program_name` | Fails the load |
 | `subcommand` | The words that pick what the program does, split by one space, e.g. `run` for uv | The row of every call of the program |
 | `argument_role` | The role of each word that is no option, e.g. `read_file` for cat | Unknown |
-| `first_argument_role`, `last_argument_role` | The role of the first or last such word, or `same` when it has the role of `argument_role`, e.g. `run_file` for the first word of bash | Unknown |
+| `first_argument_role`, `last_argument_role` | The role of the first or last such word, or `same` when it has the role of `argument_role`, e.g. `run_file` for the first word of bash. `option_cluster` says that the first such word holds one-letter options without a dash, e.g. `xzf` of `tar xzf a.tgz`, read through the option rows `-x`, `-z` and `-f`, whose values are the words after it in turn. It also holds when an option with a dash comes before that word, which the page of tar does not say | Unknown |
 | `stdin_role` | The role of stdin when no word names a file, or `none` when the program does not read it | Unknown |
 | `visibility_of_piped_input` | How much of what comes in through a pipe the program writes to its stdout. `whole` for all of it, e.g. cat, `partial` for a part, e.g. head, `none` when it passes on none of it | Unknown |
 | `gives_arguments_at_run_time` | `yes` when the program gives the next program arguments that the words do not show, e.g. xargs, else `no` | Fails the load |
