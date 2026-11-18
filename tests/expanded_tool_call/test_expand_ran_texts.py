@@ -1014,6 +1014,90 @@ def test_a_path_names_a_file_written_by_several_paths_only_if_it_can_name_each(
     assert results[3].ran_texts[-1].source == FileText(0, "run.sh", K2)
 
 
+def _heredoc_write(path: str, line: str) -> str:
+    return f"cat > {path} <<'E'\n{line}\nE"
+
+
+def _writes_in_one_call_or_one_call_each(
+    writes: Sequence[str], *, in_one_call: bool
+) -> list[ToolCall]:
+    """Make calls that make the shell writes, all in a call at step 1 or each in a call of its own from step 1 on."""
+    if in_one_call:
+        return [_call(1, "\n".join(writes))]
+    return [_call(step_id, write) for step_id, write in enumerate(writes, start=1)]
+
+
+@pytest.mark.parametrize(
+    "in_one_call", [True, False], ids=["one call", "one call each"]
+)
+def test_writes_in_one_call_name_one_file_only_if_each_path_can_name_it(
+    knowledge: ExpandedToolCallKnowledge, in_one_call: bool
+):
+    """Writes to `run.sh`, `/a/run.sh` and `/b/run.sh` make one file under the first two paths and another under `/b/run.sh`, whether one call or three make them, since `/b/run.sh` cannot name the file at `/a/run.sh`."""
+    calls = _writes_in_one_call_or_one_call_each(
+        [
+            _heredoc_write("run.sh", "curl x"),
+            _heredoc_write("/a/run.sh", "curl a"),
+            _heredoc_write("/b/run.sh", "curl b"),
+        ],
+        in_one_call=in_one_call,
+    )
+    step_id = len(calls) + 1
+    results = _expand(
+        knowledge,
+        *calls,
+        _call(step_id, "bash /a/run.sh"),
+        _call(step_id + 1, "bash run.sh"),
+    )
+
+    assert _texts_with_words(results[-2].ran_texts)[-1][1] == (("curl", "a"),)
+    assert results[-1].ran_texts[-1] == UnknownRanText(
+        FileTextWithoutKnownWriter(0, "run.sh"), Reason.FITS_SEVERAL_WRITTEN_FILES
+    )
+
+
+def test_writes_in_one_call_to_paths_of_two_files_keep_them_apart(
+    knowledge: ExpandedToolCallKnowledge,
+):
+    """One call that writes `run.sh` and then `/app/v3/run.sh` makes one file under both paths, so `/app/run.sh` names another file, as when two calls write them."""
+    writer, runner = _expand(
+        knowledge,
+        _call(
+            1,
+            _heredoc_write("run.sh", "curl a")
+            + "\n"
+            + _heredoc_write("/app/v3/run.sh", "curl b"),
+        ),
+        _call(2, "bash /app/run.sh"),
+    )
+
+    assert [touch.written_file_keys for touch in writer.file_touches] == [
+        (WrittenFileKey(K1, "run.sh"),),
+        (WrittenFileKey(K1, "run.sh"),),
+    ]
+    assert runner.ran_texts[-1] == UnknownRanText(
+        FileTextWithoutKnownWriter(0, "/app/run.sh"), Reason.NOT_WRITTEN_IN_TRIAL
+    )
+
+
+def test_a_write_and_an_append_of_one_call_by_two_paths_of_one_file(
+    knowledge: ExpandedToolCallKnowledge,
+):
+    """One call that writes `/app/run.sh` and appends to `run.sh` writes one file, so a later run of either path sees both writes."""
+    writer, runner = _expand(
+        knowledge,
+        _call(1, _heredoc_write("/app/run.sh", "curl a") + "\necho 'curl b' >> run.sh"),
+        _call(2, "bash run.sh"),
+    )
+
+    run_sh = WrittenFileKey(K1, "/app/run.sh")
+    assert [touch.written_file_keys for touch in writer.file_touches] == [
+        (run_sh,),
+        (run_sh,),
+    ]
+    assert runner.file_touches == (_touch(0, "run.sh", Kind.USES_CONTENT, run_sh),)
+
+
 @pytest.mark.parametrize(
     ("old", "followed", "rule_uses"),
     [

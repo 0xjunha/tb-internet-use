@@ -1777,6 +1777,8 @@ class TrialFileContents:
         self._written_file_keys_of_tool_call: dict[
             ToolCallKey, list[WrittenFileKey]
         ] = {}
+        # The paths that the writes of the call of each key named its file by, read when the call did not run and so the file has no history.
+        self._tool_call_paths_of_key: dict[WrittenFileKey, list[str]] = {}
         # The `output_path` of each result of the calls read so far, with the call of that result.
         self._harness_output_paths_and_tool_call_keys: list[
             tuple[str, ToolCallKey]
@@ -1991,16 +1993,38 @@ class TrialFileContents:
     def _written_file_key_for(
         self, tool_call_key: ToolCallKey, path: str
     ) -> WrittenFileKey:
-        """Give the key of the call's earlier write to the file a path names, or a new key with this path."""
+        """Give the key of the one file that the call wrote earlier and that a path can name by each path it was written by, or a new key with this path.
+
+        A path that fits several of them gets the key of the one first written by this very path, since a key holds the call and that path, e.g. a fourth write to run.sh after writes to run.sh, /a/run.sh and /b/run.sh in one call, which fits the file of the first two and that of /b/run.sh.
+        """
         written_file_keys = self._written_file_keys_of_tool_call.setdefault(
             tool_call_key, []
         )
-        for written_file_key in written_file_keys:
-            if self._may_name_same_file(path, written_file_key.path):
-                return written_file_key
-        written_file_key = WrittenFileKey(tool_call_key, path)
-        written_file_keys.append(written_file_key)
+        fitting_written_file_keys = [
+            written_file_key
+            for written_file_key in written_file_keys
+            if all(
+                self._may_name_same_file(path, written_path)
+                for written_path in self._written_paths_of_key(written_file_key)
+            )
+        ]
+        if len(fitting_written_file_keys) == 1:
+            (written_file_key,) = fitting_written_file_keys
+        else:
+            written_file_key = WrittenFileKey(tool_call_key, path)
+            if written_file_key not in written_file_keys:
+                written_file_keys.append(written_file_key)
+                self._tool_call_paths_of_key[written_file_key] = []
+        if path not in self._tool_call_paths_of_key[written_file_key]:
+            self._tool_call_paths_of_key[written_file_key].append(path)
         return written_file_key
+
+    def _written_paths_of_key(self, written_file_key: WrittenFileKey) -> list[str]:
+        """Give every path that a write named the file of a key by, with those of earlier calls when the call may have run and so joined their file."""
+        written_file_history = self._written_file_history_of_key.get(written_file_key)
+        if written_file_history is None:
+            return self._tool_call_paths_of_key[written_file_key]
+        return written_file_history.paths
 
     def _record_written_content(
         self,
@@ -2012,7 +2036,7 @@ class TrialFileContents:
     ) -> None:
         """Change the state of the file that a write of a call that may have run writes.
 
-        A later write of the same call to the same file keeps the writes as they are.
+        A later write of the same call to the same file keeps the writes as they are and adds its path to those of the file, so that later paths must fit it too. It leaves the content of each other written file that the path fits unknown, as a write of another call does.
         A path that fits several written files starts a file of its own, since the text does not say which of them it writes, and leaves the content of each of them unknown, since it may have changed any of them.
         """
         written_content = None if appends else content
@@ -2036,6 +2060,14 @@ class TrialFileContents:
                 )
                 self._written_file_histories.append(written_file_history)
             self._written_file_history_of_key[written_file_key] = written_file_history
+        else:
+            for fitting_written_file_history in self._written_file_histories_fitting(
+                path
+            ):
+                if fitting_written_file_history is not written_file_history:
+                    fitting_written_file_history.content = None
+            if path not in written_file_history.paths:
+                written_file_history.paths.append(path)
         written_file_history.content = written_content
         written_file_history.is_deleted = False
 
