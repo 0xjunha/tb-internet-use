@@ -261,6 +261,7 @@ def _request_certainty_after_evidence_of(
     """Give `CONFIRMED` when the request is, or when an output line of this request alone shows that it was sent, and the certainty of the request otherwise.
 
     A line that a judgment rule read or that another request or a run that is not read may have printed lifts nothing, e.g. `HTTP/1.1 200 OK` in the result of `mytool https://a.org/x`. Evidence that is no output line lifts nothing either, e.g. exit 0 of `sbt compile`.
+    A line that several requests of one command own lifts none of them, although it may still confirm that their command ran, e.g. a `DOWNLOAD_STARTED` line that names another package under `npx a u`, owned by both the package request of `a` and the URL request of `u`.
     """
     if any(
         _is_line_of_sent_request(evidence_with_level)
@@ -273,11 +274,13 @@ def _request_certainty_after_evidence_of(
 def _is_line_of_sent_request(evidence_with_level: EvidenceWithLevel) -> bool:
     """Tell whether the evidence is an output line of this request alone, read without a judgment rule, that shows the request was sent.
 
+    Both marks of sharing are read. `OutputLineEvidence.is_shared_with_other_requests` is true for every line with several owners, while `may_belong_to_another_request` stays false for a line that shows only that the one command of its owners ran.
     A bare number counts only when it is read as a status code, so `000` from `curl -w "%{http_code}"`, which shows `EXECUTED` because no answer came, does not.
     """
     evidence = evidence_with_level.evidence
     if (
         not isinstance(evidence, OutputLineEvidence)
+        or evidence.is_shared_with_other_requests
         or evidence_with_level.may_belong_to_another_request
         or evidence_with_level.rests_on_judgment_rule
     ):

@@ -2,6 +2,7 @@
 
 import itertools
 from collections import Counter
+from dataclasses import replace
 
 import pytest
 
@@ -755,60 +756,145 @@ def test_sent_request_line_cases_cover_every_output_line_kind():
     assert {kind for kind, _, _, _ in SENT_REQUEST_LINE_CASES} == set(OutputLineKind)
 
 
+# Each output line case at its own level, and again at `EXECUTED` with `NOT_VISIBLE` as `treat_line_naming_another_target_as_no_evidence_of_answer` reads a line that names another target, with whether a clean line lifts the request.
+LINE_LIFTING_CASES = [
+    *SENT_REQUEST_LINE_CASES,
+    *(
+        (kind, EXECUTED, NOT_VISIBLE, shows_sent_request)
+        for kind, _, _, shows_sent_request in SENT_REQUEST_LINE_CASES
+        if kind != OutputLineKind.BARE_STATUS_CODE
+    ),
+]
+# Evidence that is no output line, each at a level it can show.
+EVIDENCE_OTHER_THAN_LINES = [
+    (HttpStatusEvidence(TOOL_CALL_KEY, 200), REACHED, NOT_VISIBLE),
+    (ExitCodeEvidence(TOOL_CALL_KEY, 0, False), EXECUTED, NOT_VISIBLE),
+    (ExitCodeEvidence(TOOL_CALL_KEY, 0, True), EXECUTED, NOT_VISIBLE),
+    (
+        ExecutionStatusEvidence(TOOL_CALL_KEY, ExecutionStatus.FINISHED, True),
+        EXECUTED,
+        NOT_VISIBLE,
+    ),
+    (USES_SAVED_FILE.evidence, RECEIVED, None),
+    (ShownContentEvidence(TOOL_CALL_KEY), RECEIVED, None),
+]
+FLAG_COMBINATIONS = list(itertools.product((False, True), repeat=2))
+
+
 @pytest.mark.parametrize(
-    ("kind", "level", "stop_reason", "shows_sent_request"), SENT_REQUEST_LINE_CASES
+    ("kind", "level", "stop_reason", "shows_sent_request"), LINE_LIFTING_CASES
 )
-def test_decide_one_network_request_result_lifts_an_uncertain_request_by_a_line_that_shows_it_was_sent(
+@pytest.mark.parametrize("is_shared", [False, True])
+@pytest.mark.parametrize(
+    ("may_belong_to_another_request", "rests_on_judgment_rule"), FLAG_COMBINATIONS
+)
+def test_decide_one_network_request_result_lifts_an_uncertain_request_only_by_a_clean_line_of_its_own_and_never_builds_a_refused_result(
     kind: OutputLineKind,
     level: NetworkRequestResultLevel,
     stop_reason: NetworkRequestResultStopReason | None,
     shows_sent_request: bool,
+    is_shared: bool,
+    may_belong_to_another_request: bool,
+    rests_on_judgment_rule: bool,
 ):
     result, _ = decide(
-        UNCERTAIN_REQUEST, [with_level(output_line(kind), level, stop_reason)]
+        UNCERTAIN_REQUEST,
+        [
+            with_level(
+                output_line(kind, is_shared=is_shared),
+                level,
+                stop_reason,
+                may_belong_to_another_request=may_belong_to_another_request,
+                rests_on_judgment_rule=rests_on_judgment_rule,
+            )
+        ],
     )
 
+    is_lifted = (
+        shows_sent_request
+        and not is_shared
+        and not may_belong_to_another_request
+        and not rests_on_judgment_rule
+    )
     assert result.request_certainty_after_evidence == (
         NetworkRequestCertainty.CONFIRMED
-        if shows_sent_request
+        if is_lifted
         else NetworkRequestCertainty.UNCERTAIN
     )
 
 
 @pytest.mark.parametrize(
-    "evidence_with_level",
+    ("evidence", "level", "stop_reason"), EVIDENCE_OTHER_THAN_LINES
+)
+@pytest.mark.parametrize(
+    ("may_belong_to_another_request", "rests_on_judgment_rule"), FLAG_COMBINATIONS
+)
+def test_decide_one_network_request_result_keeps_an_uncertain_request_by_any_evidence_other_than_a_line(
+    evidence: NetworkRequestResultEvidence,
+    level: NetworkRequestResultLevel,
+    stop_reason: NetworkRequestResultStopReason | None,
+    may_belong_to_another_request: bool,
+    rests_on_judgment_rule: bool,
+):
+    result, _ = decide(
+        UNCERTAIN_REQUEST,
+        [
+            with_level(
+                evidence,
+                level,
+                stop_reason,
+                may_belong_to_another_request=may_belong_to_another_request,
+                rests_on_judgment_rule=rests_on_judgment_rule,
+            )
+        ],
+    )
+
+    assert result.request_certainty_after_evidence == NetworkRequestCertainty.UNCERTAIN
+
+
+# A `DOWNLOAD_STARTED` line that names another package, owned by the package request and a URL request of one `npx` or `pnpm` command, which `treat_line_naming_another_target_as_no_evidence_of_answer` reads as a run only, so that it may not belong to another request although two requests own it.
+LINE_OF_ONE_COMMAND_NAMING_ANOTHER_PACKAGE = with_level(
+    output_line(OutputLineKind.DOWNLOAD_STARTED, is_shared=True), EXECUTED, NOT_VISIBLE
+)
+
+
+@pytest.mark.parametrize(
+    "evidence_with_levels",
     [
         pytest.param(
-            with_level(
-                output_line(OutputLineKind.HTTP_STATUS),
-                REACHED,
-                NOT_VISIBLE,
-                may_belong_to_another_request=True,
-            ),
-            id="`HTTP/1.1 200 OK` of `mytool https://a.org/x`, whose lines are not known",
+            [LINE_OF_ONE_COMMAND_NAMING_ANOTHER_PACKAGE], id="one line, e.g. npx"
         ),
         pytest.param(
-            with_level(
-                output_line(OutputLineKind.HTTP_STATUS),
-                REACHED,
-                NOT_VISIBLE,
-                rests_on_judgment_rule=True,
-            ),
-            id="`HTTP/1.1 200 OK` beside the text of a file that no call wrote",
+            [
+                replace(
+                    LINE_OF_ONE_COMMAND_NAMING_ANOTHER_PACKAGE,
+                    evidence=output_line(
+                        OutputLineKind.DOWNLOAD_STARTED,
+                        line_index=line_index,
+                        is_shared=True,
+                    ),
+                )
+                for line_index in range(3)
+            ],
+            id="three lines, e.g. npx",
         ),
-        pytest.param(EXIT_CODE_0_RAN, id="exit 0 of `sbt compile`"),
         pytest.param(
-            with_level(HttpStatusEvidence(TOOL_CALL_KEY, 200), REACHED, NOT_VISIBLE),
-            id="status 200 of a web fetch",
+            [LINE_OF_ONE_COMMAND_NAMING_ANOTHER_PACKAGE, EXIT_CODE_0_RAN],
+            id="a line and exit 0 of the command, e.g. pnpm",
         ),
     ],
 )
-def test_decide_one_network_request_result_keeps_an_uncertain_request_without_a_clean_line_that_shows_it_was_sent(
-    evidence_with_level: EvidenceWithLevel,
+def test_decide_one_network_request_result_keeps_an_uncertain_request_whose_lines_its_command_shares_with_another_request(
+    evidence_with_levels: list[EvidenceWithLevel],
 ):
-    result, _ = decide(UNCERTAIN_REQUEST, [evidence_with_level])
+    result, _ = decide(UNCERTAIN_REQUEST, evidence_with_levels)
 
     assert result.request_certainty_after_evidence == NetworkRequestCertainty.UNCERTAIN
+    assert (result.level, result.stop_reason, result.level_certainty) == (
+        EXECUTED,
+        NOT_VISIBLE,
+        CONFIRMED,
+    )
 
 
 # One example of each kind of evidence at each level and stop reason it can show for a request that asks for content.
