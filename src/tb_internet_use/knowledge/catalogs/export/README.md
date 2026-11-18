@@ -40,6 +40,6 @@ All three files end with the same three columns.
 | `reviewed` | `yes` once a person has reviewed the row | Not reviewed yet |
 | `note` | Free text, e.g. what the check does not cover | Nothing to note |
 
-A host enters `public_hosts.csv` only when a page of the host itself says which `HostService` it gives. Host names come from the trajectories, so a row holds only the host of a widely used public service, never a name that shows the content of a task.
+A host enters `public_hosts.csv` only when a page of the host itself, or a page of the service that runs it, says which `HostService` it gives, e.g. the GitHub documentation for `github.com`. Host names come from the trajectories, so a row holds only the host of a widely used public service, never a name that shows the content of a task. A host that serves an API of a service, e.g. `api.github.com`, gets no row yet, since whether what such a host shows is a page read is not decided.
 
 A row that `export_rows` cannot use raises `ValueError` when the catalog is loaded, e.g. a host name with a capital letter, a `service` that is no `HostService`, a `sender` of `unknown` or host names without a registry. No script writes the three CSVs.

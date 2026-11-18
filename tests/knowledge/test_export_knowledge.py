@@ -321,6 +321,19 @@ def test_real_catalogs_load_and_answer_for_the_rows_they_hold():
     assert real_knowledge.package_registry(
         _program_invocation("apt-get", "update")
     ) == PackageRegistry("apt", ("deb.debian.org", "archive.ubuntu.com"))
+    assert real_knowledge.package_registry(
+        _program_invocation("go", "build")
+    ) == PackageRegistry("go_module_proxy", ("proxy.golang.org",))
+    assert real_knowledge.public_host("files.pythonhosted.org") == UnknownPublicHost()
+    assert real_knowledge.public_host("repo1.maven.org") == PublicHost(
+        HostService.PACKAGE_REGISTRY, "maven_central"
+    )
+    assert real_knowledge.public_host("github.com") == PublicHost(
+        HostService.CODE_HOSTING, None
+    )
+    assert real_knowledge.public_host("www.bing.com") == PublicHost(
+        HostService.SEARCH_ENGINE, None
+    )
     assert (
         real_knowledge.network_request_sender(HarnessTool("codex", "web_search_call"))
         == NetworkRequestSender.PROVIDER_SERVER

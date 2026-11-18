@@ -142,7 +142,8 @@ def test_every_equation_holds_on_the_rows_of_made_up_trials(
         "0",
     ] in rule_rows
     assert _csv_rows(out_dir / "row_uses.csv")[1:] == [
-        ["program_package_registries.csv", '["pip", "install"]', "1", "1", "1"]
+        ["program_package_registries.csv", '["pip", "install"]', "1", "1", "1"],
+        ["public_hosts.csv", '["github.com"]', "1", "1", "1"],
     ]
     assert _csv_rows(out_dir / "trials_not_audited.csv") == [
         ["trial_id", "exception_type"]

@@ -80,8 +80,10 @@ TASK_ENVIRONMENT = NetworkRequestSender.TASK_ENVIRONMENT
 PROVIDER_SERVER = NetworkRequestSender.PROVIDER_SERVER
 RECEIVED = NetworkRequestResultLevel.RECEIVED
 EXECUTED = NetworkRequestResultLevel.EXECUTED
+REACHED = NetworkRequestResultLevel.REACHED
 ATTEMPTED = NetworkRequestResultLevel.ATTEMPTED
 FAILED = NetworkRequestResultStopReason.FAILED
+NOT_VISIBLE = NetworkRequestResultStopReason.NOT_VISIBLE
 CONFIRMED = NetworkRequestResultCertainty.CONFIRMED
 ASSUMED = NetworkRequestResultCertainty.ASSUMED
 URL = NetworkRequestTargetKind.URL
@@ -252,7 +254,7 @@ EXAMPLE_R3 = _result(
     CONFIRMED,
     (_own_line(_call(5), 0, OutputLineKind.NAME_NOT_RESOLVED),),
 )
-# r4 is the `pip install requests` of c3, whose own lines in c4 show that it received the package.
+# r4 is the `pip install requests` of c3, whose own lines in c4 show that a download began, so a server answered, but not that the package arrived.
 EXAMPLE_R4 = _result(
     _call(3),
     FromCommand(1, CallCommandText(), _program("pip", "install")),
@@ -260,8 +262,8 @@ EXAMPLE_R4 = _result(
     PACKAGE_NAME,
     ContentSaved(None),
     (),
-    RECEIVED,
-    None,
+    REACHED,
+    NOT_VISIBLE,
     CONFIRMED,
     (
         _own_line(_call(4), 0, OutputLineKind.DOWNLOAD_STARTED),
@@ -470,28 +472,28 @@ def test_example_of_the_pipeline_example_reaches_its_last_table(
             target="requests",
             target_kind=PACKAGE_NAME,
             host_names="",
-            level=RECEIVED,
-            stop_reason=None,
+            level=REACHED,
+            stop_reason=NOT_VISIBLE,
             level_certainty=CONFIRMED,
             evidence="line 0 of call 4.0, download_started; line 1 of call 4.0, installed",
             category=PACKAGE,
             host_scope="",
             host_service="",
             package_registry="pypi",
-            result_view=NetworkRequestResultView.RECEIVED,
-            received_measure_bound=LOWER_AND_UPPER,
+            result_view=NetworkRequestResultView.UNKNOWN,
+            received_measure_bound=UPPER_ONLY,
         ),
     )
-    # The last table of the example. Both categories have a request in both bounds. The fetched files are received only in the upper bound, and the package in both.
+    # The last table of the example. Both categories have a request in both bounds and are received only in the upper bound.
     assert trial_category_measure_rows == (
         TrialCategoryMeasureRow(
-            "t1", PACKAGE, TASK_ENVIRONMENT, LOWER_AND_UPPER, LOWER_AND_UPPER
+            "t1", PACKAGE, TASK_ENVIRONMENT, LOWER_AND_UPPER, UPPER_ONLY
         ),
         TrialCategoryMeasureRow(
             "t1", FETCHED_FILE, TASK_ENVIRONMENT, LOWER_AND_UPPER, UPPER_ONLY
         ),
     )
-    assert trial_row == _trial_row(READ_TRIAL, LOWER_AND_UPPER, LOWER_AND_UPPER)
+    assert trial_row == _trial_row(READ_TRIAL, LOWER_AND_UPPER, UPPER_ONLY)
     # Three named hosts and `pypi.org`, the default host of `pip install`, are dotted names read as public.
     assert judgment_rule_use_counts == Counter(
         {DOTTED_HOST_RULE: 4, ASSUMED_FAILURE_RULE: 2, DEFAULT_REGISTRY_RULE: 1}

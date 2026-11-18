@@ -1,1 +1,8 @@
 host_name,service,package_registry,checked_against,reviewed,note
+pypi.org,package_registry,pypi,"PyPI user documentation (docs.pypi.org), Welcome to PyPI's user documentation, ""The Python Package Index (PyPI) ... is the official package repository for Python""",,
+repo1.maven.org,package_registry,maven_central,"Sonatype Central documentation (central.sonatype.org/consume/), How to Consume Central, ""The canonical URLs for accessing Central are"" https://repo1.maven.org/maven2",,
+github.com,code_hosting,,"GitHub Docs (docs.github.com/en/get-started/start-your-journey/about-github-and-git), GitHub and Git, ""GitHub builds on Git by hosting your Git projects, called repositories, in the cloud""",,
+raw.githubusercontent.com,code_hosting,,"GitHub REST API meta (api.github.com/meta), domains, website, *.githubusercontent.com",,"The page lists the name as a domain of the GitHub website by a wildcard and does not say what the host serves. The raw view of a repository file is described in GitHub Docs, Viewing or copying the raw file content."
+html.duckduckgo.com,search_engine,,"The page of the host itself (html.duckduckgo.com/html/), title ""DuckDuckGo HTML: Private Search Without JavaScript""; DuckDuckGo Help Pages, How To Use the Non-JavaScript Version of DuckDuckGo Search",,"The help page links duckduckgo.com/html, not this host name."
+www.google.com,search_engine,,"Google Search Help (support.google.com/websearch/answer/134479), Learn search tips & how results relate to your search on Google, which links Google Search at https://www.google.com/",,
+www.bing.com,search_engine,,"The page of the host itself (www.bing.com), title ""Search - Microsoft Bing""",,
