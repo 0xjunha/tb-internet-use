@@ -52,7 +52,7 @@ CASES = [
         "https://a.org/x?next=REDACTED",
         1,
     ),
-    # An npm alias has the shape of a userinfo with no scheme and is hidden, as the decision log chose.
+    # An npm alias has the shape of a userinfo with no scheme and is hidden, since a narrower shape would rest on no count of the data.
     ("npm:react@18", "REDACTED@18", 0),
     # A closing quote after a query value is taken into the value and hidden with it.
     ("'https://a.org/x?k=v'", "'https://a.org/x?k=REDACTED", 1),

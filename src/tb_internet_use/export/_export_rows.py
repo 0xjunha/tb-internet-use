@@ -41,4 +41,8 @@ def export_rows(
         raise NotImplementedError(
             "export_rows exports no request rows and no main measure rows"
         )
-    return export_trial_row(trial, ()), (), ()
+    return (
+        export_trial_row(trial, (), judgment_rule_use_counts=judgment_rule_use_counts),
+        (),
+        (),
+    )

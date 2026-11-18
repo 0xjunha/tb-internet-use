@@ -11,7 +11,17 @@ A rule is provisional until the user decides it. The last paragraph of each docs
 
 from collections import Counter
 
-from tb_internet_use.network_request.model import NetworkRequest
+from tb_internet_use.export.model import (
+    NetworkRequestRow,
+    PackageRegistry,
+    UnknownPackageRegistry,
+)
+from tb_internet_use.network_request.model import (
+    NetworkRequest,
+    UnknownNetworkRequestTarget,
+    UnknownNetworkRequestTargetReason,
+)
+from tb_internet_use.network_request_result.model import NetworkRequestResult
 
 
 def treat_url_query_value_and_fragment_as_credential(
@@ -162,5 +172,152 @@ def treat_shown_content_from_registry_or_model_hub_host_as_other_web(
     """
     use_counts[
         treat_shown_content_from_registry_or_model_hub_host_as_other_web.__name__
+    ] += 1
+    return True
+
+
+def treat_web_tool_request_without_host_name_as_internet_use(
+    network_request: NetworkRequest, *, use_counts: Counter[str]
+) -> bool:
+    """Count a web tool request whose words name no host as internet use, e.g. a harness web search with only a query such as `how to x?`.
+
+    A web search tool sends its query to a search service that the trajectory does not name, and a web fetch tool called without a URL names no host either, so the trajectory does not say where the request went.
+    `export_network_request_row` asks it for each request without a host name whose source is a web tool.
+    On `True` `is_internet_use` is True. On `False` it is None, so the request counts only toward the upper bound.
+    A use is such a request.
+
+    Provisional. No earlier code chose. A web tool is made to reach the internet, and the other choice would leave every web search unknown.
+    """
+    use_counts[treat_web_tool_request_without_host_name_as_internet_use.__name__] += 1
+    return True
+
+
+def treat_request_without_host_name_as_sent_to_default_registry_host(
+    network_request: NetworkRequest,
+    package_registry: PackageRegistry | UnknownPackageRegistry | None,
+    *,
+    use_counts: Counter[str],
+) -> tuple[str, ...]:
+    """Give the hosts that a request whose words name no host is taken to be sent to, i.e. the default registry hosts of its program and subcommand, e.g. `pypi.org` for `pip install requests`.
+
+    A program that installs packages usually names no host, and whether the request went out at all is decided from its output lines when results are decided.
+    `export_network_request_row` asks it for each request without a host name whose source is no web tool. It gives the hosts the same reading as hosts that the words name.
+    `package_registry` is the answer of `ExportKnowledge.package_registry`, or None for a request that the door is not asked about, e.g. `git push origin main`.
+    It gives the host names of a `PackageRegistry`, e.g. `deb.debian.org archive.ubuntu.com` for `apt-get update`, also when a file names the targets, e.g. `pip install -r reqs.txt`.
+    It gives no host for a target that is a local path, e.g. `pip install -e .`, since a local project may or may not ask a registry for what it depends on. It gives none either for `UnknownPackageRegistry` or None. Without a host the request's internet use is not known.
+    The other choices are no host for every request, which leaves all of them unknown, or the registry hosts for a local path too.
+    A use is such a request.
+
+    Provisional. The user chose on 2026-11-18 to send a request of a program and subcommand with a registry row to the registry hosts. Leaving a local path and a request without a row unknown claims least.
+    """
+    use_counts[
+        treat_request_without_host_name_as_sent_to_default_registry_host.__name__
+    ] += 1
+    target = network_request.target
+    if (
+        isinstance(target, UnknownNetworkRequestTarget)
+        and target.reason == UnknownNetworkRequestTargetReason.LOCAL_PATH
+    ):
+        return ()
+    if isinstance(package_registry, PackageRegistry):
+        return package_registry.host_names
+    return ()
+
+
+def treat_unclassified_host_name_as_unknown_internet_use(
+    network_request: NetworkRequest, *, use_counts: Counter[str]
+) -> bool:
+    """Leave the internet use of a request unknown when a host name of it has no dot or holds a template and none is public, e.g. `curl http://db:5432/` or `curl https://$HOST/x`.
+
+    No standard says whether `db` is a service inside the task environment or a host on the internet, and `$HOST` gets its value when the command runs.
+    `export_network_request_row` asks it for a request with such a host name and no public host, among the hosts that its words name or that it is taken to be sent to.
+    On `True` `is_internet_use` is None, so the request counts only toward the upper bound. On `False` it is False, as for `localhost`, and the request counts in no bound.
+    A use is such a request.
+
+    Provisional. No earlier code chose, and unknown claims least.
+    """
+    use_counts[treat_unclassified_host_name_as_unknown_internet_use.__name__] += 1
+    return True
+
+
+def treat_reserved_host_name_as_unknown_internet_use(
+    network_request: NetworkRequest, *, use_counts: Counter[str]
+) -> bool:
+    """Leave the internet use of a request unknown when a host name of it is reserved for examples and tests and none is public or unclassified, e.g. `curl https://example.com/`.
+
+    A reserved name resolves nowhere by the standards, but the task environment may still map it to a service of its own.
+    `export_network_request_row` asks it for a request with such a host name, among the hosts that its words name or that it is taken to be sent to.
+    On `True` `is_internet_use` is None, so the request counts only toward the upper bound. On `False` it is False and the request counts in no bound.
+    Counting such a request as internet use would need a rule of another form, since neither answer gives True.
+    A use is such a request.
+
+    Provisional. No earlier code chose, and unknown claims least.
+    """
+    use_counts[treat_reserved_host_name_as_unknown_internet_use.__name__] += 1
+    return True
+
+
+def treat_local_host_name_of_web_tool_as_unknown_internet_use(
+    network_request: NetworkRequest, *, use_counts: Counter[str]
+) -> bool:
+    """Leave the internet use of a web tool request unknown when all its host names are local, e.g. a fetch tool that runs on the provider's server reading `http://localhost:3000/`.
+
+    A local name means the machine that sends the request, and a web tool may send from the harness process or the provider's server instead of the task environment.
+    `export_network_request_row` asks it for a request from a web tool whose host names are all local.
+    On `True` `is_internet_use` is None, so the request counts only toward the upper bound. On `False` it is False, as for a command that asks `localhost`.
+    A use is such a request.
+
+    Provisional. No earlier code chose, and unknown claims least.
+    """
+    use_counts[treat_local_host_name_of_web_tool_as_unknown_internet_use.__name__] += 1
+    return True
+
+
+def treat_assumed_not_needed_result_as_upper_bound_only(
+    network_request_result: NetworkRequestResult, *, use_counts: Counter[str]
+) -> bool:
+    """Count a request whose result is assumed to be not needed only toward the upper bound of the trials that have a request, e.g. a `pip install x` that shares a `Requirement already satisfied` line with another request.
+
+    A request that did not need to be sent is left out of the share of trials that have a request, but an assumed result may belong to the other request.
+    `export_network_request_row` asks it for a request that may be internet use whose result is `NOT_NEEDED` and `ASSUMED`.
+    On `True` the request bound is `UPPER_ONLY`. On `False` it is `NEITHER`, as for a confirmed `NOT_NEEDED`.
+    A use is such a request.
+
+    Provisional. No earlier code chose. The upper bound includes what is assumed, and the lower bound stays true either way.
+    """
+    use_counts[treat_assumed_not_needed_result_as_upper_bound_only.__name__] += 1
+    return True
+
+
+def treat_assumed_failure_as_possibly_received(
+    network_request_result: NetworkRequestResult, *, use_counts: Counter[str]
+) -> bool:
+    """Count a request whose failure is assumed toward the upper bound of the trials that received something, e.g. two `curl` commands that share one error line.
+
+    An error line shared by two requests may belong to only one of them, so the other may have received its content.
+    `export_network_request_row` asks it for a request that counts in some request bound whose result is `FAILED` and `ASSUMED`.
+    On `True` the received bound is `UPPER_ONLY`. On `False` it is `NEITHER`, as for a confirmed failure.
+    A use is such a request.
+
+    Provisional. No earlier code chose. The upper bound includes what is assumed, and the lower bound stays true either way.
+    """
+    use_counts[treat_assumed_failure_as_possibly_received.__name__] += 1
+    return True
+
+
+def treat_request_of_unknown_sender_as_possibly_from_task_environment(
+    network_request_row: NetworkRequestRow, *, use_counts: Counter[str]
+) -> bool:
+    """Count a request whose sender is not known toward the upper bounds of the trial row, e.g. a page that a web tool without a row of the web tool catalog read.
+
+    The bounds of a trial row are about what the task environment sent, and a sender that is not known is one of the task environment, the harness process and the provider server.
+    `export_trial_row` asks it for each request row whose sender is `UNKNOWN`.
+    On `True` the row counts with its own bounds, but a `LOWER_AND_UPPER` counts as `UPPER_ONLY`. On `False` the row counts in no bound of the trial row, as for a row from the provider server.
+    A use is such a request row.
+
+    Provisional. No earlier code chose. Leaving the row out would read it as not sent from the task environment and lower the upper bound, while counting it in the lower bound would make that bound wrong.
+    """
+    use_counts[
+        treat_request_of_unknown_sender_as_possibly_from_task_environment.__name__
     ] += 1
     return True

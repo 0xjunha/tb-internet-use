@@ -67,7 +67,7 @@ class NetworkRequestRow:
     category: NetworkRequestCategory
     # One value per name in `host_names`, in the same order and separated by spaces, e.g. `local public` or `unknown_single_label`. Empty when `host_names` is.
     host_scope: str
-    # One value per name in `host_names`. `unknown` for a public host without a row of the host catalog, `not_public` for a host that is not public.
+    # One value per name in `host_names`. `unknown` for a public host without a row of the host catalog, `not_public` for a host whose scope is not public, e.g. `localhost` or `db`.
     host_service: str
     # The registry that a package request asks, e.g. `pypi`. `unknown` when no fact names it, empty when the category is not `PACKAGE`.
     package_registry: str
