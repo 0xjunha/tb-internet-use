@@ -337,7 +337,7 @@ def _touch(
     *written_file_keys: WrittenFileKey,
     channel: FileWriteChannel | None = None,
     fits_several_written_files: bool = False,
-    reads_harness_output_file: bool = False,
+    harness_output_file_tool_call_keys: tuple[ToolCallKey, ...] = (),
 ) -> FileTouch:
     return FileTouch(
         command_id,
@@ -346,7 +346,7 @@ def _touch(
         channel,
         written_file_keys,
         fits_several_written_files,
-        reads_harness_output_file,
+        harness_output_file_tool_call_keys,
     )
 
 
@@ -852,7 +852,10 @@ def test_reads_of_the_harness_output_file_are_marked(
         False,
     ]
     assert results[1].file_touches[0] == _touch(
-        None, "/tmp/out1.txt", Kind.SHOWS_CONTENT, reads_harness_output_file=True
+        None,
+        "/tmp/out1.txt",
+        Kind.SHOWS_CONTENT,
+        harness_output_file_tool_call_keys=(K1,),
     )
 
 
@@ -1144,6 +1147,7 @@ def test_paths_that_name_one_written_file(written_path: str, path: str, same: bo
             "x",
             appends=False,
             may_have_run=True,
+            may_be_glob=False,
         )
         assert bool(trial_file_contents.file_text(second).written_file_keys) == same
 
@@ -1508,6 +1512,35 @@ def test_a_parameter_in_braces_is_no_glob(knowledge: ExpandedToolCallKnowledge):
         ),
     )
     assert use_counts["treat_file_not_named_by_command_words_as_untouched"] == 0
+
+
+def test_the_path_of_a_tool_names_one_file_while_a_command_word_may_be_a_glob(
+    knowledge: ExpandedToolCallKnowledge,
+):
+    use_counts: Counter[str] = Counter()
+    path = "app/[id]/page.tsx"
+    written_file_key = WrittenFileKey(K1, path)
+
+    results = _expand(
+        knowledge,
+        _call(1, WriteFileAction(path, "x")),
+        _call(2, ReadFileAction(path)),
+        _call(3, f"cat '{path}'"),
+        _call(4, DeleteFileAction(path)),
+        judgment_rule_use_counts=use_counts,
+    )
+
+    assert [result.file_touches for result in results] == [
+        (
+            _touch(
+                None, path, Kind.WRITES, written_file_key, channel=Channel.TOOL_ARGUMENT
+            ),
+        ),
+        (_touch(None, path, Kind.SHOWS_CONTENT, written_file_key),),
+        (),
+        (_touch(None, path, Kind.DELETES, written_file_key),),
+    ]
+    assert use_counts["treat_file_not_named_by_command_words_as_untouched"] == 1
 
 
 @pytest.mark.parametrize(

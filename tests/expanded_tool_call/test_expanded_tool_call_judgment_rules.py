@@ -21,7 +21,10 @@ from tb_internet_use.expanded_tool_call.judgment_rules import (
     treat_path_that_ends_another_as_same_file,
     treat_path_that_fits_several_written_files_as_unknown_text,
     treat_poll_as_reading_latest_earlier_start_of_handle,
+    treat_poll_result_as_showing_every_command_of_starter,
+    treat_read_of_output_path_of_several_calls_as_showing_each,
     treat_script_poll_step_naming_no_handle_as_polling_none,
+    treat_script_step_output_as_shown_in_call_result,
     treat_tool_call_not_marked_not_run_as_maybe_run,
     treat_use_after_later_overwrite_as_use_of_later_write,
     treat_use_of_path_that_fits_several_written_files_as_use_of_each,
@@ -120,3 +123,32 @@ def test_rule_of_expand_ran_texts_takes_the_choice_it_names_and_is_counted(
 
     assert asked_rule(use_counts=use_counts) is True
     assert use_counts == Counter({rule.__name__: 1})
+
+
+def test_script_step_output_is_shown_in_the_call_result_and_counted():
+    use_counts: Counter[str] = Counter()
+
+    assert treat_script_step_output_as_shown_in_call_result(0, use_counts=use_counts)
+    assert use_counts == Counter(
+        {"treat_script_step_output_as_shown_in_call_result": 1}
+    )
+
+
+def test_poll_result_shows_every_command_of_the_starter_and_counted():
+    use_counts: Counter[str] = Counter()
+
+    assert treat_poll_result_as_showing_every_command_of_starter(use_counts=use_counts)
+    assert use_counts == Counter(
+        {"treat_poll_result_as_showing_every_command_of_starter": 1}
+    )
+
+
+def test_read_of_output_path_of_several_calls_shows_each_and_counted():
+    use_counts: Counter[str] = Counter()
+
+    assert treat_read_of_output_path_of_several_calls_as_showing_each(
+        use_counts=use_counts
+    )
+    assert use_counts == Counter(
+        {"treat_read_of_output_path_of_several_calls_as_showing_each": 1}
+    )

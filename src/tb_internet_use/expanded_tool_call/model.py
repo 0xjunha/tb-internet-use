@@ -411,7 +411,7 @@ class FileUseKind(StrEnum):
     USES_CONTENT = "uses_content"
     # It shows only the size or the type, e.g. `ls -l`, `wc -c` or `file`.
     SHOWS_SIZE_OR_TYPE = "shows_size_or_type"
-    # A program that no fact covers takes the path as an argument.
+    # A program that no fact covers takes the path as an argument, or a known program takes it as a word of unknown role, e.g. log of `tail -5 log` when `-5` has no row.
     UNKNOWN = "unknown"
 
 

@@ -45,6 +45,7 @@ from tb_internet_use.expanded_tool_call.model import (
     CodeTextSource,
     FileText,
     FileTextWithoutKnownWriter,
+    FileUseKind,
     FileWriteChannel,
     InterpreterLine,
     OutputVisibility,
@@ -176,8 +177,13 @@ class FileTouch:
     written_file_keys: tuple[WrittenFileKey, ...]
     # The path of a use fits several written files and the use belongs to one of them.
     fits_several_written_files: bool
-    # The path is the `output_path` of the result of an earlier call of the trajectory.
-    reads_harness_output_file: bool
+    # For a use, the earlier calls of the trajectory whose result has the path as its `output_path`, in call order, so `expand_output_places` knows whose output the read shows. Empty for the other kinds and when the path is no such `output_path`.
+    harness_output_file_tool_call_keys: tuple[ToolCallKey, ...]
+
+    @property
+    def reads_harness_output_file(self) -> bool:
+        """Tell whether the path is the `output_path` of the result of an earlier call of the trajectory."""
+        return bool(self.harness_output_file_tool_call_keys)
 
 
 class FileTouchKind(StrEnum):
@@ -198,10 +204,13 @@ _FILE_TOUCH_KIND_OF_USE_ROLE = {
     ProgramWordRole.USED_FILE: FileTouchKind.USES_CONTENT,
     ProgramWordRole.SIZE_OR_TYPE_FILE: FileTouchKind.SHOWS_SIZE_OR_TYPE,
 }
-# The kinds of a touch that uses a file without writing or removing it.
-_USE_KINDS = frozenset(
-    {*_FILE_TOUCH_KIND_OF_USE_ROLE.values(), FileTouchKind.UNKNOWN_USE}
-)
+# The kind of use of each kind of touch that uses a file without writing or removing it, read by the pieces that list uses.
+FILE_USE_KIND_OF_FILE_TOUCH_KIND = {
+    FileTouchKind.SHOWS_CONTENT: FileUseKind.SHOWS_CONTENT,
+    FileTouchKind.USES_CONTENT: FileUseKind.USES_CONTENT,
+    FileTouchKind.SHOWS_SIZE_OR_TYPE: FileUseKind.SHOWS_SIZE_OR_TYPE,
+    FileTouchKind.UNKNOWN_USE: FileUseKind.UNKNOWN,
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -302,7 +311,9 @@ def _expand_ran_texts_in_call_order(
             typed_text_reader
         )
         if tool_call.result is not None and tool_call.result.output_path is not None:
-            trial_file_contents.record_harness_output_file(tool_call.result.output_path)
+            trial_file_contents.record_harness_output_file(
+                tool_call.result.output_path, tool_call.harness_tool_call.key
+            )
         ran_texts_of_tool_calls.append(ran_texts_of_tool_call)
     return tuple(ran_texts_of_tool_calls), trial_file_contents_of_trajectory
 
@@ -334,7 +345,7 @@ def _is_each_link_to_other_trajectory_left_unmade(
         ] + [
             (file_touch.command_id, file_touch.path)
             for file_touch in ran_texts_of_tool_call.file_touches
-            if file_touch.kind in _USE_KINDS
+            if file_touch.kind in FILE_USE_KIND_OF_FILE_TOUCH_KIND
             and not file_touch.written_file_keys
             and not file_touch.reads_harness_output_file
         ]
@@ -584,6 +595,7 @@ def _record_file_touches_of_tool(
                 tool_call_action.content,
                 appends=False,
                 may_have_run=tool_call_state.may_have_run,
+                may_be_glob=False,
             )
         )
     elif isinstance(tool_call_action, EditFileAction) and tool_call_action.path:
@@ -600,23 +612,31 @@ def _record_file_touches_of_tool(
                 ),
                 appends=False,
                 may_have_run=tool_call_state.may_have_run,
+                may_be_glob=False,
             )
         )
     elif not tool_call_state.may_have_run:
         return
     elif isinstance(tool_call_action, DeleteFileAction) and tool_call_action.path:
         file_touches.append(
-            trial_file_contents.record_deletion(None, tool_call_action.path)
+            trial_file_contents.record_deletion(
+                None, tool_call_action.path, may_be_glob=False
+            )
         )
     elif isinstance(tool_call_action, ReadFileAction) and tool_call_action.path:
         file_touches.append(
             trial_file_contents.record_use(
-                None, tool_call_action.path, FileTouchKind.SHOWS_CONTENT
+                None,
+                tool_call_action.path,
+                FileTouchKind.SHOWS_CONTENT,
+                may_be_glob=False,
             )
         )
     elif isinstance(tool_call_action, SearchFilesAction):
         file_touches += [
-            trial_file_contents.record_use(None, path, FileTouchKind.SHOWS_CONTENT)
+            trial_file_contents.record_use(
+                None, path, FileTouchKind.SHOWS_CONTENT, may_be_glob=False
+            )
             for path in tool_call_action.paths
         ]
     tool_call_state.file_touches += [
@@ -785,7 +805,10 @@ def _record_file_touches_of_command(
                 _add_file_touch(
                     tool_call_state,
                     trial_file_contents.record_use(
-                        shell_command.id, path, _FILE_TOUCH_KIND_OF_USE_ROLE[word_role]
+                        shell_command.id,
+                        path,
+                        _FILE_TOUCH_KIND_OF_USE_ROLE[word_role],
+                        may_be_glob=True,
                     ),
                 )
         elif word_role in _APPENDS_OF_WRITTEN_FILE_ROLE:
@@ -812,7 +835,9 @@ def _record_file_touches_of_command(
         ):
             _add_file_touch(
                 tool_call_state,
-                trial_file_contents.record_deletion(shell_command.id, path),
+                trial_file_contents.record_deletion(
+                    shell_command.id, path, may_be_glob=True
+                ),
             )
     if [word_role for word_role, _ in copy_paths] == [
         ProgramWordRole.COPY_SOURCE,
@@ -867,7 +892,7 @@ def _add_unknown_use(
     Such a word is mostly no file at all, e.g. a URL, so a word that names no written file adds no touch, and the rule about run conditions is asked only for a word that does.
     """
     file_touch = tool_call_state.trial_file_contents.record_use(
-        shell_command.id, path, FileTouchKind.UNKNOWN_USE
+        shell_command.id, path, FileTouchKind.UNKNOWN_USE, may_be_glob=True
     )
     if (
         file_touch is not None
@@ -892,6 +917,7 @@ def _record_write_of_own_output_file(
                 None,
                 appends=False,
                 may_have_run=tool_call_state.may_have_run,
+                may_be_glob=True,
             ),
         )
 
@@ -928,6 +954,7 @@ def _record_write_of_written_file_word(
             else _stdin_text_passed_on_whole_of(command_reading),
             appends=appends,
             may_have_run=tool_call_state.may_have_run,
+            may_be_glob=True,
         ),
     )
 
@@ -1028,6 +1055,7 @@ def _record_writes_of_output_routes(
                     else None,
                     appends=file_destination.appends,
                     may_have_run=tool_call_state.may_have_run,
+                    may_be_glob=True,
                 ),
             )
 
@@ -1450,7 +1478,7 @@ def _expand_ran_text_of_file(
         _add_file_touch(
             tool_call_state,
             trial_file_contents.record_use(
-                shell_command.id, path, FileTouchKind.USES_CONTENT
+                shell_command.id, path, FileTouchKind.USES_CONTENT, may_be_glob=True
             ),
         )
     source_path = None if is_default_run_file else path
@@ -1579,6 +1607,7 @@ def _expand_ran_text_of_stdin(
                 shell_command.id,
                 stdin_file_path,
                 _FILE_TOUCH_KIND_OF_USE_ROLE[stdin_role],
+                may_be_glob=True,
             ),
         )
 
@@ -1699,8 +1728,10 @@ class TrialFileContents:
         self._written_file_keys_of_tool_call: dict[
             ToolCallKey, list[WrittenFileKey]
         ] = {}
-        # The `output_path` of each result of the calls read so far.
-        self._harness_output_paths: list[str] = []
+        # The `output_path` of each result of the calls read so far, with the call of that result.
+        self._harness_output_paths_and_tool_call_keys: list[
+            tuple[str, ToolCallKey]
+        ] = []
 
     def record_write(
         self,
@@ -1712,18 +1743,23 @@ class TrialFileContents:
         *,
         appends: bool,
         may_have_run: bool,
+        may_be_glob: bool,
     ) -> FileTouch | None:
         """Record a write of a file and give its touch, whose key is that of the call's earlier write to the same file or a new one.
 
         A write that appends keeps the earlier writes and leaves the content unknown. A write of a call that did not run changes nothing.
+        A write that replaces the content of the file where the harness saved a result ends the reads of that result, e.g. `echo x > /tmp/tasks/b1.output`.
+        `may_be_glob` is False for the path argument of a tool, which names one file as written, e.g. `app/[id]/page.tsx`, and True for a word or redirect of a command, which the shell may expand.
         """
-        if self._is_glob(path):
+        if may_be_glob and self._is_glob(path):
             return None
         written_file_key = self._written_file_key_for(tool_call_key, path)
         if may_have_run:
             self._record_written_content(
                 written_file_key, path, content, appends=appends
             )
+            if not appends:
+                self._forget_harness_output_files_named_by(path)
         return FileTouch(
             command_id,
             path,
@@ -1731,7 +1767,7 @@ class TrialFileContents:
             channel,
             (written_file_key,),
             False,
-            False,
+            (),
         )
 
     def record_copy(
@@ -1761,14 +1797,19 @@ class TrialFileContents:
             content,
             appends=False,
             may_have_run=may_have_run,
+            may_be_glob=True,
         )
 
-    def record_deletion(self, command_id: int | None, path: str) -> FileTouch | None:
+    def record_deletion(
+        self, command_id: int | None, path: str, *, may_be_glob: bool
+    ) -> FileTouch | None:
         """Record the removal of the written files a path fits, after which a rule reads them as never written, e.g. f.sh of `rm f.sh`.
 
         A path that names a folder of a written file, e.g. scripts of `rm -rf scripts`, touches none of its files by a rule.
+        A removal of the file where the harness saved a result ends the reads of that result, e.g. `rm /tmp/tasks/b1.output`.
+        `may_be_glob` says whether the path may be a glob, as for `record_write`.
         """
-        if self._is_glob(path) or (
+        if (may_be_glob and self._is_glob(path)) or (
             self._is_folder_of_written_file(path)
             and treat_file_not_named_by_command_words_as_untouched(
                 path, use_counts=self._judgment_rule_use_counts
@@ -1778,6 +1819,7 @@ class TrialFileContents:
         written_file_histories = self._written_file_histories_fitting(path)
         for written_file_history in written_file_histories:
             written_file_history.is_deleted = True
+        self._forget_harness_output_files_named_by(path)
         return FileTouch(
             command_id,
             path,
@@ -1789,22 +1831,31 @@ class TrialFileContents:
                 for written_file_key in written_file_history.written_file_keys
             ),
             False,
-            False,
+            (),
         )
 
     def record_use(
-        self, command_id: int | None, path: str, kind: FileTouchKind
+        self,
+        command_id: int | None,
+        path: str,
+        kind: FileTouchKind,
+        *,
+        may_be_glob: bool,
     ) -> FileTouch | None:
         """Record a use of a file and give the written files it is a use of, i.e. the writes since the last write that replaced the content.
 
         A use of unknown kind leaves the content of the written file unknown, since the program may have changed it.
         Its word has no known file role, e.g. `{print $1}` of an awk without a row, so a glob there asks no rule.
+        `may_be_glob` says whether the path may be a glob, as for `record_write`.
         """
-        if kind != FileTouchKind.UNKNOWN_USE and self._is_glob(path):
+        if may_be_glob and kind != FileTouchKind.UNKNOWN_USE and self._is_glob(path):
             return None
-        reads_harness_output_file = any(
-            self._may_name_same_file(path, harness_output_path)
-            for harness_output_path in self._harness_output_paths
+        harness_output_file_tool_call_keys = tuple(
+            dict.fromkeys(
+                tool_call_key
+                for harness_output_path, tool_call_key in self._harness_output_paths_and_tool_call_keys
+                if self._may_name_same_file(path, harness_output_path)
+            )
         )
         written_file_histories = self._live_written_file_histories_fitting(path)
         if kind == FileTouchKind.UNKNOWN_USE:
@@ -1833,7 +1884,7 @@ class TrialFileContents:
             None,
             tuple(written_file_keys),
             fits_several_written_files,
-            reads_harness_output_file,
+            harness_output_file_tool_call_keys,
         )
 
     def file_text(self, path: str) -> LatestFileText:
@@ -1876,9 +1927,17 @@ class TrialFileContents:
             for written_path in written_file_history.paths
         )
 
-    def record_harness_output_file(self, path: str) -> None:
-        """Record the file where the harness saved a whole result, so that a later read of it is marked as one."""
-        self._harness_output_paths.append(path)
+    def record_harness_output_file(self, path: str, tool_call_key: ToolCallKey) -> None:
+        """Record the file where the harness saved the whole result of a call, so that a later read of it is marked as one of that call's result."""
+        self._harness_output_paths_and_tool_call_keys.append((path, tool_call_key))
+
+    def _forget_harness_output_files_named_by(self, path: str) -> None:
+        """Forget each file where the harness saved a result that a path can name, since a write that replaces it or a removal leaves none of that result to read."""
+        self._harness_output_paths_and_tool_call_keys = [
+            (harness_output_path, tool_call_key)
+            for harness_output_path, tool_call_key in self._harness_output_paths_and_tool_call_keys
+            if not self._may_name_same_file(path, harness_output_path)
+        ]
 
     def _written_file_key_for(
         self, tool_call_key: ToolCallKey, path: str

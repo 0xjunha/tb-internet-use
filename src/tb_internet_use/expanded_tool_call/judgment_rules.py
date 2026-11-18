@@ -335,3 +335,51 @@ def treat_extension_of_file_without_interpreter_line_as_its_language(
         treat_extension_of_file_without_interpreter_line_as_its_language.__name__
     ] += 1
     return True
+
+
+def treat_script_step_output_as_shown_in_call_result(
+    step_index: int, *, use_counts: Counter[str]
+) -> bool:
+    """Read the output of the commands of a tool script step as shown in the result of the script's call, e.g. a Codex `exec` script whose step calls `exec_command` and whose code may not print what the command returned.
+
+    The trajectory has one result for the whole script, and what the script prints is up to its code, so it does not say whether the output of a step reached that result.
+    `expand_output_places` asks it for each step of a tool script, i.e. a `RunCommandAction` step or a poll step that types text, with a command whose output ends in the result. `step_index` is 0-based.
+    On `True` the call's result is a place of those commands. On `False` it is not, and neither is a later read of the file where the harness saved that result.
+    A use is such a step.
+
+    Provisional. It keeps the choice of the earlier code, which took the result of a call as the result of all of its commands, script steps included.
+    """
+    use_counts[treat_script_step_output_as_shown_in_call_result.__name__] += 1
+    return True
+
+
+def treat_poll_result_as_showing_every_command_of_starter(
+    *, use_counts: Counter[str]
+) -> bool:
+    """Read the result of a poll as showing the output of every command that runs in what it polls and whose output ends in a result, e.g. both a and b of `a; b &` after the call that started the handle, or both commands that an earlier poll typed.
+
+    The trajectory does not say which of several commands of the starting call the handle names, or which of them are still printing when the poll reads.
+    `expand_output_places` asks it for each pair of such a group of more than one command and a later poll whose result can show output, i.e. one with tool output text that is not `NOT_RUN`. A group is the commands of the starting call, with every later poll of a handle it started, or the commands that one poll typed into it, with every later poll of a handle that the typing poll names.
+    On `True` the poll's result is a place of all of them. On `False` it is a place of none of them.
+    A use is such a pair.
+
+    Provisional. It keeps the choice of the earlier code, which linked the later polls of a handle to the call that started it as a whole, and those after typed input to that input.
+    """
+    use_counts[treat_poll_result_as_showing_every_command_of_starter.__name__] += 1
+    return True
+
+
+def treat_read_of_output_path_of_several_calls_as_showing_each(
+    *, use_counts: Counter[str]
+) -> bool:
+    """Read a read of a file where the harness saved the results of several earlier calls as showing the result of each of them, e.g. a Cursor terminal file that the results of three calls name.
+
+    The trajectory does not say whether the file still holds the output of the earlier calls or only that of the latest.
+    `expand_output_places` asks it for each read that shows the content of such a file, in a call whose result can show output, i.e. for a `FileTouch` with more than one `harness_output_file_tool_call_keys`.
+    On `True` the reading call is a place of each of those calls. On `False` it is a place of the latest of them only.
+    A use is such a read.
+
+    Provisional. It keeps the choice of the code before this rule, which linked the read to every call whose result named the path.
+    """
+    use_counts[treat_read_of_output_path_of_several_calls_as_showing_each.__name__] += 1
+    return True
