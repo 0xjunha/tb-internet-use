@@ -116,7 +116,9 @@ def _is_reason_possible_for_source(
         case UnknownRanTextReason.READ_FROM_PIPE:
             return isinstance(source, StdinText)
         case UnknownRanTextReason.BUILT_AT_RUN_TIME:
-            return isinstance(source, ArgumentText | FileTextWithoutKnownWriter)
+            return isinstance(
+                source, ArgumentText | FileTextWithoutKnownWriter | StdinText
+            )
         case UnknownRanTextReason.MISSING_FROM_TRAJECTORY:
             return isinstance(source, CallCommandText | ScriptStepText)
         case UnknownRanTextReason.UNREADABLE_SHELL_TEXT:
@@ -141,6 +143,7 @@ class UnknownRanTextReason(StrEnum):
     # The path fits several files that calls wrote, e.g. fetch.sh for /a/fetch.sh and /b/fetch.sh.
     FITS_SEVERAL_WRITTEN_FILES = "fits_several_written_files"
     # The text, or the path of the file that holds it, is built when it runs, e.g. `bash -c "$CMD"` or `bash $F` where F has no single literal value.
+    # A heredoc or here-string that the shell expands before the program reads it is built when it runs too, e.g. `bash <<EOF` with `echo $(curl u)` in its body.
     BUILT_AT_RUN_TIME = "built_at_run_time"
     # The text comes through a pipe, e.g. `curl u | bash`.
     READ_FROM_PIPE = "read_from_pipe"

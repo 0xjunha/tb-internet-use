@@ -175,6 +175,9 @@ class ShellCommand:
     expansion_word_indexes: tuple[int, ...] = ()
     # Text that a heredoc or herestring gives to stdin.
     stdin_text: str | None = None
+    # Whether the delimiter of the heredoc in `stdin_text` has a quote or a backslash, e.g. True for `<<'EOF'` and `<<\EOF`, False for `<<EOF` and `<<-EOF`, None when `stdin_text` is no heredoc.
+    # It exists because an unquoted delimiter lets the shell expand `$A`, `$(...)` and backticks in the body before the command reads it, so the body as written is then not the text the command reads.
+    is_heredoc_delimiter_quoted: bool | None = None
     # File that a `<` redirect gives to stdin, as written.
     stdin_file_path: str | None = None
     stdout: OutputDestination = ResultDestination()

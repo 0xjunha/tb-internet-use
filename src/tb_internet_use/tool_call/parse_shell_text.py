@@ -90,6 +90,7 @@ _ERREXIT_STATEMENT_TYPES = frozenset(
 # ShellCommand fields that a command takes from the scope it is in.
 _FIELDS_FROM_SCOPE = (
     "stdin_text",
+    "is_heredoc_delimiter_quoted",
     "stdin_file_path",
     "stdout",
     "stderr",
@@ -104,8 +105,12 @@ _FIELDS_FROM_SCOPE = (
 # Stdin is left out. That is right for the heredoc of `bash <<EOF`, which is the text itself,
 # and misses a file that the text's commands read, e.g. log for grep in `bash -c 'grep x' < log`.
 _FIELDS_FROM_RUNNER = tuple(
-    name for name in _FIELDS_FROM_SCOPE if name not in ("stdin_text", "stdin_file_path")
+    name
+    for name in _FIELDS_FROM_SCOPE
+    if name not in ("stdin_text", "is_heredoc_delimiter_quoted", "stdin_file_path")
 )
+# A quote or backslash in a heredoc delimiter, e.g. in `<<'EOF'`, `<<"EOF"` or `<<\EOF`, which keeps the shell from expanding the body.
+_HEREDOC_DELIMITER_QUOTING = re.compile(r"['\"\\]")
 # A word such as {a,b} or {1..3}, which bash turns into several words.
 _BRACE_LIST = re.compile(r"\{[^{}\s]*,[^{}\s]*\}|\{\w+\.\.\w+\}")
 # A glob character that a backslash does not escape, e.g. * in *.txt.
@@ -1265,6 +1270,7 @@ def _redirected_scope_of(
             scope = replace(
                 scope,
                 stdin_text=_node_text_of(body) if body is not None else "",
+                is_heredoc_delimiter_quoted=_is_heredoc_delimiter_quoted(redirect),
                 stdin_file_path=None,
             )
             # e.g. `> f` in `cat <<EOF > f`
@@ -1276,9 +1282,18 @@ def _redirected_scope_of(
             scope = replace(
                 scope,
                 stdin_text=_word_value_of(redirect.named_children[-1]),
+                is_heredoc_delimiter_quoted=None,
                 stdin_file_path=None,
             )
     return _RedirectedScope(scope, tuple(output_readers))
+
+
+def _is_heredoc_delimiter_quoted(redirect: Node) -> bool:
+    """Check whether the delimiter of a heredoc has a quote or a backslash, as `'EOF'` of `<<'EOF'` or `\\EOF` of `<<-\\EOF` has, so that bash takes the body as written."""
+    start = next((c for c in redirect.children if c.type == "heredoc_start"), None)
+    return start is not None and bool(
+        _HEREDOC_DELIMITER_QUOTING.search(_node_text_of(start))
+    )
 
 
 def _is_output_reader(node: Node) -> bool:
@@ -1325,7 +1340,12 @@ def _scope_from_file_redirect(
             and destination_node.type == "process_substitution"
         ):
             return scope.scope_without_stdin()
-        return replace(scope, stdin_file_path=target, stdin_text=None)
+        return replace(
+            scope,
+            stdin_file_path=target,
+            stdin_text=None,
+            is_heredoc_delimiter_quoted=None,
+        )
     destination: OutputDestination
     if output_reader is not None:
         destination = output_reader
@@ -1368,6 +1388,7 @@ class _Scope:
     stdout: OutputDestination = field(default_factory=ResultDestination)
     stderr: OutputDestination = field(default_factory=ResultDestination)
     stdin_text: str | None = None
+    is_heredoc_delimiter_quoted: bool | None = None
     stdin_file_path: str | None = None
     runs_if: tuple[RunCondition, ...] = ()
     in_loop_body: bool = False
@@ -1403,7 +1424,12 @@ class _Scope:
 
     def scope_without_stdin(self) -> _Scope:
         """Drop the heredoc, herestring or file that this scope gives to stdin, for commands that do not read it."""
-        return replace(self, stdin_text=None, stdin_file_path=None)
+        return replace(
+            self,
+            stdin_text=None,
+            is_heredoc_delimiter_quoted=None,
+            stdin_file_path=None,
+        )
 
     def scope_for_succeeded_if_text_exits_zero_only_if(self, condition: bool) -> _Scope:
         """Narrow `succeeded_if_text_exits_zero` to also need `condition`."""

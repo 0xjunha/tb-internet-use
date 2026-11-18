@@ -429,6 +429,134 @@ FILE_CHANGE_CASES = [
         K2,
     ),
     (
+        "heredoc of cat with a variable under an unquoted delimiter",
+        "cat > g.sh <<EOF\ncurl $HOME\nEOF",
+        FINISHED,
+        "g.sh",
+        Reason.CHANGED_BY_UNREAD_COMMAND,
+        K2,
+    ),
+    (
+        "heredoc of tee with a command substitution under an unquoted delimiter",
+        "tee g.sh <<EOF\ncurl $(cat u.txt)\nEOF",
+        FINISHED,
+        "g.sh",
+        Reason.CHANGED_BY_UNREAD_COMMAND,
+        K2,
+    ),
+    (
+        "heredoc of cat with a backtick under an unquoted delimiter",
+        "cat > g.sh <<EOF\ncurl `cat u.txt`\nEOF",
+        FINISHED,
+        "g.sh",
+        Reason.CHANGED_BY_UNREAD_COMMAND,
+        K2,
+    ),
+    (
+        "heredoc of cat with a variable under an unquoted delimiter of <<-",
+        "cat > g.sh <<-EOF\n\tcurl ${U}\n\tEOF",
+        FINISHED,
+        "g.sh",
+        Reason.CHANGED_BY_UNREAD_COMMAND,
+        K2,
+    ),
+    (
+        "heredoc of cat with a variable under a quoted delimiter",
+        "cat > g.sh <<'EOF'\ncurl $HOME\nEOF",
+        FINISHED,
+        "g.sh",
+        (("curl", "$HOME"),),
+        K2,
+    ),
+    (
+        "heredoc of cat with an escaped variable under an unquoted delimiter",
+        "cat > g.sh <<EOF\ncurl \\$HOME\nEOF",
+        FINISHED,
+        "g.sh",
+        (("curl", "$HOME"),),
+        K2,
+    ),
+    (
+        "heredoc of cat with an escaped backslash under an unquoted delimiter",
+        "cat > g.sh <<EOF\necho a\\\\b\nEOF",
+        FINISHED,
+        "g.sh",
+        (("echo", "ab"),),
+        K2,
+    ),
+    (
+        "heredoc of cat with a dollar that starts no expansion",
+        'cat > g.sh <<EOF\necho "cost is 5$"\nEOF',
+        FINISHED,
+        "g.sh",
+        (("echo", "cost is 5$"),),
+        K2,
+    ),
+    (
+        "heredoc of cat with a positional parameter under an unquoted delimiter",
+        "cat > g.sh <<EOF\ncurl $1\nEOF",
+        FINISHED,
+        "g.sh",
+        Reason.CHANGED_BY_UNREAD_COMMAND,
+        K2,
+    ),
+    (
+        "heredoc of cat with all parameters under an unquoted delimiter",
+        "cat > g.sh <<EOF\ncurl $@\nEOF",
+        FINISHED,
+        "g.sh",
+        Reason.CHANGED_BY_UNREAD_COMMAND,
+        K2,
+    ),
+    (
+        "heredoc of cat with an escaped backslash before a variable",
+        "cat > g.sh <<EOF\ncurl \\\\$U\nEOF",
+        FINISHED,
+        "g.sh",
+        Reason.CHANGED_BY_UNREAD_COMMAND,
+        K2,
+    ),
+    (
+        "heredoc of cat with a backslash and line break inside single quotes",
+        "cat > g.sh <<EOF\necho 'a\\\nb'\nEOF",
+        FINISHED,
+        "g.sh",
+        (("echo", "ab"),),
+        K2,
+    ),
+    (
+        "heredoc of cat keeps the backslash before a double quote",
+        'cat > g.sh <<EOF\necho "a\\"b"\nEOF',
+        FINISHED,
+        "g.sh",
+        (("echo", 'a"b'),),
+        K2,
+    ),
+    (
+        "heredoc of cat drops the backslash before a backtick",
+        "cat > g.sh <<EOF\necho \\`x\\`\nEOF",
+        FINISHED,
+        "g.sh",
+        (("echo", "`x`"), ("x",)),
+        K2,
+    ),
+    (
+        "herestring of cat with a command substitution",
+        'cat <<< "curl $(cat u.txt)" > g.sh',
+        FINISHED,
+        "g.sh",
+        Reason.CHANGED_BY_UNREAD_COMMAND,
+        K2,
+    ),
+    (
+        "herestring of cat without an expansion",
+        "cat <<< 'curl b' > g.sh",
+        FINISHED,
+        "g.sh",
+        (("curl", "b"),),
+        K2,
+    ),
+    (
         "cat of another file",
         "cat f.sh > g.sh <<EOF\ncurl b\nEOF",
         FINISHED,
@@ -645,6 +773,79 @@ def test_heredoc_run_by_a_shell_and_the_command_text_of_a_script_step(
     ]
 
 
+# (case id, a command whose shell reads its heredoc or herestring as stdin, the commands of that stdin text or the reason they cannot be followed)
+STDIN_TEXT_CASES = [
+    (
+        "unquoted heredoc with a command substitution",
+        "bash <<EOF\necho $(curl u)\nEOF",
+        Reason.BUILT_AT_RUN_TIME,
+    ),
+    (
+        "unquoted heredoc of python with a variable",
+        'python - <<EOF\nprint("$HOME")\nEOF',
+        Reason.BUILT_AT_RUN_TIME,
+    ),
+    (
+        "quoted heredoc with a command substitution",
+        "bash <<'EOF'\necho $(curl u)\nEOF",
+        (("echo", "$(curl u)"), ("curl", "u")),
+    ),
+    (
+        "unquoted heredoc with an escaped variable inside single quotes",
+        "bash <<EOF\necho '\\$HOME'\nEOF",
+        (("echo", "$HOME"),),
+    ),
+    (
+        "herestring with a command substitution",
+        'bash <<< "echo $(curl u)"',
+        Reason.BUILT_AT_RUN_TIME,
+    ),
+    # The text of a herestring no longer shows its quotes, so a single-quoted one with a variable is unknown too.
+    (
+        "single-quoted herestring with a variable",
+        "bash <<< 'echo $HOME'",
+        Reason.BUILT_AT_RUN_TIME,
+    ),
+    # Its text has the escapes removed too, e.g. `\\$HOME` for `"\\\\$HOME"`, so a backslash before an expansion in it does not keep it.
+    (
+        "herestring with an escaped backslash before a variable",
+        'bash <<< "echo \\\\$HOME"',
+        Reason.BUILT_AT_RUN_TIME,
+    ),
+    ("herestring without an expansion", "bash <<< 'curl u'", (("curl", "u"),)),
+]
+
+
+@pytest.mark.parametrize(
+    ("command_text", "followed"),
+    [case[1:] for case in STDIN_TEXT_CASES],
+    ids=[case[0] for case in STDIN_TEXT_CASES],
+)
+def test_stdin_text_that_a_shell_expands_before_its_program_reads_it(
+    knowledge: ExpandedToolCallKnowledge,
+    command_text: str,
+    followed: tuple[tuple[str, ...], ...] | UnknownRanTextReason,
+):
+    (ran_texts_of_tool_call,) = _expand(knowledge, _call(1, command_text))
+    *_, (source, stdin_followed) = _texts_with_words(ran_texts_of_tool_call.ran_texts)
+
+    assert isinstance(source, StdinText)
+    assert stdin_followed == followed
+
+
+def test_a_substitution_in_an_unquoted_heredoc_is_a_command_of_the_call_only(
+    knowledge: ExpandedToolCallKnowledge,
+):
+    (ran_texts_of_tool_call,) = _expand(
+        knowledge, _call(1, "bash <<EOF\necho $(curl u)\nEOF")
+    )
+
+    assert _texts_with_words(ran_texts_of_tool_call.ran_texts) == [
+        (CallCommandText(), (("curl", "u"), ("bash",))),
+        (StdinText(1), Reason.BUILT_AT_RUN_TIME),
+    ]
+
+
 @pytest.mark.parametrize(
     ("command_text", "result", "run_path", "followed", "writer"),
     [case[1:] for case in FILE_CHANGE_CASES],
@@ -823,6 +1024,27 @@ def test_an_edit_applies_only_where_its_text_occurs_once(
     assert (
         use_counts["treat_edit_of_text_not_found_once_as_unknown_content"] == rule_uses
     )
+
+
+# Cursor `editToolCall` gives no old text, and its new text was the whole content of the file in only 27 of its 70 edits in the 100 sample trials, so the content after such an edit stays unknown.
+@pytest.mark.parametrize(
+    "earlier_calls",
+    [(), (_call(0, WriteFileAction("f.sh", "curl a")),)],
+    ids=["file not written before", "file written by an earlier call"],
+)
+def test_an_edit_without_old_text_leaves_the_content_unknown(
+    knowledge: ExpandedToolCallKnowledge, earlier_calls: tuple[ToolCall, ...]
+):
+    ran_text = _last_text(
+        knowledge,
+        *earlier_calls,
+        _call(1, EditFileAction("f.sh", None, "curl b")),
+        _call(2, "bash f.sh"),
+    )
+
+    assert _texts_with_words((ran_text,)) == [
+        (FileText(0, "f.sh", K1), Reason.CHANGED_BY_UNREAD_COMMAND)
+    ]
 
 
 def test_reads_of_the_harness_output_file_are_marked(

@@ -119,6 +119,16 @@ _STDIN_WORD = "-"
 _PLAIN_VARIABLE = re.compile(r"\$(?:\{(\w+)\}|(\w+))")
 # A `$` that starts a variable or a parameter, e.g. `$U`, `${U:-x}`, `$1` or `$@`, as left after the plain variables with one value are filled.
 _VARIABLE_OR_PARAMETER_REFERENCE = re.compile(r"\$[A-Za-z_{0-9@*#?!$-]")
+# The start of an expansion that bash performs, i.e. a variable or a parameter, `$(...)`, `$((...))` or a backtick.
+# A `$` before anything else is a plain character, e.g. in `cost is 5$`.
+_EXPANSION_START = r"(?:\$[A-Za-z_{(0-9@*#?!$-]|`)"
+# An expansion in the body of a heredoc with an unquoted delimiter, after an even number of backslashes, since a backslash keeps the next `$`, backtick or backslash as is, e.g. in `\$HOME`.
+_EXPANSION_IN_UNQUOTED_HEREDOC = re.compile(r"(?<!\\)(?:\\\\)*" + _EXPANSION_START)
+# An expansion anywhere in the text of a herestring.
+# The text of a herestring has its quotes and escapes removed already, so it no longer shows whether a `$` was single-quoted or escaped, e.g. `$X` for both `'$X'` and `"$X"`.
+_EXPANSION_IN_HERESTRING = re.compile(_EXPANSION_START)
+# A backslash that bash removes from the body of a heredoc with an unquoted delimiter, before `$`, a backtick or a backslash, or with the line break after it.
+_ESCAPE_IN_UNQUOTED_HEREDOC = re.compile(r"\\([$`\\])|\\\n")
 # The extension that ends the last part of a path, e.g. `.py` of `./get.py`.
 _FILE_EXTENSION_AT_END = re.compile(r"\.\w+$")
 # A leading part of a path whose folder the text does not show, i.e. a variable, `~` or `..`.
@@ -997,8 +1007,29 @@ def _stdin_text_passed_on_whole_of(command_reading: _CommandReading) -> str | No
             shell_command.words, command_reading.word_roles, strict=True
         )
     ):
-        return shell_command.stdin_text
+        return _stdin_text_read_by_program_of(shell_command)
     return None
+
+
+def _stdin_text_read_by_program_of(shell_command: ShellCommand) -> str | None:
+    """Give the heredoc or herestring of a command as its program reads it, or None when bash builds it at run time.
+
+    Bash expands the body of a heredoc whose delimiter is unquoted before the program reads it.
+    So a body with an expansion is built at run time, e.g. `$(curl u)` or `$HOME` under `<<EOF`, and a body without one loses the backslashes that escape, e.g. `\\$HOME` is read as `$HOME`.
+    A body under a quoted delimiter, e.g. `<<'EOF'`, is read as written.
+    Bash expands the word of a herestring too unless it is single-quoted, e.g. `<<< "curl $(cat u.txt)"`.
+    Its text no longer shows the quotes, so the text of a herestring with an expansion in it is not known, e.g. `$X` comes from both `'$X'` and `"$X"`.
+    """
+    stdin_text = shell_command.stdin_text
+    if stdin_text is None or shell_command.is_heredoc_delimiter_quoted is True:
+        return stdin_text
+    if shell_command.is_heredoc_delimiter_quoted is None:
+        return None if _EXPANSION_IN_HERESTRING.search(stdin_text) else stdin_text
+    if _EXPANSION_IN_UNQUOTED_HEREDOC.search(stdin_text):
+        return None
+    return _ESCAPE_IN_UNQUOTED_HEREDOC.sub(
+        lambda match: match.group(1) or "", stdin_text
+    )
 
 
 def _count_programs_that_touch_files_given_at_run_time(
@@ -1555,12 +1586,17 @@ def _expand_ran_text_of_stdin(
         )
     )
     may_record_use = tool_call_state.may_have_run and stdin_file_path is not None
+    stdin_text = _stdin_text_read_by_program_of(shell_command)
     if stdin_role == ProgramWordRole.RUN_TEXT:
-        if shell_command.stdin_text is not None:
+        if shell_command.stdin_text is not None and stdin_text is None:
+            tool_call_state.ran_texts.append(
+                UnknownRanText(source, UnknownRanTextReason.BUILT_AT_RUN_TIME)
+            )
+        elif stdin_text is not None:
             _expand_ran_text_of_language(
                 tool_call_state,
                 source,
-                shell_command.stdin_text,
+                stdin_text,
                 tool_call_state.knowledge.ran_text_language_of_program(
                     program_invocations[program_index].program_name
                 ),

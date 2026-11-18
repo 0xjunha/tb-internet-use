@@ -46,6 +46,7 @@ SOURCE_TYPE_NAMES_OF_REASON = {
     UnknownRanTextReason.BUILT_AT_RUN_TIME: {
         "ArgumentText",
         "FileTextWithoutKnownWriter",
+        "StdinText",
     },
     UnknownRanTextReason.MISSING_FROM_TRAJECTORY: {
         "CallCommandText",

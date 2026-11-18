@@ -111,6 +111,7 @@ WHOLE_RESULT_CASES = [
                     0,
                     ("python", "-"),
                     stdin_text="import x\n",
+                    is_heredoc_delimiter_quoted=False,
                     succeeded_if_text_exits_zero=True,
                 ),
             ),
@@ -1348,6 +1349,31 @@ def test_stdin_file_path(
     )
 
 
+@pytest.mark.parametrize(
+    ("text", "first_word", "is_heredoc_delimiter_quoted"),
+    [
+        ("bash <<EOF\necho $HOME\nEOF", "bash", False),
+        ("bash <<'EOF'\necho $HOME\nEOF", "bash", True),
+        ('bash <<"EOF"\necho $HOME\nEOF', "bash", True),
+        ("bash <<\\EOF\necho $HOME\nEOF", "bash", True),
+        ("bash <<-EOF\n\techo $HOME\n\tEOF", "bash", False),
+        ("bash <<-'EOF'\n\techo $HOME\n\tEOF", "bash", True),
+        # A herestring is a word, not a heredoc.
+        ('cat <<< "$X"', "cat", None),
+        ("{ cat <<< x; } <<'EOF'\ny\nEOF", "cat", None),
+        # The later redirect of stdin wins, so the heredoc is gone.
+        ("cat <<'EOF' < f\nx\nEOF", "cat", None),
+        # A substitution does not read the heredoc of its statement.
+        ("X=$(cat) <<'EOF'\nx\nEOF", "cat", None),
+    ],
+)
+def test_is_heredoc_delimiter_quoted(
+    text: str, first_word: str, is_heredoc_delimiter_quoted: bool | None
+):
+    command = _command_from_first_word(_parsed_shell_text_of(text), first_word)
+    assert command.is_heredoc_delimiter_quoted is is_heredoc_delimiter_quoted
+
+
 def test_heredoc_with_output_file():
     cat = _command_from_first_word(
         _parsed_shell_text_of("cat <<EOF > fetch.sh\ncurl u\nEOF"), "cat"
@@ -1423,6 +1449,7 @@ def test_runner_gives_its_scope():
         stdout=FileDestination("fetch.log", appends=False),
         stderr=DiscardDestination(),
         stdin_text="x\n",
+        is_heredoc_delimiter_quoted=False,
         stdin_file_path="in",
         runs_if=(RunCondition((3,), SUCCESS),),
         succeeded_if_text_exits_zero=True,
@@ -1445,7 +1472,11 @@ def test_runner_gives_its_scope():
     )
     assert curl.runs_if == runner.runs_if
     # Text run by a command takes no stdin from it, a chosen limit noted at `_FIELDS_FROM_RUNNER`.
-    assert (curl.stdin_text, curl.stdin_file_path) == (None, None)
+    assert (
+        curl.stdin_text,
+        curl.is_heredoc_delimiter_quoted,
+        curl.stdin_file_path,
+    ) == (None, None, None)
     assert all(c.structure_may_be_wrong for c in parsed.commands)
     # bash -e makes every plain statement decide the exit code.
     assert [c.succeeded_if_text_exits_zero for c in parsed.commands] == [
