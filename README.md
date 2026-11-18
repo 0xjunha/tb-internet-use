@@ -53,20 +53,81 @@ Two rules follow from this.
 
 The [pipeline example](docs/pipeline-example.md) follows six made-up tool calls through these steps.
 
-| # | Step | Question it answers | Output | Judgment rules | Status |
-|---|---|---|---|---|---|
-| 0 | Collect trials | Which trials are there, and what is known about each (e.g. task, reward)? | `Trial` | 0 | Built |
-| 1 | Convert tool calls | What did the trajectory record, in types that hide the harness? | `ToolCall` | 18 | Rebuilt, with shell text split into commands |
-| 2 | Expand tool calls | What did each call actually run, and where does that output show up? | `ExpandedToolCall` | 23 | Built and run on the sample of 100 trials, with `pipeline.py` calling it after step 1. Its catalogs still lack rows for many programs and options, which come out as unknown |
-| 3 | Extract network requests | Which of what ran is a request, and for which target? | `NetworkRequest` | 6 | Built and run on the sample of 100 trials, with `pipeline.py` calling it after step 2. Every option of a fetching program that the sample uses has a row of its catalog except `curl -X` with a variable as its value. Programs and subcommands without a row in this catalog or in that of step 2, e.g. `lake build`, `sbt` and `git status`, still come out as unknown inputs, and `go build -o` as an uncertain request |
-| 4 | Decide request results | How far did each request get, and on what evidence? | `NetworkRequestResult` | 19 | Built and run on the sample of 100 trials, with `pipeline.py` calling it after step 3. Every program run and option that the sample uses has a row of `program_output_lines.csv` except ping and python, whose code may print any line, so a status line in the result of code is shared with the request of that code. Many results stay at `ATTEMPTED`, since the exit code of a text shows nothing of a command in a loop, before a pipe or in a file |
-| 5 | Export rows | Which category is each request, and what do the rows say for each task? | `NetworkRequestRow`, `TrialRow`, `TrialCategoryMeasureRow` | 17 | Built and run on the sample of 100 trials, with `pipeline.py` calling it after step 4 and `scripts/run_pipeline.py` writing the rows of every trial. Its catalog of public hosts has no rows yet and its catalog of web tools one, so most public hosts and web tools come out as unknown inputs |
+| # | Step | Question it answers | Entry function | Output | Judgment rules | Status |
+|---|---|---|---|---|---|---|
+| 0 | Collect trials | Which trials are there, and what is known about each (e.g. task, reward)? | `collect_trials` in `trial/` | `Trial` | 0 | Built |
+| 1 | Convert tool calls | What did the trajectory record, in types that hide the harness? | `convert_tool_calls` in `tool_call/` | `ToolCall` | 18 | Built, with each shell text split into commands by shell grammar |
+| 2 | Expand tool calls | What did each call actually run, and where does that output show up? | `expand_tool_calls` in `expanded_tool_call/` | `ExpandedToolCall` | 23 | Built and run on a sample of 100 trials, where many programs and options still have no catalog row and come out as unknown inputs |
+| 3 | Extract network requests | Which of what ran is a request, and for which target? | `extract_network_requests` in `network_request/` | `NetworkRequest` | 6 | Built and run on a sample of 100 trials, where a program or option without a catalog row still comes out as an unknown input or an uncertain request |
+| 4 | Decide request results | How far did each request get, and on what evidence? | `decide_network_request_results` in `network_request_result/` | `NetworkRequestResult` | 19 | Built and run on a sample of 100 trials, where many results stay at `ATTEMPTED` since the exit code of a text shows nothing of a command in a loop, before a pipe or in a file |
+| 5 | Export rows | Which category is each request, and what do the rows say for each task? | `export_rows` in `export/` | `NetworkRequestRow`, `TrialRow`, `TrialCategoryMeasureRow` | 17 | Built and run on a sample of 100 trials, where most public hosts and web tools still have no catalog row and come out as unknown inputs |
 
-A judgment rule is a choice that facts alone do not settle, e.g. whether a negative exit code means the command was killed.
-Judgment rules are kept apart from outside knowledge, one function each in the `judgment_rules.py` of the step, each marked provisional or decided, and all are provisional today.
-For a step that is not built yet, the number counts the places found so far.
+Each step is a package of `src/tb_internet_use/` whose `__init__.py` exports only its entry function, and whose types are in its `model.py`.
+`run_steps_of_trial` in `pipeline.py` reads the files of one trial folder, makes the doors of outside knowledge and calls the six entry functions in order. The steps themselves take text and types, never a path.
 
 Steps 1 and 2 are built to know nothing about the internet, so they can serve other analyses of tool calls. Steps 3 to 5 are the internet analysis.
+
+## Outside knowledge
+
+Each step from step 1 on asks for outside knowledge only through its door, one class in `knowledge/` named after its output type, which its entry function takes as `knowledge`.
+An answer of a door is a value or an `Unknown…` type, never a default, and the door counts each fact it used and each input it had no fact for.
+
+| Door | Step | Where its facts live |
+|---|---|---|
+| `ToolCallKnowledge` | `convert_tool_calls` | `catalogs/tool_call/`, and the result formats of each harness tool under `declarations/tool_call/` |
+| `ExpandedToolCallKnowledge` | `expand_tool_calls` | `catalogs/expanded_tool_call/` |
+| `NetworkRequestKnowledge` | `extract_network_requests` | `catalogs/network_request/` |
+| `NetworkRequestResultKnowledge` | `decide_network_request_results` | `catalogs/network_request_result/`, and the output line patterns under `declarations/network_request_result/` |
+| `ExportKnowledge` | `export_rows` | `catalogs/export/` |
+
+A catalog is a hand-filled CSV, one row per fact, e.g. one program of `program_behaviors.csv`. A declaration is Python, for facts whose order matters or that share parts, e.g. the output line patterns, of which the first that fits a line gives its meaning. Every row says what it was checked against and whether a person reviewed it.
+The [knowledge README](src/tb_internet_use/knowledge/README.md) lists every file with the question it answers, and the README beside each catalog folder describes its columns.
+
+## Judgment rules
+
+A judgment rule is a choice that facts alone do not settle, e.g. whether a negative exit code means the command was killed.
+Judgment rules are kept apart from outside knowledge, one function each in the `judgment_rules.py` of the step, which counts each of its uses. Each is marked provisional or decided, and all are provisional today.
+A provisional rule keeps the choice of the earlier code, or where there was none the choice that claims least, e.g. that a command with no evidence of its own that it ran is not known to have run, so that the lower bounds stay true.
+
+## Running
+
+`scripts/run_pipeline.py` runs `run_steps_of_trial` on the trial folders of a raw data folder, in at most 4 processes, and writes under `out/pipeline/`, which git ignores, since the rows hold targets and host names from the trajectories.
+
+```bash
+nice -n 10 uv run python -I scripts/run_pipeline.py <raw_trials_dir> [--limit N | --trial-ids FILE] [--out-dir DIR] [--resume | --export-only]
+```
+
+| It writes | One row |
+|---|---|
+| `network_request_rows.csv`, `trial_rows.csv`, `trial_category_measure_rows.csv` | One row of each row type of `export_rows` |
+| `task_category_measures.csv` | A task, a category and a sender, with the trials in each bound of the main measure |
+| `<step package>/unknown_inputs.csv` | An input that the door of the step had no row for, most trials first |
+| `<step package>/row_uses.csv`, `<step package>/judgment_rule_uses.csv` | A row of the door, or a judgment rule, with its uses, trials and tasks |
+| `equations.csv` | An equation between steps, e.g. that every network request result gives one request row |
+| `raised_trials.csv`, `summary.csv` | A trial that raised or ran too long, and the counts of the run |
+
+The script exits with 1 when a trial raised or an equation differs. `--resume` goes on with a run that stopped, and `--export-only` runs only `export_rows` again on the saved output of the steps before it. Its docstring lists every file and equation.
+
+Each step also has an audit script that runs the steps up to it, counts its output per harness and checks equations that the output must meet. They write under `out/` and print no text of a trajectory.
+
+| Script | Step |
+|---|---|
+| `audit_trials.py` | `collect_trials`, with its counts held against an expectation file |
+| `audit_tool_call_knowledge.py`, `audit_results.py`, `audit_parsed_shell_texts.py` | `convert_tool_calls`: the uses of its door, the result formats each result matched, and the split shell texts |
+| `audit_expanded_tool_calls.py` | `expand_tool_calls` |
+| `audit_network_requests.py` | `extract_network_requests` |
+| `audit_network_request_results.py` | `decide_network_request_results` |
+| `audit_export_knowledge.py` | `export_rows`, run again on the saved output of `run_pipeline.py` |
+
+`build_harness_result_format_table.py` writes the declared result formats as one table for a person to read. Each script's docstring says how to run it.
+
+## Filling outside knowledge
+
+1. Run `scripts/run_pipeline.py` on the trials.
+2. Read `out/pipeline/<step package>/unknown_inputs.csv` from the top, where the inputs that the most trials asked for come first.
+3. Add a row for the input by hand to the catalog that the README of its folder names. Write in `checked_against` what the fact was checked against, e.g. a section of a manual, and leave `reviewed` empty until a person has reviewed the row.
+4. Run `./scripts/check.sh`. A row that the step cannot use raises when the catalog is loaded.
+5. Run the pipeline again. The input is gone from `unknown_inputs.csv`, and `row_uses.csv` shows how often the new row was used.
 
 ## Limits
 
@@ -74,20 +135,6 @@ Steps 1 and 2 are built to know nothing about the internet, so they can serve ot
   - Devin, Grok Build: subagent and pre-compaction calls missing.
   - Cursor CLI: subagents' inner calls missing.
 - Requests made outside the trajectory, such as those of the image build or the verifier, are out of scope.
-
-## Running
-
-`scripts/run_pipeline.py` runs the six steps on the trial folders of a raw data folder and writes the rows under `out/pipeline/`, which git ignores, since the rows hold targets and host names from the trajectories.
-
-```bash
-nice -n 10 uv run python -I scripts/run_pipeline.py <raw_trials_dir> [--trial-ids FILE] [--out-dir DIR]
-```
-
-It writes one file per row type, i.e. `network_request_rows.csv`, `trial_rows.csv` and `trial_category_measure_rows.csv`, and a count of the main measure per task in `task_category_measures.csv`.
-For each step it lists the inputs that its catalogs have no row for and how often each row and each judgment rule was used, with the trials and tasks of each.
-It also checks equations between the steps, e.g. that every network request result gives one request row, and exits with 1 when one differs or a trial raised.
-`--resume` goes on with a run that stopped, and `--export-only` runs only the last step again on the saved output of the steps before it.
-`scripts/audit_export_knowledge.py` then checks the rows of a run against the uses of the last step's catalogs and judgment rules.
 
 ## Development
 

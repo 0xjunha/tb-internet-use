@@ -1,6 +1,8 @@
 # Harness tool catalog
 
-The harness tool catalog is outside knowledge for step 1, kept in the three CSVs of this folder. They are labeled and reviewed manually, and the conversion reads them only through `ToolCallKnowledge` in [tool_call_knowledge.py](../../tool_call_knowledge.py).
+The harness tool catalog is outside knowledge for `convert_tool_calls`, kept in the three CSVs of this folder. They are labeled and reviewed manually, and the conversion reads them only through `ToolCallKnowledge` in [tool_call_knowledge.py](../../tool_call_knowledge.py).
+
+All three files start with the columns `harness` and `tool`, the names that the trajectory gives the harness and the tool, e.g. `claude-code` and `Bash`, which key each row together with `argument` of `harness_tool_arguments.csv` and `return_code_interpretation` of `harness_return_code_interpretations.csv`.
 
 [`harness_tools.csv`](harness_tools.csv) maps each harness tool name found in ATIF trajectories to one of the `ToolCallAction` types in [model.py](../../../tool_call/model.py), one row per tool.
 

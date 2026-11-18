@@ -36,7 +36,7 @@ Both files end with the same three columns.
 |---|---|---|
 | `checked_against` | What the cells were checked against, naming the page, its section and the version, e.g. `curl(1) EXIT CODES, curl 8.11 (curl.se)`. A cell taken over from the old program tables without a check says `not checked, from the old table` | Fails the load |
 | `reviewed` | `yes` once a person has reviewed the row | Not reviewed yet |
-| `note` | Free text, e.g. what the old code did with the option | Nothing to note |
+| `note` | Free text, e.g. why a cell is blank or where the row came from | Nothing to note |
 
 A page counts as in the [program catalog](../expanded_tool_call/README.md). Which printing programs a run prints is checked against the output line patterns in [program_output.py](../../declarations/network_request_result/output_line_patterns/program_output.py), each of which names the printing programs of its line, and against the program's own documentation for whether the run prints those lines.
 

@@ -1,8 +1,7 @@
 # Pipeline example
 
-> **Work in progress.** This example follows the six steps that the pipeline is being rebuilt into. The Status column of the [pipeline table](../README.md#pipeline) says which steps are built. For a step that is not, the names of the step, its output type and its `...Knowledge` class are settled, and what the types hold is a draft, which covers every new field, the types nested in the fields and their values and is settled when the step is built. The example of the previous layout is in this file's history.
-
 Six made-up tool calls of one trial go through the [pipeline](../README.md#pipeline), from the trajectory to the exported rows. Step 0 gives the trial itself its record, from the files beside the trajectory.
+The values below are those that `run_steps_of_trial` in `pipeline.py` gives for the six calls as Claude Code calls, with the catalogs of the repo and the hosts read as [Input](#input) says. Fields that hold their empty value are left out.
 
 ## What the steps have to find out
 
@@ -13,11 +12,11 @@ This is hard only because a request or its output is often not in the call that 
 |---|---|---|
 | A | In the call itself | One output line fits two requests, so neither owns it |
 | B | Elsewhere in the trajectory | The request is in a script that an earlier call wrote, and the output shows up in two later calls |
-| C | Not in the trajectory | No call wrote the script that ran, so only its output tells that a request was made |
+| C | Not in the trajectory | No call wrote the script that ran, so its output shows a download that no request is made for |
 
 ## Input
 
-c1 to c6 are the calls, in order. The result of each call is shortened to the lines that matter. Hosts under example.org are reserved for examples, and here they are read as public hosts.
+c1 to c6 are the calls, in order. The result of each call is shortened to the lines that matter. Hosts under example.org are reserved for examples, which `export_rows` reads as of unknown internet use. Here they are read as public hosts, as `export_rows` reads a made-up name such as a.files-mirror.org by the judgment rule `treat_dotted_host_name_as_public`.
 
 | Call | Case | Tool | Arguments | Result |
 |---|---|---|---|---|
@@ -95,8 +94,8 @@ The command string (`command_str`) of each `RunCommandAction` is a shell text, s
 | Asked through `ToolCallKnowledge` | Answer in this example |
 |---|---|
 | What does the tool `Bash` do? | It runs a command |
-| How is c1's result read? | As the plain output of a finished command, with the exit code 0 that the trajectory holds beside the text |
-| How is c3's result read? | As a command left running in the background, with the handle task-1 |
+| How is c1's result read? | By the result format `bare_output`, the output of a command that Claude Code did not judge an error. Its result has no `Exit code` line, so `treat_bash_output_without_exit_code_line_as_finished` reads it as finished, and since the structured result beside the text says it was not interrupted, `treat_bash_output_without_exit_code_line_as_exit_code_0` gives it exit code 0 |
+| How is c3's result read? | By the result format `background`, a command left running in the background, with the handle task-1 |
 
 ```python
 c1.action = RunCommandAction(
@@ -111,7 +110,7 @@ c1.action = RunCommandAction(
     ),
 )
 # The exit code is echo's, so it says nothing about either curl. Only echo has `succeeded_if_text_exits_zero`.
-c1.result = ToolCallResult(execution_status=FINISHED, exit_code=0, tool_output_text="curl: (28) ...\ndone")
+c1.result = ToolCallResult(tool_output_text="curl: (28) ...\ndone", execution_status=FINISHED, exit_code=0, harness_result_format=MatchedFormat("bare_output"))
 
 c3.action = RunCommandAction(
     command_str="bash fetch.sh > fetch.log 2>&1 || pip install requests",
@@ -134,7 +133,7 @@ c3.action = RunCommandAction(
         variable_assignments=(),
     ),
 )
-c3.result = ToolCallResult(execution_status=RUNNING, handles=(ExecutionHandle(COMMAND, "task-1"),))
+c3.result = ToolCallResult(execution_status=RUNNING, handles=(ExecutionHandle(COMMAND, "task-1"),), harness_result_format=MatchedFormat("background"))
 ```
 
 ## Step 2: expand tool calls
@@ -158,7 +157,7 @@ c3_expanded = ExpandedToolCall(
         RanShellText(
             source=CallCommandText(),
             ran_commands=(
-                RanCommand(bash_fetch_sh, program_invocations=(ProgramInvocation("bash", arguments=("fetch.sh",)),), stdout_routes=(OutputRoute((), FileDestination("fetch.log"), WHOLE),), ...),
+                RanCommand(bash_fetch_sh, program_invocations=(ProgramInvocation("bash", arguments=("fetch.sh",)),), stdout_routes=(OutputRoute((), FileDestination("fetch.log", appends=False), WHOLE),), ...),
                 RanCommand(pip_install_requests, program_invocations=(ProgramInvocation("pip", subcommand_words=("install",), arguments=("requests",)),), stdout_routes=(OutputRoute((), ResultDestination(), WHOLE),), ...),
             ),
         ),
@@ -171,7 +170,7 @@ c3_expanded = ExpandedToolCall(
                     program_invocations=(
                         ProgramInvocation("curl", options=(ProgramOption("-s"), ProgramOption("-S"), ProgramOption("-O")), arguments=("https://data.example.org/a.tgz",)),
                     ),
-                    stdout_routes=(OutputRoute((), FileDestination("fetch.log"), WHOLE),),
+                    stdout_routes=(OutputRoute((), FileDestination("fetch.log", appends=False), WHOLE),),
                     ...
                 ),
             ),
@@ -205,7 +204,7 @@ c6_expanded = ExpandedToolCall(
 )
 ```
 
-The values above are those of the test `tests/expanded_tool_call/test_expand_tool_calls.py`, with fields that hold their empty value left out as `...`. The entry function `expand_tool_calls` gets them by calling its pieces in this order.
+Fields that hold their empty value are left out as `...`, and the test `tests/expanded_tool_call/test_expand_tool_calls.py` checks the same values. The entry function `expand_tool_calls` gets them by calling its pieces in this order.
 
 | Piece | What it gives |
 |---|---|
@@ -267,7 +266,7 @@ r3 = NetworkRequest(
 )
 ```
 
-The values above are those of the test `tests/network_request/test_extract_network_requests.py`, with fields that hold their empty value left out. r1 and r2 of case A look like r3, with `tool_call_key=c1`, `command_id=0` and `1`, the call's own text as the source and `ContentSaved` of x.tgz and y.tgz. echo gives no request.
+The test `tests/network_request/test_extract_network_requests.py` checks the same values. r1 and r2 of case A look like r3, with `tool_call_key=c1`, `command_id=0` and `1`, the call's own text as the source and `ContentSaved` of x.tgz and y.tgz. echo gives no request.
 Case C gives no request here. `bash` runs setup.sh, whose content is unknown, and the words of the command show no URL.
 The entry function `extract_network_requests` calls these pieces for each call.
 
@@ -300,13 +299,14 @@ Then each request is judged on its own evidence, i.e. its lines, the exit code o
 | What does `Successfully installed X` mean, and who prints it? | A package was installed, printed by pip |
 | Which lines does a run of `pip install` print? | pip's |
 | Which lines does a run of `curl -sS -O` print? | curl's |
+| Which lines does a run of `curl -sS --connect-timeout 30 -O` print? | Unknown, since `--connect-timeout` has no row of `program_output_lines.csv`, so the run may print any line. The key `(curl, "", --connect-timeout)` is counted as an unknown input |
 
 | Output place | Commands that reach it | Lines a pattern fits | Owner | Result |
 |---|---|---|---|---|
 | c1's result | curl x.tgz, curl y.tgz, echo | `Connection timed out` | r1 and r2 share it | Both executed, failed, assumed |
 | c4's result | bash and pip of c3 | `Downloading requests-2.32.3`, `Successfully installed requests-2.32.3` | r4 | Reached, not visible, confirmed |
 | c5's result | bash and curl of c3, through fetch.log | `Could not resolve host: data.example.org` | r3 | Executed, failed, confirmed |
-| c6's result | bash of c6, which ran unknown content | `Downloading torch-2.3.0`, `Successfully installed torch-2.3.0` | None | Two lines counted as unused, by the program `bash` that reaches the place |
+| c6's result | bash of c6, which ran unknown content | `Downloading torch-2.3.0`, `Successfully installed torch-2.3.0` | None | Two lines counted as unused under `UNOWNED_LINE_IN_UNKNOWN_RUN`, and by the program `bash` that reaches the place |
 
 ```python
 r1.result = NetworkRequestResult(
@@ -333,7 +333,7 @@ r4.result = NetworkRequestResult(
 ```
 
 r3 owns its line alone, and no run whose lines are unknown reaches c5, so its failure is confirmed.
-A Claude Code `Bash` result gives no exit code line, so no request here gets evidence from an exit code, and each counts `treat_command_without_own_evidence_as_no_evidence_of_run` once.
+No request here gets evidence that it ran from an exit code. The exit code 0 of c1 belongs only to echo, the one command that `succeeded_if_text_exits_zero` marks, and in c3 no command is marked, since pip runs only if bash failed and curl is in fetch.sh. So each of the four requests counts `treat_command_without_own_evidence_as_no_evidence_of_run` once, and its level comes from its lines.
 Case C gives no request. If setup.sh did fetch torch, that request is missing from both bounds, and only the count of unused lines shows it.
 Had a later call unpacked x.tgz, that use would be r1's own evidence that its content arrived.
 The entry function `decide_network_request_results` calls these pieces in order.
@@ -355,7 +355,7 @@ The category is computed from what the request's own text shows, so the same com
 
 | Asked through `ExportKnowledge` | Answer in this example |
 |---|---|
-| What kind of host is data.example.org? | Unknown, since no row names it. A known kind would be e.g. a package registry or a code host |
+| Which service does the public host data.example.org give? | Unknown, since no row of `public_hosts.csv` names it, so the row's `host_service` is `unknown`. A known service would be e.g. a package registry or code hosting |
 | Which registry does `pip install` ask when no setting names another? | `pypi`, at the host `pypi.org` |
 
 | Column | What it gives here | Why |

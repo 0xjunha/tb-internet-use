@@ -45,7 +45,7 @@ The code call catalog is outside knowledge for `extract_network_requests` about 
 | `effect` | `sends_network_request`, e.g. `requests.get`, `runs_program` for a call that runs a program named in its first string, e.g. `subprocess.run`, or `sends_no_network_request` | Fails the load |
 | `target_notation` | Only for `sends_network_request`. A `TargetNotation` value, how its target is written, e.g. `url` for `requests.get`, `host_name` for `socket.gethostbyname`, `host_and_port_tuple` for `socket.create_connection` or `name` for `from_pretrained` | Fails the load for `sends_network_request`, must be blank otherwise |
 | `target_kind` | Only for `sends_network_request`. A `NetworkRequestTargetKind` value, e.g. `url` or `host` | Unknown for `sends_network_request`, e.g. for `from_pretrained`, whose target is a model name. Must be blank otherwise |
-| `checked_against` | What the cells were checked against, naming the page and its section, e.g. `subprocess module, section Older high-level API, entry subprocess.call, Python 3.15.2 (docs.python.org/3/library/subprocess.html)`. A row taken over from the old code request tables without a check says `not checked, from the old table` | Fails the load |
+| `checked_against` | What the cells were checked against, naming the page and its section, e.g. `subprocess module, section Older high-level API, entry subprocess.call, Python 3.15.2 (docs.python.org/3/library/subprocess.html)`. A row taken over without a check from the tables of code calls that came before this catalog says `not checked, from the old table` | Fails the load |
 | `reviewed` | `yes` once a person has reviewed the row | Not reviewed yet |
 | `note` | Free text, e.g. why a cell is blank | Nothing to note |
 
