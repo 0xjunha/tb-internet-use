@@ -18,8 +18,8 @@ The role columns hold a `ProgramWordRole` value, e.g. `read_file` for the argume
 | `visibility_of_piped_input` | How much of what comes in through a pipe the program writes to its stdout. `whole` for all of it, e.g. cat, `partial` for a part, e.g. head, `none` when it passes on none of it | Unknown |
 | `gives_arguments_at_run_time` | `yes` when the program gives the next program arguments that the words do not show, e.g. xargs, else `no` | Fails the load |
 | `skips_assignment_words` | `yes` when `NAME=value` words before the next program belong to the program, e.g. env, else `no` | Fails the load |
-| `options_end_at_first_argument` | `yes` when no word after the first argument is an option of the program, e.g. sudo, else `no` | Fails the load |
-| `takes_one_letter_options_joined` | `yes` when several letters after one `-` are one-letter options, e.g. `-Nnv` of sudo, else `no` | Fails the load |
+| `options_end_at_first_argument` | `yes` when no word after the first argument is an option of the program, e.g. sudo, else `no` | Unknown. A word that starts with `-` after the first argument is then neither an option nor an argument, so it and the words after it stay unread, e.g. `-n` of `echo hello -n`. A command without such a word is read as with `yes` or `no` |
+| `takes_one_letter_options_joined` | `yes` when several letters after one `-` are one-letter options, e.g. `-Nnv` of sudo, else `no` | Unknown. A word of several letters after one `-` is then read only through a row of its own, as with `no`, e.g. `-n` of echo but not `-ne` |
 | `runs_text_in_calling_shell` | `yes` when the text it runs sees the assignments of the calling shell, e.g. eval, else `no` | Fails the load |
 | `exits_with_exit_code_of_next_program` | `yes` when it runs the next program and ends with its exit code, e.g. sudo, `no` when it does not, e.g. a row with no `program` role | Unknown |
 | `name_may_end_with_version` | `yes` when the row also answers for the name with a version at its end, e.g. `python3.11` for python, else `no` | Fails the load |

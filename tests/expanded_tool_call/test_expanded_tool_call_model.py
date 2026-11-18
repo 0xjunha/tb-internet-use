@@ -17,9 +17,11 @@ from tb_internet_use.expanded_tool_call.model import (
     ScriptStepText,
     StdinText,
     UnknownExitsWithExitCodeOfNextProgram,
+    UnknownOptionsEndAtFirstArgument,
     UnknownProgramWordRole,
     UnknownRanText,
     UnknownRanTextReason,
+    UnknownTakesOneLetterOptionsJoined,
     WrittenFile,
     WrittenFileWriter,
 )
@@ -166,9 +168,17 @@ def test_output_route_without_pipe_readers_keeps_the_whole_output(
             OutputRoute(pipe_reader_command_ids, ResultDestination(), visibility_at_end)
 
 
-def test_unknown_exits_with_exit_code_of_next_program_is_not_read_as_true_or_false():
+@pytest.mark.parametrize(
+    "unknown",
+    [
+        UnknownExitsWithExitCodeOfNextProgram(),
+        UnknownOptionsEndAtFirstArgument(),
+        UnknownTakesOneLetterOptionsJoined(),
+    ],
+)
+def test_unknown_answer_to_a_yes_or_no_cell_is_not_read_as_true_or_false(unknown):
     with pytest.raises(TypeError):
-        all([True, UnknownExitsWithExitCodeOfNextProgram()])
+        all([True, unknown])
 
 
 @pytest.mark.parametrize(

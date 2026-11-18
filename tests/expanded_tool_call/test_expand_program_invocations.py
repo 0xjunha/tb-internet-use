@@ -42,6 +42,11 @@ _RUNS_NEXT_PROGRAM = {
     "exits_with_exit_code_of_next_program": "yes",
 }
 _TAKES_OTHER_VALUE = {"takes_value": "yes", "value_role": "other"}
+# The cells of a row whose page says neither whether one-letter options join nor whether options end at the first argument.
+_READING_NOT_KNOWN = {
+    "options_end_at_first_argument": "",
+    "takes_one_letter_options_joined": "",
+}
 # Made-up rows, each named by the program and the cells that differ from the defaults of `conftest.py`. mytool has no row.
 PROGRAM_BEHAVIOR_ROWS: list[dict[str, str]] = [
     {"program_name": "sudo", **_RUNS_NEXT_PROGRAM, "skips_assignment_words": "yes"},
@@ -108,8 +113,11 @@ PROGRAM_BEHAVIOR_ROWS: list[dict[str, str]] = [
         "last_argument_role": "copy_destination",
     },
     {"program_name": "tail", "argument_role": "read_file"},
-    {"program_name": "git"},
+    {"program_name": "git", **_READING_NOT_KNOWN},
     {"program_name": "git", "subcommand": "clone"},
+    {"program_name": "echo", **_READING_NOT_KNOWN},
+    {"program_name": "printf", **_READING_NOT_KNOWN},
+    {"program_name": "plusprog", **_READING_NOT_KNOWN},
     {
         "program_name": "node",
         "first_argument_role": "run_file",
@@ -253,6 +261,9 @@ PROGRAM_OPTION_BEHAVIOR_ROWS: list[dict[str, str]] = [
     {"program_name": "grep", "option_name": "--color"},
     {"program_name": "tail", "option_name": "-n", **_TAKES_OTHER_VALUE},
     {"program_name": "git", "option_name": "-C", **_TAKES_OTHER_VALUE},
+    {"program_name": "echo", "option_name": "-n"},
+    {"program_name": "echo", "option_name": "-e"},
+    {"program_name": "plusprog", "option_name": "+o"},
     {
         "program_name": "git",
         "subcommand": "clone",
@@ -780,6 +791,77 @@ INVOCATION_CASES = [
         (),
         (_program_invocation("git", unread_words=("--depth", "1", "u")),),
     ),
+    # echo, printf, plusprog and git leave blank whether one-letter options join and whether options end at the first argument.
+    # A command without a word that starts with - is read fully.
+    (
+        "echo hello",
+        ("echo", "hello"),
+        (),
+        (_program_invocation("echo", arguments=("hello",)),),
+    ),
+    (
+        "printf '%s\\n' a",
+        ("printf", "%s\\n", "a"),
+        (),
+        (_program_invocation("printf", arguments=("%s\\n", "a")),),
+    ),
+    # A word with its own row before the first argument is read as today.
+    (
+        "echo -n hello",
+        ("echo", "-n", "hello"),
+        (),
+        (_program_invocation("echo", options=(_option("-n"),), arguments=("hello",)),),
+    ),
+    (
+        "git -C dir status",
+        ("git", "-C", "dir", "status"),
+        (),
+        (
+            _program_invocation(
+                "git", options=(_option("-C", "dir"),), arguments=("status",)
+            ),
+        ),
+    ),
+    # After the first argument a word that starts with - may be an option or an argument, so it stays unread, its own row and `--` included.
+    (
+        "echo hello -n",
+        ("echo", "hello", "-n"),
+        (),
+        (_program_invocation("echo", arguments=("hello",), unread_words=("-n",)),),
+    ),
+    (
+        "echo a -- b",
+        ("echo", "a", "--", "b"),
+        (),
+        (_program_invocation("echo", arguments=("a",), unread_words=("--", "b")),),
+    ),
+    # A word that starts with + is an argument of a program without an option that starts with +, wherever it stands.
+    (
+        "echo a +x",
+        ("echo", "a", "+x"),
+        (),
+        (_program_invocation("echo", arguments=("a", "+x")),),
+    ),
+    # plusprog has the option +o, so after the first argument +o may be that option or an argument.
+    (
+        "plusprog a +o b",
+        ("plusprog", "a", "+o", "b"),
+        (),
+        (_program_invocation("plusprog", arguments=("a",), unread_words=("+o", "b")),),
+    ),
+    (
+        "plusprog +o b",
+        ("plusprog", "+o", "b"),
+        (),
+        (_program_invocation("plusprog", options=(_option("+o"),), arguments=("b",)),),
+    ),
+    # -n and -e have rows, but whether -ne holds both is not known.
+    (
+        "echo -ne a",
+        ("echo", "-ne", "a"),
+        (),
+        (_program_invocation("echo", unread_words=("-ne", "a")),),
+    ),
     # --color takes no value, but the value written after `=` cannot be an argument, so it stays the value of the option. This pins a choice that the facts of the catalog do not settle.
     (
         "grep --color=auto x f",
@@ -894,6 +976,13 @@ INVOCATION_CASES = [
 
 # (words, 0-based indexes of the words with an expansion, the role of each word)
 ROLE_CASES = [
+    # echo leaves blank whether options end at its first argument, so -n after hello has an unknown role and is no option.
+    (
+        "echo hello -n",
+        ("echo", "hello", "-n"),
+        (),
+        (None, ProgramWordRole.OTHER, UNKNOWN_ROLE),
+    ),
     # The -e row says that the first argument is not apart from the others, and the -i row gives the others `CHANGED_FILE`, so f.sh is changed and not a pattern.
     (
         "sed -i -e s/a/b/ f.sh",
@@ -1332,6 +1421,10 @@ def test_door_is_asked_once_per_program_and_option_and_counts_an_option_without_
         (("grep", "-rn", "x", "."), (("grep", "", "-rn"),)),
         (("tail", "-5", "f"), (("tail", "", "-5"),)),
         (("sed", "-n", "1p", "f"), (("sed", "", "-n"),)),
+        # echo may not join one-letter options, so -ne is one unknown input.
+        (("echo", "-ne", "a"), (("echo", "", "-ne"),)),
+        # A word after the first argument of echo is not asked, since no row could tell whether it is an option there.
+        (("echo", "a", "-foo"), ()),
     ],
 )
 def test_each_word_of_options_is_one_question_of_the_door_and_at_most_one_unknown_input(
@@ -1462,7 +1555,7 @@ def test_word_with_an_expansion_and_the_words_after_it_are_unread_when_the_rule_
     assert expansion.roles == roles
 
 
-def test_wrapper_chain_and_shell_option_with_a_plus_are_read_on_the_real_catalogs():
+def test_wrapper_chain_shell_option_with_a_plus_and_echo_are_read_on_the_real_catalogs():
     """Read commands on the real catalog folder, so that a renamed column or cell word of a row these commands use fails here."""
     knowledge = ExpandedToolCallKnowledge(catalogs_dir=EXPANDED_TOOL_CALL_CATALOGS_DIR)
     unknown_exits = UNKNOWN_EXITS_WITH_EXIT_CODE_OF_NEXT_PROGRAM
@@ -1474,6 +1567,12 @@ def test_wrapper_chain_and_shell_option_with_a_plus_are_read_on_the_real_catalog
     )
     shell_option = expand_program_invocations(
         ShellCommand(1, ("bash", "+o", "posix", "f.sh")),
+        knowledge=knowledge,
+        judgment_rule_use_counts=Counter(),
+    )
+    # The row of echo leaves blank whether options end at its first argument.
+    echo = expand_program_invocations(
+        ShellCommand(2, ("echo", "-n", "hello", "-n")),
         knowledge=knowledge,
         judgment_rule_use_counts=Counter(),
     )
@@ -1506,4 +1605,15 @@ def test_wrapper_chain_and_shell_option_with_a_plus_are_read_on_the_real_catalog
             ),
         ),
         (None, None, ProgramWordRole.OTHER, ProgramWordRole.RUN_FILE),
+    )
+    assert echo[:2] == (
+        (
+            _program_invocation(
+                "echo",
+                options=(_option("-n"),),
+                arguments=("hello",),
+                unread_words=("-n",),
+            ),
+        ),
+        (None, None, ProgramWordRole.OTHER, UNKNOWN_ROLE),
     )

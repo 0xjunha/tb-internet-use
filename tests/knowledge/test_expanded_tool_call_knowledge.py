@@ -22,10 +22,12 @@ from tb_internet_use.expanded_tool_call.model import (
     SameAsArgumentRole,
     ShellLanguage,
     UnknownExitsWithExitCodeOfNextProgram,
+    UnknownOptionsEndAtFirstArgument,
     UnknownProgramBehavior,
     UnknownProgramOptionWord,
     UnknownProgramWordRole,
     UnknownRanTextLanguage,
+    UnknownTakesOneLetterOptionsJoined,
 )
 from tb_internet_use.interpret.callrun.code_program_tables import (
     CODE_PROGRAMS,
@@ -185,13 +187,13 @@ _BLANK_PROGRAM_CELLS_THAT_ARE_UNKNOWN = [
         "exits_with_exit_code_of_next_program",
         UnknownExitsWithExitCodeOfNextProgram(),
     ),
+    ("options_end_at_first_argument", UnknownOptionsEndAtFirstArgument()),
+    ("takes_one_letter_options_joined", UnknownTakesOneLetterOptionsJoined()),
 ]
 # Columns of a program row in which a blank fails the load.
 _PROGRAM_COLUMNS_THAT_CANNOT_BE_BLANK = [
     "gives_arguments_at_run_time",
     "skips_assignment_words",
-    "options_end_at_first_argument",
-    "takes_one_letter_options_joined",
     "runs_text_in_calling_shell",
     "name_may_end_with_version",
     "default_run_file",
@@ -257,21 +259,10 @@ _CODE_RUNNER_ROWS_THAT_CANNOT_LOAD = [
     ({"runner": ""}, "runner is empty"),
     ({"runner_kind": "file_extension", "runner": "py"}, "does not start with a dot"),
 ]
-# Programs of the old tables whose rows were left out, since a cell that cannot be blank could not be checked against a manual page of the implementation the trials run, e.g. no page of GNU tac says whether one-letter options join in one word.
-_PROGRAMS_LEFT_OUT = frozenset(
-    {
-        "clang",
-        "diff",
-        "exec",
-        "setsid",
-        "stdbuf",
-        "strings",
-        "tac",
-        "time",
-        "tsx",
-        "xxd",
-    }
-)
+# Programs of the old tables whose rows were left out, since the 100 sample trials never run them, e.g. tac, or no page of the program could be read, e.g. tsx.
+_PROGRAMS_LEFT_OUT = frozenset({"clang", "exec", "stdbuf", "tac", "tsx"})
+# Wrappers whose page shows no `NAME=value` words before the command, which the old tables let them skip, e.g. `time [option ...] command [argument ...]` of time(1), since the bash reserved word time is no program.
+_WRAPPERS_THAT_SKIP_NO_ASSIGNMENT_WORDS_BY_THE_PAGE = frozenset({"time"})
 # Options that the old tables gave every shell and that only bash has, since dash(1) lists no -O or +O.
 _SHELL_OPTIONS_OF_BASH_ONLY = frozenset({"-O", "+O"})
 # Programs whose row without a subcommand was left out while a subcommand row was kept, with the subcommand that took over the option rows of the old tables, or None when they were left out too.
@@ -536,7 +527,7 @@ def test_rows_of_one_program_that_differ_in_allowing_a_version_fail_the_load(
 
 
 @pytest.mark.parametrize(("column", "answer"), _BLANK_PROGRAM_CELLS_THAT_ARE_UNKNOWN)
-def test_blank_role_visibility_or_exit_code_cell_of_a_program_row_is_unknown(
+def test_blank_cell_of_a_program_row_in_a_column_whose_blank_is_unknown_is_unknown(
     tmp_path, column, answer
 ):
     knowledge = _knowledge(tmp_path, program_rows=[_program_row(**{column: ""})])
@@ -714,14 +705,39 @@ def test_word_is_answered_with_the_options_it_holds_counting_each_row_and_at_mos
     )
 
 
-def test_word_of_letters_is_unknown_when_the_program_does_not_join_one_letter_options(
-    tmp_path,
+@pytest.mark.parametrize(
+    "takes_one_letter_options_joined", [False, UnknownTakesOneLetterOptionsJoined()]
+)
+def test_word_of_letters_is_unknown_and_a_word_with_its_own_row_is_read_when_the_program_may_not_join_one_letter_options(
+    tmp_path, takes_one_letter_options_joined
 ):
     knowledge = _knowledge(tmp_path, option_rows=_OPTION_ROWS_OF_ONE_WORD)
+    program_behavior = replace(
+        _PROGRAM_BEHAVIOR,
+        takes_one_letter_options_joined=takes_one_letter_options_joined,
+    )
 
-    assert (
-        knowledge.program_option_word(_PROGRAM_BEHAVIOR, "-sf")
-        == UnknownProgramOptionWord()
+    answers = [
+        knowledge.program_option_word(program_behavior, word)
+        for word in ("-sf", "-s", "-oout")
+    ]
+
+    # -s and -f have rows, but whether -sf holds both is not known, and -oout is no -o with the value out.
+    assert answers == [
+        UnknownProgramOptionWord(),
+        ProgramOptionWord(
+            (ProgramOptionWordOption("-s", _OPTION_TAKING_NO_VALUE, None),)
+        ),
+        UnknownProgramOptionWord(),
+    ]
+    assert knowledge.uses == KnowledgeUses(
+        row_use_counts=Counter({(PROGRAM_OPTION_BEHAVIORS_CSV, ("prog", "", "-s")): 1}),
+        unknown_input_counts=Counter(
+            {
+                (PROGRAM_OPTION_BEHAVIORS_CSV, ("prog", "", "-sf")): 1,
+                (PROGRAM_OPTION_BEHAVIORS_CSV, ("prog", "", "-oout")): 1,
+            }
+        ),
     )
 
 
@@ -976,9 +992,10 @@ def test_wrappers_of_the_old_tables_run_the_next_program_with_their_options(
         program_behavior = _program_behavior_of(real_knowledge, name)
 
         assert program_behavior.argument_role == ProgramWordRole.PROGRAM, name
-        assert program_behavior.skips_assignment_words == wrapper.takes_assignments, (
-            name
-        )
+        assert program_behavior.skips_assignment_words == (
+            wrapper.takes_assignments
+            and name not in _WRAPPERS_THAT_SKIP_NO_ASSIGNMENT_WORDS_BY_THE_PAGE
+        ), name
         # The old wrapper reading took the words after the command as the command's.
         assert program_behavior.options_end_at_first_argument, name
         # A word before the command that is no option, e.g. 30 in `timeout 30 curl u`, is the first argument.

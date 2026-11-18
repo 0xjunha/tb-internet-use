@@ -181,6 +181,7 @@ date,,-u,no,none,unchanged,unchanged,unchanged,none,none,no,unchanged,none,"date
 df,,-h,no,none,unchanged,unchanged,unchanged,none,none,no,unchanged,none,"df(1) -h, --human-readable, GNU coreutils 9.11 (April 2026), man7.org, for every cell; it runs no next program",,
 du,,-h,no,none,unchanged,unchanged,unchanged,none,none,no,unchanged,none,"du(1) -h, --human-readable, GNU coreutils 9.11 (April 2026), man7.org, for every cell; it runs no next program",,
 du,,-s,no,none,unchanged,unchanged,unchanged,none,none,no,unchanged,none,"du(1) -s, --summarize, GNU coreutils 9.11 (April 2026), man7.org, for every cell; it runs no next program",,
+echo,,-n,no,none,unchanged,unchanged,unchanged,none,none,no,unchanged,none,"bash(1) SHELL BUILTIN COMMANDS echo (If -n is specified, the trailing newline is not printed), GNU Bash 5.3 (2025 April 7), man7.org, for every cell; it runs no next program",,
 egrep,,--file,yes,,unchanged,same,unchanged,none,none,no,unchanged,none,"not checked, from the old table",,"It gives the script, so it takes the script or its file as its value"
 egrep,,--regexp,yes,pattern,unchanged,same,unchanged,none,none,no,unchanged,none,"not checked, from the old table",,"It gives the script, so it takes the script or its file as its value"
 egrep,,-e,yes,pattern,unchanged,same,unchanged,none,none,no,unchanged,none,"not checked, from the old table",,"It gives the script, so it takes the script or its file as its value"
@@ -479,6 +480,7 @@ pip,,-q,no,none,unchanged,unchanged,unchanged,none,none,no,unchanged,none,"pip -
 pip,,-r,yes,used_file,unchanged,unchanged,unchanged,none,none,no,unchanged,none,"pip -r, --requirement <file>, pip install Options, pip documentation v26.3 (pip.pypa.io), for takes_value and value_role; the rest not checked, from the old table",,
 pip,,-t,yes,other,unchanged,unchanged,unchanged,none,none,no,unchanged,none,"pip -t, --target <dir>, pip install Options, pip documentation v26.3 (pip.pypa.io), for takes_value and value_role; the rest not checked, from the old table",,
 pip,,-v,no,none,unchanged,unchanged,unchanged,none,none,no,unchanged,none,"pip -v, --verbose, pip General Options, pip documentation v26.3 (pip.pypa.io), for every cell; it runs no next program",,
+pkill,,-f,no,none,unchanged,unchanged,unchanged,none,none,no,unchanged,none,"pgrep(1) -f, --full (The pattern is normally only matched against the process name. When -f is set, the full command line is used), procps-ng (2025-12-29), man7.org, for every cell; it runs no next program",,
 pnpm,exec,--dir,yes,,unchanged,unchanged,unchanged,none,none,no,unchanged,none,"not checked, from the old table",,
 pnpm,exec,-p,yes,,unchanged,unchanged,unchanged,none,none,no,unchanged,none,"not checked, from the old table",,
 ps,,--sort,yes,other,unchanged,unchanged,unchanged,none,none,no,unchanged,none,"ps(1) --sort spec, procps-ng (2025-04-23), man7.org, for every cell; it runs no next program",,
@@ -650,6 +652,8 @@ tail,,-v,no,none,unchanged,unchanged,unchanged,none,none,no,unchanged,none,"tail
 tail,,-z,no,none,unchanged,unchanged,unchanged,none,none,no,unchanged,none,"tail(1) -z, --zero-terminated, GNU coreutils 9.11 (April 2026), man7.org, for every cell; it runs no next program",,
 tee,,--append,no,none,appended_file,unchanged,unchanged,none,none,no,unchanged,none,"not checked, from the old table",,
 tee,,-a,no,none,appended_file,unchanged,unchanged,none,none,no,unchanged,none,"not checked, from the old table",,
+time,,-f,yes,other,unchanged,unchanged,unchanged,none,none,no,unchanged,none,"time(1) GNU VERSION, -f format, --format=format, Linux man-pages 6.19 (2026-02-08), man7.org, for every cell",,The format is a text of the command and no file
+time,,-o,yes,written_file,unchanged,unchanged,unchanged,none,none,no,unchanged,none,"time(1) GNU VERSION, -o file, --output=file (Do not send the results to stderr, but overwrite the specified file), Linux man-pages 6.19 (2026-02-08), man7.org, for every cell",,
 timeout,,--kill-after,yes,other,unchanged,unchanged,unchanged,none,none,no,unchanged,none,"timeout(1) -k, --kill-after=DURATION and -s, --signal=SIGNAL, GNU coreutils 9.11 (April 2026), man7.org, for takes_value and value_role; the rest not checked, from the old table",,
 timeout,,--signal,yes,other,unchanged,unchanged,unchanged,none,none,no,unchanged,none,"timeout(1) -k, --kill-after=DURATION and -s, --signal=SIGNAL, GNU coreutils 9.11 (April 2026), man7.org, for takes_value and value_role; the rest not checked, from the old table",,
 timeout,,-k,yes,other,unchanged,unchanged,unchanged,none,none,no,unchanged,none,"timeout(1) -k, --kill-after=DURATION and -s, --signal=SIGNAL, GNU coreutils 9.11 (April 2026), man7.org, for takes_value and value_role; the rest not checked, from the old table",,

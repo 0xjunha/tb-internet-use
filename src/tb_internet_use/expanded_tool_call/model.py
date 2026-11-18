@@ -438,10 +438,10 @@ class ProgramBehavior:
     gives_arguments_at_run_time: bool
     # It skips the `NAME=value` words before the next program, e.g. env.
     skips_assignment_words: bool
-    # The words after its first argument are not its options, e.g. `python get.py -o x`.
-    options_end_at_first_argument: bool
-    # `-fsSL` is four options. False for find, java and go.
-    takes_one_letter_options_joined: bool
+    # The words after its first argument are not its options, e.g. `python get.py -o x`. An `UnknownOptionsEndAtFirstArgument` when the cell is blank.
+    options_end_at_first_argument: bool | UnknownOptionsEndAtFirstArgument
+    # `-fsSL` is four options. False for find and java. An `UnknownTakesOneLetterOptionsJoined` when the cell is blank.
+    takes_one_letter_options_joined: bool | UnknownTakesOneLetterOptionsJoined
     # The text it runs runs inside the calling shell and sees its assignments, e.g. eval, source and `.`. False for bash and sh.
     runs_text_in_calling_shell: bool
     # False when the cell is `no`. An `UnknownExitsWithExitCodeOfNextProgram` when it is blank.
@@ -458,6 +458,34 @@ class UnknownExitsWithExitCodeOfNextProgram:
         """Refuse to be read as True or False, so that `if` and `all` never take a blank cell for a yes."""
         raise TypeError(
             "whether the program ends with the exit code of the next program is not known"
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class UnknownOptionsEndAtFirstArgument:
+    """Answer of `ExpandedToolCallKnowledge`, standing where True or False would, to whether the words after the first argument of a program can be its options, when its row of `program_behaviors.csv` leaves that cell blank.
+
+    A word that starts with `-` after the first argument, e.g. `-n` of `echo hello -n`, is then neither an option nor an argument, so `expand_tool_calls` leaves it unread.
+    """
+
+    def __bool__(self) -> bool:
+        """Refuse to be read as True or False, so that `if` never takes a blank cell for a yes or a no."""
+        raise TypeError(
+            "whether the options of the program end at its first argument is not known"
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class UnknownTakesOneLetterOptionsJoined:
+    """Answer of `ExpandedToolCallKnowledge`, standing where True or False would, to whether several letters after one `-` are one-letter options of a program, when its row of `program_behaviors.csv` leaves that cell blank.
+
+    A word such as `-ne` without a row of its own is then not read as `-n` and `-e`, so the door answers `UnknownProgramOptionWord` for it.
+    """
+
+    def __bool__(self) -> bool:
+        """Refuse to be read as True or False, so that `if` never takes a blank cell for a yes or a no."""
+        raise TypeError(
+            "whether the program takes one-letter options joined in one word is not known"
         )
 
 

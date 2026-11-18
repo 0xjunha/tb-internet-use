@@ -23,6 +23,7 @@ from tb_internet_use.expanded_tool_call.model import (
     ProgramWordRole,
     SameAsArgumentRole,
     UnknownExitsWithExitCodeOfNextProgram,
+    UnknownOptionsEndAtFirstArgument,
     UnknownProgramBehavior,
     UnknownProgramInvocation,
     UnknownProgramOptionWord,
@@ -271,6 +272,11 @@ class _ProgramWordsState:
                 and word_index not in command_state.expansion_word_indexes
                 and self.may_be_option_word(word)
             ):
+                is_option_place_unknown = self.is_option_place_unknown()
+                if is_option_place_unknown and word.startswith("-"):
+                    # The word may be an option or an argument, e.g. `-n` of `echo hello -n`, so it is read as neither, as a word without an option row is not.
+                    self.first_unread_word_index = word_index
+                    return
                 if word == _END_OF_OPTIONS_WORD:
                     after_end_of_options = True
                     word_index += 1
@@ -278,6 +284,12 @@ class _ProgramWordsState:
                 program_option_word = command_state.knowledge.program_option_word(
                     self.program_behavior, word
                 )
+                if is_option_place_unknown and not isinstance(
+                    program_option_word, ProgramArgumentWord
+                ):
+                    # A word that starts with `+` is an option only for a program with such an option, and here even that is not known.
+                    self.first_unread_word_index = word_index
+                    return
             if program_option_word is None or isinstance(
                 program_option_word, ProgramArgumentWord
             ):
@@ -322,10 +334,26 @@ class _ProgramWordsState:
 
     def may_be_option_word(self, word: str) -> bool:
         """Tell whether a word stands where an option can and starts with `-` or `+`, apart from a lone `-` or `+`."""
-        has_argument = bool(self.placed_argument_indexes or self.other_argument_indexes)
-        if self.program_behavior.options_end_at_first_argument and has_argument:
+        if (
+            self.program_behavior.options_end_at_first_argument is True
+            and self.has_argument()
+        ):
             return False
         return word.startswith(("-", "+")) and word not in _WORDS_WITHOUT_OPTIONS
+
+    def is_option_place_unknown(self) -> bool:
+        """Tell whether the program has an argument and its row leaves `options_end_at_first_argument` blank, so that whether a later word can be an option is not known."""
+        return (
+            isinstance(
+                self.program_behavior.options_end_at_first_argument,
+                UnknownOptionsEndAtFirstArgument,
+            )
+            and self.has_argument()
+        )
+
+    def has_argument(self) -> bool:
+        """Tell whether an argument of the program has been placed, a skipped assignment or an end word of a next program included."""
+        return bool(self.placed_argument_indexes or self.other_argument_indexes)
 
     def is_next_program_word(self, word_index: int) -> bool:
         """Tell whether the argument at a 0-based word index starts the next program, i.e. whether its place has the role `PROGRAM` by the program row and the rows of the options placed so far.

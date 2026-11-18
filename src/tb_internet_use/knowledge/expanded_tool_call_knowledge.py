@@ -1,6 +1,6 @@
 """Answer the questions of `expand_tool_calls` about programs and the languages they run from the program catalogs, counting every use of a row and every input without one.
 
-A blank cell is unknown only in the role columns, `visibility_of_piped_input` and the exit code columns. Every other column says what it means in a word, e.g. `none` or `unchanged`, and a blank there fails the load, since the door could not read the words of the program without it.
+A blank cell is unknown only in the role columns, `visibility_of_piped_input`, the exit code columns, `options_end_at_first_argument` and `takes_one_letter_options_joined`. Every other column says what it means in a word, e.g. `none` or `unchanged`, and a blank there fails the load, since the door could not read the words of the program without it.
 """
 
 import functools
@@ -22,10 +22,12 @@ from tb_internet_use.expanded_tool_call.model import (
     SameAsArgumentRole,
     ShellLanguage,
     UnknownExitsWithExitCodeOfNextProgram,
+    UnknownOptionsEndAtFirstArgument,
     UnknownProgramBehavior,
     UnknownProgramOptionWord,
     UnknownProgramWordRole,
     UnknownRanTextLanguage,
+    UnknownTakesOneLetterOptionsJoined,
 )
 from tb_internet_use.knowledge.catalog import (
     Catalog,
@@ -117,9 +119,10 @@ class ExpandedToolCallKnowledge:
         |---|---|
         | `--name=value` | the row of `--name`, with the attached value `value` |
         | a word with a row of its own, e.g. `-pe` of node or `-maxdepth` of find | that row |
-        | a `-` or `+` and several letters, when the program row says `takes_one_letter_options_joined` | the row of each letter, e.g. `-f` and `-s` for `-fs`. The rest of the word after a letter that takes a value is that value, e.g. `out` of `-oout` |
+        | a `-` or `+` and several letters, when the program row says `yes` in `takes_one_letter_options_joined` | the row of each letter, e.g. `-f` and `-s` for `-fs`. The rest of the word after a letter that takes a value is that value, e.g. `out` of `-oout` |
         | a word whose role is `OPTION_CLUSTER`, with `is_option_cluster` | the row of each letter named with a `-`, e.g. `-x`, `-z` and `-f` for `xzf` of tar, with no attached values |
 
+        When `takes_one_letter_options_joined` is `no` or blank, a word of several letters without a row of its own is `UnknownProgramOptionWord`, e.g. `-ne` of echo, since the letters are not read one by one.
         A word that starts with `+` is `ProgramArgumentWord` when no row of the program or its subcommand names an option that starts with `+`, e.g. `+x` of chmod.
         A row of the subcommand comes before a row of the program without a subcommand, e.g. `(git, clone, --depth)` before `(git, "", --depth)`.
         The door counts one use of a row per option it gives, and when the rows do not cover the word one unknown input under the word as written with the subcommand as asked, e.g. `(find, "", -maxdepth)` or `(grep, "", -rn)`, so that the list of unknown inputs holds only words without rows. For `--name=value` that input is `--name`, since a row is named without a value.
@@ -209,7 +212,7 @@ def _option_parts_of_word(
     *,
     program_name: str,
     subcommand: str,
-    takes_one_letter_options_joined: bool,
+    takes_one_letter_options_joined: bool | UnknownTakesOneLetterOptionsJoined,
     is_option_cluster: bool,
 ) -> list[tuple[str, KnowledgeRowKey, str | None]] | None:
     """Find the name, the row key and the attached value of each option that a word holds, in the order of `ExpandedToolCallKnowledge.program_option_word`, or None when a row is missing.
@@ -248,7 +251,8 @@ def _option_parts_of_word(
     row_key = row_key_for(word)
     if row_key is not None:
         return [(word, row_key, None)]
-    if not takes_one_letter_options_joined or len(word) <= 2:
+    # A blank cell reads no letter one by one, as `no` does, so that the word stays unknown.
+    if takes_one_letter_options_joined is not True or len(word) <= 2:
         return None
     sign, letters = word[0], word[1:]
     for position, letter in enumerate(letters):
@@ -375,7 +379,7 @@ class _ProgramBehaviorRow:
 def _program_behavior_row_from_columns(
     columns: Mapping[str, str],
 ) -> _ProgramBehaviorRow:
-    """Read one row of `program_behaviors.csv`, raising ValueError on a value that no column allows, e.g. a blank `takes_one_letter_options_joined`."""
+    """Read one row of `program_behaviors.csv`, raising ValueError on a value that no column allows, e.g. a blank `skips_assignment_words`."""
     _check_review_columns(columns)
     program_name = columns["program_name"]
     if not program_name:
@@ -399,11 +403,15 @@ def _program_behavior_row_from_columns(
             columns, "gives_arguments_at_run_time"
         ),
         skips_assignment_words=_yes_or_no_from_cell(columns, "skips_assignment_words"),
-        options_end_at_first_argument=_yes_or_no_from_cell(
-            columns, "options_end_at_first_argument"
+        options_end_at_first_argument=_yes_no_or_unknown_from_cell(
+            columns,
+            "options_end_at_first_argument",
+            unknown=UnknownOptionsEndAtFirstArgument(),
         ),
-        takes_one_letter_options_joined=_yes_or_no_from_cell(
-            columns, "takes_one_letter_options_joined"
+        takes_one_letter_options_joined=_yes_no_or_unknown_from_cell(
+            columns,
+            "takes_one_letter_options_joined",
+            unknown=UnknownTakesOneLetterOptionsJoined(),
         ),
         runs_text_in_calling_shell=_yes_or_no_from_cell(
             columns, "runs_text_in_calling_shell"
@@ -549,8 +557,17 @@ def _exits_with_exit_code_of_next_program_from_cell(
     columns: Mapping[str, str], column: str
 ) -> bool | UnknownExitsWithExitCodeOfNextProgram:
     """Read an exit code cell of `yes`, `no` or a blank, which is unknown, raising ValueError on any other word."""
+    return _yes_no_or_unknown_from_cell(
+        columns, column, unknown=UnknownExitsWithExitCodeOfNextProgram()
+    )
+
+
+def _yes_no_or_unknown_from_cell[Unknown](
+    columns: Mapping[str, str], column: str, *, unknown: Unknown
+) -> bool | Unknown:
+    """Read `yes` as True, `no` as False and a blank as the given unknown answer, raising ValueError on any other word."""
     if columns[column] == "":
-        return UnknownExitsWithExitCodeOfNextProgram()
+        return unknown
     return _yes_or_no_from_cell(columns, column)
 
 
