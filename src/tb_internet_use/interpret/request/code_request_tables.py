@@ -1,7 +1,4 @@
-"""Define the patterns of network calls, run programs, hosts and schema names in code, which `code_requests` reads to find the request of a code text.
-
-`docs/behavior-tables.md` shows them for review.
-"""
+"""Define the patterns of network calls, run programs, hosts and schema names in code, which the old `code_requests` read to find the request of a code text."""
 
 import re
 

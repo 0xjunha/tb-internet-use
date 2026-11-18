@@ -5,7 +5,7 @@ import subprocess
 import sys
 from collections import Counter
 from collections.abc import Mapping
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import pytest
@@ -30,11 +30,6 @@ from tb_internet_use.expanded_tool_call.model import (
     UnknownRanTextLanguage,
     UnknownTakesOneLetterOptionsJoined,
 )
-from tb_internet_use.interpret.callrun.code_program_tables import (
-    CODE_PROGRAMS,
-    LANGUAGE_OF_FILE_EXTENSION,
-    SHELL_FILE_EXTENSIONS,
-)
 from tb_internet_use.knowledge.catalog import KnowledgeUses
 from tb_internet_use.knowledge.expanded_tool_call_knowledge import (
     CODE_RUNNERS_CSV,
@@ -43,15 +38,6 @@ from tb_internet_use.knowledge.expanded_tool_call_knowledge import (
     PROGRAM_BEHAVIORS_CSV,
     PROGRAM_OPTION_BEHAVIORS_CSV,
     ExpandedToolCallKnowledge,
-)
-from tb_internet_use.parse.program.catalog_loader import program_catalog
-from tb_internet_use.parse.program.option_syntax_tables import OPTION_SYNTAX_OF_PROGRAM
-from tb_internet_use.parse.shell.program_tables import (
-    PROGRAMS_GIVING_RUN_TIME_ARGUMENTS,
-    PYTHON_OPTIONS_WITH_VALUE_BEFORE_MODULE,
-    SHELL_PROGRAMS,
-    VERSIONED_PROGRAMS,
-    WRAPPERS,
 )
 
 # A program row of `prog` whose every cell differs from what a default would give, so that a door that drops a column fails.
@@ -289,6 +275,386 @@ _OPTIONS_THAT_TAKE_NO_VALUE_BY_THE_PAGE = {
     # jq -f makes the filter argument the name of the file of the filter.
     "jq": {"-f", "--from-file"},
 }
+
+
+@dataclass(frozen=True)
+class _OldWrapper:
+    """Wrapper row of the old program tables, pinned so that the rows that the real catalogs took from it stay checked."""
+
+    options_with_value: frozenset[str]
+    # The number of words before the command that are no options, e.g. 1 for the 30 of `timeout 30 curl u`.
+    operand_count: int
+    takes_assignments: bool
+
+
+@dataclass(frozen=True)
+class _OldCodeProgram:
+    """Code program row of the old program tables, pinned so that the rows that the real catalogs took from it stay checked."""
+
+    language: CodeLanguage
+    inline_code_options: frozenset[str]
+
+
+@dataclass(frozen=True)
+class _OldOptionSyntax:
+    """Option syntax row of the old program tables, pinned so that the rows that the real catalogs took from it stay checked."""
+
+    # The letters of the one-letter options that take a value, e.g. `o` for curl -o.
+    short_options_with_value: str
+    long_options_with_value: frozenset[str]
+    one_dash_long_options: frozenset[str]
+    options_end_at_first_plain_argument: bool
+    script_options: frozenset[str]
+
+
+# The old program tables as they were at commit `58d5bdb`, in `parse/shell/program_tables.py`, `parse/program/option_syntax_tables.py`, `interpret/callrun/code_program_tables.py` and the program catalog `parse/program/catalogs/program_catalog.csv`.
+# The tests that hold the real catalogs against the old tables read them here, since the old code is gone.
+_OLD_WRAPPERS = {
+    "sudo": _OldWrapper(
+        options_with_value=frozenset({"-u"}), operand_count=0, takes_assignments=True
+    ),
+    "env": _OldWrapper(
+        options_with_value=frozenset({"-u"}), operand_count=0, takes_assignments=True
+    ),
+    "timeout": _OldWrapper(
+        options_with_value=frozenset({"--kill-after", "--signal", "-k", "-s"}),
+        operand_count=1,
+        takes_assignments=False,
+    ),
+    "nohup": _OldWrapper(
+        options_with_value=frozenset(), operand_count=0, takes_assignments=False
+    ),
+    "nice": _OldWrapper(
+        options_with_value=frozenset({"-n"}), operand_count=0, takes_assignments=False
+    ),
+    "time": _OldWrapper(
+        options_with_value=frozenset({"-f", "-o"}),
+        operand_count=0,
+        takes_assignments=True,
+    ),
+    "stdbuf": _OldWrapper(
+        options_with_value=frozenset(), operand_count=0, takes_assignments=False
+    ),
+    "setsid": _OldWrapper(
+        options_with_value=frozenset(), operand_count=0, takes_assignments=False
+    ),
+    "exec": _OldWrapper(
+        options_with_value=frozenset({"-a"}), operand_count=0, takes_assignments=False
+    ),
+    "command": _OldWrapper(
+        options_with_value=frozenset(), operand_count=0, takes_assignments=False
+    ),
+    "xargs": _OldWrapper(
+        options_with_value=frozenset({"-I", "-L", "-P", "-a", "-d", "-n"}),
+        operand_count=0,
+        takes_assignments=False,
+    ),
+}
+_OLD_PROGRAMS_GIVING_RUN_TIME_ARGUMENTS = frozenset({"find", "xargs"})
+_OLD_VERSIONED_PROGRAMS = frozenset({"clang", "gcc", "pip", "python"})
+_OLD_SHELL_PROGRAMS = frozenset({"bash", "dash", "sh"})
+_OLD_PYTHON_OPTIONS_WITH_VALUE_BEFORE_MODULE = frozenset({"-W", "-X"})
+_OLD_CODE_PROGRAMS = {
+    "python": _OldCodeProgram(
+        language=CodeLanguage.PYTHON, inline_code_options=frozenset({"-c"})
+    ),
+    "node": _OldCodeProgram(
+        language=CodeLanguage.JAVASCRIPT,
+        inline_code_options=frozenset({"-e", "-p", "-pe"}),
+    ),
+    "bun": _OldCodeProgram(
+        language=CodeLanguage.JAVASCRIPT,
+        inline_code_options=frozenset({"--eval", "-e"}),
+    ),
+    "tsx": _OldCodeProgram(
+        language=CodeLanguage.JAVASCRIPT,
+        inline_code_options=frozenset({"--eval", "-e"}),
+    ),
+}
+_OLD_LANGUAGE_OF_FILE_EXTENSION = {
+    ".py": CodeLanguage.PYTHON,
+    ".js": CodeLanguage.JAVASCRIPT,
+    ".mjs": CodeLanguage.JAVASCRIPT,
+    ".cjs": CodeLanguage.JAVASCRIPT,
+    ".ts": CodeLanguage.JAVASCRIPT,
+}
+_OLD_SHELL_FILE_EXTENSIONS = frozenset({".sh"})
+_OLD_OPTION_SYNTAX_OF_PROGRAM = {
+    "curl": _OldOptionSyntax(
+        short_options_with_value="oDrmcbFTAuwXHd",
+        long_options_with_value=frozenset(
+            {
+                "--connect-timeout",
+                "--data",
+                "--data-binary",
+                "--data-raw",
+                "--data-urlencode",
+                "--header",
+                "--max-time",
+                "--output",
+                "--range",
+                "--request",
+                "--retry",
+                "--retry-delay",
+                "--upload-file",
+                "--url-query",
+                "--user",
+                "--write-out",
+            }
+        ),
+        one_dash_long_options=frozenset(),
+        options_end_at_first_plain_argument=False,
+        script_options=frozenset(),
+    ),
+    "wget": _OldOptionSyntax(
+        short_options_with_value="O",
+        long_options_with_value=frozenset(),
+        one_dash_long_options=frozenset(),
+        options_end_at_first_plain_argument=False,
+        script_options=frozenset(),
+    ),
+    "pip": _OldOptionSyntax(
+        short_options_with_value="reitfd",
+        long_options_with_value=frozenset(
+            {
+                "--dest",
+                "--extra-index-url",
+                "--find-links",
+                "--implementation",
+                "--index-url",
+                "--no-binary",
+                "--only-binary",
+                "--platform",
+                "--progress-bar",
+                "--python",
+                "--python-version",
+                "--report",
+                "--target",
+                "--timeout",
+            }
+        ),
+        one_dash_long_options=frozenset(),
+        options_end_at_first_plain_argument=False,
+        script_options=frozenset(),
+    ),
+    "uv": _OldOptionSyntax(
+        short_options_with_value="e",
+        long_options_with_value=frozenset(
+            {"--extra-index-url", "--index-url", "--python", "--with"}
+        ),
+        one_dash_long_options=frozenset(),
+        options_end_at_first_plain_argument=False,
+        script_options=frozenset(),
+    ),
+    "npm": _OldOptionSyntax(
+        short_options_with_value="",
+        long_options_with_value=frozenset({"--package", "--prefix"}),
+        one_dash_long_options=frozenset(),
+        options_end_at_first_plain_argument=False,
+        script_options=frozenset(),
+    ),
+    "pnpm": _OldOptionSyntax(
+        short_options_with_value="p",
+        long_options_with_value=frozenset({"--dir"}),
+        one_dash_long_options=frozenset(),
+        options_end_at_first_plain_argument=False,
+        script_options=frozenset(),
+    ),
+    "npx": _OldOptionSyntax(
+        short_options_with_value="p",
+        long_options_with_value=frozenset({"--package", "--prefix"}),
+        one_dash_long_options=frozenset(),
+        options_end_at_first_plain_argument=False,
+        script_options=frozenset(),
+    ),
+    "bun": _OldOptionSyntax(
+        short_options_with_value="pe",
+        long_options_with_value=frozenset({"--eval"}),
+        one_dash_long_options=frozenset(),
+        options_end_at_first_plain_argument=False,
+        script_options=frozenset(),
+    ),
+    "apt-get": _OldOptionSyntax(
+        short_options_with_value="o",
+        long_options_with_value=frozenset(),
+        one_dash_long_options=frozenset(),
+        options_end_at_first_plain_argument=False,
+        script_options=frozenset(),
+    ),
+    "git": _OldOptionSyntax(
+        short_options_with_value="Cboc",
+        long_options_with_value=frozenset({"--branch", "--depth", "--filter"}),
+        one_dash_long_options=frozenset(),
+        options_end_at_first_plain_argument=False,
+        script_options=frozenset(),
+    ),
+    "rsync": _OldOptionSyntax(
+        short_options_with_value="",
+        long_options_with_value=frozenset({"--exclude"}),
+        one_dash_long_options=frozenset(),
+        options_end_at_first_plain_argument=False,
+        script_options=frozenset(),
+    ),
+    "ping": _OldOptionSyntax(
+        short_options_with_value="ciW",
+        long_options_with_value=frozenset(),
+        one_dash_long_options=frozenset(),
+        options_end_at_first_plain_argument=False,
+        script_options=frozenset(),
+    ),
+    "nc": _OldOptionSyntax(
+        short_options_with_value="wq",
+        long_options_with_value=frozenset(),
+        one_dash_long_options=frozenset(),
+        options_end_at_first_plain_argument=False,
+        script_options=frozenset(),
+    ),
+    "gh": _OldOptionSyntax(
+        short_options_with_value="",
+        long_options_with_value=frozenset({"--jq"}),
+        one_dash_long_options=frozenset(),
+        options_end_at_first_plain_argument=False,
+        script_options=frozenset(),
+    ),
+    "conda": _OldOptionSyntax(
+        short_options_with_value="nc",
+        long_options_with_value=frozenset(),
+        one_dash_long_options=frozenset(),
+        options_end_at_first_plain_argument=False,
+        script_options=frozenset(),
+    ),
+    "huggingface-cli": _OldOptionSyntax(
+        short_options_with_value="",
+        long_options_with_value=frozenset({"--local-dir", "--revision"}),
+        one_dash_long_options=frozenset(),
+        options_end_at_first_plain_argument=False,
+        script_options=frozenset(),
+    ),
+    "python": _OldOptionSyntax(
+        short_options_with_value="cmWX",
+        long_options_with_value=frozenset(),
+        one_dash_long_options=frozenset(),
+        options_end_at_first_plain_argument=True,
+        script_options=frozenset(),
+    ),
+    "node": _OldOptionSyntax(
+        short_options_with_value="epr",
+        long_options_with_value=frozenset({"-pe"}),
+        one_dash_long_options=frozenset({"-pe"}),
+        options_end_at_first_plain_argument=True,
+        script_options=frozenset(),
+    ),
+    "tsx": _OldOptionSyntax(
+        short_options_with_value="e",
+        long_options_with_value=frozenset({"--eval"}),
+        one_dash_long_options=frozenset(),
+        options_end_at_first_plain_argument=True,
+        script_options=frozenset(),
+    ),
+    "head": _OldOptionSyntax(
+        short_options_with_value="nc",
+        long_options_with_value=frozenset(),
+        one_dash_long_options=frozenset(),
+        options_end_at_first_plain_argument=False,
+        script_options=frozenset(),
+    ),
+    "tail": _OldOptionSyntax(
+        short_options_with_value="nc",
+        long_options_with_value=frozenset(),
+        one_dash_long_options=frozenset(),
+        options_end_at_first_plain_argument=False,
+        script_options=frozenset(),
+    ),
+    "grep": _OldOptionSyntax(
+        short_options_with_value="efmABC",
+        long_options_with_value=frozenset({"--exclude", "--exclude-dir", "--include"}),
+        one_dash_long_options=frozenset(),
+        options_end_at_first_plain_argument=False,
+        script_options=frozenset({"--file", "--regexp", "-e", "-f"}),
+    ),
+    "egrep": _OldOptionSyntax(
+        short_options_with_value="",
+        long_options_with_value=frozenset(),
+        one_dash_long_options=frozenset(),
+        options_end_at_first_plain_argument=False,
+        script_options=frozenset({"--file", "--regexp", "-e", "-f"}),
+    ),
+    "rg": _OldOptionSyntax(
+        short_options_with_value="egmABCr",
+        long_options_with_value=frozenset(
+            {"--context", "--glob", "--max-count", "--type"}
+        ),
+        one_dash_long_options=frozenset(),
+        options_end_at_first_plain_argument=False,
+        script_options=frozenset({"--file", "--regexp", "-e", "-f"}),
+    ),
+    "sed": _OldOptionSyntax(
+        short_options_with_value="e",
+        long_options_with_value=frozenset(),
+        one_dash_long_options=frozenset(),
+        options_end_at_first_plain_argument=False,
+        script_options=frozenset({"--expression", "--file", "-e", "-f"}),
+    ),
+    "awk": _OldOptionSyntax(
+        short_options_with_value="Fvf",
+        long_options_with_value=frozenset(),
+        one_dash_long_options=frozenset(),
+        options_end_at_first_plain_argument=False,
+        script_options=frozenset({"--file", "--source", "-e", "-f"}),
+    ),
+    "jq": _OldOptionSyntax(
+        short_options_with_value="f",
+        long_options_with_value=frozenset(),
+        one_dash_long_options=frozenset(),
+        options_end_at_first_plain_argument=False,
+        script_options=frozenset({"--from-file", "-f"}),
+    ),
+    "cut": _OldOptionSyntax(
+        short_options_with_value="dfc",
+        long_options_with_value=frozenset(),
+        one_dash_long_options=frozenset(),
+        options_end_at_first_plain_argument=False,
+        script_options=frozenset(),
+    ),
+    "sort": _OldOptionSyntax(
+        short_options_with_value="ktoST",
+        long_options_with_value=frozenset(),
+        one_dash_long_options=frozenset(),
+        options_end_at_first_plain_argument=False,
+        script_options=frozenset(),
+    ),
+}
+_OLD_PROGRAM_CATALOG_FILE_READERS = frozenset(
+    {
+        "awk",
+        "cat",
+        "cut",
+        "diff",
+        "egrep",
+        "grep",
+        "head",
+        "jq",
+        "nl",
+        "od",
+        "rg",
+        "sed",
+        "sort",
+        "strings",
+        "tac",
+        "tail",
+        "xxd",
+    }
+)
+_OLD_PROGRAM_CATALOG_NEXT_PROGRAM_RUNNERS = frozenset(
+    {
+        ("bun", ("x",)),
+        ("bunx", ()),
+        ("npm", ("exec",)),
+        ("npx", ()),
+        ("pnpm", ("exec",)),
+        ("uv", ("run",)),
+    }
+)
 
 
 def _write_catalogs(
@@ -973,22 +1339,19 @@ def test_real_catalogs_load(real_knowledge):
     assert real_knowledge.program_behavior("cat", ()) != UnknownProgramBehavior()
 
 
-# The tests below hold the real catalogs against the old program tables, so that a row lost in the move fails. They go with the old tables.
+# The tests below hold the real catalogs against the old program tables pinned above, so that a row lost in the move fails.
 
 
 def test_programs_of_the_old_tables_are_kept_or_named_as_left_out():
     old_names = (
-        set(WRAPPERS)
-        | PROGRAMS_GIVING_RUN_TIME_ARGUMENTS
-        | VERSIONED_PROGRAMS
-        | SHELL_PROGRAMS
-        | set(CODE_PROGRAMS)
-        | set(OPTION_SYNTAX_OF_PROGRAM)
-        | {
-            name
-            for name, rows in program_catalog().items()
-            if any(row.reads_file_arguments or row.runs_next_program for row in rows)
-        }
+        set(_OLD_WRAPPERS)
+        | _OLD_PROGRAMS_GIVING_RUN_TIME_ARGUMENTS
+        | _OLD_VERSIONED_PROGRAMS
+        | _OLD_SHELL_PROGRAMS
+        | set(_OLD_CODE_PROGRAMS)
+        | set(_OLD_OPTION_SYNTAX_OF_PROGRAM)
+        | _OLD_PROGRAM_CATALOG_FILE_READERS
+        | {name for name, _ in _OLD_PROGRAM_CATALOG_NEXT_PROGRAM_RUNNERS}
     )
     kept_names = {row["program_name"] for row in _real_csv_rows(PROGRAM_BEHAVIORS_CSV)}
 
@@ -1000,7 +1363,7 @@ def test_programs_of_the_old_tables_are_kept_or_named_as_left_out():
 def test_wrappers_of_the_old_tables_run_the_next_program_with_their_options(
     real_knowledge,
 ):
-    for name, wrapper in WRAPPERS.items():
+    for name, wrapper in _OLD_WRAPPERS.items():
         if name in _PROGRAMS_LEFT_OUT:
             continue
         program_behavior = _program_behavior_of(real_knowledge, name)
@@ -1023,7 +1386,7 @@ def test_wrappers_of_the_old_tables_run_the_next_program_with_their_options(
 
 
 def test_shells_and_code_programs_of_the_old_tables_run_their_texts(real_knowledge):
-    for name in SHELL_PROGRAMS - _PROGRAMS_LEFT_OUT:
+    for name in _OLD_SHELL_PROGRAMS - _PROGRAMS_LEFT_OUT:
         program_behavior = _program_behavior_of(real_knowledge, name)
         assert program_behavior.first_argument_role == ProgramWordRole.RUN_FILE
         assert program_behavior.stdin_role == ProgramWordRole.RUN_TEXT
@@ -1054,7 +1417,7 @@ def test_shells_and_code_programs_of_the_old_tables_run_their_texts(real_knowled
             ).first_argument_role_with_option,
             SameAsArgumentRole,
         )
-    for name in SHELL_PROGRAMS:
+    for name in _OLD_SHELL_PROGRAMS:
         assert real_knowledge.ran_text_language_of_program(name) == ShellLanguage()
     for name in ("source", "."):
         program_behavior = _program_behavior_of(real_knowledge, name)
@@ -1065,10 +1428,9 @@ def test_shells_and_code_programs_of_the_old_tables_run_their_texts(real_knowled
     assert eval_behavior.runs_text_in_calling_shell
     assert eval_behavior.argument_role == ProgramWordRole.RUN_TEXT
     assert real_knowledge.ran_text_language_of_program("eval") == ShellLanguage()
-    for name, code_program in CODE_PROGRAMS.items():
+    for name, code_program in _OLD_CODE_PROGRAMS.items():
         assert (
-            real_knowledge.ran_text_language_of_program(name)
-            == code_program.language.value
+            real_knowledge.ran_text_language_of_program(name) == code_program.language
         )
         if name in _PROGRAMS_LEFT_OUT | set(
             _SUBCOMMAND_HOLDING_OPTIONS_BY_PROGRAM_NAME
@@ -1093,15 +1455,13 @@ def test_shells_and_code_programs_of_the_old_tables_run_their_texts(real_knowled
         ).first_argument_role_with_option
         == ProgramWordRole.PROGRAM
     )
-    for option_name in PYTHON_OPTIONS_WITH_VALUE_BEFORE_MODULE:
+    for option_name in _OLD_PYTHON_OPTIONS_WITH_VALUE_BEFORE_MODULE:
         assert _real_option_behavior_of(
             real_knowledge, "python", option_name
         ).takes_value
-    for extension, language in LANGUAGE_OF_FILE_EXTENSION.items():
-        assert real_knowledge.ran_text_language_of_file_extension(extension) == (
-            language.value
-        )
-    for extension in SHELL_FILE_EXTENSIONS:
+    for extension, language in _OLD_LANGUAGE_OF_FILE_EXTENSION.items():
+        assert real_knowledge.ran_text_language_of_file_extension(extension) == language
+    for extension in _OLD_SHELL_FILE_EXTENSIONS:
         assert (
             real_knowledge.ran_text_language_of_file_extension(extension)
             == ShellLanguage()
@@ -1115,11 +1475,11 @@ def test_versioned_programs_of_the_old_tables_are_the_rows_that_allow_a_version(
         if row["name_may_end_with_version"] == "yes"
     }
 
-    assert versioned_names == VERSIONED_PROGRAMS - _PROGRAMS_LEFT_OUT
+    assert versioned_names == _OLD_VERSIONED_PROGRAMS - _PROGRAMS_LEFT_OUT
 
 
 def test_option_syntax_of_the_old_tables_is_in_the_option_rows(real_knowledge):
-    for name, syntax in OPTION_SYNTAX_OF_PROGRAM.items():
+    for name, syntax in _OLD_OPTION_SYNTAX_OF_PROGRAM.items():
         if name in _PROGRAMS_LEFT_OUT:
             continue
         subcommand = _SUBCOMMAND_HOLDING_OPTIONS_BY_PROGRAM_NAME.get(name, "")
@@ -1162,23 +1522,19 @@ def test_option_syntax_of_the_old_tables_is_in_the_option_rows(real_knowledge):
 def test_old_program_catalog_rows_that_read_files_or_run_the_next_program_are_kept(
     real_knowledge,
 ):
-    for name, rows in program_catalog().items():
+    for name in _OLD_PROGRAM_CATALOG_FILE_READERS - _PROGRAMS_LEFT_OUT:
+        program_behavior = _program_behavior_of(real_knowledge, name)
+        assert program_behavior.argument_role == ProgramWordRole.READ_FILE, name
+        assert program_behavior.stdin_role == (
+            UnknownProgramWordRole()
+            if name in _FILE_READERS_WITHOUT_STDIN_BY_THE_PAGE
+            else ProgramWordRole.READ_FILE
+        ), name
+    for name, subcommand_words in _OLD_PROGRAM_CATALOG_NEXT_PROGRAM_RUNNERS:
         if name in _PROGRAMS_LEFT_OUT:
             continue
-        for row in rows:
-            if row.reads_file_arguments:
-                program_behavior = _program_behavior_of(real_knowledge, name)
-                assert program_behavior.argument_role == ProgramWordRole.READ_FILE, name
-                assert program_behavior.stdin_role == (
-                    UnknownProgramWordRole()
-                    if name in _FILE_READERS_WITHOUT_STDIN_BY_THE_PAGE
-                    else ProgramWordRole.READ_FILE
-                ), name
-            if row.runs_next_program:
-                program_behavior = _program_behavior_of(
-                    real_knowledge, name, *row.subcommand_words
-                )
-                assert program_behavior.argument_role == ProgramWordRole.PROGRAM, name
+        program_behavior = _program_behavior_of(real_knowledge, name, *subcommand_words)
+        assert program_behavior.argument_role == ProgramWordRole.PROGRAM, name
 
 
 def test_copies_of_the_old_code_are_in_the_rows(real_knowledge):

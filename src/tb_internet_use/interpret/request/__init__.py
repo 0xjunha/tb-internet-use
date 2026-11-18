@@ -1,7 +1,1 @@
-"""Extract candidate requests from each call's expanded run."""
-
-from tb_internet_use.interpret.request._extract_candidate_requests import (
-    extract_candidate_requests,
-)
-
-__all__ = ["extract_candidate_requests"]
+"""Keep the old code request tables, which `tests/knowledge/test_network_request_knowledge.py` holds the real code call catalog against, until that test pins them."""

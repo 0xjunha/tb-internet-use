@@ -33,9 +33,6 @@ STEPS = [
 OLD_CODE = {
     "parse",
     "interpret",
-    "network",
-    "behavior_tables.py",
-    "trial_interpretation.py",
 }
 STEP_FILE_NAMES = {"__init__.py", "model.py", "judgment_rules.py"}
 # A reading function `parse_<x>.py` or a piece of the work `_<x>.py`, each named after a function in it.
