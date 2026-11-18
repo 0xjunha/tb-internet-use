@@ -442,7 +442,7 @@ class ProgramBehavior:
 
 @dataclass(frozen=True, slots=True)
 class UnknownExitsWithExitCodeOfNextProgram:
-    """Answer of `ExpandedToolCallKnowledge`, standing where True or False would, to whether a program ends with the exit code of the program it runs, when its row of `program_behaviors.csv` leaves that cell blank."""
+    """Answer of `ExpandedToolCallKnowledge`, standing where True or False would, to whether a program ends with the exit code of the program it runs, when its row of `program_behaviors.csv`, or the row of an option in `program_option_behaviors.csv`, leaves that cell blank."""
 
     def __bool__(self) -> bool:
         """Refuse to be read as True or False, so that `if` and `all` never take a blank cell for a yes."""
@@ -481,8 +481,10 @@ class ProgramOptionBehavior:
     gives_arguments_at_run_time: bool
     # The words that end the words of the next program, e.g. `;` and `+` for `-exec` of find.
     next_program_end_words: tuple[str, ...]
-    # None when the row says `unchanged`.
-    exits_with_exit_code_of_next_program_with_option: bool | None
+    # None when the row says `unchanged`. An `UnknownExitsWithExitCodeOfNextProgram` when the cell is blank.
+    exits_with_exit_code_of_next_program_with_option: (
+        bool | UnknownExitsWithExitCodeOfNextProgram | None
+    )
 
     def __post_init__(self) -> None:
         """Refuse a value role that disagrees with whether the option takes a value, e.g. one for `-s` of curl, and a changed option name without the role of its value or the other way round."""

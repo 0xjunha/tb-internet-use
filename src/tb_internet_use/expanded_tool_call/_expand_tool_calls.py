@@ -9,8 +9,7 @@ from tb_internet_use.tool_call.model import ToolCall
 
 if TYPE_CHECKING:
     # The door is passed in and named in annotations only, so that `expand_tool_calls` never loads `knowledge/` itself.
-    # The door module does not exist yet, so pyright is told to skip the missing import until it does.
-    from tb_internet_use.knowledge.expanded_tool_call_knowledge import (  # pyright: ignore[reportMissingImports]
+    from tb_internet_use.knowledge.expanded_tool_call_knowledge import (
         ExpandedToolCallKnowledge,
     )
 
