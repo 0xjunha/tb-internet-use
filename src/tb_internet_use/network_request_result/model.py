@@ -7,6 +7,7 @@ The module also holds the answers of `NetworkRequestResultKnowledge` and the typ
 
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import NoReturn
 
 from tb_internet_use.expanded_tool_call.model import FileUse
 from tb_internet_use.network_request.model import (
@@ -113,12 +114,34 @@ def _has_output_line_evidence_of_this_request_alone(
 
 
 class NetworkRequestResultLevel(StrEnum):
-    """Level that a request reached, each one including those before it."""
+    """Level that a request reached, each one including those before it.
+
+    Comparing two levels with `<` or `max` without a `key` raises `TypeError`, since a string enum would otherwise compare the spelled values, which sort in level order only by chance.
+    The value stays text, so a row can write it as it is.
+    """
 
     ATTEMPTED = "attempted"  # a call asked for it
     EXECUTED = "executed"  # what makes the request ran
     REACHED = "reached"  # a server answered
     RECEIVED = "received"  # the content arrived
+
+    def __lt__(self, other: object) -> NoReturn:
+        raise _level_comparison_error()
+
+    def __le__(self, other: object) -> NoReturn:
+        raise _level_comparison_error()
+
+    def __gt__(self, other: object) -> NoReturn:
+        raise _level_comparison_error()
+
+    def __ge__(self, other: object) -> NoReturn:
+        raise _level_comparison_error()
+
+
+def _level_comparison_error() -> TypeError:
+    return TypeError(
+        "NetworkRequestResultLevel has no order of its own. Pass the order of the levels as a key."
+    )
 
 
 class NetworkRequestResultStopReason(StrEnum):
