@@ -2,7 +2,7 @@
 
 A call can run text that sits in a file an earlier call wrote, e.g. `bash build.sh`, and its output can show up only in a later poll or file read, e.g. `tail build.log`.
 
-The module also holds the answers of `ExpandedToolCallKnowledge` that `expand_tool_calls` tells apart when it runs, e.g. `UnknownProgramBehavior`, since a step never imports the door when it runs.
+The module also holds the answers of `ExpandedToolCallKnowledge` that `expand_tool_calls` tells apart when it runs, e.g. `UnknownProgramBehavior`, since a step never imports the door when it runs, and the reading of a `#!` line that `parse_interpreter_line` gives.
 """
 
 from dataclasses import dataclass
@@ -127,6 +127,8 @@ def _is_reason_possible_for_source(
             )
         case UnknownRanTextReason.FILE_ALREADY_RUNNING:
             return isinstance(source, FileText)
+        case UnknownRanTextReason.WORD_ROLE_NOT_KNOWN:
+            return isinstance(source, ArgumentText)
 
 
 class UnknownRanTextReason(StrEnum):
@@ -150,6 +152,8 @@ class UnknownRanTextReason(StrEnum):
     UNREADABLE_SHELL_TEXT = "unreadable_shell_text"
     # The file is already running in the same call, e.g. `bash f.sh` inside f.sh, so its text is not followed again.
     FILE_ALREADY_RUNNING = "file_already_running"
+    # The program runs texts or files, but no fact says what this argument of it is, e.g. f.sh of `bash -n f.sh` when the row of `-n` leaves the role blank.
+    WORD_ROLE_NOT_KNOWN = "word_role_not_known"
 
 
 @dataclass(frozen=True, slots=True)
@@ -597,3 +601,18 @@ class ShellLanguage:
 @dataclass(frozen=True, slots=True)
 class UnknownRanTextLanguage:
     """Answer of `ExpandedToolCallKnowledge` for a program or a file extension without a row of `code_runners.csv`."""
+
+
+@dataclass(frozen=True, slots=True)
+class InterpreterLine:
+    """Reading of the `#!` line that starts a file run by its path, given by `parse_interpreter_line`."""
+
+    # The program that runs the file, without its folder, e.g. bash for `#!/bin/bash -e` and python3 for `#!/usr/bin/env python3`.
+    interpreter_name: str
+    # The words after the interpreter name, e.g. `("-e",)` for `#!/bin/bash -e`.
+    argument_words: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class UnreadableInterpreterLine:
+    """First line of a file that starts with `#!` but names no interpreter that the line can be read for, standing where the reading would, e.g. `#!` alone or `#!/usr/bin/env -S`."""

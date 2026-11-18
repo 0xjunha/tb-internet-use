@@ -6,7 +6,6 @@ import pytest
 
 from tb_internet_use.expanded_tool_call._expand_ran_commands import (
     expand_ran_commands,
-    variable_assignments_with_names_set_at_run_time_from,
 )
 from tb_internet_use.expanded_tool_call.judgment_rules import (
     treat_values_outside_their_for_loop_as_one_of_them,
@@ -30,7 +29,6 @@ from tb_internet_use.tool_call.model import (
     FileDestination,
     ParsedShellText,
     ResultDestination,
-    ShellCommand,
     VariableAssignment,
 )
 from tb_internet_use.tool_call.parse_shell_text import parse_shell_text
@@ -182,9 +180,10 @@ def test_each_command_is_read_into_its_programs_routes_and_word_roles_in_text_or
     parsed_shell_text = _parsed_shell_text_of(
         "sudo curl -o out u | tail 2> err; mytool x"
     )
-    ran_commands, word_roles_of_commands = expand_ran_commands(
+    ran_commands_of_shell_text = expand_ran_commands(
         parsed_shell_text, knowledge=knowledge, judgment_rule_use_counts=Counter()
     )
+    ran_commands = ran_commands_of_shell_text.ran_commands
     tail_route = OutputRoute((1,), ResultDestination(), OutputVisibility.PARTIAL)
     error_file_route = OutputRoute(
         (), FileDestination("err", False), OutputVisibility.WHOLE
@@ -209,7 +208,7 @@ def test_each_command_is_read_into_its_programs_routes_and_word_roles_in_text_or
         ("mytool", (WHOLE_RESULT_ROUTE,), (WHOLE_RESULT_ROUTE,)),
     ]
     assert ran_commands[0].program_invocations == (sudo, curl)
-    assert word_roles_of_commands == (
+    assert ran_commands_of_shell_text.word_roles_of_commands == (
         (
             None,
             None,
@@ -232,22 +231,22 @@ def test_names_that_commands_set_at_run_time_take_their_place_among_the_assignme
 ):
     knowledge = ExpandedToolCallKnowledge(catalogs_dir=catalogs_dir)
     judgment_rule_use_counts: Counter[str] = Counter()
-    ran_commands, _ = expand_ran_commands(
+    ran_commands = expand_ran_commands(
         _parsed_shell_text_of(shell_text),
         knowledge=knowledge,
         judgment_rule_use_counts=judgment_rule_use_counts,
-    )
+    ).ran_commands
     assert _curl_of(ran_commands).variable_values == variable_values
     assert judgment_rule_use_counts[OUTSIDE_LOOP_RULE_NAME] == rule_uses
 
 
 def test_pipe_that_takes_only_stderr_leads_stderr_to_its_reader(catalogs_dir):
     knowledge = ExpandedToolCallKnowledge(catalogs_dir=catalogs_dir)
-    ran_commands, _ = expand_ran_commands(
+    ran_commands = expand_ran_commands(
         _parsed_shell_text_of("curl u 2>&1 >/dev/null | tail"),
         knowledge=knowledge,
         judgment_rule_use_counts=Counter(),
-    )
+    ).ran_commands
     assert _curl_of(ran_commands).stderr_routes == (
         OutputRoute((1,), ResultDestination(), OutputVisibility.PARTIAL),
     )
@@ -255,37 +254,29 @@ def test_pipe_that_takes_only_stderr_leads_stderr_to_its_reader(catalogs_dir):
 
 def test_outer_assignments_come_before_those_of_the_text(catalogs_dir):
     knowledge = ExpandedToolCallKnowledge(catalogs_dir=catalogs_dir)
-    ran_commands, _ = expand_ran_commands(
+    ran_commands = expand_ran_commands(
         _parsed_shell_text_of("U=b; curl $U", first_command_id=5),
         outer_variable_assignments=(VariableAssignment("U", "a.org", 1, None),),
         knowledge=knowledge,
         judgment_rule_use_counts=Counter(),
-    )
+    ).ran_commands
     # The values keep the order of the assignments, so the outer value comes first.
     assert _curl_of(ran_commands).variable_values == (
         VariableValues("U", ("a.org", "b"), False, False),
     )
 
 
-def test_names_set_at_run_time_go_before_the_first_later_assignment_in_word_order():
-    shell_commands = (
-        ShellCommand(0, ("read", "A", "B")),
-        ShellCommand(1, ("read", "-r", "C", "$D"), expansion_word_indexes=(3,)),
-        ShellCommand(2, ("curl", "$A")),
-    )
-    word_roles_of_commands = (
-        (None, NAME_SET_AT_RUN_TIME, NAME_SET_AT_RUN_TIME),
-        (None, None, NAME_SET_AT_RUN_TIME, NAME_SET_AT_RUN_TIME),
-        (None, ProgramWordRole.OTHER),
-    )
-    variable_assignments = (
-        VariableAssignment("X", "x", 0, None),
-        VariableAssignment("A", "a", 2, None),
-        VariableAssignment("Y", "y", 3, None),
-    )
-    assert variable_assignments_with_names_set_at_run_time_from(
-        shell_commands, word_roles_of_commands, variable_assignments
-    ) == (
+def test_names_set_at_run_time_go_before_the_first_later_assignment_in_word_order(
+    catalogs_dir,
+):
+    knowledge = ExpandedToolCallKnowledge(catalogs_dir=catalogs_dir)
+    variable_assignments = expand_ran_commands(
+        _parsed_shell_text_of("X=x; read A B; read -r C $D; A=a; curl $A; Y=y"),
+        knowledge=knowledge,
+        judgment_rule_use_counts=Counter(),
+    ).variable_assignments
+    # The word `$D` names a variable only when read runs, so it gives no assignment.
+    assert variable_assignments == (
         VariableAssignment("X", "x", 0, None),
         VariableAssignment("A", None, 1, None),
         VariableAssignment("B", None, 1, None),
@@ -295,27 +286,17 @@ def test_names_set_at_run_time_go_before_the_first_later_assignment_in_word_orde
     )
 
 
-def test_command_with_unread_variable_names_gets_an_assignment_for_every_name_in_first_order():
-    shell_commands = (
-        ShellCommand(1, ("read", "-E", "X")),
-        ShellCommand(2, ("curl", "$A")),
-    )
-    word_roles_of_commands = (
-        (None, UnknownProgramWordRole(), UnknownProgramWordRole()),
-        (None, ProgramWordRole.OTHER),
-    )
-    variable_assignments = (
-        VariableAssignment("B", "b", 0, None),
-        VariableAssignment("A", "a", 1, None),
-        VariableAssignment("B", "c", 3, None),
-    )
+def test_command_with_unread_variable_names_gets_an_assignment_for_every_name_in_first_order(
+    catalogs_dir,
+):
+    knowledge = ExpandedToolCallKnowledge(catalogs_dir=catalogs_dir)
+    variable_assignments = expand_ran_commands(
+        _parsed_shell_text_of("B=b; mytool; A=a; read -E X; curl $A; B=c"),
+        knowledge=knowledge,
+        judgment_rule_use_counts=Counter(),
+    ).variable_assignments
     # The names are those of every assignment of the text in the order they first appear, so B comes before A.
-    assert variable_assignments_with_names_set_at_run_time_from(
-        shell_commands,
-        word_roles_of_commands,
-        variable_assignments,
-        command_ids_with_unread_variable_names={1},
-    ) == (
+    assert variable_assignments == (
         VariableAssignment("B", "b", 0, None),
         VariableAssignment("A", "a", 1, None),
         VariableAssignment("B", None, 2, None),

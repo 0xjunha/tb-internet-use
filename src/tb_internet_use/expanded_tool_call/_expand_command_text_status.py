@@ -90,4 +90,3 @@ def _has_seen_end_of_one_handle(
         and poll_result.execution_status in _ENDED_EXECUTION_STATUSES
         and len(handles_of_poll_action(action, poll_result.handles)) == 1
     )
-

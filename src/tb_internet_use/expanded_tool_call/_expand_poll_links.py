@@ -27,7 +27,7 @@ from tb_internet_use.tool_call.model import (
 
 # The trajectory of a call, i.e. its `ToolCallKey.trajectory_id` and its `HarnessToolCall.is_subagent`.
 # Claude Code keeps the calls of its subagents in the main trajectory as steps marked as subagent ones, so the id alone does not tell them apart.
-type _Trajectory = tuple[str, bool]
+type Trajectory = tuple[str, bool]
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,7 +49,7 @@ class _HandleStart:
     """Start of a handle by one call of the trial, found before the polls are linked so that a start in another trajectory is seen wherever it sits."""
 
     call_index: int  # 0-based position of the call in the trial
-    trajectory: _Trajectory
+    trajectory: Trajectory
     starter_tool_call_key: ToolCallKey
 
 
@@ -94,7 +94,7 @@ def expand_poll_links(
                 starter_tool_call_key = _choose_linked_starter_tool_call_key(
                     handle_starts_by_handle.get(handle, ()),
                     call_index,
-                    _trajectory_of(tool_call),
+                    trajectory_of(tool_call),
                     judgment_rule_use_counts,
                 )
                 if starter_tool_call_key is not None:
@@ -135,8 +135,11 @@ def _polled_handles_of(
             handles = handles_of_poll_action(action, result_handles)
         elif action.handles:
             handles = tuple(dict.fromkeys(action.handles))
-        elif result_handles and not treat_script_poll_step_naming_no_handle_as_polling_none(
-            use_counts=judgment_rule_use_counts
+        elif (
+            result_handles
+            and not treat_script_poll_step_naming_no_handle_as_polling_none(
+                use_counts=judgment_rule_use_counts
+            )
         ):
             handles = result_handles
         else:
@@ -167,7 +170,7 @@ def _handle_starts_of(
             handle_starts_by_handle[handle].append(
                 _HandleStart(
                     call_index,
-                    _trajectory_of(tool_call),
+                    trajectory_of(tool_call),
                     tool_call.harness_tool_call.key,
                 )
             )
@@ -223,7 +226,7 @@ def _has_action_starting_handle_kind(
 def _choose_linked_starter_tool_call_key(
     handle_starts: Sequence[_HandleStart],
     poll_call_index: int,
-    poll_trajectory: _Trajectory,
+    poll_trajectory: Trajectory,
     judgment_rule_use_counts: Counter[str],
 ) -> ToolCallKey | None:
     """Choose the call that started one handle that a poll reads, among the starts of that handle, None when no start is linked.
@@ -274,7 +277,7 @@ def _choose_latest_starter_tool_call_key(
     return None
 
 
-def _trajectory_of(tool_call: ToolCall) -> _Trajectory:
+def trajectory_of(tool_call: ToolCall) -> Trajectory:
     """Give the trajectory of a call, as its trajectory id and whether it is a subagent call."""
     return (
         tool_call.harness_tool_call.key.trajectory_id,

@@ -50,6 +50,14 @@ _OPTION_ROW_DEFAULTS = {
     "note": "",
 }
 
+# The cells of a code runner row that a row of a module's `CODE_RUNNER_ROWS` does not give.
+_CODE_RUNNER_ROW_DEFAULTS = {
+    "ran_text_language": "shell",
+    "checked_against": "made up",
+    "reviewed": "",
+    "note": "",
+}
+
 
 @pytest.fixture(scope="module")
 def catalogs_dir(
@@ -58,7 +66,7 @@ def catalogs_dir(
     """Write the program catalogs of the requesting test module into a new folder and give the folder.
 
     The module names its rows in `PROGRAM_BEHAVIOR_ROWS` and `PROGRAM_OPTION_BEHAVIOR_ROWS`, each with the cells that differ from the defaults here, so that a case does not change when the real catalog gains rows.
-    The folder has no code runner rows.
+    The folder has the code runner rows of `CODE_RUNNER_ROWS` when the module has it, each with the cells that differ from the defaults here, and none otherwise.
     """
     catalogs_dir = tmp_path_factory.mktemp("catalogs")
     _write_rows(
@@ -73,8 +81,11 @@ def catalogs_dir(
         _OPTION_ROW_DEFAULTS,
         request.module.PROGRAM_OPTION_BEHAVIOR_ROWS,
     )
-    (catalogs_dir / CODE_RUNNERS_CSV).write_text(
-        "runner_kind,runner,ran_text_language,checked_against,reviewed,note\n"
+    _write_rows(
+        catalogs_dir / CODE_RUNNERS_CSV,
+        ["runner_kind", "runner", *_CODE_RUNNER_ROW_DEFAULTS],
+        _CODE_RUNNER_ROW_DEFAULTS,
+        getattr(request.module, "CODE_RUNNER_ROWS", []),
     )
     return catalogs_dir
 

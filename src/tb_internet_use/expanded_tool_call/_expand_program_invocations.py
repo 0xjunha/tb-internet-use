@@ -72,12 +72,14 @@ def expand_program_invocations(
     tuple[ProgramInvocation | UnknownProgramInvocation, ...],
     tuple[ProgramWordRole | UnknownProgramWordRole | None, ...],
     tuple[ProgramBehavior | UnknownProgramBehavior, ...],
+    tuple[int, ...],
 ]:
-    """Read the words of a command into the programs they run, the outermost first, and give the role of each word and the row of each program.
+    """Read the words of a command into the programs they run, the outermost first, and give the role of each word, the row of each program and the index of the word of each program.
 
     The roles have one entry per word of `shell_command.words`. A program word, a subcommand word, a word that holds an option name and the `--` that ends the options have None.
     The rows have one entry per program, in the order of the programs, and `UnknownProgramBehavior` for an `UnknownProgramInvocation`.
     They are given so that later code reads a fact of a program, e.g. how much of piped input tail passes on, without asking the door again, which would count the row twice.
+    The program word indexes are 0-based in `shell_command.words`, one per program in the order of the programs, e.g. `(0, 3)` for find and ./run.sh in `find . -exec ./run.sh ;`, so that later code finds the word of a program that words of an outer program follow.
     Every use of `treat_word_with_expansion_as_one_argument` adds one to `judgment_rule_use_counts`.
     """
     command_state = _CommandState(shell_command, knowledge, judgment_rule_use_counts)
@@ -88,6 +90,7 @@ def expand_program_invocations(
         tuple(command_state.program_invocations),
         tuple(command_state.roles),
         tuple(command_state.program_behaviors),
+        tuple(command_state.program_word_indexes),
     )
 
 
@@ -113,6 +116,8 @@ class _CommandState:
         ] = []
         # The row of each program in `program_invocations`, at the same index.
         self.program_behaviors: list[ProgramBehavior | UnknownProgramBehavior] = []
+        # The 0-based index of the word of each program in `program_invocations`, at the same index.
+        self.program_word_indexes: list[int] = []
         # Each entry is set by the state of the program that the word belongs to.
         self.roles: list[ProgramWordRole | UnknownProgramWordRole | None] = [
             None
@@ -157,6 +162,7 @@ class _CommandState:
             )
         )
         self.program_behaviors.append(program_behavior)
+        self.program_word_indexes.append(program_word_index)
         for next_program_range in program_words_state.next_program_ranges_for(
             gets_more_arguments_at_run_time=gets_more_arguments_at_run_time
         ):
@@ -176,6 +182,7 @@ class _CommandState:
             )
         )
         self.program_behaviors.append(UnknownProgramBehavior())
+        self.program_word_indexes.append(program_word_index)
         self.roles[program_word_index] = None
         for word_index in range(program_word_index + 1, end_word_index):
             self.roles[word_index] = UnknownProgramWordRole()

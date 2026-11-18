@@ -1161,6 +1161,7 @@ class _Expansion(NamedTuple):
     program_invocations: tuple[ProgramInvocation | UnknownProgramInvocation, ...]
     roles: tuple[ProgramWordRole | UnknownProgramWordRole | None, ...]
     program_behaviors: tuple[ProgramBehavior | UnknownProgramBehavior, ...]
+    program_word_indexes: tuple[int, ...]
     uses: KnowledgeUses
     judgment_rule_use_counts: Counter[str]
 
@@ -1172,15 +1173,18 @@ def _expansion_of(
 ) -> _Expansion:
     knowledge = ExpandedToolCallKnowledge(catalogs_dir=catalogs_dir)
     judgment_rule_use_counts: Counter[str] = Counter()
-    program_invocations, roles, program_behaviors = expand_program_invocations(
-        ShellCommand(0, words, expansion_word_indexes=expansion_word_indexes),
-        knowledge=knowledge,
-        judgment_rule_use_counts=judgment_rule_use_counts,
+    program_invocations, roles, program_behaviors, program_word_indexes = (
+        expand_program_invocations(
+            ShellCommand(0, words, expansion_word_indexes=expansion_word_indexes),
+            knowledge=knowledge,
+            judgment_rule_use_counts=judgment_rule_use_counts,
+        )
     )
     return _Expansion(
         program_invocations,
         roles,
         program_behaviors,
+        program_word_indexes,
         knowledge.uses,
         judgment_rule_use_counts,
     )
@@ -1361,6 +1365,20 @@ def test_each_program_is_given_with_its_row_at_the_same_index(catalogs_dir):
     ] == ["sudo", "env", UnknownProgramBehavior()]
 
 
+def test_each_program_is_given_with_the_index_of_its_word(catalogs_dir):
+    # The words of find follow those of the programs that -exec starts, so the index of a program word is not the count of the words after it.
+    expansion = _expansion_of(
+        catalogs_dir,
+        ("find", ".", "-exec", "./a.sh", ";", "-exec", "./b.sh", ";", "-print"),
+    )
+
+    assert [
+        program_invocation.program_name
+        for program_invocation in expansion.program_invocations
+    ] == ["find", "a.sh", "b.sh"]
+    assert expansion.program_word_indexes == (0, 3, 6)
+
+
 def test_cluster_word_with_an_expansion_is_not_asked_of_the_door(catalogs_dir):
     uses = _expansion_of(catalogs_dir, ("tar", "$X", "a"), (1,)).uses
 
@@ -1472,6 +1490,7 @@ def test_wrapper_chain_and_shell_option_with_a_plus_are_read_on_the_real_catalog
             "curl", arguments=("u",), exits_with_exit_code_of_next_program=unknown_exits
         ),
     )
+    assert wrapper_chain[3] == (0, 1, 2, 4)
     assert wrapper_chain[1] == (
         None,
         None,
