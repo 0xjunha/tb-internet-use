@@ -28,7 +28,7 @@ from tb_internet_use.network_request.model import (
 from tb_internet_use.network_request.parse_target import parse_target
 from tb_internet_use.network_request.parse_url import parse_url
 
-# A variable written `$NAME` or `${NAME}`, which `VariableValues` can fill, e.g. `p` in `pip install $p`.
+# A variable written `$NAME` or `${NAME}`, which `VariableValues` can fill, e.g. `p` in `pip install $p` or `U` in `https://$U/x`.
 _PLAIN_VARIABLE = re.compile(r"\$(?:\{(\w+)\}|(\w+))")
 # A character that a shell expands when the command runs, left in a word after its plain variables are filled, e.g. in `$(cat f)`, `${U:-a.org}` or a backtick.
 _RUN_TIME_EXPANSION_CHARACTER = re.compile(r"[$`]")
@@ -237,11 +237,11 @@ def _target_values_from_word(
     if len(
         variable_values_with_several_values
     ) > 1 or _RUN_TIME_EXPANSION_CHARACTER.search(
-        _fill_variables_of_word(target_word, first_value_by_name)
+        fill_variables_of_word(target_word, first_value_by_name)
     ):
         return (value_set_at_run_time,)
     if not variable_values_with_several_values:
-        values_of_requests = [_fill_variables_of_word(target_word, first_value_by_name)]
+        values_of_requests = [fill_variables_of_word(target_word, first_value_by_name)]
     else:
         (several_valued_variable_values,) = variable_values_with_several_values
         values_of_variable = (
@@ -254,7 +254,7 @@ def _target_values_from_word(
         if not values_of_variable:
             return (value_set_at_run_time,)
         values_of_requests = [
-            _fill_variables_of_word(
+            fill_variables_of_word(
                 target_word,
                 first_value_by_name | {several_valued_variable_values.name: value},
             )
@@ -281,7 +281,7 @@ def _host_name_of_url_word(
         if len(assigned_variable_values.values) == 1
         and not assigned_variable_values.has_value_set_at_run_time
     }
-    filled_word = _fill_variables_of_word(word, single_value_by_name)
+    filled_word = fill_variables_of_word(word, single_value_by_name)
     _, _, after_scheme = filled_word.partition("://")
     host_part = after_scheme.split("/", 1)[0]
     if _RUN_TIME_EXPANSION_CHARACTER.search(host_part):
@@ -307,7 +307,7 @@ def _variable_names_of(word: str) -> tuple[str, ...]:
     )
 
 
-def _fill_variables_of_word(word: str, value_by_name: Mapping[str, str]) -> str:
+def fill_variables_of_word(word: str, value_by_name: Mapping[str, str]) -> str:
     """Fill in the variables of a word whose values are given, keeping the others as written, e.g. `a.org/x` for `$U/x`."""
     return _PLAIN_VARIABLE.sub(
         lambda match: value_by_name.get(
