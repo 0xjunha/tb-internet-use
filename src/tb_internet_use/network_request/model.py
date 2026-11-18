@@ -424,6 +424,9 @@ class ParsedCode:
     # The calls in text order, a nested call after the call that holds it.
     code_calls: tuple[CodeCall, ...]
     string_assignments: tuple[CodeStringAssignment, ...]
+    # The 0-based index of the code from which the text was not read, None when all of it was read.
+    # It exists because a multi-line string, template string or block comment that never closes hides every call after it, e.g. `fetch(u)` after the backtick of `/`/` in JavaScript.
+    unreadable_text_start: int | None
 
 
 @dataclass(frozen=True, slots=True)
