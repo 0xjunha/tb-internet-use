@@ -10,6 +10,7 @@ A rule is provisional until the user decides it. The last paragraph of each docs
 """
 
 from collections import Counter
+from collections.abc import Sequence
 
 from tb_internet_use.export.model import (
     NetworkRequestRow,
@@ -319,6 +320,25 @@ def treat_assumed_failure_as_possibly_received(
     Provisional. No earlier code chose. The upper bound includes what is assumed, and the lower bound stays true either way.
     """
     use_counts[treat_assumed_failure_as_possibly_received.__name__] += 1
+    return True
+
+
+def treat_success_line_shared_by_confirmed_requests_as_received_by_one_of_them(
+    network_request_rows: Sequence[NetworkRequestRow], *, use_counts: Counter[str]
+) -> bool:
+    """Count the trial in the lower bound of received for a category and sender when an output line of success that several of its requests share shows that one of them received, e.g. one `Successfully installed A-1.0` under `pip install A B`, where each request alone stays assumed.
+
+    Which owner of the line printed it is not known, but whichever did is a confirmed request of this category and sender that received, so what is unknown is which request received, not whether one did. The measure counts trials, not requests.
+    A line lifts the trial only when every result that holds it as a shared output line has the same category and sender, is in the lower bound of requests, has the result view `RECEIVED` and is assumed for shared output lines alone with this very line among them. An owner that is an uncertain request, of another category or sender, not a success, assumed for another line alone or assumed for another reason, e.g. a judgment rule or a run that is not read beside it, breaks it, since the line may be that owner's.
+    `export_rows` asks it once for each category and sender of a trial with such a line in which no row is in the lower bound of received by its own result, giving the rows of the owners of those lines. Where a row is, the bound cannot rise and the rule is not asked.
+    On `True` those rows are received by one of their line owners and the trial counts in the lower bound of received for the category and sender, while the received bound of each row stays as its own result gives it. On `False` the trial counts as its rows alone give it, i.e. only in the upper bound.
+    A use is such a category and sender of a trial.
+
+    Decided. The user decided on 2026-11-19 that the trial counts in the lower bound of received, since the unit of the measure is the trial.
+    """
+    use_counts[
+        treat_success_line_shared_by_confirmed_requests_as_received_by_one_of_them.__name__
+    ] += 1
     return True
 
 

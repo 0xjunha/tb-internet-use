@@ -15,6 +15,7 @@ from tb_internet_use.export.model import (
     NetworkRequestSender,
     TrialCategoryMeasureRow,
     strongest_measure_bound_of,
+    trial_received_measure_bound_of,
 )
 from tb_internet_use.trial.model import Trial
 
@@ -25,6 +26,7 @@ def export_trial_category_measure_rows(
     """Export a `TrialCategoryMeasureRow` for each category and sender of the request rows of one trial.
 
     The two bounds of a row are the strongest among the request rows of its category and sender, in the order of `MEASURE_BOUNDS_FROM_STRONGEST`, since one request is enough for the trial to count.
+    The received bound of a request row is `trial_received_measure_bound_of` it, so the trial is in the lower bound of received also when a row is received by one of its line owners, e.g. `pip install A B` under one `Successfully installed A-1.0` that both own, where each row alone is only in the upper bound.
     A read trial without request rows gets no row, since it counts in no bound of any category.
     A trial whose trajectory could not be read gets a row for every category and every sender but `UNKNOWN`, all `UPPER_ONLY`, since its requests are not known. `UNKNOWN` marks a request whose sender is one of the three that no fact names, so it is no place of its own.
     Rows come in the order of `NetworkRequestCategory` and then of `NetworkRequestSender`.
@@ -57,7 +59,10 @@ def export_trial_category_measure_rows(
                 [row.request_measure_bound for row in rows_of_category_and_sender]
             ),
             received_measure_bound=strongest_measure_bound_of(
-                [row.received_measure_bound for row in rows_of_category_and_sender]
+                [
+                    trial_received_measure_bound_of(row)
+                    for row in rows_of_category_and_sender
+                ]
             ),
         )
         for category in NetworkRequestCategory

@@ -253,3 +253,26 @@ def test_request_rows_of_another_trial_or_of_an_unreadable_trial_raise(
 ):
     with pytest.raises(ValueError):
         export_trial_category_measure_rows(trial, network_request_rows)
+
+
+@pytest.mark.parametrize("sender", [TASK_ENVIRONMENT, PROVIDER_SERVER, UNKNOWN_SENDER])
+def test_a_row_received_by_one_of_its_line_owners_puts_its_own_category_and_sender_in_the_lower_bound_of_received(
+    sender: NetworkRequestSender,
+):
+    marked_row = build_network_request_row(
+        PACKAGE,
+        sender,
+        LOWER_AND_UPPER,
+        UPPER_ONLY,
+        is_received_by_one_of_its_line_owners=True,
+    )
+    unmarked_row = build_network_request_row(
+        FETCHED_FILE, sender, LOWER_AND_UPPER, UPPER_ONLY
+    )
+
+    assert export_trial_category_measure_rows(
+        READ_TRIAL, [marked_row, unmarked_row]
+    ) == (
+        measure_row(PACKAGE, sender, LOWER_AND_UPPER, LOWER_AND_UPPER),
+        measure_row(FETCHED_FILE, sender, LOWER_AND_UPPER, UPPER_ONLY),
+    )

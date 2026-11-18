@@ -741,3 +741,84 @@ def test_a_trial_folder_without_a_detail_file_raises(tmp_path, write_trial_folde
 
     with pytest.raises(FileNotFoundError, match="detail.json"):
         _run_steps_of_trial_with_new_counters(trial_dir)
+
+
+@pytest.mark.parametrize(
+    ("command", "output", "category", "is_lifted"),
+    [
+        # A run that is not read beside the two `curl` may have printed the line, since other programs print it too.
+        pytest.param(
+            "curl -sI https://a.org/x; curl -sI https://b.org/y; ./check.sh",
+            "HTTP/1.1 200 OK",
+            NetworkRequestCategory.CONNECTIVITY_CHECK,
+            False,
+            id="curl -sI beside a script",
+        ),
+        pytest.param(
+            "curl -sI https://a.org/x; curl -sI https://b.org/y; python3 run.py",
+            "HTTP/1.1 200 OK",
+            NetworkRequestCategory.CONNECTIVITY_CHECK,
+            False,
+            id="curl -sI beside code",
+        ),
+        pytest.param(
+            "curl -s -o /dev/null -w '%{http_code}' https://a.org/x; curl -s -o /dev/null -w '%{http_code}' https://b.org/y; ./check.sh",
+            "200",
+            NetworkRequestCategory.OTHER_WEB,
+            False,
+            id="curl -w beside a script",
+        ),
+        pytest.param(
+            "curl -sI https://a.org/x; curl -sI https://b.org/y",
+            "HTTP/1.1 200 OK",
+            NetworkRequestCategory.CONNECTIVITY_CHECK,
+            True,
+            id="curl -sI alone",
+        ),
+        # Only wget and apt print these lines, so a line is taken as printed by the wget or apt command of the call, as it is for a single request, although the script may run one of them too.
+        pytest.param(
+            "wget https://a.org/x.tgz https://a.org/y.tgz; ./check.sh",
+            "'x.tgz' saved [1024/1024]",
+            NetworkRequestCategory.FETCHED_FILE,
+            True,
+            id="wget saved beside a script",
+        ),
+        pytest.param(
+            "apt-get install -y aaa bbb; ./check.sh",
+            "Fetched 10 kB in 1s (10 kB/s)",
+            NetworkRequestCategory.PACKAGE,
+            True,
+            id="apt Fetched beside a script",
+        ),
+    ],
+)
+def test_a_shared_line_of_success_lifts_the_trial_only_when_no_run_that_is_not_read_may_have_printed_it(
+    tmp_path, write_trial_folder, command, output, category, is_lifted
+):
+    trial_dir = write_trial_folder(tmp_path, "trial-1", [(command, output)])
+
+    (
+        (_, _, network_request_results, _, network_request_rows, measure_rows),
+        _,
+        _,
+    ) = _run_steps_of_trial_with_new_counters(trial_dir)
+
+    # Each request alone stays assumed and only in the upper bound of received.
+    assert [
+        (
+            result.level_certainty,
+            row.received_measure_bound,
+            row.is_received_by_one_of_its_line_owners,
+        )
+        for result, row in zip(
+            network_request_results, network_request_rows, strict=True
+        )
+    ] == [
+        (NetworkRequestResultCertainty.ASSUMED, MeasureBound.UPPER_ONLY, is_lifted)
+    ] * 2
+    assert [(row.category, row.received_measure_bound) for row in measure_rows] == [
+        (
+            category,
+            MeasureBound.LOWER_AND_UPPER if is_lifted else MeasureBound.UPPER_ONLY,
+        )
+    ]

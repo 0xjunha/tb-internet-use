@@ -79,16 +79,27 @@ class NetworkRequestRow:
     # The bounds of the main measure in which this row makes its trial count as one that has a request of its category.
     # `LOWER_AND_UPPER` for internet use by a request that is confirmed after the evidence, whatever its level, e.g. also when nothing shows that it ran. Only a confirmed `NOT_NEEDED` is `NEITHER`.
     request_measure_bound: MeasureBound
-    # The bounds in which this row makes its trial count as one that received something of its category.
+    # The bounds in which this row makes its trial count as one that received something of its category, by its own result alone.
     received_measure_bound: MeasureBound
+    # True when the request shares an output line of success with other confirmed requests of its category and sender that all received by their results and are each assumed for that line, so that whichever of them printed it certainly received, e.g. each of `pip install A B` under one `Successfully installed A-1.0` that both own.
+    # It is set only where the line raises the bound of the trial, i.e. where no row of the category and sender is in the lower bound of received by its own result.
+    # The trial then counts in the lower bound of received for the category and sender of the row, while `received_measure_bound` stays as the result of the request alone gives it.
+    is_received_by_one_of_its_line_owners: bool
 
     def __post_init__(self) -> None:
-        """Refuse a received bound stronger than the request bound, since what was received was requested."""
+        """Refuse a received bound stronger than the request bound, since what was received was requested, and a request received by one of its line owners that is not a confirmed request in the lower bound whose result is received."""
         if _is_received_bound_stronger_than_request_bound(
             self.request_measure_bound, self.received_measure_bound
         ):
             raise ValueError(
                 f"received bound {self.received_measure_bound} is stronger than request bound {self.request_measure_bound}"
+            )
+        if self.is_received_by_one_of_its_line_owners and (
+            self.request_measure_bound != MeasureBound.LOWER_AND_UPPER
+            or self.result_view != NetworkRequestResultView.RECEIVED
+        ):
+            raise ValueError(
+                f"a row received by one of its line owners with request bound {self.request_measure_bound} and result view {self.result_view}"
             )
 
 
@@ -181,6 +192,18 @@ def strongest_measure_bound_of(measure_bounds: Iterable[MeasureBound]) -> Measur
         key=MEASURE_BOUNDS_FROM_STRONGEST.index,
         default=MeasureBound.NEITHER,
     )
+
+
+def trial_received_measure_bound_of(
+    network_request_row: NetworkRequestRow,
+) -> MeasureBound:
+    """Give the received bound in which a request row makes its trial count, which is `LOWER_AND_UPPER` for a row received by one of its line owners and its own `received_measure_bound` otherwise.
+
+    Which owner of a shared line of success received is not known, but that one did is, and the measure counts trials, not requests.
+    """
+    if network_request_row.is_received_by_one_of_its_line_owners:
+        return MeasureBound.LOWER_AND_UPPER
+    return network_request_row.received_measure_bound
 
 
 class HostService(StrEnum):

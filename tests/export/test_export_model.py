@@ -1,5 +1,6 @@
 """Tests for the checks that the types of export/model.py make when they are built."""
 
+import dataclasses
 import functools
 import itertools
 from collections.abc import Callable
@@ -10,10 +11,12 @@ from made_up_network_request_rows import build_network_request_row
 from tb_internet_use.export.model import (
     MeasureBound,
     NetworkRequestCategory,
+    NetworkRequestResultView,
     NetworkRequestSender,
     TrialCategoryMeasureRow,
     TrialRow,
     UnknownPackageRegistry,
+    trial_received_measure_bound_of,
 )
 from tb_internet_use.trial.model import UnreadableTrajectoryReason
 
@@ -112,3 +115,47 @@ def test_unknown_package_registry_refuses_to_be_read_as_true_or_false():
     # It stands beside None, the answer for a request that the door is not asked about.
     with pytest.raises(TypeError):
         bool(UnknownPackageRegistry())
+
+
+@pytest.mark.parametrize(
+    ("request_measure_bound", "result_view"),
+    [
+        (UPPER_ONLY, NetworkRequestResultView.RECEIVED),
+        (LOWER_AND_UPPER, NetworkRequestResultView.UNKNOWN),
+    ],
+)
+def test_request_row_refuses_to_be_received_by_one_of_its_line_owners_unless_a_confirmed_request_in_the_lower_bound_received(
+    request_measure_bound: MeasureBound, result_view: NetworkRequestResultView
+):
+    row = build_package_row(LOWER_AND_UPPER, UPPER_ONLY)
+
+    with pytest.raises(ValueError, match="received by one of its line owners"):
+        dataclasses.replace(
+            row,
+            request_measure_bound=request_measure_bound,
+            received_measure_bound=UPPER_ONLY,
+            result_view=result_view,
+            is_received_by_one_of_its_line_owners=True,
+        )
+
+
+@pytest.mark.parametrize(
+    ("received_measure_bound", "is_received_by_one_of_its_line_owners", "expected"),
+    [
+        (UPPER_ONLY, True, LOWER_AND_UPPER),
+        (UPPER_ONLY, False, UPPER_ONLY),
+        (NEITHER, False, NEITHER),
+    ],
+)
+def test_trial_received_measure_bound_is_lower_and_upper_for_a_row_received_by_one_of_its_line_owners_and_its_own_otherwise(
+    received_measure_bound: MeasureBound,
+    is_received_by_one_of_its_line_owners: bool,
+    expected: MeasureBound,
+):
+    row = build_package_row(
+        LOWER_AND_UPPER,
+        received_measure_bound,
+        is_received_by_one_of_its_line_owners=is_received_by_one_of_its_line_owners,
+    )
+
+    assert trial_received_measure_bound_of(row) == expected

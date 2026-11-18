@@ -367,15 +367,17 @@ The category is computed from what the request's own text shows, so the same com
 | Internet use | Yes for all four | r1 to r3 name their hosts, which are read as public in this example. r4 names no host, so `treat_request_without_host_name_as_sent_to_default_registry_host` gives it the host of the default registry of `pip install`, `pypi.org`, which is public |
 | Request bounds | Both bounds for r1 to r4 | Each is a confirmed request that is internet use. How far it got does not matter here |
 | Received bounds | Neither for r3, the upper bound only for r1, r2 and r4 | r3's own line confirms that it failed. r1 and r2 share one error line, so their failure is assumed and `treat_assumed_failure_as_possibly_received` keeps them in the upper bound. r4's lines show that a download began but not that the package arrived |
+| Received by one of its line owners | No for all four | r1 and r2 share one line, but it shows a failure. Had it been a line of success that either `curl` may have printed, whichever printed it would have received, so both rows would say yes and the trial would count in the lower bound of fetched files received, while each row's own received bound stays in the upper bound only |
 
-Each category of the trial then gets one row with the strongest bounds of its requests, which gives the last table of [Where this ends](#where-this-ends). The trial row takes the strongest bounds of all requests that the task environment sent.
+Each category of the trial then gets one row with the strongest bounds of its requests, where a row received by one of its line owners counts in the lower bound of received, which gives the last table of [Where this ends](#where-this-ends). The trial row takes the strongest bounds of all requests that the task environment sent.
 The lines of case C give no request and no row. `decide_network_request_results` only counts them as unused lines.
-Some columns need a choice that facts alone do not settle, e.g. whether a request that names no host goes to the default registry of its program. Such choices are the judgment rules of `export/judgment_rules.py`, all provisional but the one that counts a request to a host name without a dot as no internet use, and each use of one is counted.
+Some columns need a choice that facts alone do not settle, e.g. whether a request that names no host goes to the default registry of its program. Such choices are the judgment rules of `export/judgment_rules.py`, all provisional but the one that counts a request to a host name without a dot as no internet use and the one that counts a line of success shared by confirmed requests as received by one of them, and each use of one is counted.
 The entry function `export_rows` calls these pieces in order.
 
 | Piece | What it gives |
 |---|---|
 | `export_network_request_row` | For each request, its row, with the category from `export_network_request_category` and its text columns passed through `redact_credentials` |
+| `mark_network_request_rows_received_by_one_of_their_line_owners` | The rows again, with the owners of each shared line of success that shows that one of them received marked as received by one of their line owners |
 | `export_trial_row` | The trial row, with the bounds of all requests that the task environment sent |
 | `export_trial_category_measure_rows` | One row per category and sender of the trial's requests, with the strongest bounds of its requests |
 

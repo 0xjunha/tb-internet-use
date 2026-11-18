@@ -132,6 +132,7 @@ def export_network_request_row(
     It asks `knowledge` about each public host of the request, about the package registry of a command whose target is a package name, and about the sender of a web tool.
     Each judgment rule adds one to `judgment_rule_use_counts` under its name when it decides something, also the rule of `extract_network_requests` that reads a dotted host name as public.
     The four columns that hold text of the trajectory, i.e. `source`, `made_by`, `target` and `host_names`, pass through `redact_credentials`.
+    `is_received_by_one_of_its_line_owners` is False here, since it rests on the rows of the other requests that share an output line, and `mark_network_request_rows_received_by_one_of_their_line_owners` sets it once all rows of the trial are made.
     """
     network_request = network_request_result.network_request
     host_name_scopes = _host_name_scopes_of(
@@ -223,6 +224,7 @@ def export_network_request_row(
             request_measure_bound,
             judgment_rule_use_counts=judgment_rule_use_counts,
         ),
+        is_received_by_one_of_its_line_owners=False,
     )
 
 

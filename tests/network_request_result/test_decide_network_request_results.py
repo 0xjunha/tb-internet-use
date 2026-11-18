@@ -169,6 +169,7 @@ WHOLE_RESULT_CASES = [
                 _NOT_VISIBLE,
                 _CONFIRMED,
                 (),
+                (),
             ),
             (
                 NetworkRequestCertainty.CONFIRMED,
@@ -179,6 +180,7 @@ WHOLE_RESULT_CASES = [
                     _line(1, OutputLineKind.BARE_STATUS_CODE),
                     _line(1, OutputLineKind.HTTP_STATUS, line_index=1, is_shared=True),
                 ),
+                (),
             ),
             (
                 NetworkRequestCertainty.CONFIRMED,
@@ -210,6 +212,7 @@ WHOLE_RESULT_CASES = [
                 None,
                 _CONFIRMED,
                 (_line(1, OutputLineKind.DOWNLOADED), _exit_zero(1)),
+                (),
             )
         ],
         Counter({"treat_exit_code_meaning_as_assumed_level": 1}),
@@ -231,12 +234,14 @@ WHOLE_RESULT_CASES = [
                 _FAILED,
                 _CONFIRMED,
                 (_line(1, OutputLineKind.NAME_NOT_RESOLVED),),
+                (),
             ),
             (
                 NetworkRequestCertainty.CONFIRMED,
                 _ATTEMPTED,
                 _NOT_VISIBLE,
                 _CONFIRMED,
+                (),
                 (),
             ),
         ],
@@ -255,6 +260,7 @@ WHOLE_RESULT_CASES = [
                 _FAILED,
                 _CONFIRMED,
                 (_line(2, OutputLineKind.NOT_FOUND),),
+                (),
             )
         ],
         Counter({"treat_command_without_own_evidence_as_no_evidence_of_run": 1}),
@@ -269,6 +275,7 @@ WHOLE_RESULT_CASES = [
                 _NOT_VISIBLE,
                 _CONFIRMED,
                 (_line(1, OutputLineKind.DOWNLOAD_STARTED), _exit_zero(1)),
+                (),
             )
         ],
         Counter({"treat_line_naming_another_target_as_no_evidence_of_answer": 1}),
@@ -327,6 +334,7 @@ WHOLE_RESULT_CASES = [
                 _NOT_VISIBLE,
                 _CONFIRMED,
                 (),
+                (),
             ),
             (
                 NetworkRequestCertainty.CONFIRMED,
@@ -335,6 +343,7 @@ WHOLE_RESULT_CASES = [
                 _CONFIRMED,
                 # The code is about both requests of the call, which does not make the result assumed.
                 (_exit_zero(1, is_shared=True),),
+                (),
             ),
             (
                 NetworkRequestCertainty.CONFIRMED,
@@ -342,6 +351,7 @@ WHOLE_RESULT_CASES = [
                 _FAILED,
                 _CONFIRMED,
                 (ExecutionStatusEvidence(_key(2), ExecutionStatus.NOT_RUN, True),),
+                (),
             ),
             (
                 NetworkRequestCertainty.CONFIRMED,
@@ -349,6 +359,7 @@ WHOLE_RESULT_CASES = [
                 _FAILED,
                 _CONFIRMED,
                 (ExecutionStatusEvidence(_key(2), ExecutionStatus.NOT_RUN, True),),
+                (),
             ),
         ],
         Counter({"treat_command_without_own_evidence_as_no_evidence_of_run": 1}),
@@ -379,6 +390,7 @@ WHOLE_RESULT_CASES = [
                     _line(1, OutputLineKind.SERVER_ANSWERED),
                     ExecutionStatusEvidence(_key(1), ExecutionStatus.FINISHED, False),
                 ),
+                (),
             ),
             (
                 NetworkRequestCertainty.CONFIRMED,

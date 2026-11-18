@@ -269,6 +269,17 @@ def test_network_request_result_refuses_assumption_reasons_of_a_confirmed_result
         )
 
 
+def test_network_request_result_refuses_an_assumed_result_without_reasons():
+    with pytest.raises(ValueError, match="assumed result without assumption reasons"):
+        build_network_request_result(
+            build_network_request(),
+            level=EXECUTED,
+            stop_reason=FAILED,
+            evidence=(SHARED_OUTPUT_LINE_EVIDENCE,),
+            level_certainty=NetworkRequestResultCertainty.ASSUMED,
+        )
+
+
 @pytest.mark.parametrize(
     "evidence",
     [

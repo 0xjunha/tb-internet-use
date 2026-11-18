@@ -190,7 +190,7 @@ def _output_line_evidence_of(
 ) -> list[EvidenceWithLevel]:
     """Find the evidence of each line that the request owns, in the order of `output_line_owners`.
 
-    The line may belong to another request when it has several owners, unless it shows only that their one command ran or that its program is missing, or when the request's run has no known lines, e.g. `HTTP/1.1 200 OK` under `mytool https://a.org/x`, or when any program prints it and a run that is not read reaches its place, e.g. `Connection refused` under `curl -s u; ./test.sh`.
+    The line may belong to another request when it has several owners, unless it shows only that their one command ran or that its program is missing, and, whether or not it has several owners, when the request's run has no known lines, e.g. `HTTP/1.1 200 OK` under `mytool https://a.org/x`, or when any program prints it and a run that is not read reaches its place, e.g. `Connection refused` under `curl -s u; ./test.sh`.
     The last two ask `treat_line_that_unknown_printer_may_have_printed_as_shared`. A line that only named programs print, one of them a printing program of the run, stays the request's own beside a run that is not read, e.g. `npm ERR! code E404` under `npx tsc`.
     A line in a place that may show file content or page text asks `treat_line_beside_shown_file_or_page_text_as_not_a_trace`.
     """
@@ -239,15 +239,15 @@ def _output_line_evidence_of(
             )
             else ()
         )
-        if not may_belong_to_another_request_reasons:
-            may_belong_to_another_request_reasons = _unknown_printer_reasons_of(
-                network_request,
-                output_line_meaning,
-                place,
-                expanded_tool_call_by_key,
-                knowledge=knowledge,
-                judgment_rule_use_counts=judgment_rule_use_counts,
-            )
+        # A run whose lines are not known may have printed the line too, also when other requests own it, so those reasons come beside the shared one, e.g. `HTTP/1.1 200 OK` under `curl -sI u1; curl -sI u2; ./check.sh`.
+        may_belong_to_another_request_reasons += _unknown_printer_reasons_of(
+            network_request,
+            output_line_meaning,
+            place,
+            expanded_tool_call_by_key,
+            knowledge=knowledge,
+            judgment_rule_use_counts=judgment_rule_use_counts,
+        )
         output_line_evidence.append(
             EvidenceWithLevel(
                 evidence=OutputLineEvidence(
@@ -279,7 +279,7 @@ def _unknown_printer_reasons_of(
 ) -> tuple[
     UnknownProgramOutputLinesAssumptionReason | UnknownRunBesideAssumptionReason, ...
 ]:
-    """Find the reasons that a line of the request alone may still have been printed by a run whose lines are unknown, none when there is no such run or `treat_line_that_unknown_printer_may_have_printed_as_shared` keeps the line the request's own.
+    """Find the reasons that a line of the request, its own or shared with other requests, may still have been printed by a run whose lines are unknown, none when there is no such run or `treat_line_that_unknown_printer_may_have_printed_as_shared` keeps the line the request's own.
 
     One reason is the run of the request itself, e.g. `HTTP/1.1 200 OK` under `mytool https://a.org/x`. The other is a run that is not read beside it, only for a line that any program prints, e.g. `Connection refused` under `curl -s u; ./test.sh`. Both can hold, e.g. `Connection refused` under `mytool https://a.org/x; ./test.sh`, and the rule is asked once when either does.
     """

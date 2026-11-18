@@ -1,9 +1,11 @@
 """Tests for export/judgment_rules.py, one table of each rule with a made-up situation, the value it gives and the name it is counted under."""
 
+import dataclasses
 from collections import Counter
 from collections.abc import Callable
 
 import pytest
+from made_up_network_request_rows import build_network_request_row
 
 from tb_internet_use.expanded_tool_call.model import (
     CallCommandText,
@@ -26,6 +28,7 @@ from tb_internet_use.export.judgment_rules import (
     treat_shown_content_from_registry_or_model_hub_host_as_other_web,
     treat_shown_content_from_search_engine_host_as_other_web,
     treat_single_label_host_name_as_not_internet_use,
+    treat_success_line_shared_by_confirmed_requests_as_received_by_one_of_them,
     treat_templated_host_name_as_unknown_internet_use,
     treat_url_query_value_and_fragment_as_credential,
     treat_web_tool_request_without_host_name_as_internet_use,
@@ -60,6 +63,7 @@ from tb_internet_use.network_request_result.model import (
     NetworkRequestResultStopReason,
     OutputLineEvidence,
     OutputLineKind,
+    SharedOutputLineAssumptionReason,
 )
 from tb_internet_use.tool_call.model import HarnessTool, ToolCallKey
 
@@ -126,6 +130,9 @@ def _assumed_result(
                 ToolCallKey("t1", "main", 1, 0), 0, None, output_line_kind, True
             ),
         ),
+        assumption_reasons=(
+            SharedOutputLineAssumptionReason(ToolCallKey("t1", "main", 1, 0), 0, None),
+        ),
     )
 
 
@@ -158,6 +165,15 @@ PAGE_READ_ROW_FROM_UNKNOWN_SENDER = NetworkRequestRow(
     result_view=NetworkRequestResultView.RECEIVED,
     request_measure_bound=MeasureBound.LOWER_AND_UPPER,
     received_measure_bound=MeasureBound.UPPER_ONLY,
+    is_received_by_one_of_its_line_owners=False,
+)
+
+# The row of each of `pip install A B` under one `Successfully installed A-1.0` that both own.
+PACKAGE_ROW_RECEIVED_IN_UPPER_BOUND_ONLY = build_network_request_row(
+    NetworkRequestCategory.PACKAGE,
+    NetworkRequestSender.TASK_ENVIRONMENT,
+    MeasureBound.LOWER_AND_UPPER,
+    MeasureBound.UPPER_ONLY,
 )
 
 # (rule, its situation, the value it gives)
@@ -356,6 +372,18 @@ JUDGMENT_RULE_CASES: list[tuple[Callable[..., object], tuple[object, ...], objec
     (
         treat_request_of_unknown_sender_as_possibly_from_task_environment,
         (PAGE_READ_ROW_FROM_UNKNOWN_SENDER,),
+        True,
+    ),
+    (
+        treat_success_line_shared_by_confirmed_requests_as_received_by_one_of_them,
+        (
+            [
+                dataclasses.replace(
+                    PACKAGE_ROW_RECEIVED_IN_UPPER_BOUND_ONLY, request_index=index
+                )
+                for index in (0, 1)
+            ],
+        ),
         True,
     ),
 ]

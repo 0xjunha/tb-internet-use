@@ -16,6 +16,7 @@ For each task and each category of request (e.g. packages, fetched files, web se
 - the share of trials that received what such a request asked for
 
 Each share comes as a lower bound, which counts only what the trajectory confirms, and an upper bound, which also counts what it cannot rule out.
+The unit is the trial, so a trial counts as one that received when the trajectory confirms that one of its requests did, even when it does not show which, e.g. one `Successfully installed A-1.0` under `pip install A B` that either request may have printed.
 Every request is kept as a row with its place in the trajectory and its evidence, so other questions can be answered from the same rows.
 
 ## What counts
@@ -60,7 +61,7 @@ The [pipeline example](docs/pipeline-example.md) follows six made-up tool calls 
 | 2 | Expand tool calls | What did each call actually run, and where does that output show up? | `expand_tool_calls` in `expanded_tool_call/` | `ExpandedToolCall` | 23 | Built and run on a sample of 100 trials, where many programs and options still have no catalog row and come out as unknown inputs |
 | 3 | Extract network requests | Which of what ran is a request, and for which target? | `extract_network_requests` in `network_request/` | `NetworkRequest` | 6 | Built and run on a sample of 100 trials, where a program or option without a catalog row still comes out as an unknown input or an uncertain request |
 | 4 | Decide request results | How far did each request get, and on what evidence? | `decide_network_request_results` in `network_request_result/` | `NetworkRequestResult` | 19 | Built and run on a sample of 100 trials, where many results stay at `ATTEMPTED` since the exit code of a text shows nothing of a command in a loop, before a pipe or in a file |
-| 5 | Export rows | Which category is each request, and what do the rows say for each task? | `export_rows` in `export/` | `NetworkRequestRow`, `TrialRow`, `TrialCategoryMeasureRow` | 18 | Built and run on a sample of 100 trials, where most public hosts and web tools still have no catalog row and come out as unknown inputs |
+| 5 | Export rows | Which category is each request, and what do the rows say for each task? | `export_rows` in `export/` | `NetworkRequestRow`, `TrialRow`, `TrialCategoryMeasureRow` | 19 | Built and run on a sample of 100 trials, where most public hosts and web tools still have no catalog row and come out as unknown inputs |
 
 Each step is a package of `src/tb_internet_use/` whose `__init__.py` exports only its entry function, and whose types are in its `model.py`.
 `run_steps_of_trial` in `pipeline.py` reads the files of one trial folder, makes the doors of outside knowledge and calls the six entry functions in order. The steps themselves take text and types, never a path.
@@ -86,7 +87,7 @@ The [knowledge README](src/tb_internet_use/knowledge/README.md) lists every file
 ## Judgment rules
 
 A judgment rule is a choice that facts alone do not settle, e.g. whether a negative exit code means the command was killed.
-Judgment rules are kept apart from outside knowledge, one function each in the `judgment_rules.py` of the step, which counts each of its uses. Each is marked provisional or decided. One is decided today, `treat_single_label_host_name_as_not_internet_use` of `export/`, which counts a request to a host name without a dot, e.g. `db`, as no internet use, since such a name resolves only inside the task environment.
+Judgment rules are kept apart from outside knowledge, one function each in the `judgment_rules.py` of the step, which counts each of its uses. Each is marked provisional or decided. Two are decided today, both of `export/`. `treat_single_label_host_name_as_not_internet_use` counts a request to a host name without a dot, e.g. `db`, as no internet use, since such a name resolves only inside the task environment. `treat_success_line_shared_by_confirmed_requests_as_received_by_one_of_them` counts a trial as one that received when one output line of success shows that one of several confirmed requests of a category received, without showing which, and each of them rests on that shared line alone, so that no other request or unread run may have printed it.
 A provisional rule keeps the choice of the earlier code, or where there was none the choice that claims least, e.g. that a command with no evidence of its own that it ran is not known to have run, so that the lower bounds stay true.
 
 ## Running

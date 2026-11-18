@@ -20,8 +20,10 @@ def build_network_request_row(
     sender: NetworkRequestSender,
     request_measure_bound: MeasureBound,
     received_measure_bound: MeasureBound,
+    *,
+    is_received_by_one_of_its_line_owners: bool = False,
 ) -> NetworkRequestRow:
-    """Build a request row of the trial `t1` for a `curl` that saved what it received, with the given category, sender and bounds."""
+    """Build a request row of the trial `t1` for a `curl` that saved what it received, with the given category, sender and bounds, not received by one of its line owners unless told."""
     return NetworkRequestRow(
         trial_id="t1",
         trajectory_id="main",
@@ -51,4 +53,5 @@ def build_network_request_row(
         result_view=NetworkRequestResultView.RECEIVED,
         request_measure_bound=request_measure_bound,
         received_measure_bound=received_measure_bound,
+        is_received_by_one_of_its_line_owners=is_received_by_one_of_its_line_owners,
     )

@@ -5,6 +5,7 @@ from collections import Counter
 from pathlib import Path
 
 import pytest
+from made_up_assumption_reasons import assumption_reasons_for
 from made_up_export_catalogs import write_made_up_export_catalogs
 
 from tb_internet_use.expanded_tool_call.model import (
@@ -173,6 +174,7 @@ def _result(
         stop_reason=stop_reason,
         level_certainty=level_certainty,
         evidence=evidence,
+        assumption_reasons=assumption_reasons_for(level_certainty, evidence),
     )
 
 
@@ -443,6 +445,7 @@ def test_example_of_the_pipeline_example_reaches_its_last_table(
         result_view=NetworkRequestResultView.NOT_RECEIVED,
         request_measure_bound=LOWER_AND_UPPER,
         received_measure_bound=UPPER_ONLY,
+        is_received_by_one_of_its_line_owners=False,
     )
     assert network_request_rows == (
         fetched_file_row_of_r1,

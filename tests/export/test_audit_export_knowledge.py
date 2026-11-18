@@ -29,7 +29,7 @@ def _load_script(name: str):
 run_pipeline = _load_script("run_pipeline")
 audit = _load_script("audit_export_knowledge")
 
-# Commands of made-up trials whose rows reach many rules, e.g. a request that runs only when its file is missing, a package of a variable, a program without a row, a discarded page with a query, a host without a dot, a reserved host beside a templated one and a clone of a repository.
+# Commands of made-up trials whose rows reach many rules, e.g. a request that runs only when its file is missing, a package of a variable, a program without a row, a discarded page with a query, a host without a dot, a reserved host beside a templated one, a clone of a repository and two downloads that share one line of success.
 _BASH_CALLS_OF_TRIAL = {
     "t1": [
         (
@@ -49,6 +49,13 @@ _BASH_CALLS_OF_TRIAL = {
     ],
     "t3": [("ls", "notes.txt")],
     "t4": None,
+    # Two wget requests own one `saved` line, which only wget prints, so the trial counts in the lower bound of received fetched files although each request stays assumed.
+    "t6": [
+        (
+            "wget https://a.org/x.tgz https://a.org/y.tgz; ./check.sh",
+            "'x.tgz' saved [1024/1024]",
+        )
+    ],
 }
 
 # A made-up Claude Code trajectory whose one `WebFetch` call reads a host without a dot, which the rule for local hosts of a web tool decides rather than the rule for a host without a dot.
@@ -148,7 +155,7 @@ def _differing_equations(out_dir: Path) -> list[str]:
 def _replace_in_file(path: Path, old: str, new: str) -> None:
     text = path.read_text()
     assert old in text
-    path.write_text(text.replace(old, new, 1))
+    path.write_text(text.replace(old, new))
 
 
 def test_every_equation_holds_on_the_rows_of_made_up_trials(
@@ -171,8 +178,15 @@ def test_every_equation_holds_on_the_rows_of_made_up_trials(
         "treat_local_host_name_of_web_tool_as_unknown_internet_use",
         "treat_url_query_value_and_fragment_as_credential",
         "treat_dotted_host_name_as_public",
+        "treat_success_line_shared_by_confirmed_requests_as_received_by_one_of_them",
     ):
         assert sides[f"{rule_name}_uses_equal_its_situations"][0] > 0, rule_name
+    assert (
+        sides[
+            "measure_rows_above_their_request_rows_equal_categories_and_senders_lifted_by_line_owners"
+        ][0]
+        > 0
+    )
     assert sides["package_registry_lookups_equal_package_name_commands"][0] > 0
     rule_rows = _csv_rows(out_dir / "judgment_rule_uses.csv")
     assert rule_rows[0] == ["judgment_rule", "use_count", "trial_count", "task_count"]
@@ -192,7 +206,7 @@ def test_every_equation_holds_on_the_rows_of_made_up_trials(
     ]
 
 
-# (equation, file of the run, text in it, text that replaces it), one case per equation that reads a written file.
+# (equation, file of the run, text in it, text that replaces it everywhere), one case per equation that reads a written file.
 BROKEN_FILE_CASES = [
     (
         "written_request_rows_differing_from_rows_exported_again",
@@ -223,6 +237,25 @@ BROKEN_FILE_CASES = [
         "trial_category_measure_rows.csv",
         "t1,package,task_environment,lower_and_upper",
         "t1,package,task_environment,upper_only",
+    ),
+    # The rows of t6 lose their mark, so the lifted main measure line of t6 rests on no request row.
+    (
+        "measure_rows_differing_from_their_strongest_request_rows",
+        "network_request_rows.csv",
+        "upper_only,true",
+        "upper_only,false",
+    ),
+    (
+        "measure_rows_above_their_request_rows_equal_categories_and_senders_lifted_by_line_owners",
+        "network_request_rows.csv",
+        "upper_only,true",
+        "upper_only,false",
+    ),
+    (
+        "measure_rows_above_their_request_rows_equal_categories_and_senders_lifted_by_line_owners",
+        "trial_category_measure_rows.csv",
+        "t6,fetched_file,task_environment,lower_and_upper,lower_and_upper",
+        "t6,fetched_file,task_environment,lower_and_upper,upper_only",
     ),
     (
         "task_lines_whose_trial_count_differs_from_trial_rows",
@@ -276,6 +309,10 @@ BROKEN_COUNT_CASES = [
     (
         "treat_dotted_host_name_as_public_uses_equal_its_situations",
         ["treat_dotted_host_name_as_public"],
+    ),
+    (
+        "treat_success_line_shared_by_confirmed_requests_as_received_by_one_of_them_uses_equal_its_situations",
+        ["treat_success_line_shared_by_confirmed_requests_as_received_by_one_of_them"],
     ),
     ("judgment_rule_names_are_of_this_step", ["treat_x_as_y"]),
 ]

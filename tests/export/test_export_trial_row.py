@@ -250,3 +250,31 @@ def test_trial_row_leaves_out_a_row_whose_sender_is_not_known_when_the_unknown_s
         trial_row.any_category_request_measure_bound,
         trial_row.any_category_received_measure_bound,
     ) == (NEITHER, NEITHER)
+
+
+@pytest.mark.parametrize(
+    ("sender", "trial_row_bounds"),
+    [
+        (TASK_ENVIRONMENT, (LOWER_AND_UPPER, LOWER_AND_UPPER)),
+        # A sender that is not known counts at most in the upper bound, also when one of the owners of a line received.
+        (UNKNOWN_SENDER, (UPPER_ONLY, UPPER_ONLY)),
+        (PROVIDER_SERVER, (NEITHER, NEITHER)),
+    ],
+)
+def test_trial_row_counts_a_row_received_by_one_of_its_line_owners_in_the_lower_bound_of_received_for_the_task_environment(
+    sender: NetworkRequestSender, trial_row_bounds: tuple[MeasureBound, MeasureBound]
+):
+    row = build_network_request_row(
+        NetworkRequestCategory.PACKAGE,
+        sender,
+        LOWER_AND_UPPER,
+        UPPER_ONLY,
+        is_received_by_one_of_its_line_owners=True,
+    )
+
+    trial_row = export_trial_row(READ_TRIAL, [row], judgment_rule_use_counts=Counter())
+
+    assert (
+        trial_row.any_category_request_measure_bound,
+        trial_row.any_category_received_measure_bound,
+    ) == trial_row_bounds

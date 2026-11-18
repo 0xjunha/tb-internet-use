@@ -4,6 +4,7 @@ from collections import Counter
 from pathlib import Path
 
 import pytest
+from made_up_assumption_reasons import assumption_reasons_for
 from made_up_export_catalogs import write_made_up_export_catalogs
 
 from tb_internet_use.expanded_tool_call.model import (
@@ -280,6 +281,7 @@ def _result(
         stop_reason=stop_reason,
         level_certainty=level_certainty,
         evidence=evidence,
+        assumption_reasons=assumption_reasons_for(level_certainty, evidence),
     )
 
 

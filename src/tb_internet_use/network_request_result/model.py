@@ -53,13 +53,13 @@ class NetworkRequestResult:
     level_certainty: NetworkRequestResultCertainty
     evidence: tuple[NetworkRequestResultEvidence, ...]
     # Every reason that `level_certainty` is `ASSUMED`, each once, empty when it is `CONFIRMED`. They are the reasons of the evidence that shows `level` and `stop_reason`, and a judgment rule that picked them, e.g. a `SharedOutputLineAssumptionReason` for `Successfully downloaded A-1.0` that `pip install A B` printed once for two requests.
-    assumption_reasons: tuple[NetworkRequestResultAssumptionReason, ...] = ()
+    assumption_reasons: tuple[NetworkRequestResultAssumptionReason, ...]
 
     def __post_init__(self) -> None:
         """Refuse a level and stop reason that a request cannot have, a claim that rests on no evidence, a request certainty that the evidence cannot give, and reasons that do not fit the certainty or the evidence.
 
         A failure is recorded only when the trajectory shows a trace of it, and a request is lifted to confirmed only by an output line of this request alone, e.g. `npm ERR! code E404` under `npx tsc`.
-        A confirmed result has no assumption reason, and a shared output line that is a reason is a line of the evidence that other requests own too.
+        A confirmed result has no assumption reason and an assumed one has at least one, and a shared output line that is a reason is a line of the evidence that other requests own too.
         """
         if not _is_valid_level_and_stop_reason(
             self.level,
@@ -95,6 +95,11 @@ class NetworkRequestResult:
             and self.assumption_reasons
         ):
             raise ValueError("a confirmed result with assumption reasons")
+        if (
+            self.level_certainty == NetworkRequestResultCertainty.ASSUMED
+            and not self.assumption_reasons
+        ):
+            raise ValueError("an assumed result without assumption reasons")
         for assumption_reason in self.assumption_reasons:
             if isinstance(
                 assumption_reason, SharedOutputLineAssumptionReason

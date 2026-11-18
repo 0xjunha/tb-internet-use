@@ -12,6 +12,7 @@ from tb_internet_use.export.model import (
     NetworkRequestSender,
     TrialRow,
     strongest_measure_bound_of,
+    trial_received_measure_bound_of,
 )
 from tb_internet_use.trial.model import Trial
 
@@ -25,6 +26,7 @@ def export_trial_row(
     """Export the `TrialRow` of one trial from its `Trial` and its request rows.
 
     The two bounds are the strongest among the rows that the task environment sent, since the question of the tasks most affected is about turning off the internet of the task environment. They are `NEITHER` when there is no such row.
+    The received bound of a row is `trial_received_measure_bound_of` it, so a row received by one of its line owners counts in the lower bound, e.g. each of `pip install A B` under one `Successfully installed A-1.0` that both own.
     A row whose sender is not known, e.g. a web tool without a row of the web tool catalog, counts as `treat_request_of_unknown_sender_as_possibly_from_task_environment` says, which it is asked once for each such row.
     A trial whose trajectory could not be read gets `UPPER_ONLY` for both, since its requests are not known.
     Request rows of another trial raise `ValueError`, since they would give this trial the bounds of that one.
@@ -68,12 +70,12 @@ def export_trial_row(
 def _task_environment_measure_bounds_of(
     network_request_row: NetworkRequestRow, *, judgment_rule_use_counts: Counter[str]
 ) -> tuple[MeasureBound, MeasureBound]:
-    """Give the request bound and the received bound in which a row counts for what the task environment sent, which are its own bounds for the task environment and `NEITHER` for the other senders.
+    """Give the request bound and the received bound in which a row counts for what the task environment sent, which are its own request bound and the bound of `trial_received_measure_bound_of` for the task environment and `NEITHER` for the other senders.
 
     For a sender that is not known, `treat_request_of_unknown_sender_as_possibly_from_task_environment` keeps its bounds with `LOWER_AND_UPPER` lowered to `UPPER_ONLY`, or gives `NEITHER`.
     """
     request_measure_bound = network_request_row.request_measure_bound
-    received_measure_bound = network_request_row.received_measure_bound
+    received_measure_bound = trial_received_measure_bound_of(network_request_row)
     match network_request_row.sender:
         case NetworkRequestSender.TASK_ENVIRONMENT:
             return request_measure_bound, received_measure_bound
