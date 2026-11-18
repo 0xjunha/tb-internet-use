@@ -59,7 +59,7 @@ The [pipeline example](docs/pipeline-example.md) follows six made-up tool calls 
 | 1 | Convert tool calls | What did the trajectory record, in types that hide the harness? | `ToolCall` | 18 | Rebuilt, with shell text split into commands |
 | 2 | Expand tool calls | What did each call actually run, and where does that output show up? | `ExpandedToolCall` | 23 | Built and run on the sample of 100 trials, with `pipeline.py` calling it after step 1. Its catalogs still lack rows for many programs and options, which come out as unknown. The old code still runs for steps 3 to 5 |
 | 3 | Extract network requests | Which of what ran is a request, and for which target? | `NetworkRequest` | 3 | Being rebuilt, with its types and an entry function that returns no request yet. The old code still runs |
-| 4 | Decide request results | How far did each request get, and on what evidence? | `NetworkRequestResult` | 0 | Being rebuilt, with its types and an entry function that gives each request a result without evidence yet. The old code still runs |
+| 4 | Decide request results | How far did each request get, and on what evidence? | `NetworkRequestResult` | 19 | Being rebuilt, with its types and an entry function that gives each request a result without evidence yet. The old code still runs |
 | 5 | Export rows | Which category is each request, and what do the rows say for each task? | `NetworkRequestRow`, `TrialRow`, `TrialCategoryMeasureRow` | 1 | Being built, with its types and the trial row. Only a read trial without requests is exported yet |
 
 A judgment rule is a choice that facts alone do not settle, e.g. whether a negative exit code means the command was killed.
