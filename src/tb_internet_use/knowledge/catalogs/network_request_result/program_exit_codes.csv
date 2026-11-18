@@ -1,0 +1,46 @@
+program_name,subcommand,option_name,exit_code,meaning,checked_against,reviewed,note
+apt,install,,0,nothing,"not checked, from the old table",,
+apt,update,,0,nothing,"not checked, from the old table",,exits 0 even when a list cannot be fetched
+apt-get,download,,0,nothing,"not checked, from the old table",,
+apt-get,install,,0,nothing,"not checked, from the old table",,
+apt-get,source,,0,nothing,"not checked, from the old table",,
+apt-get,update,,0,nothing,"not checked, from the old table",,exits 0 even when a list cannot be fetched
+bun,add,,0,nothing,"not checked, from the old table",,
+bun,x,,0,nothing,"not checked, from the old table",,
+bunx,,,0,nothing,"not checked, from the old table",,
+conda,install,,0,nothing,"not checked, from the old table",,
+curl,,,0,server_answered,"not checked, from the old table",,
+curl,,--fail,0,request_succeeded,"curl(1) -f, --fail, --fail-with-body and EXIT CODES 22, curl 8.23.1 (curl.se/docs/manpage.html)",,"the old code gave this meaning to exit 0 of every curl run with the option. The manual says --fail is not fail-safe, since response codes 401 and 407 can slip through when authentication is involved"
+curl,,--fail-with-body,0,request_succeeded,"curl(1) -f, --fail, --fail-with-body and EXIT CODES 22, curl 8.23.1 (curl.se/docs/manpage.html)",,"the old code gave this meaning to exit 0 of every curl run with the option. The manual says --fail is not fail-safe, since response codes 401 and 407 can slip through when authentication is involved"
+curl,,-f,0,request_succeeded,"curl(1) -f, --fail, --fail-with-body and EXIT CODES 22, curl 8.23.1 (curl.se/docs/manpage.html)",,"the old code gave this meaning to exit 0 of every curl run with the option. The manual says --fail is not fail-safe, since response codes 401 and 407 can slip through when authentication is involved"
+dnf,install,,0,nothing,"not checked, from the old table",,
+dnf,makecache,,0,nothing,"not checked, from the old table",,
+gh,api,,0,request_succeeded,"not checked, from the old table",,
+git,clone,,0,request_succeeded,"not checked, from the old table",,
+git,fetch,,0,request_succeeded,"not checked, from the old table",,
+git,ls-remote,,0,request_succeeded,"not checked, from the old table",,
+git,submodule update,,0,nothing,"git-submodule(1) COMMANDS update, git 2.54.0 (git-scm.com/docs/git-submodule)",,"update clones missing submodules and fetches missing commits, so it exits 0 without the network when nothing is missing"
+go,build,,0,nothing,"not checked, from the old table",,
+go,mod tidy,,0,nothing,"not checked, from the old table",,
+go,run,,0,nothing,"not checked, from the old table",,
+huggingface-cli,download,,0,nothing,"not checked, from the old table",,exits 0 with a cached copy too
+lake,build,,0,nothing,"not checked, from the old table",,
+npm,ci,,0,nothing,"not checked, from the old table",,
+npm,create,,0,nothing,"not checked, from the old table",,
+npm,exec,,0,nothing,"not checked, from the old table",,
+npm,i,,0,nothing,"not checked, from the old table",,
+npm,install,,0,nothing,"not checked, from the old table",,
+npm,ping,,0,request_succeeded,"not checked, from the old table",,
+npm,view,,0,request_succeeded,"not checked, from the old table",,
+npx,,,0,nothing,"not checked, from the old table",,
+pip,download,,0,nothing,"not checked, from the old table",,
+pip,install,,0,nothing,"not checked, from the old table",,
+pip,wheel,,0,nothing,"not checked, from the old table",,
+pnpm,add,,0,nothing,"not checked, from the old table",,
+pnpm,exec,,0,nothing,"not checked, from the old table",,
+pnpm,install,,0,nothing,"not checked, from the old table",,
+sbt,,,0,nothing,"not checked, from the old table",,
+uv,pip install,,0,nothing,"not checked, from the old table",,
+uv,run,,0,nothing,"not checked, from the old table",,
+uv,venv,,0,nothing,"not checked, from the old table",,
+wget,,,0,request_succeeded,"not checked, from the old table",,

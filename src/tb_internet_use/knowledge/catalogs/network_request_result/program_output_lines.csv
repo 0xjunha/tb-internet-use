@@ -1,0 +1,55 @@
+program_name,subcommand,option_name,option_value_part,printing_programs,prints_status_code,checked_against,reviewed,note
+agent-browser,install,,,playwright apt,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
+apt,install,,,apt,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
+apt,update,,,apt,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
+apt-get,download,,,apt,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
+apt-get,install,,,apt,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
+apt-get,source,,,apt,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
+apt-get,update,,,apt,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
+bun,add,,,npm,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
+bun,x,,,npm,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
+bunx,,,,npm,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
+curl,,,,curl,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
+curl,,--fail,,http_failure,changes_nothing,"curl(1) -f, --fail, --fail-with-body and EXIT CODES 22, curl 8.23.1 (curl.se/docs/manpage.html)",,"the old code added this to every curl run with the option. The manual says --fail is not fail-safe, since response codes 401 and 407 can slip through when authentication is involved"
+curl,,--fail-with-body,,http_failure,changes_nothing,"curl(1) -f, --fail, --fail-with-body and EXIT CODES 22, curl 8.23.1 (curl.se/docs/manpage.html)",,"the old code added this to every curl run with the option. The manual says --fail is not fail-safe, since response codes 401 and 407 can slip through when authentication is involved"
+curl,,--head,,http_headers,changes_nothing,"not checked, from the old table",,the old code added this to every curl run with the option
+curl,,--include,,http_headers,changes_nothing,"not checked, from the old table",,the old code added this to every curl run with the option
+curl,,--verbose,,http_headers,changes_nothing,"not checked, from the old table",,the old code added this to every curl run with the option
+curl,,--write-out,%{http_code} %{response_code},changes_nothing,yes,"curl(1) -w, --write-out, the variables http_code and response_code, curl 8.23.1 (curl.se/docs/manpage.html)",,"the manual says response_code is the same number, formerly known as http_code, and the old code read a status code from a value with either"
+curl,,-I,,http_headers,changes_nothing,"not checked, from the old table",,the old code added this to every curl run with the option
+curl,,-f,,http_failure,changes_nothing,"curl(1) -f, --fail, --fail-with-body and EXIT CODES 22, curl 8.23.1 (curl.se/docs/manpage.html)",,"the old code added this to every curl run with the option. The manual says --fail is not fail-safe, since response codes 401 and 407 can slip through when authentication is involved"
+curl,,-i,,http_headers,changes_nothing,"not checked, from the old table",,the old code added this to every curl run with the option
+curl,,-v,,http_headers,changes_nothing,"not checked, from the old table",,the old code added this to every curl run with the option
+curl,,-w,%{http_code} %{response_code},changes_nothing,yes,"curl(1) -w, --write-out, the variables http_code and response_code, curl 8.23.1 (curl.se/docs/manpage.html)",,"the manual says response_code is the same number, formerly known as http_code, and the old code read a status code from a value with either"
+gh,api,,,git,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
+git,clone,,,git,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
+git,fetch,,,git,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
+git,ls-remote,,,git,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
+git,submodule update,,,git,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
+npm,audit,,,npm,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
+npm,ci,,,npm,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
+npm,create,,,npm,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
+npm,exec,,,npm,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
+npm,i,,,npm,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
+npm,install,,,npm,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
+npm,ping,,,npm,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
+npm,view,,,npm,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
+npx,,,,npm,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
+pip,download,,,pip,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
+pip,index versions,,,pip pip_index,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
+pip,install,,,pip,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
+pip,search,,,pip,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
+pip,wheel,,,pip,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
+playwright,install,,,playwright apt,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
+playwright,install-deps,,,playwright apt,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
+pnpm,add,,,npm,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
+pnpm,exec,,,npm,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
+pnpm,install,,,npm,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
+uv,pip install,,,uv pip,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
+uv,run,,,uv pip,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
+uv,venv,,,uv pip,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
+wget,,,,wget,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
+wget,,--debug,,http_headers,changes_nothing,"not checked, from the old table",,the old code added this to every wget run with the option
+wget,,--server-response,,http_headers,changes_nothing,"not checked, from the old table",,the old code added this to every wget run with the option
+wget,,-S,,http_headers,changes_nothing,"not checked, from the old table",,the old code added this to every wget run with the option
+wget,,-d,,http_headers,changes_nothing,"not checked, from the old table",,the old code added this to every wget run with the option
