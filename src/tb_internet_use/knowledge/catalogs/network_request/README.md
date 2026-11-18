@@ -1,4 +1,4 @@
-# Program request catalog
+# Program request catalog and code call catalog
 
 The program request catalog is outside knowledge for `extract_network_requests`. It says whether a program fetches, which of its words name what kind of target, where the content it receives goes, and how its options change that. It is filled and reviewed by hand, and `extract_network_requests` reads it only through `NetworkRequestKnowledge` in [network_request_knowledge.py](../../network_request_knowledge.py). How a program reads its words, e.g. which option takes a value, is not here but in the [program catalog](../expanded_tool_call/README.md) of `expand_tool_calls`, so every program and subcommand here needs a row of `program_behaviors.csv` too.
 
@@ -31,3 +31,24 @@ A page counts as in the [program catalog](../expanded_tool_call/README.md): a pa
 `NetworkRequestKnowledge.may_program_fetch` answers for a program that code runs, whose subcommand nobody read. It says whether any program row of the name fetches and counts under the key `(program_name, "any subcommand", "", "")`, apart from the counts of the other methods.
 
 A row that `extract_network_requests` cannot use raises `ValueError` when the catalog is loaded, e.g. a filled cell that does not fit the kind of row, a word that no column allows, a blank `checked_against` or an option row whose program has no row that fetches. No script writes the CSV.
+
+## Code call catalog
+
+The code call catalog is outside knowledge for `extract_network_requests` about calls in Python and JavaScript code. It says whether a call sends a request, runs another program or does neither, and how its target is written. It is filled and reviewed by hand and read only through `NetworkRequestKnowledge`.
+
+[`code_calls.csv`](code_calls.csv) has one row per call name of a code language, keyed by `code_language` and `call_name`. The door answers `code_call_label` only for the exact name of a row, e.g. `requests.get`. A dotted name without a row, e.g. `urllib.request.urlopen`, is asked under the longest end of it that has a row, e.g. `urlopen`, which a judgment rule of `extract_network_requests` decides and counts. A call that only builds a client and sends nothing, e.g. `requests.Session()`, has no row, since that it sends a request is no fact.
+
+| Column | Cell | Blank |
+|---|---|---|
+| `code_language` | A `CodeLanguage` value, `python` or `javascript` | Fails the load |
+| `call_name` | The name as code writes it, bare or dotted, e.g. `requests.get`, `urlopen` or `fetch` | Fails the load |
+| `effect` | `sends_network_request`, e.g. `requests.get`, `runs_program` for a call that runs a program named in its first string, e.g. `subprocess.run`, or `sends_no_network_request` | Fails the load |
+| `target_notation` | Only for `sends_network_request`. A `TargetNotation` value, how its target is written, e.g. `url` for `requests.get`, `host_name` for `socket.gethostbyname`, `host_and_port_tuple` for `socket.create_connection` or `name` for `from_pretrained` | Fails the load for `sends_network_request`, must be blank otherwise |
+| `target_kind` | Only for `sends_network_request`. A `NetworkRequestTargetKind` value, e.g. `url` or `host` | Unknown for `sends_network_request`, e.g. for `from_pretrained`, whose target is a model name. Must be blank otherwise |
+| `checked_against` | What the cells were checked against, naming the page and its section, e.g. `subprocess module, section Older high-level API, entry subprocess.call, Python 3.15.2 (docs.python.org/3/library/subprocess.html)`. A row taken over from the old code request tables without a check says `not checked, from the old table` | Fails the load |
+| `reviewed` | `yes` once a person has reviewed the row | Not reviewed yet |
+| `note` | Free text, e.g. why a cell is blank | Nothing to note |
+
+A page counts when it is the library's own documentation, e.g. docs.python.org for `urllib.request` and `subprocess`, docs.python-requests.org for `requests` or developer.mozilla.org for `fetch`.
+
+`NetworkRequestKnowledge.has_code_call_row` tells whether a name has a row without counting, so that the judgment rule can try shorter names and the call is counted once, by `code_call_label`.

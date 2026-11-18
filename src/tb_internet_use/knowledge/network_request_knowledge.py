@@ -1,6 +1,6 @@
-"""Answer the questions of `extract_network_requests` about which programs fetch, which of their words are targets and where the content goes, from the program request catalog, counting every use of a row and every input without one.
+"""Answer the questions of `extract_network_requests` about which programs and code calls fetch, which of their words are targets and where the content goes, from the program request catalog and the code call catalog, counting every use of a row and every input without one.
 
-A blank cell is unknown only in `content_route`. Every other fact cell of a row of its kind says what it means in a word, e.g. `none` or `no_request`, and a blank there fails the load, so that the door never reads a missing fact as a default.
+A blank cell is unknown only in `content_route` of the program request catalog and in `target_kind` of the code call catalog. Every other fact cell of a row of its kind says what it means in a word, e.g. `none` or `no_request`, and a blank there fails the load, so that the door never reads a missing fact as a default.
 """
 
 import functools
@@ -8,7 +8,11 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
-from tb_internet_use.expanded_tool_call.model import ProgramInvocation, ProgramOption
+from tb_internet_use.expanded_tool_call.model import (
+    CodeLanguage,
+    ProgramInvocation,
+    ProgramOption,
+)
 from tb_internet_use.knowledge.catalog import (
     Catalog,
     KnowledgeRowKey,
@@ -16,6 +20,8 @@ from tb_internet_use.knowledge.catalog import (
     load_catalog,
 )
 from tb_internet_use.network_request.model import (
+    CodeCallEffect,
+    CodeCallLabel,
     FetchingProgramLabel,
     NetworkRequestTargetKind,
     NonFetchingProgramLabel,
@@ -25,6 +31,8 @@ from tb_internet_use.network_request.model import (
     TargetArguments,
     TargetNotation,
     TargetWithoutTargetArguments,
+    UnknownCodeCallLabel,
+    UnknownNetworkRequestTargetKind,
     UnknownProgramContentRoute,
     UnknownProgramNetworkRequestLabel,
     UnknownProgramOptionEffect,
@@ -32,8 +40,10 @@ from tb_internet_use.network_request.model import (
 
 NETWORK_REQUEST_CATALOGS_DIR = Path(__file__).parent / "catalogs" / "network_request"
 PROGRAM_NETWORK_REQUESTS_CSV = "program_network_requests.csv"
+CODE_CALLS_CSV = "code_calls.csv"
 # The subcommand cell under which `may_program_fetch` counts a program name, since it answers from all the rows of the name and not from one.
 ANY_SUBCOMMAND = "any subcommand"
+_CODE_CALL_KEY_COLUMNS = ("code_language", "call_name")
 _KEY_COLUMNS = ("program_name", "subcommand", "option_name", "option_value")
 # The cells of a program row past its keys, which an option row leaves blank.
 _PROGRAM_FACT_COLUMNS = (
@@ -135,6 +145,26 @@ class NetworkRequestKnowledge:
         self.uses.row_use_counts[lookup_key] += 1
         return fetches
 
+    def has_code_call_row(self, code_language: CodeLanguage, call_name: str) -> bool:
+        """Tell whether a call name of a code language has a row, without counting, for the judgment rule that picks the name a dotted call is asked under.
+
+        Only `code_call_label` counts, so a call is counted once under the name it is asked about.
+        """
+        return (code_language, call_name) in self._catalogs.code_call_row_keys
+
+    def code_call_label(
+        self, code_language: CodeLanguage, call_name: str
+    ) -> CodeCallLabel | UnknownCodeCallLabel:
+        """Answer whether a call in code sends a request, runs a program or does neither, and how its target is written, or `UnknownCodeCallLabel` for a name without a row.
+
+        Only the row of exactly that name answers, e.g. `requests.get`, and the shorter name of a dotted call is picked before by `extract_code_network_requests`.
+        One lookup counts the row or the input `(code_language, call_name)`.
+        """
+        row = self._catalogs.code_calls.lookup(
+            (code_language.value, call_name), self.uses
+        )
+        return UnknownCodeCallLabel() if row is None else row
+
 
 def _program_row_key_of(program_invocation: ProgramInvocation) -> KnowledgeRowKey:
     """Give the key of the program row of an invocation, with its subcommand words split by one space."""
@@ -148,7 +178,7 @@ def _program_row_key_of(program_invocation: ProgramInvocation) -> KnowledgeRowKe
 
 @functools.cache
 def _load_network_request_catalogs(catalogs_dir: Path) -> _NetworkRequestCatalogs:
-    """Load the program request CSV of a folder once per process, raising ValueError on a row that `extract_network_requests` cannot use."""
+    """Load the program request CSV and the code call CSV of a folder once per process, raising ValueError on a row that `extract_network_requests` cannot use."""
     program_network_requests = load_catalog(
         catalogs_dir / PROGRAM_NETWORK_REQUESTS_CSV,
         key_columns=_KEY_COLUMNS,
@@ -175,10 +205,20 @@ def _load_network_request_catalogs(catalogs_dir: Path) -> _NetworkRequestCatalog
             _check_option_row_has_fetching_program(
                 program_name, subcommand, fetching_program_rows
             )
+    code_calls = load_catalog(
+        catalogs_dir / CODE_CALLS_CSV,
+        key_columns=_CODE_CALL_KEY_COLUMNS,
+        row_from_columns=_code_call_label_from_columns,
+    )
     return _NetworkRequestCatalogs(
         program_network_requests,
         frozenset(program_network_requests.row_keys),
         fetches_by_program_name,
+        code_calls,
+        frozenset(
+            (CodeLanguage(code_language), call_name)
+            for code_language, call_name in code_calls.row_keys
+        ),
     )
 
 
@@ -202,13 +242,16 @@ type _ProgramNetworkRequestRow = ProgramNetworkRequestLabel | ProgramOptionEffec
 
 @dataclass(frozen=True, slots=True)
 class _NetworkRequestCatalogs:
-    """Loaded catalog of `extract_network_requests`, shared by every `NetworkRequestKnowledge` of a process."""
+    """Loaded catalogs of `extract_network_requests`, shared by every `NetworkRequestKnowledge` of a process."""
 
     program_network_requests: Catalog[_ProgramNetworkRequestRow]
     # The keys of all rows, so the door can pick the row of an option before its one lookup.
     program_network_request_row_keys: frozenset[KnowledgeRowKey]
     # Whether any program row of each name fetches, so `may_program_fetch` answers without a lookup per row.
     fetches_by_program_name: Mapping[str, bool]
+    code_calls: Catalog[CodeCallLabel]
+    # The code language and call name of every row, so the judgment rule can try names without a lookup.
+    code_call_row_keys: frozenset[tuple[CodeLanguage, str]]
 
 
 def _program_network_request_row_from_columns(
@@ -259,6 +302,31 @@ def _program_option_effect_from_columns(
     """Read an option row, which leaves the program fact cells blank and names one `ProgramOptionEffect`."""
     _check_blank(columns, _PROGRAM_FACT_COLUMNS, row_kind="an option row")
     return ProgramOptionEffect(columns["option_effect"])
+
+
+def _code_call_label_from_columns(columns: Mapping[str, str]) -> CodeCallLabel:
+    """Read one row of `code_calls.csv`, in which a call that sends a request names its target notation and may leave its target kind blank, and any other call leaves both blank."""
+    _check_review_columns(columns)
+    CodeLanguage(columns["code_language"])
+    if not columns["call_name"]:
+        raise ValueError("call_name is empty")
+    effect = CodeCallEffect(columns["effect"])
+    if effect != CodeCallEffect.SENDS_NETWORK_REQUEST:
+        _check_blank(
+            columns,
+            ("target_notation", "target_kind"),
+            row_kind="a row that sends no request",
+        )
+        return CodeCallLabel(columns["call_name"], effect, None, None)
+    target_kind = columns["target_kind"]
+    return CodeCallLabel(
+        call_name=columns["call_name"],
+        effect=effect,
+        target_notation=TargetNotation(columns["target_notation"]),
+        target_kind=UnknownNetworkRequestTargetKind()
+        if target_kind == ""
+        else NetworkRequestTargetKind(target_kind),
+    )
 
 
 def _check_blank(

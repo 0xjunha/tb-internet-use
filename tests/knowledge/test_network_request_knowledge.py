@@ -3,12 +3,21 @@
 import csv
 import re
 from collections import Counter
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 import pytest
 
-from tb_internet_use.expanded_tool_call.model import ProgramInvocation, ProgramOption
+from tb_internet_use.expanded_tool_call.model import (
+    CodeLanguage,
+    ProgramInvocation,
+    ProgramOption,
+)
+from tb_internet_use.interpret.callrun.model import CodeLanguage as OldCodeLanguage
+from tb_internet_use.interpret.request.code_request_tables import (
+    NETWORK_CALL_OF_LANGUAGE,
+    PROGRAM_RUN_BY_CODE,
+)
 from tb_internet_use.knowledge.catalog import KnowledgeLookupKey, KnowledgeUses
 from tb_internet_use.knowledge.expanded_tool_call_knowledge import (
     EXPANDED_TOOL_CALL_CATALOGS_DIR,
@@ -16,11 +25,14 @@ from tb_internet_use.knowledge.expanded_tool_call_knowledge import (
 )
 from tb_internet_use.knowledge.network_request_knowledge import (
     ANY_SUBCOMMAND,
+    CODE_CALLS_CSV,
     NETWORK_REQUEST_CATALOGS_DIR,
     PROGRAM_NETWORK_REQUESTS_CSV,
     NetworkRequestKnowledge,
 )
 from tb_internet_use.network_request.model import (
+    CodeCallEffect,
+    CodeCallLabel,
     FetchingProgramLabel,
     NetworkRequestTargetKind,
     NonFetchingProgramLabel,
@@ -29,6 +41,8 @@ from tb_internet_use.network_request.model import (
     TargetArguments,
     TargetNotation,
     TargetWithoutTargetArguments,
+    UnknownCodeCallLabel,
+    UnknownNetworkRequestTargetKind,
     UnknownProgramContentRoute,
     UnknownProgramNetworkRequestLabel,
     UnknownProgramOptionEffect,
@@ -86,6 +100,72 @@ _OPTION_ROW_CELLS = {
     "option_effect": "sends_content_to_stdout",
     "checked_against": "a manual",
 }
+_CODE_CALL_COLUMNS = [
+    "code_language",
+    "call_name",
+    "effect",
+    "target_notation",
+    "target_kind",
+    "checked_against",
+    "reviewed",
+    "note",
+]
+# A row of a call that sends a request whose every cell differs from the first value of its type, so that a door that drops or mixes up a column fails.
+_SENDING_CODE_CALL_ROW_CELLS = {
+    **dict.fromkeys(_CODE_CALL_COLUMNS, ""),
+    "code_language": "javascript",
+    "call_name": "mylib.connect",
+    "effect": "sends_network_request",
+    "target_notation": "host_and_port_tuple",
+    "target_kind": "host",
+    "checked_against": "a manual",
+}
+_RUNNING_CODE_CALL_ROW_CELLS = {
+    **dict.fromkeys(_CODE_CALL_COLUMNS, ""),
+    "code_language": "python",
+    "call_name": "os.system",
+    "effect": "runs_program",
+    "checked_against": "a manual",
+}
+# (rows of the code call catalog, a part of the error message) of catalogs that fail the load.
+_CODE_CALL_CATALOGS_THAT_CANNOT_LOAD = [
+    ([{**_SENDING_CODE_CALL_ROW_CELLS, "target_notation": ""}], "'' is not a valid"),
+    (
+        [{**_RUNNING_CODE_CALL_ROW_CELLS, "target_notation": "url"}],
+        "are filled in a row that sends no request",
+    ),
+    (
+        [{**_RUNNING_CODE_CALL_ROW_CELLS, "target_kind": "url"}],
+        "are filled in a row that sends no request",
+    ),
+    (
+        [{**_SENDING_CODE_CALL_ROW_CELLS, "effect": "fetches"}],
+        "'fetches' is not a valid",
+    ),
+    (
+        [{**_SENDING_CODE_CALL_ROW_CELLS, "code_language": "ruby"}],
+        "'ruby' is not a valid",
+    ),
+    ([{**_SENDING_CODE_CALL_ROW_CELLS, "call_name": ""}], "call_name is empty"),
+    (
+        [{**_SENDING_CODE_CALL_ROW_CELLS, "checked_against": ""}],
+        "checked_against is empty",
+    ),
+    ([{**_SENDING_CODE_CALL_ROW_CELLS, "reviewed": "no"}], "not empty or yes"),
+    (
+        [_SENDING_CODE_CALL_ROW_CELLS, _SENDING_CODE_CALL_ROW_CELLS],
+        "two rows have the key",
+    ),
+]
+# Calls of the old code request tables that build a client and send nothing, or whose first argument is a method and not the URL, so the real catalog has no row for them.
+_OLD_CALLS_WITHOUT_ROW = [
+    "requests.Session",
+    "httpx.Client",
+    "httpx.AsyncClient",
+    "aiohttp.ClientSession",
+    "requests.request",
+    "httpx.stream",
+]
 # Fact cells of a fetching program row in which a blank fails the load.
 _PROGRAM_COLUMNS_THAT_CANNOT_BE_BLANK = [
     "fetches",
@@ -378,18 +458,30 @@ _MANUAL_PAGE_NAME = re.compile(r"\b[\w.+-]+\([1-9][a-z]*\)")
 _DOCUMENTATION_HOST = re.compile(r"\b(?:[a-z0-9-]+\.)+[a-z]{2,}\b")
 
 
-def _write_catalog(tmp_path: Path, rows: list[Mapping[str, str]]) -> Path:
-    with (tmp_path / PROGRAM_NETWORK_REQUESTS_CSV).open("w", newline="") as csv_file:
-        writer = csv.DictWriter(csv_file, _COLUMNS)
-        writer.writeheader()
-        writer.writerows(rows)
+def _write_catalog(
+    tmp_path: Path,
+    rows: list[Mapping[str, str]],
+    code_call_rows: Sequence[Mapping[str, str]] = (),
+) -> Path:
+    for file_name, columns, file_rows in (
+        (PROGRAM_NETWORK_REQUESTS_CSV, _COLUMNS, rows),
+        (CODE_CALLS_CSV, _CODE_CALL_COLUMNS, code_call_rows),
+    ):
+        with (tmp_path / file_name).open("w", newline="") as csv_file:
+            writer = csv.DictWriter(csv_file, columns)
+            writer.writeheader()
+            writer.writerows(file_rows)
     return tmp_path
 
 
 def _knowledge(
-    tmp_path: Path, rows: list[Mapping[str, str]]
+    tmp_path: Path,
+    rows: list[Mapping[str, str]],
+    code_call_rows: Sequence[Mapping[str, str]] = (),
 ) -> NetworkRequestKnowledge:
-    return NetworkRequestKnowledge(catalogs_dir=_write_catalog(tmp_path, rows))
+    return NetworkRequestKnowledge(
+        catalogs_dir=_write_catalog(tmp_path, rows, code_call_rows)
+    )
 
 
 def _invocation(
@@ -765,3 +857,183 @@ def test_pairs_of_the_real_catalog_without_a_row_of_program_behaviors_are_the_pi
     }
 
     assert program_row_keys - behavior_keys == _PAIRS_WITHOUT_PROGRAM_BEHAVIOR_ROW_YET
+
+
+def _code_call_uses(*row_keys: tuple[str, ...]) -> Counter[KnowledgeLookupKey]:
+    return Counter((CODE_CALLS_CSV, row_key) for row_key in row_keys)
+
+
+def _real_code_call_rows() -> list[dict[str, str]]:
+    with (NETWORK_REQUEST_CATALOGS_DIR / CODE_CALLS_CSV).open(newline="") as csv_file:
+        return list(csv.DictReader(csv_file))
+
+
+def test_code_call_row_is_read_into_every_field_and_counted(tmp_path):
+    knowledge = _knowledge(tmp_path, [], [_SENDING_CODE_CALL_ROW_CELLS])
+
+    assert knowledge.code_call_label(
+        CodeLanguage.JAVASCRIPT, "mylib.connect"
+    ) == CodeCallLabel(
+        "mylib.connect",
+        CodeCallEffect.SENDS_NETWORK_REQUEST,
+        TargetNotation.HOST_AND_PORT_TUPLE,
+        NetworkRequestTargetKind.HOST,
+    )
+    assert knowledge.uses == KnowledgeUses(
+        row_use_counts=_code_call_uses(("javascript", "mylib.connect"))
+    )
+
+
+def test_code_call_without_its_exact_row_is_unknown_and_counted_under_its_language_and_name(
+    tmp_path,
+):
+    knowledge = _knowledge(tmp_path, [], [_SENDING_CODE_CALL_ROW_CELLS])
+
+    assert (
+        knowledge.code_call_label(CodeLanguage.PYTHON, "mylib.connect")
+        == UnknownCodeCallLabel()
+    )
+    assert (
+        knowledge.code_call_label(CodeLanguage.JAVASCRIPT, "connect")
+        == UnknownCodeCallLabel()
+    )
+    assert knowledge.uses == KnowledgeUses(
+        unknown_input_counts=_code_call_uses(
+            ("python", "mylib.connect"), ("javascript", "connect")
+        )
+    )
+
+
+def test_blank_target_kind_of_a_sending_code_call_is_unknown_and_not_a_default(
+    tmp_path,
+):
+    knowledge = _knowledge(
+        tmp_path, [], [{**_SENDING_CODE_CALL_ROW_CELLS, "target_kind": ""}]
+    )
+
+    label = knowledge.code_call_label(CodeLanguage.JAVASCRIPT, "mylib.connect")
+
+    assert isinstance(label, CodeCallLabel)
+    assert label.target_kind == UnknownNetworkRequestTargetKind()
+
+
+def test_code_call_that_runs_a_program_has_no_target_notation_or_kind(tmp_path):
+    knowledge = _knowledge(tmp_path, [], [_RUNNING_CODE_CALL_ROW_CELLS])
+
+    assert knowledge.code_call_label(CodeLanguage.PYTHON, "os.system") == (
+        CodeCallLabel("os.system", CodeCallEffect.RUNS_PROGRAM, None, None)
+    )
+
+
+def test_has_code_call_row_tells_exact_names_of_a_language_apart_and_counts_nothing(
+    tmp_path,
+):
+    knowledge = _knowledge(tmp_path, [], [_SENDING_CODE_CALL_ROW_CELLS])
+
+    assert knowledge.has_code_call_row(CodeLanguage.JAVASCRIPT, "mylib.connect")
+    assert not knowledge.has_code_call_row(CodeLanguage.JAVASCRIPT, "connect")
+    assert not knowledge.has_code_call_row(CodeLanguage.PYTHON, "mylib.connect")
+    assert knowledge.uses == KnowledgeUses()
+
+
+@pytest.mark.parametrize(("rows", "message"), _CODE_CALL_CATALOGS_THAT_CANNOT_LOAD)
+def test_code_call_catalog_that_extract_network_requests_cannot_use_fails_the_load(
+    tmp_path, rows, message
+):
+    with pytest.raises(ValueError, match=message):
+        _knowledge(tmp_path, [], rows)
+
+
+def test_real_code_call_catalog_loads_and_holds_no_invisible_control_characters():
+    NetworkRequestKnowledge()
+    text = (NETWORK_REQUEST_CATALOGS_DIR / CODE_CALLS_CSV).read_text()
+
+    assert not [c for c in text if ord(c) < 32 and c != "\n"]
+    assert all(row["reviewed"] == "" for row in _real_code_call_rows())
+
+
+def test_real_code_call_rows_are_carried_from_the_old_tables_or_name_a_documentation_page():
+    old_pattern_of_language = {
+        "python": NETWORK_CALL_OF_LANGUAGE[OldCodeLanguage.PYTHON],
+        "javascript": NETWORK_CALL_OF_LANGUAGE[OldCodeLanguage.JAVASCRIPT],
+    }
+    broken: list[str] = []
+    for row in _real_code_call_rows():
+        call_text = f"{row['call_name']}("
+        if row["checked_against"] == _NOT_CHECKED:
+            old_pattern = (
+                PROGRAM_RUN_BY_CODE
+                if row["effect"] == "runs_program"
+                else old_pattern_of_language[row["code_language"]]
+            )
+            program_words = '["pip"])' if row["effect"] == "runs_program" else ""
+            if not old_pattern.search(call_text + program_words):
+                broken.append(f"{row['call_name']} is in no old table")
+        elif not _DOCUMENTATION_HOST.search(row["checked_against"]):
+            broken.append(f"{row['call_name']} names no page")
+    assert not broken, "\n".join(broken)
+
+
+@pytest.mark.parametrize(
+    ("code_language", "call_name", "label"),
+    [
+        (
+            CodeLanguage.PYTHON,
+            "requests.get",
+            CodeCallLabel(
+                "requests.get",
+                CodeCallEffect.SENDS_NETWORK_REQUEST,
+                TargetNotation.URL,
+                NetworkRequestTargetKind.URL,
+            ),
+        ),
+        (
+            CodeLanguage.PYTHON,
+            "from_pretrained",
+            CodeCallLabel(
+                "from_pretrained",
+                CodeCallEffect.SENDS_NETWORK_REQUEST,
+                TargetNotation.NAME,
+                UnknownNetworkRequestTargetKind(),
+            ),
+        ),
+        (
+            CodeLanguage.PYTHON,
+            "socket.create_connection",
+            CodeCallLabel(
+                "socket.create_connection",
+                CodeCallEffect.SENDS_NETWORK_REQUEST,
+                TargetNotation.HOST_AND_PORT_TUPLE,
+                NetworkRequestTargetKind.HOST,
+            ),
+        ),
+        (
+            CodeLanguage.PYTHON,
+            "subprocess.run",
+            CodeCallLabel("subprocess.run", CodeCallEffect.RUNS_PROGRAM, None, None),
+        ),
+        (
+            CodeLanguage.JAVASCRIPT,
+            "fetch",
+            CodeCallLabel(
+                "fetch",
+                CodeCallEffect.SENDS_NETWORK_REQUEST,
+                TargetNotation.URL,
+                NetworkRequestTargetKind.URL,
+            ),
+        ),
+    ],
+)
+def test_real_code_call_catalog_gives_the_labels_the_decision_document_names(
+    code_language, call_name, label
+):
+    assert NetworkRequestKnowledge().code_call_label(code_language, call_name) == label
+
+
+@pytest.mark.parametrize("call_name", _OLD_CALLS_WITHOUT_ROW)
+def test_real_code_call_catalog_has_no_row_for_calls_that_send_nothing_or_take_a_method_first(
+    call_name,
+):
+    assert not NetworkRequestKnowledge().has_code_call_row(
+        CodeLanguage.PYTHON, call_name
+    )

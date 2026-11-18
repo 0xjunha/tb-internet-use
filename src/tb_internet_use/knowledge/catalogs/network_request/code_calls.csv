@@ -1,0 +1,29 @@
+code_language,call_name,effect,target_notation,target_kind,checked_against,reviewed,note
+python,requests.get,sends_network_request,url,url,"not checked, from the old table",,
+python,requests.post,sends_network_request,url,url,"not checked, from the old table",,
+python,requests.put,sends_network_request,url,url,"not checked, from the old table",,
+python,requests.head,sends_network_request,url,url,"not checked, from the old table",,
+python,httpx.get,sends_network_request,url,url,"not checked, from the old table",,
+python,httpx.post,sends_network_request,url,url,"not checked, from the old table",,
+python,urlopen,sends_network_request,url,url,"not checked, from the old table",,
+python,urlretrieve,sends_network_request,url,url,"not checked, from the old table",,
+python,snapshot_download,sends_network_request,name,,"not checked, from the old table",,"target_kind is blank, since the target is a name that is neither a URL nor a host and no target kind fits it"
+python,hf_hub_download,sends_network_request,name,,"not checked, from the old table",,"target_kind is blank, since the target is a name that is neither a URL nor a host and no target kind fits it"
+python,from_pretrained,sends_network_request,name,,"not checked, from the old table",,"target_kind is blank, since the target is a name that is neither a URL nor a host and no target kind fits it"
+python,load_dataset,sends_network_request,name,,"not checked, from the old table",,"target_kind is blank, since the target is a name that is neither a URL nor a host and no target kind fits it"
+python,nltk.download,sends_network_request,name,,"not checked, from the old table",,"target_kind is blank, since the target is a name that is neither a URL nor a host and no target kind fits it"
+python,socket.create_connection,sends_network_request,host_and_port_tuple,host,"not checked, from the old table",,
+python,socket.getaddrinfo,sends_network_request,host_name,host,"not checked, from the old table",,
+python,socket.gethostbyname,sends_network_request,host_name,host,"not checked, from the old table",,
+python,os.popen,runs_program,,,"not checked, from the old table",,
+python,os.system,runs_program,,,"not checked, from the old table",,
+python,subprocess.run,runs_program,,,"subprocess module, section Using the subprocess Module, entry subprocess.run, Python 3.15.2 (docs.python.org/3/library/subprocess.html)",,
+python,subprocess.Popen,runs_program,,,"subprocess module, section Popen Constructor, entry subprocess.Popen, Python 3.15.2 (docs.python.org/3/library/subprocess.html)",,
+python,subprocess.call,runs_program,,,"subprocess module, section Older high-level API, entry subprocess.call, Python 3.15.2 (docs.python.org/3/library/subprocess.html)",,
+python,subprocess.check_call,runs_program,,,"subprocess module, section Older high-level API, entry subprocess.check_call, Python 3.15.2 (docs.python.org/3/library/subprocess.html)",,
+python,subprocess.check_output,runs_program,,,"subprocess module, section Older high-level API, entry subprocess.check_output, Python 3.15.2 (docs.python.org/3/library/subprocess.html)",,
+python,subprocess.getoutput,runs_program,,,"subprocess module, section Legacy Shell Invocation Functions, entry subprocess.getoutput, Python 3.15.2 (docs.python.org/3/library/subprocess.html)",,
+python,subprocess.getstatusoutput,runs_program,,,"subprocess module, section Legacy Shell Invocation Functions, entry subprocess.getstatusoutput, Python 3.15.2 (docs.python.org/3/library/subprocess.html)",,
+javascript,fetch,sends_network_request,url,url,"not checked, from the old table",,
+javascript,http.get,sends_network_request,url,url,"not checked, from the old table",,
+javascript,https.get,sends_network_request,url,url,"not checked, from the old table",,
