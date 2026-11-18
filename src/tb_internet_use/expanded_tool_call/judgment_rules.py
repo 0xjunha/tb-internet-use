@@ -12,6 +12,23 @@ A rule is provisional until the user decides it. The last paragraph of each docs
 from collections import Counter
 
 
+def treat_values_outside_their_for_loop_as_one_of_them(
+    variable_name: str, *, use_counts: Counter[str]
+) -> bool:
+    """Read the several values that assignments give a variable of a command outside the for loop over them as values of which the command runs with one, e.g. A after `A=1` in one if branch and `A=2` in the other, then `echo $A`.
+
+    The text does not say which assignment ran last, since an assignment can sit in an if branch, a case branch, a function body or a loop that ended before the command, e.g. `for U in a b; do :; done; curl $U`.
+    For a command in a loop body or a function body, an assignment later in the text may also run before it, e.g. `U=y` in `U=x; for i in 1 2; do curl $U; U=y; done`.
+    `expand_variable_values` asks it for a variable that has more than one possible value, counting a value that the text computes as it runs as one, and whose values are not only the items of the innermost for loop whose body holds the command.
+    It returns whether the command runs with one of the values. On `True` every value stays in `VariableValues.values` and `takes_each_value_in_turn` is False. On `False` the command takes each value in turn.
+    A use is such a variable of a command.
+
+    Provisional. It keeps the choice of the earlier code, which listed all the values and took each in turn only for the items of the innermost for loop around the command.
+    """
+    use_counts[treat_values_outside_their_for_loop_as_one_of_them.__name__] += 1
+    return True
+
+
 def treat_word_with_expansion_as_one_argument(
     word: str, *, use_counts: Counter[str]
 ) -> bool:

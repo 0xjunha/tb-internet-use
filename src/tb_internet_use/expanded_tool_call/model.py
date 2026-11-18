@@ -267,15 +267,18 @@ class UnknownProgramInvocation:
 
 @dataclass(frozen=True, slots=True)
 class VariableValues:
-    """Literal values that assignments before a command in its text give to a variable in its words or redirect file paths."""
+    """Literal values that the assignments of a text may give to a variable in the words or redirect file paths of one of its commands when it runs.
+
+    They are the assignments before the command, and for a command in a loop body or a function body also those after it, which may run before a later run of it.
+    """
 
     name: str
     # The values in text order, without repeats.
     values: tuple[str, ...]
-    # True when the values are the items of the for loop closest before the command and the command is in a loop body, so it runs once per value.
+    # True when the values are the items of the innermost for loop over the name whose body holds the command, and no other assignment of the name may run between an item and the command, so it runs once per value.
     # False when it runs with one of them, e.g. after `A=1` in one if branch and `A=2` in the other.
     takes_each_value_in_turn: bool
-    # An assignment before the command also gives the variable a value that the text computes as it runs, e.g. `U=$(cat url.txt)`, so `values` may not be all of them.
+    # One of those assignments gives the variable a value that the text computes as it runs, e.g. `U=$(cat url.txt)` or `read U`, so `values` may not be all of them.
     has_value_set_at_run_time: bool
 
 
