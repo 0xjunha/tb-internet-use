@@ -13,11 +13,20 @@ from tb_internet_use.knowledge.expanded_tool_call_knowledge import (
 from tb_internet_use.knowledge.network_request_knowledge import (
     NetworkRequestKnowledge,
 )
+from tb_internet_use.knowledge.network_request_result_knowledge import (
+    NetworkRequestResultKnowledge,
+)
 from tb_internet_use.knowledge.tool_call_knowledge import ToolCallKnowledge
 from tb_internet_use.network_request import extract_network_requests
 from tb_internet_use.network_request.model import (
     NetworkRequest,
     NoNetworkRequestReason,
+)
+from tb_internet_use.network_request_result import decide_network_request_results
+from tb_internet_use.network_request_result.model import (
+    NetworkRequestResult,
+    OutputLineKind,
+    UnusedOutputLineReason,
 )
 from tb_internet_use.tool_call import convert_tool_calls
 from tb_internet_use.tool_call.model import HarnessToolCall
@@ -74,6 +83,9 @@ class KnowledgeDoors:
     network_request_knowledge: NetworkRequestKnowledge = field(
         default_factory=NetworkRequestKnowledge
     )
+    network_request_result_knowledge: NetworkRequestResultKnowledge = field(
+        default_factory=NetworkRequestResultKnowledge
+    )
 
 
 def run_steps_to_expanded_tool_calls(
@@ -124,4 +136,45 @@ def run_steps_to_network_requests(
         knowledge=knowledge_doors.network_request_knowledge,
         judgment_rule_use_counts=network_request_judgment_rule_use_counts,
         no_network_request_counts=no_network_request_counts,
+    )
+
+
+def run_steps_to_network_request_results(
+    harness_tool_calls: Sequence[HarnessToolCall],
+    *,
+    knowledge_doors: KnowledgeDoors,
+    tool_call_judgment_rule_use_counts: Counter[str],
+    expanded_tool_call_judgment_rule_use_counts: Counter[str],
+    network_request_judgment_rule_use_counts: Counter[str],
+    no_network_request_counts: Counter[NoNetworkRequestReason],
+    network_request_result_judgment_rule_use_counts: Counter[str],
+    unused_output_line_counts: Counter[tuple[UnusedOutputLineReason, OutputLineKind]],
+    program_counts_of_unowned_output_lines: Counter[
+        tuple[UnusedOutputLineReason, OutputLineKind, str]
+    ],
+) -> tuple[NetworkRequestResult, ...]:
+    """Run `convert_tool_calls`, `expand_tool_calls`, `extract_network_requests` and then `decide_network_request_results` on the tool calls of one trial, with the doors of `knowledge_doors`.
+
+    Each step counts the uses of its judgment rules in its own counter, as in `run_steps_to_network_requests`, and `decide_network_request_results` counts in `unused_output_line_counts` and `program_counts_of_unowned_output_lines` each output line that a pattern fits and that gave no evidence.
+    Each `NetworkRequestResult` holds its `NetworkRequest`, so the output of `extract_network_requests` is not returned apart.
+    """
+    expanded_tool_calls = run_steps_to_expanded_tool_calls(
+        harness_tool_calls,
+        knowledge_doors=knowledge_doors,
+        tool_call_judgment_rule_use_counts=tool_call_judgment_rule_use_counts,
+        expanded_tool_call_judgment_rule_use_counts=expanded_tool_call_judgment_rule_use_counts,
+    )
+    network_requests = extract_network_requests(
+        expanded_tool_calls,
+        knowledge=knowledge_doors.network_request_knowledge,
+        judgment_rule_use_counts=network_request_judgment_rule_use_counts,
+        no_network_request_counts=no_network_request_counts,
+    )
+    return decide_network_request_results(
+        expanded_tool_calls,
+        network_requests,
+        knowledge=knowledge_doors.network_request_result_knowledge,
+        judgment_rule_use_counts=network_request_result_judgment_rule_use_counts,
+        unused_output_line_counts=unused_output_line_counts,
+        program_counts_of_unowned_output_lines=program_counts_of_unowned_output_lines,
     )

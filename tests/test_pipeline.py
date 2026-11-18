@@ -19,11 +19,19 @@ from tb_internet_use.network_request.model import (
     NetworkRequestCertainty,
     NoNetworkRequestReason,
 )
+from tb_internet_use.network_request_result.model import (
+    NetworkRequestResultCertainty,
+    NetworkRequestResultLevel,
+    NetworkRequestResultStopReason,
+    OutputLineKind,
+    UnusedOutputLineReason,
+)
 from tb_internet_use.pipeline import (
     KnowledgeDoors,
     read_trajectory,
     read_trial_file_texts,
     run_steps_to_expanded_tool_calls,
+    run_steps_to_network_request_results,
     run_steps_to_network_requests,
 )
 from tb_internet_use.tool_call.model import (
@@ -362,4 +370,92 @@ def test_runs_the_extraction_of_network_requests_after_the_expansion_with_its_ow
     )
     assert tool_call_judgment_rule_use_counts == Counter(
         {"treat_bash_output_without_exit_code_line_as_finished": 1}
+    )
+
+
+def test_runs_the_decision_of_request_results_after_the_extraction_with_its_own_door_and_counters():
+    # pip prints that it installed x, and the later call runs a script whose text the trial does not hold, which prints a download line.
+    harness_tool_calls = (
+        HarnessToolCall(
+            ToolCallKey("t1", "main", 1, 0),
+            HarnessTool("claude-code", "Bash"),
+            "a",
+            {"command": "pip install x"},
+            {"content": "Successfully installed x-1.0"},
+        ),
+        HarnessToolCall(
+            ToolCallKey("t1", "main", 2, 0),
+            HarnessTool("claude-code", "Bash"),
+            "b",
+            {"command": "./setup.sh"},
+            {"content": "Downloading torch-2.3.0.whl"},
+        ),
+    )
+    knowledge_doors = KnowledgeDoors()
+    tool_call_judgment_rule_use_counts: Counter[str] = Counter()
+    network_request_judgment_rule_use_counts: Counter[str] = Counter()
+    network_request_result_judgment_rule_use_counts: Counter[str] = Counter()
+    unused_output_line_counts: Counter[
+        tuple[UnusedOutputLineReason, OutputLineKind]
+    ] = Counter()
+    program_counts_of_unowned_output_lines: Counter[
+        tuple[UnusedOutputLineReason, OutputLineKind, str]
+    ] = Counter()
+
+    (network_request_result,) = run_steps_to_network_request_results(
+        harness_tool_calls,
+        knowledge_doors=knowledge_doors,
+        tool_call_judgment_rule_use_counts=tool_call_judgment_rule_use_counts,
+        expanded_tool_call_judgment_rule_use_counts=Counter(),
+        network_request_judgment_rule_use_counts=network_request_judgment_rule_use_counts,
+        no_network_request_counts=Counter(),
+        network_request_result_judgment_rule_use_counts=network_request_result_judgment_rule_use_counts,
+        unused_output_line_counts=unused_output_line_counts,
+        program_counts_of_unowned_output_lines=program_counts_of_unowned_output_lines,
+    )
+
+    assert network_request_result.network_request.target == "x"
+    assert (
+        network_request_result.level,
+        network_request_result.stop_reason,
+        network_request_result.level_certainty,
+    ) == (
+        NetworkRequestResultLevel.EXECUTED,
+        NetworkRequestResultStopReason.NOT_VISIBLE,
+        NetworkRequestResultCertainty.CONFIRMED,
+    )
+    assert (
+        knowledge_doors.network_request_result_knowledge.uses.row_use_counts[
+            "output_line_patterns", ("program_output", "pip_successfully_installed")
+        ]
+        == 1
+    )
+    # The result of a Claude Code `Bash` call gives no exit code, so no evidence shows that pip ran beyond its own line.
+    assert network_request_result_judgment_rule_use_counts == Counter(
+        {
+            "treat_installed_line_as_no_evidence_of_download": 1,
+            "treat_command_without_own_evidence_as_no_evidence_of_run": 1,
+        }
+    )
+    assert unused_output_line_counts == Counter(
+        {
+            (
+                UnusedOutputLineReason.UNOWNED_LINE_IN_UNKNOWN_RUN,
+                OutputLineKind.DOWNLOAD_STARTED,
+            ): 1
+        }
+    )
+    assert program_counts_of_unowned_output_lines == Counter(
+        {
+            (
+                UnusedOutputLineReason.UNOWNED_LINE_IN_UNKNOWN_RUN,
+                OutputLineKind.DOWNLOAD_STARTED,
+                "setup.sh",
+            ): 1
+        }
+    )
+    # The rules of the earlier steps stay in their own counters.
+    assert network_request_judgment_rule_use_counts == Counter()
+    assert tool_call_judgment_rule_use_counts == Counter(
+        {"treat_bash_output_without_exit_code_line_as_finished": 2}
     )

@@ -1,86 +1,597 @@
-"""Tests for _decide_network_request_results.py."""
+"""Tests for _decide_network_request_results.py, with made-up mini-swe-agent and Claude Code calls run through `convert_tool_calls`, `expand_tool_calls` and `extract_network_requests` on the doors made from the catalogs of the repo.
 
+The cases use programs and options whose rows the catalogs hold, e.g. `pip install` and `wget` without options, so that the results rest on the rows and not on a missing one.
+"""
+
+import json
 from collections import Counter
+from dataclasses import dataclass
 
-from tb_internet_use.expanded_tool_call.model import (
-    CallCommandText,
-    UnknownProgramInvocation,
+import pytest
+
+from tb_internet_use.expanded_tool_call.model import ExpandedToolCall
+from tb_internet_use.knowledge.network_request_result_knowledge import (
+    NetworkRequestResultKnowledge,
 )
+from tb_internet_use.network_request import extract_network_requests
 from tb_internet_use.network_request.model import (
-    ContentShownInResult,
-    FromCommand,
-    FromWebTool,
     NetworkRequest,
     NetworkRequestCertainty,
-    NetworkRequestSource,
-    NetworkRequestTargetKind,
-    NetworkRequestUncertaintyReason,
 )
 from tb_internet_use.network_request_result import decide_network_request_results
 from tb_internet_use.network_request_result.model import (
+    ExecutionStatusEvidence,
+    ExitCodeEvidence,
+    NetworkRequestResult,
     NetworkRequestResultCertainty,
     NetworkRequestResultLevel,
     NetworkRequestResultStopReason,
+    OutputLineEvidence,
+    OutputLineKind,
+    ShownContentEvidence,
+    UnusedOutputLineReason,
 )
-from tb_internet_use.tool_call.model import HarnessTool, ToolCallKey
+from tb_internet_use.pipeline import KnowledgeDoors, run_steps_to_expanded_tool_calls
+from tb_internet_use.tool_call.model import (
+    ExecutionStatus,
+    HarnessTool,
+    HarnessToolCall,
+    ToolCallKey,
+)
+
+_ATTEMPTED = NetworkRequestResultLevel.ATTEMPTED
+_EXECUTED = NetworkRequestResultLevel.EXECUTED
+_REACHED = NetworkRequestResultLevel.REACHED
+_RECEIVED = NetworkRequestResultLevel.RECEIVED
+_FAILED = NetworkRequestResultStopReason.FAILED
+_NOT_VISIBLE = NetworkRequestResultStopReason.NOT_VISIBLE
+_NOT_NEEDED = NetworkRequestResultStopReason.NOT_NEEDED
+_CONFIRMED = NetworkRequestResultCertainty.CONFIRMED
+_ASSUMED = NetworkRequestResultCertainty.ASSUMED
 
 
-def build_network_request(
-    index_in_tool_call: int,
-    source: NetworkRequestSource,
-    certainty: NetworkRequestCertainty,
-    uncertainty_reason: NetworkRequestUncertaintyReason | None,
-) -> NetworkRequest:
-    return NetworkRequest(
-        tool_call_key=ToolCallKey("trial", "main", 1, 0),
-        index_in_tool_call=index_in_tool_call,
-        source=source,
-        target=f"https://a.org/{index_in_tool_call}",
-        target_kind=NetworkRequestTargetKind.URL,
-        host_names=("a.org",),
-        received_content_destination=ContentShownInResult(),
-        certainty=certainty,
-        uncertainty_reason=uncertainty_reason,
+def _key(step_id: int, trajectory_id: str = "main") -> ToolCallKey:
+    return ToolCallKey("t1", trajectory_id, step_id, 0)
+
+
+def _bash_call(
+    step_id: int,
+    command: str,
+    output: str,
+    *,
+    returncode: int = 0,
+    trajectory_id: str = "main",
+) -> HarnessToolCall:
+    """Make a mini-swe-agent `bash` call whose result gives its exit code and output."""
+    return HarnessToolCall(
+        _key(step_id, trajectory_id),
+        HarnessTool("mini-swe-agent", "bash"),
+        f"{trajectory_id}-{step_id}",
+        {"command": command},
+        {"content": json.dumps({"returncode": returncode, "output": output})},
     )
 
 
-def test_each_request_without_evidence_gets_one_attempted_result_in_order_with_its_own_certainty():
-    network_requests = (
-        build_network_request(
-            0,
-            FromWebTool(None, HarnessTool("claude-code", "WebFetch")),
-            NetworkRequestCertainty.CONFIRMED,
-            None,
-        ),
-        build_network_request(
-            1,
-            FromCommand(
-                0,
-                CallCommandText(),
-                UnknownProgramInvocation("mytool", ("https://a.org/1",)),
+def _claude_code_call(
+    step_id: int, tool_name: str, args: dict[str, str], content: str
+) -> HarnessToolCall:
+    return HarnessToolCall(
+        _key(step_id),
+        HarnessTool("claude-code", tool_name),
+        str(step_id),
+        args,
+        {"content": content},
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class _Steps:
+    """Output of the earlier steps on made-up calls, which `decide_network_request_results` reads."""
+
+    expanded_tool_calls: tuple[ExpandedToolCall, ...]
+    network_requests: tuple[NetworkRequest, ...]
+
+
+def _steps(*harness_tool_calls: HarnessToolCall) -> _Steps:
+    knowledge_doors = KnowledgeDoors()
+    expanded_tool_calls = run_steps_to_expanded_tool_calls(
+        harness_tool_calls,
+        knowledge_doors=knowledge_doors,
+        tool_call_judgment_rule_use_counts=Counter(),
+        expanded_tool_call_judgment_rule_use_counts=Counter(),
+    )
+    network_requests = extract_network_requests(
+        expanded_tool_calls,
+        knowledge=knowledge_doors.network_request_knowledge,
+        judgment_rule_use_counts=Counter(),
+        no_network_request_counts=Counter(),
+    )
+    return _Steps(expanded_tool_calls, network_requests)
+
+
+@dataclass(slots=True)
+class _Decided:
+    """Results of `decide_network_request_results` with the counters it filled."""
+
+    results: tuple[NetworkRequestResult, ...]
+    judgment_rule_use_counts: Counter[str]
+    unused_output_line_counts: Counter[tuple[UnusedOutputLineReason, OutputLineKind]]
+    program_counts_of_unowned_output_lines: Counter[
+        tuple[UnusedOutputLineReason, OutputLineKind, str]
+    ]
+
+
+def _decided(
+    steps: _Steps, network_requests: tuple[NetworkRequest, ...] | None = None
+) -> _Decided:
+    """Decide the results of the requests of the steps, or of `network_requests` when given, on a new door."""
+    decided = _Decided((), Counter(), Counter(), Counter())
+    decided.results = decide_network_request_results(
+        steps.expanded_tool_calls,
+        steps.network_requests if network_requests is None else network_requests,
+        knowledge=NetworkRequestResultKnowledge(),
+        judgment_rule_use_counts=decided.judgment_rule_use_counts,
+        unused_output_line_counts=decided.unused_output_line_counts,
+        program_counts_of_unowned_output_lines=decided.program_counts_of_unowned_output_lines,
+    )
+    return decided
+
+
+def _line(
+    step_id: int, kind: OutputLineKind, *, line_index: int = 0, is_shared: bool = False
+) -> OutputLineEvidence:
+    return OutputLineEvidence(_key(step_id), line_index, None, kind, is_shared)
+
+
+def _exit_zero(step_id: int, *, is_shared: bool = False) -> ExitCodeEvidence:
+    return ExitCodeEvidence(_key(step_id), 0, is_shared)
+
+
+# Cases of the made-up inputs of the decision document with their whole results, without the request, which the test takes from `extract_network_requests`.
+# Each gives the calls and, per request in order, the request certainty after the evidence, level, stop reason, level certainty, evidence and the rule uses of the trial.
+WHOLE_RESULT_CASES = [
+    pytest.param(
+        (_bash_call(1, "wget https://a.org/x.tgz", "'x.tgz' saved [1024/1024]"),),
+        [
+            (
+                NetworkRequestCertainty.CONFIRMED,
+                _RECEIVED,
+                None,
+                _CONFIRMED,
+                (_line(1, OutputLineKind.DOWNLOADED), _exit_zero(1)),
+            )
+        ],
+        Counter({"treat_exit_code_meaning_as_assumed_level": 1}),
+        id="wget saved line is received",
+    ),
+    pytest.param(
+        (
+            _bash_call(
+                1,
+                "curl https://a.org/x; curl https://b.org/y",
+                "curl: (6) Could not resolve host: a.org",
+                returncode=6,
             ),
-            NetworkRequestCertainty.UNCERTAIN,
-            NetworkRequestUncertaintyReason.UNKNOWN_PROGRAM,
         ),
+        [
+            (
+                NetworkRequestCertainty.CONFIRMED,
+                _EXECUTED,
+                _FAILED,
+                _CONFIRMED,
+                (_line(1, OutputLineKind.NAME_NOT_RESOLVED),),
+            ),
+            (
+                NetworkRequestCertainty.CONFIRMED,
+                _ATTEMPTED,
+                _NOT_VISIBLE,
+                _CONFIRMED,
+                (),
+            ),
+        ],
+        Counter({"treat_command_without_own_evidence_as_no_evidence_of_run": 2}),
+        id="a line that names a host belongs to the request of that host alone",
+    ),
+    pytest.param(
+        (
+            _bash_call(1, "pip install x > log 2>&1", ""),
+            _bash_call(2, "cat log", "ERROR: No matching distribution found for x"),
+        ),
+        [
+            (
+                NetworkRequestCertainty.CONFIRMED,
+                _REACHED,
+                _FAILED,
+                _CONFIRMED,
+                (_line(2, OutputLineKind.NOT_FOUND), _exit_zero(1)),
+            )
+        ],
+        Counter(),
+        id="a line in a later read of the log is evidence of the command that wrote it",
+    ),
+    pytest.param(
+        (_bash_call(1, "pip install A", "Downloading B-1.0.whl"),),
+        [
+            (
+                NetworkRequestCertainty.CONFIRMED,
+                _EXECUTED,
+                _NOT_VISIBLE,
+                _CONFIRMED,
+                (_line(1, OutputLineKind.DOWNLOAD_STARTED), _exit_zero(1)),
+            )
+        ],
+        Counter({"treat_line_naming_another_target_as_no_evidence_of_answer": 1}),
+        id="a line naming another package shows only the run",
+    ),
+    pytest.param(
+        (
+            _bash_call(
+                1,
+                "pip install x",
+                "Connection reset by peer\nSuccessfully downloaded x",
+            ),
+        ),
+        [
+            (
+                NetworkRequestCertainty.CONFIRMED,
+                _RECEIVED,
+                None,
+                _ASSUMED,
+                (
+                    _line(1, OutputLineKind.CONNECTION_LOST),
+                    _line(1, OutputLineKind.DOWNLOADED, line_index=1),
+                    _exit_zero(1),
+                ),
+            )
+        ],
+        Counter(
+            {
+                "treat_lost_connection_as_after_server_answer": 1,
+                "treat_higher_evidence_beside_failure_as_assumed_level": 1,
+            }
+        ),
+        id="a failure line beside a later download is assumed",
+    ),
+    pytest.param(
+        (
+            _bash_call(
+                1,
+                "curl https://a.org/x; pip install y",
+                "",
+                returncode=0,
+            ),
+            HarnessToolCall(
+                _key(2),
+                HarnessTool("mini-swe-agent", "bash"),
+                "2",
+                {"command": "curl https://c.org/z; pip install w"},
+                {"content": json.dumps({"exception_info": "action was not executed"})},
+            ),
+        ),
+        [
+            (
+                NetworkRequestCertainty.CONFIRMED,
+                _ATTEMPTED,
+                _NOT_VISIBLE,
+                _CONFIRMED,
+                (),
+            ),
+            (
+                NetworkRequestCertainty.CONFIRMED,
+                _EXECUTED,
+                _NOT_VISIBLE,
+                _CONFIRMED,
+                # The code is about both requests of the call, which does not make the result assumed.
+                (_exit_zero(1, is_shared=True),),
+            ),
+            (
+                NetworkRequestCertainty.CONFIRMED,
+                _ATTEMPTED,
+                _FAILED,
+                _CONFIRMED,
+                (ExecutionStatusEvidence(_key(2), ExecutionStatus.NOT_RUN, True),),
+            ),
+            (
+                NetworkRequestCertainty.CONFIRMED,
+                _ATTEMPTED,
+                _FAILED,
+                _CONFIRMED,
+                (ExecutionStatusEvidence(_key(2), ExecutionStatus.NOT_RUN, True),),
+            ),
+        ],
+        Counter({"treat_command_without_own_evidence_as_no_evidence_of_run": 1}),
+        id="exit 0 of a ; b shows the last command, and a call not run fails all its requests",
+    ),
+    pytest.param(
+        (
+            _claude_code_call(
+                1,
+                "WebFetch",
+                {"url": "https://a.org/x", "prompt": "summary"},
+                "Please verify you are not a robot",
+            ),
+            _claude_code_call(
+                2,
+                "WebFetch",
+                {"url": "https://b.org/y", "prompt": "summary"},
+                "Some page text",
+            ),
+        ),
+        [
+            (
+                NetworkRequestCertainty.CONFIRMED,
+                _REACHED,
+                _NOT_VISIBLE,
+                _CONFIRMED,
+                (
+                    _line(1, OutputLineKind.SERVER_ANSWERED),
+                    ExecutionStatusEvidence(_key(1), ExecutionStatus.FINISHED, False),
+                ),
+            ),
+            (
+                NetworkRequestCertainty.CONFIRMED,
+                _RECEIVED,
+                None,
+                _ASSUMED,
+                (
+                    ExecutionStatusEvidence(_key(2), ExecutionStatus.FINISHED, False),
+                    ShownContentEvidence(_key(2)),
+                ),
+            ),
+        ],
+        Counter({"treat_shown_result_text_as_assumed_content": 1}),
+        id="a web fetch result is read with the web tool result patterns",
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    ("harness_tool_calls", "expected_results", "expected_rule_uses"),
+    WHOLE_RESULT_CASES,
+)
+def test_decides_whole_results_of_made_up_inputs(
+    harness_tool_calls, expected_results, expected_rule_uses
+):
+    steps = _steps(*harness_tool_calls)
+
+    decided = _decided(steps)
+
+    assert decided.results == tuple(
+        NetworkRequestResult(network_request, *expected_result)
+        for network_request, expected_result in zip(
+            steps.network_requests, expected_results, strict=True
+        )
+    )
+    assert decided.judgment_rule_use_counts == expected_rule_uses
+
+
+# One case for each row of the table of results in the criteria, the input of a request that the row describes, with the level, stop reason and level certainty it gets.
+RESULT_TABLE_CASES = [
+    pytest.param(
+        _bash_call(1, "wget https://a.org/x.tgz", "'x.tgz' saved [1024/1024]"),
+        (_RECEIVED, None, _CONFIRMED),
+        id="content received",
+    ),
+    pytest.param(
+        _bash_call(1, "curl -i https://a.org/x", "HTTP/1.1 404 Not Found"),
+        (_REACHED, _FAILED, _CONFIRMED),
+        id="server refused",
+    ),
+    pytest.param(
+        _bash_call(
+            1,
+            "curl https://a.org/x",
+            "curl: (6) Could not resolve host: a.org",
+            returncode=6,
+        ),
+        (_EXECUTED, _FAILED, _CONFIRMED),
+        id="server not reached",
+    ),
+    pytest.param(
+        _bash_call(
+            1, "pip3 install requests", "bash: pip3: command not found", returncode=127
+        ),
+        (_ATTEMPTED, _FAILED, _CONFIRMED),
+        id="not run",
+    ),
+    pytest.param(
+        _bash_call(
+            1,
+            "apt-get update",
+            "Hit:1 http://archive.ubuntu.com/ubuntu jammy InRelease",
+        ),
+        (_REACHED, _NOT_VISIBLE, _CONFIRMED),
+        id="server answered and the content does not show",
+    ),
+    pytest.param(
+        _bash_call(1, "pip install A", ""),
+        (_EXECUTED, _NOT_VISIBLE, _CONFIRMED),
+        id="ran and its output does not show",
+    ),
+    pytest.param(
+        _bash_call(1, "test -f x || curl https://a.org/x -o x", ""),
+        (_ATTEMPTED, _NOT_VISIBLE, _CONFIRMED),
+        id="not known whether it ran",
+    ),
+    pytest.param(
+        _bash_call(
+            1,
+            "pip install requests",
+            "Requirement already satisfied: requests in /usr/lib",
+        ),
+        (_EXECUTED, _NOT_NEEDED, _CONFIRMED),
+        id="nothing had to be sent",
+    ),
+    pytest.param(
+        _bash_call(1, "curl -I https://a.org", "HTTP/1.1 200 OK"),
+        (_REACHED, None, _CONFIRMED),
+        id="a request for no content succeeds at reached",
+    ),
+]
+
+
+@pytest.mark.parametrize(("harness_tool_call", "expected"), RESULT_TABLE_CASES)
+def test_each_row_of_the_result_table_comes_out_of_its_case(
+    harness_tool_call, expected
+):
+    decided = _decided(_steps(harness_tool_call))
+
+    assert [
+        (result.level, result.stop_reason, result.level_certainty)
+        for result in decided.results
+    ] == [expected]
+
+
+def test_a_trial_without_requests_still_reads_every_result_and_counts_its_lines():
+    steps = _steps(
+        _bash_call(
+            1, "./setup.sh", "Downloading torch-2.3.0.whl\nDownloading numpy-1.26.whl"
+        ),
+        _bash_call(2, "ls -la", "HTTP/1.1 200 OK"),
+        _bash_call(3, "rg foo", "bash: rg: command not found", returncode=127),
+        _bash_call(4, "cat README.md", "Downloading torch-2.3.0"),
+        # A plan tool's result is no output place, and its line is counted as such.
+        _claude_code_call(5, "TaskList", {}, "HTTP/1.1 503 Service Unavailable"),
     )
 
-    # A result without evidence asks the door nothing, so None stands in for it.
-    results = decide_network_request_results(
-        (),
-        network_requests,
-        knowledge=None,  # pyright: ignore[reportArgumentType]
+    decided = _decided(steps)
+
+    assert steps.network_requests == ()
+    assert decided.results == ()
+    assert decided.unused_output_line_counts == Counter(
+        {
+            (
+                UnusedOutputLineReason.UNOWNED_LINE_IN_UNKNOWN_RUN,
+                OutputLineKind.DOWNLOAD_STARTED,
+            ): 2,
+            (UnusedOutputLineReason.NO_UNKNOWN_RUN, OutputLineKind.HTTP_STATUS): 1,
+            (
+                UnusedOutputLineReason.MISSING_PROGRAM_OF_COMMAND_WITHOUT_REQUEST,
+                OutputLineKind.PROGRAM_MISSING,
+            ): 1,
+            (UnusedOutputLineReason.FILE_CONTENT, OutputLineKind.DOWNLOAD_STARTED): 1,
+            (
+                UnusedOutputLineReason.NOT_AN_OUTPUT_PLACE,
+                OutputLineKind.HTTP_STATUS,
+            ): 1,
+        }
+    )
+    assert decided.program_counts_of_unowned_output_lines == Counter(
+        {
+            (
+                UnusedOutputLineReason.UNOWNED_LINE_IN_UNKNOWN_RUN,
+                OutputLineKind.DOWNLOAD_STARTED,
+                "setup.sh",
+            ): 2,
+            (
+                UnusedOutputLineReason.NO_UNKNOWN_RUN,
+                OutputLineKind.HTTP_STATUS,
+                "ls",
+            ): 1,
+        }
+    )
+    assert decided.judgment_rule_use_counts == Counter()
+
+
+def test_results_follow_the_order_of_the_requests_given():
+    steps = _steps(
+        _bash_call(1, "pip install A", "Successfully downloaded A-1.0"),
+        _bash_call(2, "pip install B", ""),
+    )
+    reversed_network_requests = steps.network_requests[::-1]
+
+    decided = _decided(steps, reversed_network_requests)
+
+    assert [result.network_request for result in decided.results] == list(
+        reversed_network_requests
+    )
+    assert [result.level for result in decided.results] == [_EXECUTED, _RECEIVED]
+
+
+def test_adds_to_the_counters_it_is_given_without_clearing_them():
+    steps = _steps(
+        _bash_call(1, "pip install A", "Successfully installed A-1.0"),
+        _bash_call(2, "./setup.sh", "Downloading torch-2.3.0.whl"),
+    )
+    judgment_rule_use_counts = Counter(
+        {"treat_installed_line_as_no_evidence_of_download": 5}
+    )
+    unused_output_line_reason_and_kind: tuple[
+        UnusedOutputLineReason, OutputLineKind
+    ] = (
+        UnusedOutputLineReason.UNOWNED_LINE_IN_UNKNOWN_RUN,
+        OutputLineKind.DOWNLOAD_STARTED,
+    )
+    unused_output_line_counts: Counter[
+        tuple[UnusedOutputLineReason, OutputLineKind]
+    ] = Counter({unused_output_line_reason_and_kind: 5})
+    program_counts_of_unowned_output_lines: Counter[
+        tuple[UnusedOutputLineReason, OutputLineKind, str]
+    ] = Counter({(*unused_output_line_reason_and_kind, "setup.sh"): 5})
+
+    decide_network_request_results(
+        steps.expanded_tool_calls,
+        steps.network_requests,
+        knowledge=NetworkRequestResultKnowledge(),
+        judgment_rule_use_counts=judgment_rule_use_counts,
+        unused_output_line_counts=unused_output_line_counts,
+        program_counts_of_unowned_output_lines=program_counts_of_unowned_output_lines,
+    )
+
+    assert judgment_rule_use_counts == Counter(
+        {"treat_installed_line_as_no_evidence_of_download": 6}
+    )
+    assert unused_output_line_counts == Counter({unused_output_line_reason_and_kind: 6})
+    assert program_counts_of_unowned_output_lines == Counter(
+        {(*unused_output_line_reason_and_kind, "setup.sh"): 6}
+    )
+
+
+def test_counts_the_uses_of_the_door_on_the_door_it_is_given():
+    steps = _steps(_bash_call(1, "pip install A", "Successfully installed A-1.0"))
+    knowledge = NetworkRequestResultKnowledge()
+
+    decide_network_request_results(
+        steps.expanded_tool_calls,
+        steps.network_requests,
+        knowledge=knowledge,
         judgment_rule_use_counts=Counter(),
         unused_output_line_counts=Counter(),
         program_counts_of_unowned_output_lines=Counter(),
     )
 
-    assert [result.network_request for result in results] == list(network_requests)
-    assert [result.request_certainty_after_evidence for result in results] == [
-        NetworkRequestCertainty.CONFIRMED,
-        NetworkRequestCertainty.UNCERTAIN,
+    assert (
+        knowledge.uses.row_use_counts[
+            "output_line_patterns", ("program_output", "pip_successfully_installed")
+        ]
+        == 1
+    )
+
+
+def test_a_request_of_a_subagent_trajectory_takes_only_the_lines_of_its_own_calls():
+    # The two calls have the same step id in two trajectories, so only the trajectory id of their keys tells them apart.
+    steps = _steps(
+        _bash_call(1, "pip install A", ""),
+        _bash_call(
+            1, "pip install A", "Successfully downloaded A-1.0", trajectory_id="sub-1"
+        ),
+    )
+
+    decided = _decided(steps)
+
+    assert [
+        (result.network_request.tool_call_key, result.level, result.evidence)
+        for result in decided.results
+    ] == [
+        (_key(1), _EXECUTED, (_exit_zero(1),)),
+        (
+            _key(1, "sub-1"),
+            _RECEIVED,
+            (
+                OutputLineEvidence(
+                    _key(1, "sub-1"), 0, None, OutputLineKind.DOWNLOADED, False
+                ),
+                ExitCodeEvidence(_key(1, "sub-1"), 0, False),
+            ),
+        ),
     ]
-    for result in results:
-        assert result.level == NetworkRequestResultLevel.ATTEMPTED
-        assert result.stop_reason == NetworkRequestResultStopReason.NOT_VISIBLE
-        assert result.level_certainty == NetworkRequestResultCertainty.CONFIRMED
-        assert result.evidence == ()

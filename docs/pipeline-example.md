@@ -54,7 +54,7 @@ The trial's row answers the two questions of the README for each category, as a 
 | 1. Convert tool calls | What did the trajectory record? | c1 with its three commands | c2 to c5, with c3 still running | c6 with one command |
 | 2. Expand tool calls | What did each call actually run, and where does that output show up? | Nothing beyond its own text, and all output is in c1's result | c3 also ran the curl line of fetch.sh. curl's output shows up in c5, pip's in c4 | setup.sh ran, and what it ran is unknown |
 | 3. Extract network requests | Which of what ran is a request, and for which target? | r1 and r2 | r3 and r4 | None |
-| 4. Decide request results | How far did each request get, and on what evidence? | r1 and r2 share one line | r3 and r4 each have lines of their own | Lines that no request owns make r5 |
+| 4. Decide request results | How far did each request get, and on what evidence? | r1 and r2 share one line | r3 and r4 each have lines of their own | Lines that no request owns are counted, and no request is made |
 | 5. Export rows | Which category is each request, and what do the rows say? | Two fetched files, received only in the upper bound | A fetched file not received, a package received | A package received |
 
 Steps 1 and 2 are built to know nothing about the internet.
@@ -282,68 +282,72 @@ Each run, code call or URL in code that gives no request is counted by its reaso
 
 ## Step 4: decide request results
 
-The step reads every output place that step 2 recorded, including those that no request reaches.
-A line that says something about a request goes to the requests that reach that place and whose program can print it.
+The step reads the result of every call, including those that no request reaches, and keeps the lines that an output line pattern fits.
+A line goes to the requests whose output reaches its place, whose run can print it and whose target it does not contradict.
 
-| Requests that reach the place and can print the line | What the line becomes |
+| Requests that own the line | What the line becomes |
 |---|---|
 | One | That request's own evidence |
 | Several | Evidence they share. A result that rests on it is only assumed |
-| None | A new request, unless the output comes from a program that only shows a file's content, e.g. `cat README.md` |
+| None | No evidence and no request. The line is counted by its reason, e.g. it shows a file's content after `cat README.md`, or a run whose content is unknown reaches its place |
 
-Then each request is judged on its own evidence. `request_certainty` from step 3 says how sure the pipeline is that something is a request, and `result_certainty` says how sure it is of how far the request got. Line indexes are 0-based.
+Then each request is judged on its own evidence, i.e. its lines, the exit code of the text that ran it, the status of its call and later uses of the file it saved.
+`request_certainty_after_evidence` says how sure the pipeline is that something is a request, and `level_certainty` says how sure it is of how far the request got. Line indexes are 0-based.
 
 | Asked through `NetworkRequestResultKnowledge` | Answer in this example |
 |---|---|
-| What does `Could not resolve host: X` say? | The request ran and reached no server |
-| What does `Connection timed out` say? | No connection was made |
-| Which program prints `Successfully installed X`? | pip |
+| What does `Could not resolve host: X` mean? | The host name did not resolve, and any program may print it |
+| What does `Connection timed out` mean? | No connection was made, and any program may print it |
+| What does `Successfully installed X` mean, and who prints it? | A package was installed, printed by pip |
+| Which lines does a run of `pip install` print? | pip's |
+| Which lines does a run of `curl -sS -O` print? | Unknown, since `-S` and `-O` have no row yet |
 
-| Output place | Commands that reach it | Lines about a request | Owner | How far the request got |
+| Output place | Commands that reach it | Lines a pattern fits | Owner | Result |
 |---|---|---|---|---|
-| c1's result | curl x.tgz, curl y.tgz, echo | `Connection timed out` | r1 and r2 share it | Both Executed, failed, assumed |
-| c4's result | pip of c3 | `Downloading requests-2.32.3`, `Successfully installed requests-2.32.3` | r4 | Received, confirmed |
-| c5's result | bash and curl of c3 | `Could not resolve host: data.example.org` | r3 | Executed, failed, confirmed |
-| c6's result | bash of c6, which ran unknown content | `Downloading torch-2.3.0`, `Successfully installed torch-2.3.0` | None, so a new request r5 | Received, confirmed |
+| c1's result | curl x.tgz, curl y.tgz, echo | `Connection timed out` | r1 and r2 share it | Both executed, failed, assumed |
+| c4's result | bash and pip of c3 | `Downloading requests-2.32.3`, `Successfully installed requests-2.32.3` | r4 | Reached, not visible, confirmed |
+| c5's result | bash and curl of c3, through fetch.log | `Could not resolve host: data.example.org` | r3 | Executed, failed, assumed |
+| c6's result | bash of c6, which ran unknown content | `Downloading torch-2.3.0`, `Successfully installed torch-2.3.0` | None | Two lines counted as unused, by the program `bash` that reaches the place |
 
 ```python
 r1.result = NetworkRequestResult(
-    request=r1,
-    # `;` runs it whatever came before, and `done` shows that the text ran to its end.
+    network_request=r1,
+    request_certainty_after_evidence=r1.certainty,
     level=EXECUTED,
     stop_reason=FAILED,
     # The only failure line may be r2's.
-    result_certainty=ASSUMED,
-    evidence=(SharedLine(shown_in=c1, line_index=0, kind=CONNECTION_FAILED, shared_with=(r2,)),),
+    level_certainty=ASSUMED,
+    evidence=(OutputLineEvidence(showing_tool_call_key=c1, line_index=0, line_index_in_json_string=None, kind=CONNECTION_FAILED, is_shared_with_other_requests=True),),
 )
-
-# Step 4 makes this request, since no request reaches c6's result.
-# The lines name one target. How the targets of one run are grouped into requests is not decided.
-r5 = NetworkRequest(
-    source=FromOutput(tool_call=c6, shown_in=c6),
-    # What sent it is inside setup.sh.
-    means=None,
-    target="torch",
-    target_kind=PACKAGE_NAME,
-    host=None,
-    received_content_destination=UNKNOWN,
-    # Which lines alone make a confirmed request is a judgment rule still to be decided.
-    request_certainty=...,
-)
-r5.result = NetworkRequestResult(
-    request=r5,
-    level=RECEIVED,
-    stop_reason=None,
-    result_certainty=CONFIRMED,
+r4.result = NetworkRequestResult(
+    network_request=r4,
+    request_certainty_after_evidence=CONFIRMED,
+    # A download began, so a server answered. `Successfully installed` alone does not show that the content arrived, since a cache can give it.
+    level=REACHED,
+    stop_reason=NOT_VISIBLE,
+    level_certainty=CONFIRMED,
     evidence=(
-        OwnLine(shown_in=c6, line_index=0, kind=DOWNLOAD_STARTED),
-        OwnLine(shown_in=c6, line_index=1, kind=INSTALLED),
+        OutputLineEvidence(showing_tool_call_key=c4, line_index=0, line_index_in_json_string=None, kind=DOWNLOAD_STARTED, is_shared_with_other_requests=False),
+        OutputLineEvidence(showing_tool_call_key=c4, line_index=1, line_index_in_json_string=None, kind=INSTALLED, is_shared_with_other_requests=False),
     ),
 )
 ```
 
+r3 owns its line alone, yet its result is assumed, since the door does not know which lines a run of `curl -sS -O` prints, so another program may have printed it.
+A Claude Code `Bash` result gives no exit code line, so no request here gets evidence from an exit code, and each counts `treat_command_without_own_evidence_as_no_evidence_of_run` once.
+Case C gives no request. If setup.sh did fetch torch, that request is missing from both bounds, and only the count of unused lines shows it.
 Had a later call unpacked x.tgz, that use would be r1's own evidence that its content arrived.
-Some results need a choice that facts alone do not settle, e.g. whether `Successfully installed` without a download line means received, since a cache can give it. Such judgment rules belong to this step and are still to be decided.
+The entry function `decide_network_request_results` calls these pieces in order.
+
+| Piece | What it gives |
+|---|---|
+| `decide_output_place_sources` | For each call whose result shows output, every command whose output reaches it, e.g. bash and curl of c3 for c5's read of fetch.log |
+| `decide_output_line_meanings` | For each call, the lines of its result that a pattern fits, with their meaning |
+| `decide_output_line_owners` | For each such line, the requests that own it, counting the lines without an owner by reason |
+| `decide_network_request_result_evidence` | For each request, its evidence with the level and stop reason each piece shows |
+| `decide_one_network_request_result` | For each request, the result from its evidence |
+
+Some results need a choice that facts alone do not settle, e.g. whether a line that a run of unknown output may have printed is shared. Such choices are the provisional judgment rules of `network_request_result/judgment_rules.py`, and each use of one is counted.
 
 ## Step 5: export rows
 
