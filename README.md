@@ -60,7 +60,7 @@ The [pipeline example](docs/pipeline-example.md) follows six made-up tool calls 
 | 2 | Expand tool calls | What did each call actually run, and where does that output show up? | `ExpandedToolCall` | 6 | Being rebuilt, with its types, its program catalogs, the reading of a command into the programs it runs and the values of its variables. The old code still runs |
 | 3 | Extract network requests | Which of what ran is a request, and for which target? | `NetworkRequest` | 0 | Being rebuilt, with its types and an entry function that returns no request yet. The old code still runs |
 | 4 | Decide request results | How far did each request get, and on what evidence? | `NetworkRequestResult` | 0 | Being rebuilt, with its types and an entry function that gives each request a result without evidence yet. The old code still runs |
-| 5 | Export rows | Which category is each request, and what do the rows say for each task? | Request rows and trial rows | 0 | Planned |
+| 5 | Export rows | Which category is each request, and what do the rows say for each task? | `NetworkRequestRow`, `TrialRow`, `TrialCategoryMeasureRow` | 0 | Being built, with its types and the trial row. Only a read trial without requests is exported yet |
 
 A judgment rule is a choice that facts alone do not settle, e.g. whether a negative exit code means the command was killed.
 Judgment rules are kept apart from outside knowledge, one function each in the `judgment_rules.py` of the step, each marked provisional or decided, and all are provisional today.
