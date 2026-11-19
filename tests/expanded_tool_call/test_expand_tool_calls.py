@@ -1,6 +1,6 @@
 """Tests for expanded_tool_call/_expand_tool_calls.py, on made-up trials and a made-up program catalog whose rows the cases name, so that a case does not change when the real catalog gains rows.
 
-The first cases follow the made-up trial of `docs/pipeline-example.md` through the entry function. The others take one row each of the two case tables of the step, i.e. what a call ran and where its output shows up.
+The first cases follow the made-up trial of `docs/pipeline-example.md` through the entry function. The next four check an empty trial, calls that run nothing, the order of the calls and the counts of the pieces. The others take one row each of the two case tables of the step, i.e. what a call ran and where its output shows up.
 """
 
 from collections import Counter
@@ -210,7 +210,7 @@ def _call(
 
 
 def _shell_commands_of(tool_call: ToolCall) -> tuple[ShellCommand, ...]:
-    """Give the commands that `convert_tool_calls` split the call's own command text into."""
+    """Give the commands that `parse_shell_text` split the call's own command text into."""
     assert isinstance(tool_call.action, RunCommandAction)
     parsed_shell_text = tool_call.action.parsed_shell_text
     assert isinstance(parsed_shell_text, ParsedShellText)
@@ -688,7 +688,7 @@ def test_the_counts_of_every_piece_reach_the_counter_of_the_caller(knowledge):
     )
 
 
-# One case per row of the table of what a call ran: follow the text when the trajectory holds it at the moment it runs, and record what is unknown when it does not.
+# One case per row of the table of what a call ran. The text is followed when the trajectory holds it at the moment it runs, and what is unknown is recorded when it does not.
 
 
 def test_ran_text_inside_the_same_call_is_followed(knowledge):
@@ -854,7 +854,7 @@ def test_a_file_that_a_command_with_an_unknown_result_touches_before_it_runs_is_
     )
 
 
-# One case per row of the table of where output shows up: follow it when the trajectory holds the place, and record nothing when it does not.
+# One case per row of the table of where output shows up. The output is followed when the trajectory holds the place, and gets no place in a later call when it does not.
 
 
 def _stdout_routes_of_first_command(

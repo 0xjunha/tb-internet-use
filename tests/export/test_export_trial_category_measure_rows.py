@@ -74,7 +74,7 @@ def measure_row(
     )
 
 
-# Request rows of the made-up results, e.g. a confirmed receipt of a file, a received package whose internet use is not known, and a `pip install` whose `pip: command not found` confirms that it did not receive.
+# Request rows that stand for made-up results by their category, sender and bounds alone, e.g. a confirmed receipt of a file, a received package whose internet use is not known, and a `pip install` whose `pip: command not found` confirms that it did not receive.
 FETCHED_FILE_ROW_RECEIVED = build_network_request_row(
     FETCHED_FILE, TASK_ENVIRONMENT, LOWER_AND_UPPER, LOWER_AND_UPPER
 )

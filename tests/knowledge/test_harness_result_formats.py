@@ -225,7 +225,7 @@ def test_each_format_names_the_judgment_rule_of_the_hand_written_table():
 
 
 def test_tools_with_declared_formats_are_in_the_catalog():
-    # A harness or tool name that the catalog does not have would leave its formats unused.
+    # A declared harness or tool name that the catalog does not have may be misspelled, and a misspelled name matches no call, so its formats would stay unused.
     declared = {
         HarnessTool(harness, tool) for harness, tool, _ in iter_declared_format_lists()
     }

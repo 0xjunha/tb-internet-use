@@ -79,7 +79,7 @@ Tools whose `ToolCallAction` varies by call are labeled [`Deferred`](../knowledg
 
 | Step | Code | Produces |
 |---|---|---|
-| Read the text of a trajectory file, pair calls with results | [`parse_trajectory.py`](parse_trajectory.py) | `HarnessToolCall`, or `UnreadableTrajectory` of [`trial/model.py`](../trial/model.py) when the file is missing or is not JSON |
+| Read the text of a trajectory file, pair calls with results | [`parse_trajectory.py`](parse_trajectory.py) | `HarnessToolCall`, or `UnreadableTrajectory` of [`trial/model.py`](../trial/model.py) when the text is not JSON. For a missing file, `read_trajectory` in [pipeline.py](../pipeline.py) gives the `UnreadableTrajectory` itself |
 | Match the result against the harness's declared result formats | [`_convert_tool_call_result.py`](_convert_tool_call_result.py), one [`HarnessToolCallConverter`](harnesses/harness_tool_call_converter.py) per harness in [harnesses/](harnesses/), with the formats from [`tool_call_knowledge.py`](../knowledge/tool_call_knowledge.py) | `ToolCallResult` |
 | Build the action from the label of the tool and the arguments, with the result at hand | [`_convert_tool_call_action.py`](_convert_tool_call_action.py), with the label from [`tool_call_knowledge.py`](../knowledge/tool_call_knowledge.py) | `ToolCallAction`, `UnknownAction` for a tool without a row or for a call whose two arguments give a field of one value different values |
 | Fill what the action type and argument fields of a label cannot express, e.g. the handles a result names, the terminate of a stop tool, Deferred tools | `HarnessToolCallConverter.refine_action`, `action_of_deferred_tool` | `ToolCallAction` |
@@ -184,7 +184,7 @@ Both give `tool_output_text="hello"`, `exit_code=0`, status `finished`.
 | The tool has no formats | The raw text as is | `unknown` | `UnmatchedFormat.SKIPPED` |
 
 `tool_output_text` is `""` when the tool showed no output, and `None` only when the trajectory holds no text of what it returned, e.g. an image, a PDF or a Cursor CLI blob id.
-`handles` name what a later call can poll. A result with handles is usually `running`, but a `finished` Codex `exec` or `wait` result also names the sessions of commands its script left running, read from step results it printed as JSON.
+`handles` name what a later call can poll. A result can name them whatever its status, e.g. a `finished` Devin `exec` result names the shell the command ran in, and a `finished` Codex `exec` or `wait` result names the sessions of commands its script left running, read from step results it printed as JSON.
 [`harness_result_format`](model.py) names the format, as in the table of declared result formats and the audit, for audits and evidence only. Later steps must not branch on it.
 
 ## Judgment rules

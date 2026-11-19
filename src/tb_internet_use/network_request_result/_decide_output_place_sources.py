@@ -44,7 +44,7 @@ def decide_output_place_sources(
 ) -> tuple[OutputPlaceSources, ...]:
     """Decide the sources of every output place of a trial, one `OutputPlaceSources` per showing call in the order of `expanded_tool_calls`.
 
-    A place is the result of a call that some `OutputPlace` names or that shows a file which commands printed into, and also every result of a tool script or of a call made only of web tool actions, whose lines are read even when no command reaches them.
+    A place is the result of a call that some `OutputPlace` names or that shows a file which commands printed into, and also each result with tool output text that is not `NOT_RUN` of a tool script or of a call made only of web tool actions, whose lines are read even when no command reaches them.
     A place that no request reaches is returned too, since a line there can still be counted as a line that gave no evidence.
     The source commands of a place are grouped by the call that ran them, in call order and with ascending command ids.
     """

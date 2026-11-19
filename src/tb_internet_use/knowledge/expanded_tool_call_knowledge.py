@@ -1,6 +1,6 @@
 """Answer the questions of `expand_tool_calls` about programs and the languages they run from the program catalogs, counting every use of a row and every input without one.
 
-A blank cell is unknown only in the role columns, `visibility_of_piped_input`, the exit code columns, `options_end_at_first_argument` and `takes_one_letter_options_joined`. Every other column says what it means in a word, e.g. `none` or `unchanged`, and a blank there fails the load, since the door could not read the words of the program without it.
+A blank cell is unknown only in the role columns, `visibility_of_piped_input`, the exit code columns, `options_end_at_first_argument`, `takes_one_letter_options_joined` and `default_run_file`. Every other fact column says what it means in a word, e.g. `no` or `none`, and a blank there fails the load, so that the door never reads a missing fact as a default. A blank `subcommand` names the row of the program without a subcommand.
 """
 
 import functools
@@ -139,7 +139,7 @@ class ExpandedToolCallKnowledge:
         A word that starts with `+` is `ProgramArgumentWord` when no row of the program or its subcommand names an option that starts with `+`, e.g. `+x` of chmod.
         A row of the subcommand comes before a row of the program without a subcommand, e.g. `(git, clone, --depth)` before `(git, "", --depth)`.
         With `is_before_subcommand`, for a word between the program word and the subcommand, e.g. `-C` of `git -C /app log`, only the rows without a subcommand answer, read as the row of the program without a subcommand reads joined letters, since such a word is an option of the program and not of the subcommand.
-        The door counts one use of a row per option it gives, and when the rows do not cover the word one unknown input under the word as written with the subcommand as asked, e.g. `(find, "", -maxdepth)` or `(grep, "", -rn)`, so that the list of unknown inputs holds only words without rows. For `--name=value` that input is `--name`, since a row is named without a value.
+        The door counts one use of a row per option it gives, and when the rows do not cover the word one unknown input under the word as written with the subcommand as asked, e.g. `(echo, "", -ne)`, so that the list of unknown inputs holds only words without rows. For `--name=value` that input is `--name`, since a row is named without a value.
         """
         catalogs = self._catalogs
         program_name = program_behavior.program_name

@@ -53,10 +53,10 @@ def treat_single_label_or_templated_host_name_as_possibly_public(
 
     It is asked only for the forms SINGLE_LABEL and TEMPLATED, and a DOTTED_NAME raises `ValueError`, since `treat_dotted_host_name_as_public` decides that form.
     It returns whether such a URL in the words of a program without a row, in the strings of a code call without a row, or in code outside every call gives an uncertain request.
-    On `True` it does, and the request counts only toward the upper bound. On `False` it gives no request, which lowers the upper bound.
+    On `True` it does. The request then counts only toward the upper bound for a templated name, and in no bound for a name without a dot, which `treat_single_label_host_name_as_not_internet_use` reads as no internet use. On `False` it gives no request.
     A use is such a host name.
 
-    Provisional. The earlier code made no choice, and an uncertain request keeps the lower bound true while dropping it would lower the upper bound.
+    Provisional. The earlier code made no choice, and an uncertain request keeps the lower bound true while dropping it would lower the upper bound for a templated name.
     """
     if unknown_host_name_scope.reason == UnknownHostNameScopeReason.DOTTED_NAME:
         raise ValueError(

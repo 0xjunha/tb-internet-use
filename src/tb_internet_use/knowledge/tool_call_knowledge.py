@@ -1,4 +1,4 @@
-"""Answer the questions of `convert_tool_calls` about harness tools from the harness tool catalog and the harness result format declarations, counting every use of a row and every input without one."""
+"""Answer the questions of `convert_tool_calls` about harness tools from the harness tool catalog and the harness result format declarations, counting every use of a row and every input without one, apart from an argument without a row."""
 
 import functools
 from collections.abc import Collection, Mapping, Sequence
@@ -46,7 +46,7 @@ class ToolCallKnowledge:
     """Door of `convert_tool_calls` to the outside knowledge, made for one trial and passed to `convert_tool_calls`, which asks it one question per method.
 
     An answer is a value or an unknown, never a default.
-    `uses` counts every catalog row and every declared result format that answered, and every input without one.
+    `uses` counts every catalog row and every declared result format that answered, and every input without one apart from an argument without a row, as `harness_tool_label` says.
     The loaded catalogs are cached per process, so making a door per trial is cheap.
     """
 

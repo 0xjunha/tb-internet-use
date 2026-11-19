@@ -13,11 +13,11 @@ A shell text is the command string of one `RunCommandAction`, a step of a Codex 
 | `assignment_positions_are_in_shell_text` | A `next_command_id` lies from the first id of its shell text to one past its last, and a for loop item's is at most its `next_command_id_after_for_loop` |
 
 A check looks at one value at a time, i.e. one action, one shell text, one command or one variable assignment, and `checks.csv` counts those values.
-A trial that raises breaks none of the checks and shows in `trial_outcomes.csv` instead.
+A trial on which `read_trajectory` or `convert_tool_calls` raises breaks none of the checks and shows in `trial_outcomes.csv` instead.
 The output types do not say why a shell text is marked `structure_may_be_wrong`, e.g. a syntax error, a brace list or lines left joined, so the counts do not split the marks by reason.
 
 It writes five CSVs under `out/parsed_shell_texts/`, which `.gitignore` keeps out of the repo.
-They hold counts, harness names, trial ids and masked shapes only, never text from a trajectory.
+They hold counts, check names, trial outcomes, harness names, trial ids, tool call keys and masked shapes only, never text from a trajectory.
 
 | File | One row |
 |---|---|
@@ -159,7 +159,7 @@ def main() -> None:
 
 
 def audit_trial(trial_dir: Path) -> TrialAudit:
-    """Run `convert_tool_calls` on one trial and check and count the parsed shell texts of its calls, with an exception named instead of raised."""
+    """Run `convert_tool_calls` on one trial and check and count the parsed shell texts of its calls, naming an exception of `read_trajectory` or `convert_tool_calls` instead of raising it."""
     judgment_rule_use_counts: Counter[str] = Counter()
     try:
         harness_tool_calls = read_trajectory(trial_dir)

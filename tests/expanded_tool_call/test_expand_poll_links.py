@@ -362,7 +362,7 @@ def test_a_muse_main_poll_is_not_linked_to_a_start_of_a_subagent_placed_after_it
 
 
 def test_a_poll_of_a_subagent_that_no_call_started_has_no_starter():
-    # The result of Claude Code `Agent` names no agent id, so only the poll names it.
+    # The conversion of a Claude Code `Agent` result gives no handle, so only the result of the poll names the agent id.
     subagent = _tool_call(1, StartSubagentAction(), status=FINISHED)
     poll = _tool_call(2, _poll(), "a1", status=FINISHED, handle_kind=SUBAGENT)
     poll_links, judgment_rule_use_counts = _expand(subagent, poll)

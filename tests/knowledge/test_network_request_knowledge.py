@@ -106,7 +106,7 @@ _CODE_CALL_COLUMNS = [
     "reviewed",
     "note",
 ]
-# A row of a call that sends a request whose every cell differs from the first value of its type, so that a door that drops or mixes up a column fails.
+# A row of a call that sends a request whose language, target notation and target kind each differ from the first value of their types, so that a door that drops or mixes up a column fails.
 _SENDING_CODE_CALL_ROW_CELLS = {
     **dict.fromkeys(_CODE_CALL_COLUMNS, ""),
     "code_language": "javascript",
@@ -153,7 +153,7 @@ _CODE_CALL_CATALOGS_THAT_CANNOT_LOAD = [
         "two rows have the key",
     ),
 ]
-# Calls of the old code request tables that build a client or a request object and send nothing, or whose first argument is a method and not the URL, so the real catalog has no row for them.
+# Python calls that build a client or a request object and send nothing themselves, e.g. `requests.Session`, or whose first argument is the method and not the URL, e.g. `requests.request`. The real catalog has no row for them.
 _OLD_CALLS_WITHOUT_ROW = [
     "requests.Session",
     "httpx.Client",
@@ -172,7 +172,7 @@ _PROGRAM_ROWS_THAT_NO_COLUMN_CAN_STATE = [
     ("git", "diff"),
     ("pip", "list"),
 ]
-# Fact cells of a fetching program row in which a blank fails the load.
+# Cells of a fetching program row in which a blank fails the load.
 _PROGRAM_COLUMNS_THAT_CANNOT_BE_BLANK = [
     "fetches",
     "target_arguments",
@@ -527,7 +527,7 @@ _OLD_PROGRAM_ROWS = [
     _OldProgramRow("wget", "", "url", "no", "no", "no"),
     _OldProgramRow("xxd", "", "", "", "", ""),
 ]
-# The patterns of network calls in code, by language, of the earlier code request tables that `code_calls.csv` carries over.
+# The patterns of network calls in code, by language, of the earlier code request tables, whose calls `code_calls.csv` carries over except those of `_OLD_CALLS_WITHOUT_ROW`.
 _OLD_NETWORK_CALL_OF_LANGUAGE = {
     CodeLanguage.PYTHON: re.compile(
         r"""\brequests\.(?:get|post|put|head|request|Session)\b|\bhttpx\.(?:get|post|stream|Client|AsyncClient)\b|\baiohttp\.ClientSession\b|\burlopen\(|\burlretrieve\(|\b(?:snapshot_download|hf_hub_download|from_pretrained|load_dataset)\(|\bnltk\.download\(|\bsocket\.(?:create_connection|getaddrinfo|gethostbyname)\b"""
@@ -541,7 +541,7 @@ _OLD_PROGRAM_RUN_BY_CODE = re.compile(
 _NOT_CHECKED = "not checked, from the old table"
 # A manual page named as `name(section)`, e.g. `git-clone(1)` or `ping(8)`.
 _MANUAL_PAGE_NAME = re.compile(r"\b[\w.+-]+\([1-9][a-z]*\)")
-# A host of a documentation site, e.g. `pip.pypa.io` or `pnpm.io/cli/install`.
+# A host of a documentation site, e.g. `pip.pypa.io` or `pnpm.io` in `pnpm.io/cli/install`.
 _DOCUMENTATION_HOST = re.compile(r"\b(?:[a-z0-9-]+\.)+[a-z]{2,}\b")
 
 

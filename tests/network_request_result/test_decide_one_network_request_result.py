@@ -143,7 +143,10 @@ def with_level(
 def may_belong_reason_of(
     evidence: NetworkRequestResultEvidence,
 ) -> NetworkRequestResultAssumptionReason:
-    """Give the reason that `decide_network_request_result_evidence` gives a piece of evidence of this kind that may belong to another request, and for a line that no other request owns the reason of a run whose lines are unknown."""
+    """Give the reason that `decide_network_request_result_evidence` gives a line, an HTTP status or a file use that may belong to another request, and for a line that no other request owns the reason of a run whose lines are unknown.
+
+    That function gives an exit code, an execution status or shown content no such reason, so for them this gives `UnknownRunBesideAssumptionReason`, e.g. for the exit code 0 of `EVIDENCE_OTHER_THAN_LINES` marked as evidence that may belong to another request.
+    """
     match evidence:
         case OutputLineEvidence() if evidence.is_shared_with_other_requests:
             return shared_line_reason_of(evidence)
@@ -228,7 +231,7 @@ CONNECTED_BY_RULE = with_level(
 
 # (request, evidence, expected level, stop reason and certainty, expected rule uses)
 RESULT_CASES = [
-    # The eight rows of the result table, one evidence each.
+    # The eight rows of the result table, each with one piece of evidence except `ATTEMPTED` with `NOT_VISIBLE`, which has none.
     pytest.param(
         REQUEST_FOR_CONTENT,
         [SAVED],
@@ -285,7 +288,7 @@ RESULT_CASES = [
         {},
         id="executed and not needed, e.g. `Requirement already satisfied: x`",
     ),
-    # Each kind of evidence that the rows above do not use, alone.
+    # Each kind of evidence that the rows above do not use, alone except for the use of a saved file, which stands beside exit code 0.
     pytest.param(
         REQUEST_FOR_CONTENT,
         [with_level(HttpStatusEvidence(TOOL_CALL_KEY, 404), REACHED, FAILED)],
@@ -445,7 +448,7 @@ RESULT_CASES = [
         {RULE_6: 1, RULE_17: 1},
         id="a failure below a level whose stop reasons the rule picks from",
     ),
-    # Two stop reasons at one level.
+    # Two stop reasons at one level, then, as the last case, `NOT_NEEDED` at a level below a server answer.
     pytest.param(
         REQUEST_FOR_CONTENT,
         [HTTP_404, HTTP_200],
@@ -953,7 +956,7 @@ def test_sent_request_line_cases_cover_every_output_line_kind():
     assert {kind for kind, _, _, _ in SENT_REQUEST_LINE_CASES} == set(OutputLineKind)
 
 
-# Each output line case at its own level, and again at `EXECUTED` with `NOT_VISIBLE` as `treat_line_naming_another_target_as_no_evidence_of_answer` reads a line that names another target, with whether a clean line lifts the request.
+# Each output line case at its own level, and each kind but `BARE_STATUS_CODE` again at `EXECUTED` with `NOT_VISIBLE` as `treat_line_naming_another_target_as_no_evidence_of_answer` reads a line that names another target, with whether a clean line lifts the request.
 LINE_LIFTING_CASES = [
     *SENT_REQUEST_LINE_CASES,
     *(
@@ -1094,7 +1097,7 @@ def test_decide_one_network_request_result_keeps_an_uncertain_request_whose_line
     )
 
 
-# One example of each kind of evidence at each level and stop reason it can show for a request that asks for content.
+# Examples of the kinds of evidence at levels and stop reasons they can show for a request that asks for content.
 EVIDENCE_EXAMPLES_OF_REQUEST_FOR_CONTENT = [
     SAVED,
     SHOWN_CONTENT,

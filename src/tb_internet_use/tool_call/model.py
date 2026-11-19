@@ -1,6 +1,6 @@
-"""Harness-agnostic common types for tool calls in ATIF trajectories.
+"""Common types for the tool calls of ATIF trajectories, which `convert_tool_calls` gives so that later steps read the calls of every harness the same way.
 
-Each harness names its tools and writes its results in its own way, e.g. a shell call is `Bash` in Claude Code and `exec_command` in Codex. Later steps read these types, so they work the same for every harness.
+Each harness names its tools and writes its results in its own way, e.g. a shell call is `Bash` in Claude Code and `exec_command` in Codex.
 
 The command string of a `RunCommandAction` is also split into its simple commands, with when each runs and where its output goes, as shell grammar alone shows them. Text inside `bash -c '...'` is not split here, since that needs a fact about bash. It stays one word of the outer command, and `expand_tool_calls` splits it.
 """
@@ -110,7 +110,7 @@ def strings_from_values(values: Any) -> tuple[str, ...]:
 
 @dataclass(frozen=True, slots=True)
 class RunCommandAction:
-    """Run a string in a shell in one go. It can chain several commands."""
+    """Action of a tool call that runs a string in a shell in one go. The string can chain several commands."""
 
     # None when the trajectory has none.
     command_str: str | None = None
@@ -232,7 +232,7 @@ class VariableAssignment:
 
 @dataclass(frozen=True, slots=True)
 class RunToolScriptAction:
-    """Run code that calls harness tools, e.g. Codex `exec`. The trajectory has one result for all of it."""
+    """Action of a tool call that runs code calling harness tools, e.g. Codex `exec`. The trajectory has one result for all of it."""
 
     # The code of the script, None when the trajectory has none.
     code: str | None = None
@@ -243,7 +243,7 @@ class RunToolScriptAction:
 
 @dataclass(frozen=True, slots=True)
 class WriteFileAction:
-    """Write a whole file with a dedicated tool."""
+    """Action of a tool call that writes a whole file with a dedicated tool."""
 
     path: str | None = None  # None when the trajectory has none
     content: str | None = None
@@ -251,7 +251,7 @@ class WriteFileAction:
 
 @dataclass(frozen=True, slots=True)
 class EditFileAction:
-    """Replace text in a file with a dedicated tool."""
+    """Action of a tool call that replaces text in a file with a dedicated tool."""
 
     path: str | None = None  # None when the trajectory has none
     old: str | None = None
@@ -260,14 +260,14 @@ class EditFileAction:
 
 @dataclass(frozen=True, slots=True)
 class DeleteFileAction:
-    """Delete a file with a dedicated tool."""
+    """Action of a tool call that deletes a file with a dedicated tool."""
 
     path: str | None = None  # None when the trajectory has none
 
 
 @dataclass(frozen=True, slots=True)
 class ReadFileAction:
-    """Read a file with a dedicated tool."""
+    """Action of a tool call that reads a file with a dedicated tool."""
 
     path: str | None = None  # None when the trajectory has none
     offset: int | None = None  # 1-based line, and a negative one counts from the end
@@ -276,7 +276,7 @@ class ReadFileAction:
 
 @dataclass(frozen=True, slots=True)
 class SearchFilesAction:
-    """Search the content of files with a dedicated tool."""
+    """Action of a tool call that searches the content of files with a dedicated tool."""
 
     # The files or folders searched, empty when the trajectory has none.
     paths: tuple[str, ...] = ()
@@ -284,40 +284,40 @@ class SearchFilesAction:
 
 @dataclass(frozen=True, slots=True)
 class ListFilesAction:
-    """Find files by name or list a folder with a dedicated tool."""
+    """Action of a tool call that finds files by name or lists a folder with a dedicated tool."""
 
     path: str | None = None  # the folder, None when the trajectory has none
 
 
 @dataclass(frozen=True, slots=True)
 class WebSearchAction:
-    """Search with a dedicated web tool."""
+    """Action of a tool call that searches with a dedicated web tool."""
 
     queries: tuple[str, ...] = ()  # empty when the trajectory has none
 
 
 @dataclass(frozen=True, slots=True)
 class WebFetchAction:
-    """Open pages with a dedicated web tool."""
+    """Action of a tool call that opens pages with a dedicated web tool."""
 
     urls: tuple[str, ...] = ()  # empty when the trajectory has none
 
 
 @dataclass(frozen=True, slots=True)
 class WebFindAction:
-    """Find text in a page with a dedicated web tool."""
+    """Action of a tool call that finds text in a page with a dedicated web tool."""
 
     urls: tuple[str, ...] = ()  # empty when the trajectory has none
 
 
 @dataclass(frozen=True, slots=True)
 class StartSubagentAction:
-    """Start a subagent, whose own calls may or may not be in the trajectory."""
+    """Action of a tool call that starts a subagent, whose own calls may or may not be in the trajectory."""
 
 
 @dataclass(frozen=True, slots=True)
 class PollAction:
-    """Read from, write to or stop a command, script or subagent started earlier."""
+    """Action of a tool call that reads from, writes to or stops a command, script or subagent started earlier."""
 
     handles: tuple[ExecutionHandle, ...] = ()
     input: str | None = None  # text sent to stdin, None if the poll only reads
@@ -326,7 +326,7 @@ class PollAction:
 
 @dataclass(frozen=True, slots=True)
 class OtherAction:
-    """Use a known tool that only handles the harness's own state, e.g. a plan, a to-do list, a wait or a question to the user.
+    """Action of a tool call that uses a known tool handling only the harness's own state, e.g. a plan, a to-do list, a wait or a question to the user.
 
     A tool that touches the task environment has a type of its own for what it does, e.g. `SearchFilesAction`.
     """
@@ -334,13 +334,13 @@ class OtherAction:
 
 @dataclass(frozen=True, slots=True)
 class UnknownAction:
-    """Use an unknown tool, or make a call that could not be converted."""
+    """Action of a tool call that uses an unknown tool, or of a call that could not be converted."""
 
 
 @final
 @dataclass(frozen=True, slots=True)
 class MatchedFormat:
-    """A declared harness result format matched the result."""
+    """Format match of a tool result that one declared harness result format matched, held in `ToolCallResult.harness_result_format`."""
 
     name: str  # unique within one (harness, tool)
 
@@ -349,7 +349,7 @@ class MatchedFormat:
 
 
 class UnmatchedFormat(Enum):
-    """No declared format produced the output."""
+    """Format match of a tool result that no declared harness result format matched, held in `ToolCallResult.harness_result_format`."""
 
     UNKNOWN = "unknown_format"  # the tool has formats, but this result matched none
     SKIPPED = "skipped_format"  # the tool has no formats, so none were tried
@@ -379,6 +379,7 @@ class HarnessToolCall:
     args: dict[str, Any]
     # The result object in the trajectory, or None when the call has none.
     result: dict[str, Any] | None
+    # True for a call of a subagent trajectory, or of a step whose `extra.is_sidechain` is true in the trajectory.
     is_subagent: bool = False
 
 
@@ -386,7 +387,7 @@ class HarnessToolCall:
 class ToolCallKey:
     """Unique position of a tool call in the trajectories."""
 
-    trial_id: str  # Harbor Hub trial id
+    trial_id: str  # the name of the trial folder, as in Trial.trial_id
     trajectory_id: str  # "main", or "main/sub0" for the first subagent (0-based)
     step_id: int  # the step's step_id in the trajectory, 1-based
     call_index: int  # 0-based position in the step's tool_calls

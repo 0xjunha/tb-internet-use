@@ -1,4 +1,4 @@
-"""Decide what the facts of a request and the outside knowledge do not settle about its row, one named rule per situation, e.g. the category of `curl u | tar xz` or which parts of a URL in a row are hidden as credentials.
+"""Decide what the facts of a request and the outside knowledge do not settle about its row, one named rule per situation, e.g. the category of `curl u | wc -c` or which parts of a URL in a row are hidden as credentials.
 
 Each rule is a judgment, not a reading of the trajectory or a fact of a catalog, so it lives here where it can be found and changed.
 For example, the URL `https://a.org/x?page=2&token=abc` shows no rule of which query values are secret, and only a rule says that `export_rows` hides them all.
@@ -93,7 +93,7 @@ def treat_host_target_that_may_receive_content_as_other_web(
 def treat_saved_content_from_package_registry_host_as_fetched_file(
     network_request: NetworkRequest, *, use_counts: Counter[str]
 ) -> bool:
-    """Put a request whose content from a package registry host is saved in the fetched file category, e.g. `wget https://files.pythonhosted.org/.../x.whl`.
+    """Put a request whose content from a package registry host is saved in the fetched file category, e.g. `wget https://pypi.org/.../x.whl`.
 
     Saving a file from a registry may get a package without its installer, and the words do not say whether a mirror of the registry would replace it.
     `export_network_request_category` asks it for a request for a URL or a repository whose content is saved and one of whose public hosts the host catalog gives the service `PACKAGE_REGISTRY`.
@@ -112,9 +112,9 @@ def treat_saved_content_from_package_registry_host_as_fetched_file(
 def treat_content_piped_to_consuming_command_as_other_web(
     network_request: NetworkRequest, *, use_counts: Counter[str]
 ) -> bool:
-    """Put a request whose content goes to a command that shows none of it in the other web category, e.g. `curl u | tar xz` or `curl u | sh`.
+    """Put a request whose content goes to a command that shows none of it in the other web category, e.g. `curl u | wc -c` or `curl u | md5sum`.
 
-    Such a command unpacks, runs or stores the content, much as saving it would, but the words do not say which.
+    Such a command uses the content without showing it, much as saving it would, but the words do not say how.
     `export_network_request_category` asks it for a request for a URL or a repository whose content goes to a command with `OutputVisibility.NONE` at the end.
     On `True` the category is `OTHER_WEB`. On `False` it is the category that the request would get if its content were saved.
     A use is such a request.
@@ -128,7 +128,7 @@ def treat_content_piped_to_consuming_command_as_other_web(
 def treat_content_piped_to_showing_command_as_other_web(
     network_request: NetworkRequest, *, use_counts: Counter[str]
 ) -> bool:
-    """Put a request whose content goes to a command that shows all or part of it in the other web category, e.g. `curl u | head`, `curl u | grep x` or `curl u | tee log`.
+    """Put a request whose content goes to a command that shows all or part of it in the other web category, e.g. `curl u | head` or `curl u | grep x`.
 
     Such a command may show the content whole or only some lines of it, so whether the agent read it as a page is not known.
     `export_network_request_category` asks it for a request for a URL or a repository whose content goes to a command with `OutputVisibility.WHOLE` or `OutputVisibility.PARTIAL` at the end.
@@ -144,7 +144,7 @@ def treat_content_piped_to_showing_command_as_other_web(
 def treat_shown_content_from_search_engine_host_as_other_web(
     network_request: NetworkRequest, *, use_counts: Counter[str]
 ) -> bool:
-    """Put a request whose content from a search engine host is shown in the result in the other web category, e.g. `curl 'https://duckduckgo.com/html?q=x'`.
+    """Put a request whose content from a search engine host is shown in the result in the other web category, e.g. `curl 'https://html.duckduckgo.com/html?q=x'`.
 
     A command can ask a search engine for its search page or for any other page of it, and the words alone do not say which.
     `export_network_request_category` asks it for a request for a URL or a repository from a command or code whose content is shown, none of whose public hosts is code hosting and one of which the host catalog gives the service `SEARCH_ENGINE`.
@@ -203,7 +203,7 @@ def treat_request_without_host_name_as_sent_to_default_registry_host(
 
     A program that installs packages usually names no host, and whether the request went out at all is decided from its output lines when results are decided.
     `export_network_request_row` asks it for each request without a host name whose source is no web tool. It gives the hosts the same reading as hosts that the words name.
-    `package_registry` is the answer of `ExportKnowledge.package_registry`, or None for a request that the door is not asked about, e.g. `git push origin main`.
+    `package_registry` is the answer of `ExportKnowledge.package_registry`, or None for a request that the door is not asked about, e.g. `git fetch origin`.
     It gives the host names of a `PackageRegistry`, e.g. `deb.debian.org archive.ubuntu.com` for `apt-get update`, also when a file names the targets, e.g. `pip install -r reqs.txt`.
     It gives no host for a target that is a local path, e.g. `pip install -e .`, since a local project may or may not ask a registry for what it depends on. It gives none either for `UnknownPackageRegistry` or None. Without a host the request's internet use is not known.
     The other choices are no host for every request, which leaves all of them unknown, or the registry hosts for a local path too.
@@ -228,7 +228,7 @@ def treat_request_without_host_name_as_sent_to_default_registry_host(
 def treat_templated_host_name_as_unknown_internet_use(
     network_request: NetworkRequest, *, use_counts: Counter[str]
 ) -> bool:
-    """Leave the internet use of a request unknown when a host name of it holds a template and none is public, e.g. `curl https://$HOST/x`.
+    """Leave the internet use of a request unknown when a host name of it holds a template and none is public, e.g. `mytool https://$HOST/x`.
 
     `$HOST` gets its value when the command runs, and the trajectory does not show the value.
     `export_network_request_row` asks it for a request with such a host name and no public host, among the hosts that its words name or that it is taken to be sent to.
@@ -328,11 +328,11 @@ def treat_assumed_failure_as_possibly_received(
 def treat_trial_with_success_line_shared_by_confirmed_requests_as_received(
     network_request_rows: Sequence[NetworkRequestRow], *, use_counts: Counter[str]
 ) -> bool:
-    """Count the trial in the lower bound of received for a category and sender when an output line of success that several of its requests share shows that one of them received, e.g. one `Successfully installed A-1.0` under `pip install A B`, where each request alone stays assumed.
+    """Count the trial in the lower bound of received for a category and sender when an output line of success that several of its requests share shows that one of them received, e.g. one `Fetched 10 kB in 1s` under `apt-get install -y a b`, where each request alone stays assumed.
 
     Which owner of the line printed it is not known, but whichever did is a confirmed request of this category and sender that received, so what is unknown is which request received, not whether one did. The measure counts trials, not requests.
     A line counts the trial in the lower bound of received only when every result that holds it as a shared output line has the same category and sender, is in the lower bound of requests, has the result view `RECEIVED` and is assumed for shared output lines alone with this very line among them. An owner that is an uncertain request, of another category or sender, not a success, assumed for another line alone or assumed for another reason, e.g. a judgment rule or a run that is not read beside it, breaks it, since the line may be that owner's.
-    `export_rows` asks it once for each category and sender of a trial with such a line in which no row is in the lower bound of received by its own result, giving the rows of the owners of those lines. Where a row is, the bound cannot rise and the rule is not asked.
+    `mark_network_request_rows_among_success_line_owners` asks it, for `export_rows`, once for each category and sender of a trial with such a line in which no row is in the lower bound of received by its own result, giving the rows of the owners of those lines. Where a row is, the bound cannot rise and the rule is not asked.
     On `True` those rows are among success line owners one of which received and the trial counts in the lower bound of received for the category and sender, while the received bound of each row stays as its own result gives it. On `False` the trial counts as its rows alone give it, i.e. only in the upper bound.
     A use is such a category and sender of a trial.
 

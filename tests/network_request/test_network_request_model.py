@@ -1,4 +1,4 @@
-"""Tests for the checks that the types of network_request/model.py make when they are built."""
+"""Tests for the checks that the types of network_request/model.py make when they are built or read as true or false."""
 
 import itertools
 

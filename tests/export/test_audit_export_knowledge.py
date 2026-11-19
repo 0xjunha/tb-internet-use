@@ -1,6 +1,6 @@
-"""Tests for scripts/audit_export_knowledge.py, run on the output of scripts/run_pipeline.py for made-up trial folders, with the written files or the counts of `export_rows` changed so that one equation breaks at a time.
+"""Tests for scripts/audit_export_knowledge.py, run on the output of scripts/run_pipeline.py for made-up trial folders, with the written files, the counts of `export_rows` or the lookups of its door changed so that the equation under test differs.
 
-The equations hold whatever the catalogs say, so the cases use the catalogs of the repo and assert only that the equations hold or that the broken one differs.
+The equations hold whatever the catalogs say, so the cases use the catalogs of the repo. Beside the equations, some cases assert the exit code and what the other CSVs of the audit hold, e.g. the rows of `row_uses.csv` that the catalogs of the repo give.
 """
 
 import csv
@@ -21,7 +21,7 @@ def _load_script(name: str):
     spec = importlib.util.spec_from_file_location(name, _SCRIPTS_DIR / f"{name}.py")
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module  # dataclasses look the module up while it loads
+    sys.modules[spec.name] = module  # the audit imports `run_pipeline` by this name
     spec.loader.exec_module(module)
     return module
 
@@ -58,7 +58,7 @@ _BASH_CALLS_OF_TRIAL = {
     ],
 }
 
-# A made-up Claude Code trajectory whose one `WebFetch` call reads a host without a dot, which the rule for local hosts of a web tool decides rather than the rule for a host without a dot.
+# A made-up Claude Code trajectory whose one `WebFetch` call reads a host without a dot, which the rule for local hosts and hosts without a dot of a web tool decides rather than the rule for a host without a dot.
 _WEB_FETCH_TRAJECTORY = json.dumps(
     {
         "schema_version": "ATIF-v1.7",
@@ -83,7 +83,7 @@ _WEB_FETCH_TRAJECTORY = json.dumps(
 
 
 class _InProcessPool:
-    """Stand-in for the process pools of both scripts, which maps in the test process since a worker process could not import a script by its file path."""
+    """Stand-in for the process pools of both scripts, which runs each task in the test process so that what a test patches on a script reaches the task."""
 
     def __init__(self, process_count: int) -> None:
         pass
@@ -206,7 +206,7 @@ def test_every_equation_holds_on_the_rows_of_made_up_trials(
     ]
 
 
-# (equation, file of the run, text in it, text that replaces it everywhere), one case per equation that reads a written file.
+# (equation, file of the run, text in it, text that replaces it everywhere), for seven of the ten equations that read a written file, two of them with two cases.
 BROKEN_FILE_CASES = [
     (
         "written_request_rows_differing_from_rows_exported_again",
@@ -284,7 +284,7 @@ def test_task_lines_out_of_order_or_below_the_unreadable_trials_differ(
 ):
     task_lines_path = run_dir / "task_category_measures.csv"
     header, *lines = _csv_rows(task_lines_path)
-    # The upper count of requests of every line drops to 0, below its lower count and below the one unreadable trial of the task.
+    # The upper count of requests of every line drops to 0, below the one unreadable trial of the task and, on the lines with a lower count above 0, below that lower count.
     column = header.index("request_upper_trial_count")
     with task_lines_path.open("w", newline="") as csv_file:
         csv.writer(csv_file, lineterminator="\n").writerows(
@@ -300,7 +300,7 @@ def test_task_lines_out_of_order_or_below_the_unreadable_trials_differ(
     } <= set(_differing_equations(out_dir))
 
 
-# (equation, rule names that a changed `export_rows` counts once more), one case per kind of count that the rows must match.
+# (equation, rule names that a changed `export_rows` counts once more), one case for a rule of `export/judgment_rules.py` asked for a request, one for `treat_trial_with_success_line_shared_by_confirmed_requests_as_received`, asked for a category and sender of a trial, one for `treat_dotted_host_name_as_public` and one for a name that is no rule.
 BROKEN_COUNT_CASES = [
     (
         "treat_discarded_content_as_other_web_uses_equal_its_situations",

@@ -1,8 +1,8 @@
 # Program catalog
 
-The program catalog is outside knowledge for step 2, kept in the three CSVs of this folder. They say how a program reads its words, which words name a file, a text or the next program it runs, and which language a text is in. None of them says anything about the internet. They are filled and reviewed by hand, and `expand_tool_calls` reads them only through `ExpandedToolCallKnowledge` in [expanded_tool_call_knowledge.py](../../expanded_tool_call_knowledge.py).
+The program catalog is outside knowledge for `expand_tool_calls`, kept in the three CSVs of this folder. They say how a program reads its words, which words name a file, a text or the next program it runs, and which language a text is in. None of them says anything about the internet. They are filled by hand, their `reviewed` column says which rows a person has reviewed, and `expand_tool_calls` reads them only through `ExpandedToolCallKnowledge` in [expanded_tool_call_knowledge.py](../../expanded_tool_call_knowledge.py).
 
-A cell holds a fact, a word that stands for a value, e.g. `none`, or a blank. The table of each file says, per column, which words it takes and what a blank means. A blank is unknown only where the table says so, and the door then answers with an `Unknown…` type of [model.py](../../../expanded_tool_call/model.py) or `OutputVisibility.UNKNOWN`. In every other column a blank fails the load, since the door could not read the words of a command without the cell. A fact that is not known for such a column is no row at all, so the program or option stays an unknown input.
+A cell holds a fact, a word that stands for a value, e.g. `none`, or a blank. The table of each file says, per column, which words it takes and what a blank means. A blank is unknown only where the table says so, and the door then answers with an `Unknown…` type of [model.py](../../../expanded_tool_call/model.py) or `OutputVisibility.UNKNOWN`. In every other fact column a blank fails the load, since the door could not read the words of a command without the cell. A fact that is not known for such a column is no row at all, so the program or option stays an unknown input.
 
 The role columns hold a `ProgramWordRole` value, e.g. `read_file` for the arguments of cat or `program` for those of sudo.
 
@@ -11,7 +11,7 @@ The role columns hold a `ProgramWordRole` value, e.g. `read_file` for the argume
 | Column | Cell | Blank |
 |---|---|---|
 | `program_name` | The name without folder or version, e.g. `pip` for `/usr/bin/pip3`. It becomes `ProgramInvocation.program_name` | Fails the load |
-| `subcommand` | The words that pick what the program does, split by one space, e.g. `run` for uv | The row of every call of the program |
+| `subcommand` | The words that pick what the program does, split by one space, e.g. `run` for uv | The row of a call whose words fit no row of a subcommand |
 | `argument_role` | The role of each word that is no option, e.g. `read_file` for cat | Unknown |
 | `first_argument_role`, `last_argument_role` | The role of the first or last such word, or `same` when it has the role of `argument_role`, e.g. `run_file` for the first word of bash. `option_cluster` says that the first such word holds one-letter options without a dash, e.g. `xzf` of `tar xzf a.tgz`, read through the option rows `-x`, `-z` and `-f`, whose values are the words after it in turn. It also holds when an option with a dash comes before that word, which the page of tar does not say | Unknown |
 | `stdin_role` | The role of stdin when no word names a file, or `none` when the program does not read it | Unknown |
@@ -32,14 +32,14 @@ The door answers for a whole word of a command, e.g. `-fsSLoout` or `--output=f`
 | Column | Cell | Blank |
 |---|---|---|
 | `program_name` | The `program_name` of the row of `program_behaviors.csv` the option belongs to | Fails the load |
-| `subcommand` | The `subcommand` of that row, e.g. `exec` for the options of `npm exec` | The option of every call of the program |
+| `subcommand` | The `subcommand` of that row, e.g. `exec` for the options of `npm exec` | The option of every call of the program, unless a row of the call's subcommand names the option |
 | `option_name` | The option as written, e.g. `-o`, `--output` or `-exec` | Fails the load |
 | `takes_value` | `yes` or `no` | Fails the load |
 | `value_role` | The role of the value, or `none` for an option that takes no value | Unknown, only for an option that takes a value |
 | `argument_role_with_option` | The role of each word that is no option while the option is there, or `unchanged` | Unknown |
 | `first_argument_role_with_option`, `last_argument_role_with_option` | The same for the first or last word, `same` or `unchanged` | Unknown |
-| `changed_option_name` | Another option whose value takes a role while this option is there, e.g. `-f` for `-c` of tar, or `none` | Fails the load |
-| `changed_option_value_role` | The role that value takes, or `none` with `changed_option_name` `none` | Unknown |
+| `changed_option_name` | Another option whose value takes a role while this option is there, e.g. `-f` for `-x` of tar, or `none` | Fails the load |
+| `changed_option_value_role` | The role that value takes, or `none` with `changed_option_name` `none` | Unknown, only for a row that names an option in `changed_option_name` |
 | `gives_arguments_at_run_time` | `yes` or `no`, as in `program_behaviors.csv` | Fails the load |
 | `exits_with_exit_code_of_next_program_with_option` | `yes`, `no`, or `unchanged` when the option keeps the cell of the program row | Unknown |
 | `next_program_end_words` | The words that end the next program, split by spaces, e.g. `; +`, or `none` | Fails the load |

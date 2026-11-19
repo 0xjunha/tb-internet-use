@@ -73,10 +73,12 @@ def decide_output_line_owners(
 ) -> tuple[OutputLineOwners, ...]:
     """Decide the owners of each of `output_lines_with_meaning`, one `OutputLineOwners` per line in their order, with no owner when no request can have printed it.
 
-    The owners are the requests whose output reaches the place of the line, whose run can print it and whose target the line does not contradict, e.g. the request of `b.org` alone for `Could not resolve host: b.org` under `curl a.org; curl b.org`.
+    The owners are the requests whose output reaches the place of the line and whose run can print it.
+    Those whose target the line contradicts are left out when another of them has the package or host of the line, e.g. the request of `b.org` alone for `Could not resolve host: b.org` under `curl a.org; curl b.org`.
+    When none of them has it, all stay owners, and the line names another target when it contradicts one of them, e.g. `Downloading B-1.0.whl` under `pip install A`.
     One owner makes the line evidence of that request alone, and several make it evidence they share.
     A line without an owner adds one to `unused_output_line_counts` under its reason and kind, unless it shows that a command with a request did not run, e.g. `rg: command not found` before `&& pip install y`.
-    Under `NO_UNKNOWN_RUN` and `UNOWNED_LINE_IN_UNKNOWN_RUN` it also adds one to `program_counts_of_unowned_output_lines` for each program name that reaches its place.
+    Under `NO_UNKNOWN_RUN` and `UNOWNED_LINE_IN_UNKNOWN_RUN` it also adds one to `program_counts_of_unowned_output_lines` for each program name that `_program_names_of_unowned_output_line` gives.
     """
     expanded_tool_call_by_key = {
         expanded_tool_call.tool_call.harness_tool_call.key: expanded_tool_call

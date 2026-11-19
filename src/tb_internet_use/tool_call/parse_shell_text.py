@@ -471,7 +471,8 @@ class _ShellTextWalker:
         """Walk the commands of a `$(...)`, backticks, `<(...)` or `>(...)`.
 
         The first three hand their stdout to the enclosing command.
-        `>(...)` reads output instead, and its stdout goes where the enclosing command's goes.
+        `>(...)` reads output instead. As a word its own stdout goes where the enclosing command's goes, e.g. to f for b in `tee >(b) > f`.
+        As a redirect target its own stdout goes where the statement's stdout went before the redirects of the statement, e.g. to the result of the call for b in `a > >(b)`.
         Each runs in a subshell, so its `set` options end with it.
         Bash also turns `set -e` off inside `$(...)`, while sh keeps it, and this follows bash.
         A `$(...)` that an outer shell already ran is not walked again.
@@ -1882,7 +1883,7 @@ def _character_after_backslash_of(match: re.Match[str]) -> str:
 
 
 def _has_expansion(word_node: Node) -> bool:
-    """Check whether a word holds `$A`, `${A}`, `$(...)`, backticks, `<(...)` or `$((...))`."""
+    """Check whether a word holds `$A`, `${A}`, `$(...)`, backticks, `<(...)`, `>(...)` or `$((...))`."""
     return word_node.type in _EXPANSION_NODE_TYPES or any(
         _has_expansion(child) for child in word_node.children
     )

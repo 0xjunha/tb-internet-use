@@ -1,4 +1,4 @@
-"""Tests for knowledge/harness_result_format_declaration.py, with made-up annotations."""
+"""Tests for knowledge/harness_result_format_declaration.py, with made-up result formats."""
 
 import pytest
 

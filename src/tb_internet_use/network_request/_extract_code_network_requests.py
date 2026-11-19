@@ -1,7 +1,7 @@
 """Extract the network requests of one Python or JavaScript code text from its calls and from the URLs it writes outside them, asking the code call catalog which calls fetch.
 
 Code is not split into commands, so a request is found by the call that sends it, e.g. `requests.get("https://a.org/x")`.
-A public URL that no known call holds gives an uncertain request of its own, e.g. `BASE = "https://a.org"`, since whether the code fetches it depends on the flow of the code.
+A URL that may be public and that no known call holds gives an uncertain request of its own, e.g. `BASE = "https://a.org"`, since whether the code fetches it depends on the flow of the code.
 """
 
 import re
@@ -69,7 +69,7 @@ def extract_code_network_requests(
     judgment_rule_use_counts: Counter[str],
     no_network_request_counts: Counter[NoNetworkRequestReason],
 ) -> tuple[NetworkRequest, ...]:
-    """Extract the requests of one code text in the order of its calls, then those of the public URLs outside every call.
+    """Extract the requests of one code text in the order of its calls, then those of the URLs that may be public outside every call.
 
     A call that sends a request gives one confirmed request per call when its target is in the text, and one per call name when it is not, e.g. `requests.get(base + path)`.
     A call without a row gives one uncertain request per URL that may be public or whose host cannot be read, and the text outside every call one per URL that may be public.

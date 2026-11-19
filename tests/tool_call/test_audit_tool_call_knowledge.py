@@ -19,7 +19,7 @@ _SPEC = importlib.util.spec_from_file_location(
 )
 assert _SPEC is not None and _SPEC.loader is not None
 audit = importlib.util.module_from_spec(_SPEC)
-sys.modules[_SPEC.name] = audit  # dataclasses look the module up while it loads
+sys.modules[_SPEC.name] = audit  # registered as an import would do
 _SPEC.loader.exec_module(audit)
 
 # A made-up Claude Code trajectory with one `Bash` call, whose result has no `Exit code` line and a structured result that lets the rules give exit code 0.
@@ -114,7 +114,7 @@ def _trial_audit(
 
 
 class _InProcessPool:
-    """Stand-in for the process pool of `main`, which maps in the test process since a worker process could not import the script by its file path."""
+    """Stand-in for the process pool of `main`, which maps in the test process so that the test starts no worker process."""
 
     def __init__(self, process_count: int) -> None:
         pass

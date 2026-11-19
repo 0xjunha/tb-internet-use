@@ -1,4 +1,4 @@
-"""Tests for scripts/audit_expanded_tool_calls.py, with made-up trials expanded on a made-up program catalog, made-up expanded calls that break one equation each, and made-up trial folders run through `audit_trial` and `main`."""
+"""Tests for scripts/audit_expanded_tool_calls.py, with made-up trials expanded on a made-up program catalog, broken inputs made from one such expansion, each of which makes at least the equation it names differ, and made-up trial folders run through `audit_trial` and `main`."""
 
 import copy
 import csv
@@ -56,7 +56,7 @@ _SPEC = importlib.util.spec_from_file_location(
 )
 assert _SPEC is not None and _SPEC.loader is not None
 audit = importlib.util.module_from_spec(_SPEC)
-sys.modules[_SPEC.name] = audit  # dataclasses look the module up while it loads
+sys.modules[_SPEC.name] = audit  # registered as an import would do
 _SPEC.loader.exec_module(audit)
 
 FINISHED = ToolCallResult(
@@ -648,7 +648,7 @@ def _running_result(output_path: str) -> ToolCallResult:
 
 # (equation, made-up calls of a shape that the full data of 2026-10-08 showed, with the expansion right and the recount once wrong). The comments name the shape.
 SHAPES_THAT_HOLD: list[tuple[str, tuple[ToolCall, ...]]] = [
-    # `python3 - 2>&1 | tail <<'EOF'` gives the heredoc to tail, so python reads no text.
+    # `python - 2>&1 | tail <<'EOF'` gives the heredoc to tail, so python reads no text.
     (
         "commands_of_runner_names_fall_in_a_branch",
         (_call(1, "python - 2>&1 | tail <<'EOF'\nprint(1)\nEOF"),),
@@ -696,7 +696,7 @@ SHAPES_THAT_HOLD: list[tuple[str, tuple[ToolCall, ...]]] = [
         "file_text_writers_hold_the_file",
         (_call(1, WriteFileAction("d/run.sh", "echo a")), _call(2, "bash run.sh")),
     ),
-    # wc shows the size of the harness output file, not its content.
+    # wc shows the size of the harness output file, not its content. In this catalog `-l` has no row, so its words stay unread and the read already counts on neither side before the role of wc is asked.
     (
         "harness_output_file_reads_are_output_places",
         (
@@ -988,7 +988,7 @@ def test_audit_trial_names_the_type_of_an_exception(tmp_path, monkeypatch):
 
 
 class _InProcessPool:
-    """Stand-in for the process pool of `main`, which maps in the test process since a worker process could not import the script by its file path, and keeps the process count it was asked for."""
+    """Stand-in for the process pool of `main`, which maps in the test process so that a function that a test replaces is replaced in the run too, and keeps the process count it was asked for."""
 
     # The process counts that `main` asked for, kept across instances.
     process_counts: ClassVar[list[int]] = []

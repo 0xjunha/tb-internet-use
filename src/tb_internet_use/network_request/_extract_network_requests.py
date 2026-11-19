@@ -43,7 +43,8 @@ def extract_network_requests(
     """Extract the network requests of every expanded tool call of one trial, in call order, and within a call by command id, then code text, then web tool step.
 
     A call that did not run gives the requests its text shows too, since how far a request got is decided from its output later, e.g. `pip install x` in a call that the harness refused.
-    Every use of a rule of `judgment_rules.py` adds one to `judgment_rule_use_counts` under the name of the rule. Every program run, code call or URL in code that gives no request adds one to `no_network_request_counts` under its reason.
+    Every use of a rule of `judgment_rules.py` adds one to `judgment_rule_use_counts` under the name of the rule. Every program run and every code call that gives no request adds one to `no_network_request_counts` under its reason, except a call whose name already gave a request whose target the code does not show, e.g. the second `requests.get(base + path)`.
+    A URL in code adds one when it would give an uncertain request but is dropped as a namespace URL or as a local or reserved URL, so `mylib.fetch("http://localhost:8000/x")` in Python adds two, one for the URL and one for the call.
     """
     return tuple(
         network_request

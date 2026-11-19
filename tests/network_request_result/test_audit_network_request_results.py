@@ -1,4 +1,4 @@
-"""Tests for scripts/audit_network_request_results.py, with a made-up trial run through the steps on the catalogs of the repo, made-up results that break one equation each, and made-up trial folders run through `audit_trial` and `main`.
+"""Tests for scripts/audit_network_request_results.py, with a made-up trial run through the steps on the catalogs of the repo, made-up broken inputs that each make at least the equation they name differ, and made-up trial folders run through `audit_trial` and `main`.
 
 The equations hold whatever the catalogs say, so the cases use the catalogs of the repo and assert only counts of rows that they hold, e.g. `wget` and `curl -I` without other options.
 """
@@ -58,7 +58,7 @@ _SPEC = importlib.util.spec_from_file_location(
 )
 assert _SPEC is not None and _SPEC.loader is not None
 audit = importlib.util.module_from_spec(_SPEC)
-sys.modules[_SPEC.name] = audit  # dataclasses look the module up while it loads
+sys.modules[_SPEC.name] = audit  # registered as an import would do
 _SPEC.loader.exec_module(audit)
 
 
@@ -99,7 +99,7 @@ _MADE_UP_TRIAL = (
     ),
     # Exit code 0 of the text shows that sudo and curl ran, since sudo ends with the exit code of curl.
     _bash_call(6, "sudo curl -s -o y https://f.org/b", ""),
-    # Exit code 0 of the text does not show that these ran: curl before a pipe, curl in a loop, curl under timeout, whose row leaves that fact blank, and curl in a file that bash runs.
+    # Exit code 0 of the text does not show that the curl of the next four calls ran. They are curl before a pipe, curl in a loop, curl under timeout, whose row leaves `exits_with_exit_code_of_next_program` blank, and curl in a file that bash runs.
     _bash_call(7, "curl -s https://d.org/a | tar xz", ""),
     _bash_call(8, "for u in https://e.org/a; do curl -s -o x $u; done", ""),
     _bash_call(9, "timeout 5 curl -s -o z https://g.org/c", ""),
@@ -234,7 +234,7 @@ def test_every_equation_holds_on_a_made_up_trial():
         "with confirmed received of confirmed request",
     }
     assert trial_audit.has_unowned_line_in_unknown_run
-    # The equations that this trial reaches have a value on their left side, so that each holds on something.
+    # The five equations whose right side is 0 stay at 0, and every other equation has a value on its left side, so that it holds on something.
     assert {
         equation
         for equation in audit.EQUATIONS
@@ -306,7 +306,7 @@ def _with_result(steps: _Steps, step_id: int, result: NetworkRequestResult) -> _
 
 
 def _unchecked_result(**fields: Any) -> NetworkRequestResult:
-    """Make a result that `NetworkRequestResult.__post_init__` would refuse, as a broken step could give it."""
+    """Make a result without running `NetworkRequestResult.__post_init__`, which would refuse most of these results, as a broken step could give it."""
     result = object.__new__(NetworkRequestResult)
     for name, value in fields.items():
         object.__setattr__(result, name, value)
@@ -690,7 +690,7 @@ def test_counts_the_strongest_evidence_of_each_result():
         ), count in trial_audit.evidence_kind_outcome_counts.items()
         if outcome == "strongest" and count
     }
-    # wget's own download line outranks its exit code 0, and exit code 0 of `curl -s -o p`, which the door reads as a server's answer, outranks nothing else.
+    # wget's own download line outranks its exit code 0. Exit code 0, which the door reads as a server's answer, is the only evidence of `sudo curl` and of both requests of `curl -s -o p`.
     # The shared download line of D shows only that pip ran, so the install line of A alone outranks it, while it stays the strongest evidence of B.
     assert strongest_counts == {
         "output line downloaded": 1,
@@ -963,7 +963,7 @@ def test_audit_trial_names_a_missing_folder_apart_from_a_missing_trajectory(
 
 
 class _InProcessPool:
-    """Stand-in for the process pool of `main`, which maps in the test process since a worker process could not import the script by its file path, and keeps the process count it was asked for."""
+    """Stand-in for the process pool of `main`, which maps in the test process so that a function that a test replaces is replaced in the run too, and keeps the process count it was asked for."""
 
     # The process counts that `main` asked for, kept across instances.
     process_counts: ClassVar[list[int]] = []

@@ -67,7 +67,7 @@ URL = NetworkRequestTargetKind.URL
 SEARCH_QUERY = NetworkRequestTargetKind.SEARCH_QUERY
 HOST = NetworkRequestTargetKind.HOST
 
-# The answers of the host catalog of the made-up cases. `a.org` and `api.github.com` have no row.
+# The answers of the host catalog of the made-up cases. `a.org` and `api.github.com` have no row in `CASES`. `OTHER_ANSWER_CASES` gives them `PYPI` and `GITHUB` in one case each, so that a piped request whose rule answers False reaches the conditions of saved or shown content from such a host.
 PYPI = PublicHost(HostService.PACKAGE_REGISTRY, "pypi")
 GITHUB = PublicHost(HostService.CODE_HOSTING, None)
 HUGGINGFACE = PublicHost(HostService.MODEL_HUB, None)
@@ -591,7 +591,7 @@ OTHER_ANSWER_CASES: list[
     (DISCARDED_CONTENT_RULE, CURL_TO_DEV_NULL, [NO_ROW], CONNECTIVITY_CHECK, []),
     (HOST_TARGET_RULE, SOCKET_CONNECTION, [], CONNECTIVITY_CHECK, []),
     (SAVED_FROM_PACKAGE_REGISTRY_RULE, WGET_WHEEL, [PYPI], PACKAGE, []),
-    # Content piped to a command that shows none of it gets the category of saved content, which asks the rule about saved content from a package registry host.
+    # Content piped to a command that shows none of it gets the category of saved content, which asks the rule about saved content only when a host is a package registry.
     (PIPED_TO_CONSUMING_COMMAND_RULE, CURL_TO_TAR, [NO_ROW], FETCHED_FILE, []),
     (
         PIPED_TO_CONSUMING_COMMAND_RULE,

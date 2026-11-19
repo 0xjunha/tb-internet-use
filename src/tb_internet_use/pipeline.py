@@ -78,7 +78,7 @@ def run_steps_of_trial(
     The network requests are those that `extract_network_requests` gave, which a caller can count beside the results of `decide_network_request_results` to see that no request was lost or repeated between the two steps.
 
     The trajectory file is read once. A trial whose trajectory is missing or is not JSON still gets its `Trial` with the reason, no results and the rows that `export_rows` gives such a trial, so that it counts in the upper bounds of its task.
-    Each step counts the uses of its judgment rules in its own counter, as in `run_steps_to_network_request_results`, and `export_rows` counts in `export_judgment_rule_use_counts`, e.g. `treat_dotted_host_name_as_public` once for `pypi.org`, the default host of `pip install requests`, although `extract_network_requests` counts the same rule in its own counter.
+    Each step counts the uses of its judgment rules in its own counter, as in `run_steps_to_network_request_results`, and `export_rows` counts in `export_judgment_rule_use_counts`. A rule that two steps call is counted in the counter of each, e.g. `treat_dotted_host_name_as_public` once in `export_judgment_rule_use_counts` for `pypi.org`, the default host of `pip install requests`, and for `mytool https://b.org/y` once there and once in `network_request_judgment_rule_use_counts`.
     A detail or status file that is missing or cannot be read raises, since the trial would have no task to count in.
     """
     harness_tool_calls = read_trajectory(trial_dir)
@@ -149,7 +149,7 @@ def read_trial_file_texts(trial_dir: Path) -> TrialFileTexts:
 
 @dataclass(frozen=True, slots=True)
 class KnowledgeDoors:
-    """Doors of outside knowledge that the steps of one run ask, made from the catalogs of the repo and passed to each entry function as its `knowledge`.
+    """Doors of outside knowledge that the steps of one run ask, made from the catalogs and declarations of `knowledge/` and each passed to the entry function of its step as its `knowledge`.
 
     Each door counts its lookups in its `uses`, so a caller that makes new doors for each trial gets the lookups of that trial.
     """
@@ -183,7 +183,7 @@ def run_steps_to_network_request_results(
 ) -> tuple[tuple[NetworkRequest, ...], tuple[NetworkRequestResult, ...]]:
     """Run `convert_tool_calls`, `expand_tool_calls`, `extract_network_requests` and then `decide_network_request_results` on the tool calls of one trial, with the doors of `knowledge_doors`, and return the network requests and their results.
 
-    Each step counts the uses of its judgment rules in its own counter, as in `run_steps_to_expanded_tool_calls`. `extract_network_requests` counts in `no_network_request_counts` each program run, code call or URL in code that gave no request, by its reason, and `decide_network_request_results` counts in `unused_output_line_counts` and `program_counts_of_unowned_output_lines` each output line that a pattern fits and that gave no evidence.
+    Each step counts the uses of its judgment rules in its own counter, as in `run_steps_to_expanded_tool_calls`. `extract_network_requests` counts in `no_network_request_counts`, by reason, each program run and code call that gave no request, except a call whose name already gave a request whose target the code does not show, and each URL in code that would give an uncertain request but is dropped as a namespace URL or as a local or reserved URL, e.g. `non_fetching_program` for `cat notes.txt`. `decide_network_request_results` counts in `unused_output_line_counts` each output line that a pattern fits and that gave no evidence, and in `program_counts_of_unowned_output_lines` also by program for the reasons `NO_UNKNOWN_RUN` and `UNOWNED_LINE_IN_UNKNOWN_RUN`, e.g. `setup.sh` for `Downloading torch-2.3.0.whl` in the result of `./setup.sh`.
     Each `NetworkRequestResult` holds its `NetworkRequest`. The output of `extract_network_requests` is returned apart all the same, so that a caller can count it on its own.
     """
     expanded_tool_calls = run_steps_to_expanded_tool_calls(

@@ -859,7 +859,7 @@ _OPTION_ROWS_OF_OUTPUT_LINES = [
         ],
         ProgramOutputLines(frozenset({P.CURL}), False),
     ),
-    # A row of `no` in an option row does not take back a status code that another row prints.
+    # An option row of `no` beside a program row of `no` leaves the run without a status code.
     (
         ProgramOption("-s", None),
         [
@@ -934,7 +934,7 @@ _OPTION_ROWS_OF_EXIT_CODES = [
         UnknownProgramExitCodeMeaning(),
     ),
 ]
-# The options of the old curl and wget option rules, with what each adds to the lines of the program and the meaning of exit 0 it gives where it changes it.
+# The options of the old curl and wget option rules, with what each adds to the lines of the program and whether the run then prints a status code.
 _OPTIONS_OF_THE_OLD_RULES = [
     ("curl", ProgramOption("-i", None), {P.HTTP_HEADERS}, False),
     ("curl", ProgramOption("--include", None), {P.HTTP_HEADERS}, False),
@@ -1338,7 +1338,7 @@ def test_run_without_its_rows_is_unknown_and_counts_only_the_missing_keys(tmp_pa
                 options=(ProgramOption("-i", None), ProgramOption("-L", None)),
             )
         ),
-        # Words that `expand_tool_calls` could not read after the first option without a fact.
+        # Words that `expand_tool_calls` could not read, from the first option without a fact to the end.
         knowledge.program_output_lines(
             _invocation(
                 "curl",

@@ -340,6 +340,6 @@ def test_only_a_tool_with_json_formats_has_them_and_asking_counts_nothing():
 
 
 def test_door_module_can_be_the_first_import_of_a_process():
-    # The door imports the model of its step, whose package imports the door, so a fresh process shows whether that cycle is broken.
+    # The door imports the model of its step, whose package imports the door under TYPE_CHECKING only, so a fresh process shows that no cycle runs.
     module = "tb_internet_use.knowledge.tool_call_knowledge"
     subprocess.run([sys.executable, "-I", "-c", f"import {module}"], check=True)

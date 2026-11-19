@@ -53,7 +53,7 @@ def extract_network_request_targets(
 
     `program_option_effects` holds the answer of `NetworkRequestKnowledge` for each of `program_invocation.options`, in the same order.
     Each target word gives a request per value, e.g. three for `pip install $p` in `for p in A B C`, except that the local paths among them give one `LOCAL_PATH` request together, e.g. `pip install ./x.whl ./y.whl`.
-    Then one `NAMED_IN_FILE` request stands for all the options whose value is a file of targets, e.g. `pip install -r a.txt -r b.txt`, and one `VALUE_SET_AT_RUN_TIME` request for the arguments the program gets when it runs, e.g. `xargs curl`.
+    After the requests of the target words come, in this order, one `NAMED_IN_FILE` request for all the options whose value is a file of targets, e.g. `pip install -r a.txt -r b.txt`, the one `LOCAL_PATH` request, and one `VALUE_SET_AT_RUN_TIME` request for the arguments the program gets when it runs, e.g. `xargs curl`.
     When none of these is there, the row says whether the program makes one request without a target, e.g. `apt-get update`, one whose targets a file names, e.g. `lake build`, or none, e.g. `curl` alone.
     The hosts that the options name, e.g. `pypi.org` of `pip install -i https://pypi.org/simple x`, are hosts of every request.
 

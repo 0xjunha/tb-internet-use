@@ -15,8 +15,8 @@ It writes these files under the output folder, `out/pipeline/` unless `--out-dir
 | `network_request_rows.csv` | A `NetworkRequestRow`, with the fields of the type as columns in their order |
 | `trial_rows.csv` | A `TrialRow` |
 | `trial_category_measure_rows.csv` | A `TrialCategoryMeasureRow` |
-| `task_category_measures.csv` | A task, a category and a sender, with the trials of the task and the trials in each bound of the main measure, as `count_task_category_measures` counts them |
-| `raised_trials.csv` | A trial that counts as raised, with the reason, i.e. the type name of the exception its steps raised, `worker_process_died`, `timed_out_after_<n>_seconds` or `saved_results_of_other_code` |
+| `task_category_measures.csv` | A task, a category and a sender, with the trials of the task, the trials in each bound of the main measure and the request rows, as `count_task_category_measures` counts them |
+| `raised_trials.csv` | A trial that counts as raised, with the reason, i.e. the type name of the exception that ended its run, `worker_process_died`, `timed_out_after_<n>_seconds` or `saved_results_of_other_code` |
 | `summary.csv` | A count of the run, e.g. the trial folders chosen, the trial rows written or the trials whose trajectory could not be read by reason |
 | `equations.csv` | An equation between steps of the table below, with its two sides and whether they are equal |
 | `<step package>/row_uses.csv` | A catalog row or a declared row of the door of the step that answered, with its lookups, trials and tasks |
@@ -25,11 +25,11 @@ It writes these files under the output folder, `out/pipeline/` unless `--out-dir
 | `network_request/no_network_request_reasons.csv` | A reason why a program run, code call or URL in code gave no request, with its count, trials and tasks |
 | `network_request_result/unused_output_lines.csv` | A reason and an output line kind of lines that a pattern fits and that gave no evidence, with its lines, trials and tasks |
 | `network_request_result/unowned_output_line_programs.csv` | A reason, an output line kind and the name of a program whose run reaches the place of lines that no request owns, blank when no command reaches it, with its lines, trials and tasks |
-| `network_request_results/<trial id>.pickle` | The code digest, the `Trial`, the network request results and the counts of the steps before `export_rows` of one trial |
+| `network_request_results/<trial id>.pickle` | The code digest, the `Trial`, the network request results and the counts of the steps before `export_rows` of one trial. A run stopped while writing can leave a `<trial id>.partial` beside it, which no run reads |
 
 A row key is written as a JSON array of its key column values. In the row files, None is a blank cell, an enum is its value and a bool is `true` or `false`.
 The words of a key of `unknown_inputs.csv` and the program names of `unowned_output_line_programs.csv` come from trajectories, and these lists are meant to be read and passed on as the knowledge to fill. So `cut_key_word` cuts an option word, i.e. one that starts with `-`, at its first `=`, which drops a value such as the token of `--token=ghp_x`, and cuts any word after 64 characters, which drops prose that a command reads as an option, e.g. a task text of 500 characters. The cut part becomes a mark with its number of characters, e.g. `--token=ghp_x` becomes `--token[6 characters cut]`.
-A bare word that is a credential, e.g. a token given as an argument, is not cut, and the export step's `redact_credentials`, which hides only the userinfo, query values and fragment of URLs, is not called here, since its module is private to `export/`.
+A bare word that is a credential, e.g. a token given as an argument, is cut only after 64 characters, and the export step's `redact_credentials`, which hides only the userinfo, query values and fragment of URLs, is not called here, since its module is private to `export/`.
 
 | Equation | Left | Right |
 |---|---|---|
@@ -391,7 +391,7 @@ def run_trial(
 ) -> TrialRun:
     """Run the steps on one trial folder, or `export_rows` alone on its saved results, and return what it gave, with an exception named instead of raised.
 
-    Saved results are reused only when their code digest is `code_digest`. The results of a trial that ran from its folder are saved under `results_dir` before `export_rows` runs, so that a stop in `export_rows` keeps them.
+    Saved results are reused only when their code digest is `code_digest`. The results of a trial that ran from its folder are saved under `results_dir` only after `run_steps_of_trial` returns, and that function runs `export_rows` too, so a trial whose `export_rows` raises has no saved results and `--export-only` counts it as raised.
     """
     trial_id = trial_dir.name
     saved_results_path = results_dir / f"{trial_id}.pickle"
@@ -502,7 +502,7 @@ def _save_results(
     network_request_results: tuple[NetworkRequestResult, ...],
     earlier_step_counts: EarlierStepCounts,
 ) -> None:
-    """Write the code digest, the `Trial`, the results and the counts of the steps before `export_rows` of one trial to a file beside the final one and then rename it, so that a run stopped while writing leaves no half file.
+    """Write the code digest, the `Trial`, the results and the counts of the steps before `export_rows` of one trial to a `.partial` file beside the final one and then rename it, so that a run stopped while writing leaves no half `.pickle` file.
 
     The file holds a tuple of types of the package and of the standard library only, so that another script can read it, e.g. one that audits the rows.
     """
@@ -553,7 +553,7 @@ def earlier_step_code_digest_of(package_dir: Path) -> str:
 
 @functools.cache
 def knowledge_doors_of_worker() -> KnowledgeDoors:
-    """Give the doors of this worker process, made at its first trial, since reading the catalogs again for each trial is slow."""
+    """Give the doors of this worker process, made at its first trial."""
     return KnowledgeDoors()
 
 
@@ -575,7 +575,7 @@ class EarlierStepCounts:
             for step_package in list(JUDGMENT_RULES_BY_STEP_PACKAGE)[:-1]
         }
     )
-    # What `extract_network_requests` counts by reason, by the value of the reason.
+    # What `extract_network_requests` counts by reason.
     no_network_request_counts: Counter = field(default_factory=Counter)
     # What `decide_network_request_results` counts by reason and output line kind.
     unused_output_line_counts: Counter = field(default_factory=Counter)
@@ -624,7 +624,7 @@ class TrialRun:
 
     @property
     def task_key(self) -> TaskKey | None:
-        """Give the task of the trial, or None for a trial that raised before its `Trial` was made."""
+        """Give the task of the trial, or None for a trial that counts as raised, since such a run holds no `Trial`."""
         if self.trial is None:
             return None
         return (self.trial.benchmark_version, self.trial.task_name)
@@ -669,7 +669,7 @@ class PipelineRunTotal:
     """Sum of the `TrialRun` of all trials of a run in the order of their trial ids, built by `main` to write the files of the module docstring."""
 
     chosen_trial_ids: list[str]
-    # The trial ids that the chosen list repeated, which ran once.
+    # The number of entries of the chosen list that repeat an earlier trial id, since each trial runs once.
     repeated_trial_id_count: int = 0
     trials: list[Trial] = field(default_factory=list)
     raised_trials: list[tuple[str, str]] = field(default_factory=list)

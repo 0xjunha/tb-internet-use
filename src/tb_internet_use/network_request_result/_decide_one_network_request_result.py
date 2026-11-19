@@ -82,7 +82,7 @@ def decide_one_network_request_result(
     """Decide the result of `network_request` from `evidence_with_levels`, all its evidence, each with the level and stop reason it shows.
 
     The result takes the highest level, the stop reason at it and every piece of evidence, also those that show a lower level, e.g. the exit code 0 of `pip install x` beside `Successfully downloaded x`.
-    It is `CONFIRMED` when evidence that neither another request may share nor a judgment rule gave shows its level and stop reason, and `ASSUMED` otherwise, with every reason of that.
+    It is `CONFIRMED` when no judgment rule picked its level and stop reason and evidence that neither another request may share nor a judgment rule gave shows them, and `ASSUMED` otherwise, with every reason of that.
     A request without evidence is `ATTEMPTED` with `NOT_VISIBLE` and `CONFIRMED`, since it claims nothing more.
     Every use of a rule of `judgment_rules.py` adds one to `judgment_rule_use_counts` under the name of the rule.
     """
@@ -245,7 +245,7 @@ def _level_certainty_of(
     level_and_stop_reason: _LevelAndStopReason,
     evidence_with_levels: Sequence[EvidenceWithLevel],
 ) -> NetworkRequestResultCertainty:
-    """Give `CONFIRMED` when no evidence shows more than `ATTEMPTED`, or when evidence of this request alone that no judgment rule gave shows the picked level and stop reason, and `ASSUMED` otherwise.
+    """Give `CONFIRMED` when the request has no evidence, or when no judgment rule picked the level and stop reason and evidence of this request alone that no judgment rule gave shows them, and `ASSUMED` otherwise.
 
     A level or stop reason that a judgment rule picked is assumed even beside clean evidence, e.g. `saved [10/10]` after `Connection refused` under `wget -O x u`, since otherwise the clean line would confirm what only the rule decided.
     """

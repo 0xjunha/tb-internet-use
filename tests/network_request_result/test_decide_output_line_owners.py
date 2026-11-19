@@ -765,7 +765,7 @@ def test_a_line_in_a_place_that_the_request_of_its_call_does_not_reach_has_no_ow
 
 
 def test_a_line_where_only_read_runs_reach_is_counted_by_each_program_name_once():
-    # Call 1 `ls -la; ls`, call 2 `conda install x`, and a tool script without commands, each showing `HTTP/1.1 200 OK`.
+    # Call 1 `ls -la; ls`, call 2 `conda install x` and call 3 whose place has no source commands, as that of a tool script without command steps, each showing `HTTP/1.1 200 OK`.
     ls_la = command(0, "ls -la", program("ls"))
     ls = command(1, "ls", program("ls"))
     conda = command(0, "conda install x", program("conda", "install"))
@@ -812,7 +812,7 @@ def test_a_line_without_an_owner_is_counted_under_the_last_program_of_each_comma
 
 
 def test_a_line_without_an_owner_is_counted_first_as_no_place_then_as_file_content_then_as_page_text():
-    # A result that is no output place, `cat README.md` and `cat notes.md; ./setup.sh`, and a tool script with a web step beside its commands.
+    # A result that is no output place, `cat README.md`, `cat notes.md; ./setup.sh` and `./setup.sh` in a place marked as showing page text, as a tool script with a web step beside its commands is.
     cat = command(0, "cat README.md", program("cat"))
     cat_and_setup = (
         command(0, "cat notes.md", program("cat")),
@@ -948,7 +948,7 @@ def test_a_request_in_code_reaches_a_place_through_the_command_that_ran_the_code
 
 
 def test_a_web_tool_request_owns_the_lines_of_its_own_result_only():
-    # A web fetch call, a tool script whose web step fetches beside `ls`, and a tool script made only of web steps.
+    # A web fetch call, `ls` with a request of a web step as a tool script would have it, and a tool script made only of web steps.
     web_fetch_tool = HarnessTool("h", "web_fetch")
     web_fetch = WebFetchAction(("https://a.org/x",))
     ls = command(0, "ls", program("ls"))

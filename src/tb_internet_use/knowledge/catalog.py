@@ -8,7 +8,7 @@ from pathlib import Path
 
 # The values of the key columns of one row of a catalog or of a declaration, e.g. `("codex", "exec_command")`.
 type KnowledgeRowKey = tuple[str, ...]
-# The name of a catalog file or of a declaration folder and a row key, e.g. `("harness_tools.csv", ("codex", "exec_command"))` or `("harness_result_formats", ("codex", "exec_command", "exited"))`.
+# The name of a catalog file, of a declaration folder or of a count that a door keeps itself, and a row key, e.g. `("harness_tools.csv", ("codex", "exec_command"))`, `("harness_result_formats", ("codex", "exec_command", "exited"))` or `("names_read_without_version", ("python3.11", "python"))`.
 type KnowledgeLookupKey = tuple[str, KnowledgeRowKey]
 
 
@@ -43,7 +43,7 @@ def load_catalog[Row](
 class Catalog[Row]:
     """Rows of one knowledge CSV by key, held by a door and read only through `lookup`, which counts the use or the miss.
 
-    A door has no other way to a row, so it cannot answer from a catalog without counting.
+    `row_keys` gives the keys without counting, so that a door can pick the key it asks, or build an index when the file loads, e.g. `_NetworkRequestCatalogs.fetches_by_program_name`. Some methods answer from such an index, e.g. `NetworkRequestKnowledge.may_program_fetch`, which counts its answer itself, and `NetworkRequestKnowledge.has_code_call_row`, which counts nothing.
     """
 
     # The name of the CSV file, e.g. `harness_tools.csv`, which the counts carry.
@@ -89,9 +89,9 @@ class KnowledgeUsesTotal:
 
 @dataclass(slots=True)
 class KnowledgeUses:
-    """Record of the lookups of one door over one trial, filled by `Catalog.lookup` for catalog rows and by the door itself for declarations.
+    """Record of the lookups of one door over one trial, filled by `Catalog.lookup` for catalog rows and by the door itself for declarations and for a few counts of its own, e.g. a program name read without its version.
 
-    A row is one row of a catalog or of a declaration, e.g. one harness result format.
+    A row is one row of a catalog or of a declaration, e.g. one harness result format. A key that a door counts itself need not be the key of a row, e.g. `("pip", "any subcommand", "", "")` of `NetworkRequestKnowledge.may_program_fetch` or `("python3.11", "python")` under `names_read_without_version`.
     """
 
     # How often each row answered a lookup.

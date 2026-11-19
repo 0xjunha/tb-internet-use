@@ -9,9 +9,9 @@ Every equation starts at 0 for every trial, so that one the trials never reach s
 | `results_equal_requests` | `NetworkRequestResult`s | `NetworkRequest`s |
 | `each_request_has_one_result_with_its_key` | Requests whose call key and index in the call one result has and no other | Requests |
 | `matched_lines_equal_evidence_lines_and_unused_lines` | Lines of every call's result that this script's own door matches, the parts of a line asked from the last one and the result of web tool actions alone, also as the steps of a tool script, read as page text | Distinct lines that an `OutputLineEvidence` of a result names, plus the lines that `decide_network_request_results` counted as unused |
-| `exit_zero_requests_equal_results_with_exit_zero_evidence` | Requests from a command of the call's own text that may be right, that exits 0 when its text does, whose text ended `FINISHED` with exit code 0 and whose outer programs all end with the exit code of the next one | Results with an `ExitCodeEvidence` of exit code 0 |
+| `exit_zero_requests_equal_results_with_exit_zero_evidence` | Requests from a command of the call's own text without `structure_may_be_wrong`, that exits 0 when its text does, whose text ended `FINISHED` with exit code 0 and whose outer programs all end with the exit code of the next one | Results with an `ExitCodeEvidence` of exit code 0 |
 | `not_run_requests_equal_not_run_failed_results` | Requests of calls whose result is `NOT_RUN` | Results with an `ExecutionStatusEvidence` of `NOT_RUN` that are `ATTEMPTED` and `FAILED` |
-| `results_outside_the_result_table` | Results whose level and stop reason are none of the eight rows of the result table, nor `REACHED` without a stop reason for a request that asks for no content | 0 |
+| `results_outside_the_result_table` | Results whose level and stop reason are none of the eight rows of the result table, with `REACHED` without a stop reason in place of `RECEIVED` without one for a request that asks for no content | 0 |
 | `confirmed_received_results_without_own_download_or_content_use` | Confirmed `RECEIVED` results without a `DOWNLOADED` line of their own and without an `USES_CONTENT` file use that fits one written file | 0 |
 | `confirmed_reached_successes_without_own_status` | Confirmed `REACHED` results without a stop reason whose request asks for content, or that have neither a status line 100 to 399 of their own nor the status of a web fetch with one request | 0 |
 | `lifted_requests_without_own_line` | Results whose request certainty rose from `UNCERTAIN` to `CONFIRMED` without an output line of their own | 0 |
@@ -20,27 +20,27 @@ Every equation starts at 0 for every trial, so that one the trials never reach s
 | `judgment_rule_names_are_of_this_step` | Names counted in the counter of `decide_network_request_results` | Those of `network_request_result/judgment_rules.py` |
 
 It writes these CSVs under the output folder, `out/network_request_result/` unless `--out-dir` names another, which `.gitignore` keeps out of the repo.
-They hold counts, harness names, task names, trial ids, call keys, exception type names, program, option, output line kind and pattern names, and in `output_line_meanings.csv` the host and package names that output lines write, never other text from a trajectory.
+They hold counts, harness names, task names, trial ids, call keys, exception type names, program, subcommand, option, web tool, output line kind and pattern names, exit codes and status codes, and in `output_line_meanings.csv` the host names and package names that output lines write, never other text from a trajectory.
 
 | File | One row |
 |---|---|
 | `trial_outcomes.csv` | An outcome of a trial, e.g. `decided`, `not found` or `exception` with its type name, with its trials and the first 20 trial ids |
 | `trials_not_decided.csv` | A trial that was not decided, with its outcome |
-| `counts_by_harness.csv` | A harness, or `all`, with a count, e.g. results by level, stop reason and certainty, assumed results by assumption reason, requests by the view of the report (received, not received, unknown, not needed), and matched output lines by kind and by how they were used |
+| `counts_by_harness.csv` | A harness, or `all`, with a count, e.g. results by level, stop reason and certainty, assumed results by assumption reason, requests by the view of the report (received, not received, unknown, not needed), and matched output lines by kind |
 | `equations.csv` | An equation of the table, with its two sides and whether they are equal |
-| `equation_examples.csv` | A call where an equation differs, the first 20 per equation |
+| `equation_examples.csv` | A call where an equation differs, or a trial with a blank call key for an equation counted per trial, the first 20 per equation |
 | `results_by_level.csv` | A harness, or `all`, a level, a stop reason and a level certainty, with its results, trials and tasks |
 | `evidence_by_kind.csv` | A kind of evidence, with the requests that have it, their trials and tasks, of those requests the confirmed received, the assumed received and the lower ones, and the requests whose strongest evidence it is, i.e. evidence that shows the level of the result, one that no other request shares first |
-| `output_lines_by_kind.csv` | An output line kind and a use, i.e. matched, evidence of one request, evidence shared by several or unused with its reason, with its lines |
+| `output_lines_by_kind.csv` | An output line kind and a use, i.e. matched, evidence of one request, evidence shared by several or unused with its reason, with its lines, trials and tasks |
 | `requests_with_shown_output_and_no_trace.csv` | A program with its subcommand and options, a code language or a web tool, with its requests whose output reached a result but which have no output line evidence, their trials and tasks, most first |
-| `unowned_output_lines.csv` | A reason, an output line kind and a program name that reaches the place of the line, blank for the lines themselves, with the lines, trials and tasks |
+| `unowned_output_lines.csv` | A reason, an output line kind and a program name that reaches the place of the line, `(no command)` when none does, blank for the lines themselves, with the lines, trials and tasks |
 | `unowned_output_lines_by_task.csv` | A task, with its trials that show an unowned line in the output of a run whose content or program is unknown and those of them without any request, most of the latter first |
 | `judgment_rule_uses.csv` | A judgment rule, with its uses, trials and tasks |
 | `exit_code_rule_uses.csv` | An answer of the door that makes exit code 0 give a level, a program and a subcommand, with its requests, trials and tasks |
 | `file_use_rule_conditions.csv` | A condition that makes a use of a saved file uncertain, or none, with its requests, trials and tasks |
 | `requests_by_evidence_pair.csv` | A pair of evidence that the report lists apart, with its requests, trials and tasks |
-| `judgment_rule_lower_bound_changes.csv` | A judgment rule and whether another result of the trial is in the lower bound, with the assumed successes of confirmed requests that would be in the lower bound if the evidence of that rule alone were a fact, their trials and tasks. The trials of `no` would newly be in it. The rule is read from the kind of the evidence, since a result keeps no rule, so a line of one request alone names two rules |
-| `received_trials.csv` | All trials, a harness or a task, with its trials, those with a request, with a confirmed received result, with one whose request is also confirmed, and with any received result |
+| `judgment_rule_lower_bound_changes.csv` | A judgment rule, or `no single rule` for an assumed success that no one rule keeps out of the lower bound, and whether another result of the trial is in the lower bound, with the assumed successes of confirmed requests that would be in the lower bound if the evidence of that rule alone were a fact, their trials and tasks. The trials of `no` would newly be in it. The rule is read from the kind of the evidence, since a result keeps no rule, so a line of one request alone names two rules |
+| `received_trials.csv` | All decided trials, a harness or a task, with its decided trials, those with a request, with a confirmed received result, with one whose request is also confirmed, with an assumed received result and with any received result |
 | `knowledge_row_uses.csv` | A row of a catalog or an output line pattern of `NetworkRequestResultKnowledge`, with its uses and trials |
 | `unknown_inputs.csv` | A program run, option or exit code without a row, with its lookups, its trials and its tasks, most lookups first |
 | `output_line_meanings.csv` | A matched output line by trial, call key, line index and index in the JSON string, with its kind, host name, package names and status code, to compare with an earlier reading of the same lines |
@@ -198,7 +198,7 @@ _REPORT_VIEW_BY_STOP_REASON = {
     _NOT_VISIBLE: "unknown",
     _NOT_NEEDED: "not needed",
 }
-# The levels from the lowest, to tell a lower result in `evidence_by_kind.csv`.
+# The levels from the lowest, to rank the evidence of a result in `_strongest_evidence_of`.
 _LEVELS_IN_ORDER = (_ATTEMPTED, _EXECUTED, _REACHED, _RECEIVED)
 # The level and stop reason that a line of each kind shows, with the provisional choice of each judgment rule, read again here since a result keeps no level of its evidence. Lines of status codes and of content received are read in `_level_and_stop_reason_of_evidence`.
 _LEVEL_AND_STOP_REASON_BY_OUTPUT_LINE_KIND = {
@@ -531,7 +531,10 @@ def audit_trial(trial_dir: Path) -> TrialAudit:
 
 @dataclass(frozen=True, slots=True)
 class ProcessDoors:
-    """Doors of outside knowledge made once in each worker process and used for each of its trials, since reading the catalogs again for each trial is slow."""
+    """Doors of outside knowledge made once in each worker process and used for each of its trials.
+
+    `audit_trial` empties the `uses` of each door that a trial asks before the trial asks it, so that they count the lookups of that trial alone.
+    """
 
     # The doors that the steps ask.
     knowledge_doors: KnowledgeDoors = field(default_factory=KnowledgeDoors)
@@ -567,7 +570,7 @@ class TrialAudit:
             )
         )
     )
-    # (equation, tool call key) of each call where an equation differs.
+    # (equation, tool call key) of each difference of an equation, the key empty for an equation counted per trial.
     equation_examples: list[tuple[str, str]] = field(default_factory=list)
     judgment_rule_use_counts: Counter[str] = field(default_factory=Counter)
     unused_output_line_counts: Counter[
@@ -579,13 +582,13 @@ class TrialAudit:
     knowledge_uses: KnowledgeUses = field(default_factory=KnowledgeUses)
     # By (list name, row key), the rows of the lists of `_LISTS` and of `evidence_by_kind.csv`.
     list_counts: Counter[tuple[str, tuple[str, ...]]] = field(default_factory=Counter)
-    # By (evidence kind, `received confirmed`, `received assumed` or `lower`), the requests.
+    # By (evidence kind, `received confirmed`, `received assumed`, `lower` or `strongest`), the requests.
     evidence_kind_outcome_counts: Counter[tuple[str, str]] = field(
         default_factory=Counter
     )
     # The columns of `_RECEIVED_TRIAL_COLUMNS` that the trial fills.
     received_trial_columns: set[str] = field(default_factory=set)
-    # The rule of each result that only it keeps out of the lower bound, once per rule and result.
+    # The names that `_rules_keeping_out_of_lower_bound_of` gives for each result, once per name and result.
     rules_keeping_out_of_lower_bound: list[str] = field(default_factory=list)
     has_unowned_line_in_unknown_run: bool = False
     # The rows of `output_line_meanings.csv` without the trial id.
@@ -838,7 +841,7 @@ class TrialChecker:
             )
 
     def check_output_lines(self) -> None:
-        """Check that every line that the own door matches is evidence or counted as unused, and count the lines by kind and use."""
+        """Check that the lines that the own door matches are as many as the distinct lines named as evidence and the lines counted as unused, and count the lines by kind and use."""
         trial_audit = self.trial_audit
         shared_by_place: dict[_LinePlace, bool] = {}
         for result in self.network_request_results:
@@ -879,7 +882,7 @@ class TrialChecker:
             ] += count
 
     def check_exit_zero_evidence(self) -> None:
-        """Check that the results with exit code 0 as evidence are those of the requests whose command's run the exit code 0 of its call's text shows."""
+        """Check that as many results have exit code 0 as evidence as there are requests whose command's run the exit code 0 of its call's text shows."""
         results_with_exit_zero = sum(
             1
             for result in self.network_request_results
@@ -930,7 +933,7 @@ class TrialChecker:
         )
 
     def check_not_run_requests(self) -> None:
-        """Check that the requests of calls that did not run are those whose results fail at `ATTEMPTED` on the status `NOT_RUN`."""
+        """Check that as many results fail at `ATTEMPTED` on the status `NOT_RUN` as there are requests of calls that did not run."""
         self.trial_audit.add_sides(
             "not_run_requests_equal_not_run_failed_results",
             sum(
@@ -1300,7 +1303,7 @@ class TrialChecker:
     def _rules_keeping_out_of_lower_bound_of(
         self, result: NetworkRequestResult
     ) -> list[str]:
-        """Name the judgment rule whose evidence alone, if it were a fact, would put an assumed success of a confirmed request into the lower bound, or `no single rule`.
+        """Name each judgment rule whose evidence alone, if it were a fact, would put an assumed success of a confirmed request into the lower bound, or `no single rule`.
 
         The success evidence of each rule is read from its kind, e.g. shown content for `treat_shown_result_text_as_assumed_content`. A line of this request alone in an assumed result rests on a rule that the result does not name, so it is listed under the two rules that make such a line uncertain.
         Failure evidence beside the success makes the result rest on the rule that picks between them, which then is the only rule that could change it, and only when a line of this request alone shows the success.
@@ -1552,7 +1555,7 @@ class TrialChecker:
         return evidence_pairs
 
     def _has_shown_output(self, network_request: NetworkRequest) -> bool:
-        """Tell whether the output of a request's run reaches a result, i.e. its command or the runner of its code has an output place and a route whose output is wholly or partly there at its end, or its web tool call has a result text."""
+        """Tell whether the output of a request's run reaches a result, i.e. its command or the runner of its code has an output place and a route whose output is wholly or partly there at its end, or its web tool action is the action of its call, not a step of a tool script, and the call has a result text."""
         expanded_tool_call = self.expanded_tool_call_by_key[
             network_request.tool_call_key
         ]
@@ -1633,7 +1636,7 @@ def _is_in_lower_bound(result: NetworkRequestResult) -> bool:
 
 
 def _is_evidence_shared(evidence: NetworkRequestResultEvidence) -> bool:
-    """Tell whether a piece of evidence says that other requests share it, which shown content and a file use never say."""
+    """Tell whether a piece of evidence says that other requests share it, which shown content, an HTTP status and a file use never say."""
     return getattr(evidence, "is_shared_with_other_requests", False)
 
 
@@ -1691,7 +1694,7 @@ def _do_outer_programs_end_with_exit_code_of_next(
 
 
 def _means_of(network_request: NetworkRequest) -> tuple[str, str, str]:
-    """Name what made a request, i.e. its program with subcommand and option names, the language and runner of its code, or its web tool."""
+    """Name what made a request, i.e. its program with subcommand and option names, the language of its code, or its web tool."""
     source = network_request.source
     if isinstance(source, FromWebTool):
         return (f"web tool {source.harness_tool.name}", "", "")

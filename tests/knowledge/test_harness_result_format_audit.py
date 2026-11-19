@@ -1,4 +1,4 @@
-"""Tests for the audit checks of result formats and the labels of their table, with made-up annotations."""
+"""Tests for the audit checks of result formats and the labels of their table, with made-up result formats and rows of the table of the declared result formats."""
 
 from tb_internet_use.knowledge.harness_result_format_audit import (
     DECLARED_RESULT_FORMAT_TABLE_COLUMNS,
@@ -34,7 +34,7 @@ FORMATS = HarnessResultFormatList[str](
     notices=(HarnessNotice("notice", "\n\n<note>\n{note:text}\n</note>", at="end"),),
 )
 
-# Rows of the table of declared result formats, each with a value in every column that no other column of the row holds.
+# Rows of the table of declared result formats, which together fill every column and in which no two filled columns of a row hold the same value.
 # (harness, tool, format, the row)
 TABLE_ROW_CASES = [
     (

@@ -185,7 +185,7 @@ def _own_line(
 
 
 def _received_by_curl(url: str, host_name: str) -> NetworkRequestResult:
-    """Make `curl -O <url>` in the call of step 1, which saved what it received, as its own `saved` line shows."""
+    """Make `curl -O <url>` in the call of step 1, which saved what it received, as its own `downloaded` line shows."""
     return _result(
         _call(1),
         FromCommand(0, CallCommandText(), _program("curl")),
@@ -203,7 +203,7 @@ def _received_by_curl(url: str, host_name: str) -> NetworkRequestResult:
 def _received_by_pip(
     program_invocation: ProgramInvocation, *host_names: str
 ) -> NetworkRequestResult:
-    """Make a `pip install` or `conda install` of `x` in the call of step 2 that installed what it received."""
+    """Make a `pip install` or `conda install` of `x` in the call of step 2 that received what it asked for, as its own `downloaded` line shows."""
     return _result(
         _call(2),
         FromCommand(0, CallCommandText(), program_invocation),
@@ -614,7 +614,7 @@ def test_every_piece_counts_its_rule_uses_in_the_one_counter_and_the_door_counts
         }
     )
     assert network_request_rows[0].target == "https://a.org/p?token=REDACTED"
-    # The page whose sender is not known counts in the upper bound of the trial row, as possibly from the task environment.
+    # The `curl` of discarded content, which the task environment sent, gives both bounds. The page whose sender is not known counts at most in the upper bounds of the trial row, so alone it would give `UPPER_ONLY`.
     assert (
         trial_row.any_category_request_measure_bound,
         trial_row.any_category_received_measure_bound,

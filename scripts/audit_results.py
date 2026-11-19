@@ -3,10 +3,10 @@
 The CSV goes to `out/tool_call_knowledge/` by default, which `.gitignore` keeps out of the repo, since its counts come from the trajectories.
 
 It counts the calls, trials and example call keys of each (harness, tool, format).
-It also counts coverage (results of an unknown format per tool), harness text of the templates left in the tool output, results that match more than one format of their list, byte-exact round trips of text formats, and cross-source checks.
-Prints counts and masked shapes only, never result text.
+It also counts coverage (results of an unknown or skipped format and of an unknown status per tool), the status of each format, the masked shapes of results of an unknown format, harness text of the templates left in the tool output, results that match more than one format of their list, results of a text format whose matched values do not render back to the exact annotated output, notices cut out and cross-source checks.
+Prints counts and shapes only. The shape of a text result of an unknown format keeps the plain words of its first and last line, at most 70 characters of each, with paths, ids, long tokens and numbers replaced, and the shape of a JSON result of an unknown format is its sorted keys, at most 70 characters, unmasked.
 
-Run it as `uv run python -I scripts/audit_results.py <raw_trials_dir> [output_csv] [--harness NAME ...] [--report PATH] [--limit N]`.
+Run it as `uv run python -I scripts/audit_results.py <raw_trials_dir> [output_csv] [--harness NAME] [--report PATH] [--limit N]`. Give `--harness` once for each harness, and `--report` writes the printed report to that file too.
 """
 
 import argparse
@@ -60,15 +60,20 @@ DEFAULT_OUTPUT_CSV = (
 CSV_COLUMNS = [
     "harness",
     "tool",
-    "format",  # format name, or "unknown_format" and "skipped_format" rows per tool
-    # text or json for a declared format, empty for the unknown_format and skipped_format rows
+    # The format name, or `unknown_format` and `skipped_format` in the rows of each tool.
+    "format",
+    # `text` or `json` for a declared format, empty for the `unknown_format` and `skipped_format` rows.
     "kind",
     "call_count",
     "trial_count",
-    "example_calls",  # up to 3 keys, each `trial/trajectory#step.index`
-    "roundtrip_mismatches",  # text formats whose `render_text_format(values)` differs from the annotated output
-    "harness_text_hits",  # results whose tool output holds harness text of this tool's templates
-    "multi_match",  # results that also matched another format of the list
+    # Up to 3 keys, each `trial/trajectory#step.index`.
+    "example_calls",
+    # Results of a text format whose matched values render to a text other than the annotated output.
+    "roundtrip_mismatches",
+    # Results whose tool output holds harness text of the templates of this tool.
+    "harness_text_hits",
+    # Results that also matched another format of the list.
+    "multi_match",
 ]
 MAX_EXAMPLES = 3
 # Data runs use at most 4 processes, to leave the machine usable.
@@ -148,7 +153,8 @@ def audit_result(tally: Tally, tool_call: ToolCall, trial_seen: TrialSeen) -> No
     harness_tool_call, tool_call_result = tool_call.harness_tool_call, tool_call.result
     assert harness_tool_call.result is not None and tool_call_result is not None
     harness, tool = harness_tool_call.tool.harness, harness_tool_call.tool.name
-    name = str(tool_call_result.harness_result_format)  # the format column of both CSVs
+    # The format column of the audit CSV.
+    name = str(tool_call_result.harness_result_format)
     key = (harness, tool, name)
     tally.call_counts[key] += 1
     trial_seen.format_keys.add(key)
@@ -255,7 +261,7 @@ def edges(text: str) -> str:
 
 
 def mask(text: str, limit: int = 70) -> str:
-    """Replace paths, ids and numbers so a line shows only its shape."""
+    """Replace characters outside printable ASCII, paths, ids, long tokens and numbers, keeping the plain words of a line, and cut the text at `limit` characters."""
     text = re.sub(r"[^\x20-\x7e]", "?", text)
     text = re.sub(r"(?:[A-Za-z]:)?/[^\s'\",)\]}>]+", "<p>", text)
     text = re.sub(r"\b[0-9a-fA-F-]{12,}\b", "<hex>", text)
@@ -450,7 +456,7 @@ def _row(tally: Tally, key: Key, kind: str) -> dict[str, str]:
 
 @dataclass
 class Tally:
-    """Tally of the counts of one trial or, once the main process merges them, of many, keyed by names and never by result text."""
+    """Tally of the counts of one trial or, once the main process merges them, of many, keyed by names and by the masked shapes of results of an unknown format."""
 
     call_counts: Counter[Key] = field(default_factory=Counter)
     trial_counts: Counter[Key] = field(default_factory=Counter)

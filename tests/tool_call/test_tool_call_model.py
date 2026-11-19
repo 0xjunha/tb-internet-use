@@ -1,4 +1,4 @@
-"""Tests for the text helpers in tool_call/model.py."""
+"""Tests for `join_text_parts` in tool_call/model.py."""
 
 from tb_internet_use.tool_call.model import join_text_parts
 

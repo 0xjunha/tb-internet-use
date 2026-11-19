@@ -316,7 +316,7 @@ class OutputVisibility(StrEnum):
 
     WHOLE = "whole"  # no pipe reader, or each passes on all, e.g. `tee log`
     PARTIAL = "partial"  # a reader that passes on some of its input, e.g. `tail -1`
-    NONE = "none"  # a reader that shows none of its input, e.g. `tar xz` or `bash`
+    NONE = "none"  # a reader that shows none of its input, e.g. `wc -c` or `md5sum`
     UNKNOWN = "unknown"  # a reader that no fact covers, e.g. `ls | mytool`
 
 
@@ -523,7 +523,7 @@ class ProgramOptionBehavior:
     last_argument_role_with_option: (
         ProgramWordRole | UnknownProgramWordRole | SameAsArgumentRole | None
     )
-    # The other option whose value gets another role when the command has this option, e.g. `-f` for `-c` of tar. None when the row says `none`.
+    # The other option whose value gets another role when the command has this option, e.g. `-f` for `-x` of tar. None when the row says `none`.
     changed_option_name: str | None
     # The role that the value of that other option gets. None when the row names no other option.
     changed_option_value_role: ProgramWordRole | UnknownProgramWordRole | None

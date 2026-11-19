@@ -52,7 +52,7 @@ class NetworkRequestResult:
     # The certainty of `level`. With `NOT_VISIBLE` it says how sure the level is that was reached, not what lies beyond it.
     level_certainty: NetworkRequestResultCertainty
     evidence: tuple[NetworkRequestResultEvidence, ...]
-    # Every reason that `level_certainty` is `ASSUMED`, each once, empty when it is `CONFIRMED`. They are the reasons of the evidence that shows `level` and `stop_reason`, and a judgment rule that picked them, e.g. a `SharedOutputLineAssumptionReason` for `Successfully downloaded A-1.0` that `pip install A B` printed once for two requests.
+    # Every reason that `level_certainty` is `ASSUMED`, each once, empty when it is `CONFIRMED`. They are the reasons of the evidence that shows `level` and `stop_reason`, and a judgment rule that picked them, e.g. a `SharedOutputLineAssumptionReason` for `Fetched 10 kB in 1s` that `apt-get install -y a b` printed once for two requests.
     assumption_reasons: tuple[NetworkRequestResultAssumptionReason, ...]
 
     def __post_init__(self) -> None:
@@ -212,7 +212,7 @@ class NetworkRequestResultStopReason(StrEnum):
 class NetworkRequestResultCertainty(StrEnum):
     """Strength of the ground for a result."""
 
-    # It rests on evidence of this request alone, or no evidence shows anything beyond `ATTEMPTED`.
+    # It rests on evidence of this request alone, or the request has no evidence.
     CONFIRMED = "confirmed"
     # It rests on evidence shared with other requests or on a judgment rule, e.g. one error line for two `curl` commands.
     ASSUMED = "assumed"
@@ -278,7 +278,7 @@ class ShownContentEvidence:
 
 @dataclass(frozen=True, slots=True)
 class SharedOutputLineAssumptionReason:
-    """Assumption reason of a result whose level an output line shows that other requests own too, so that any of them may have printed it, e.g. one `Successfully downloaded A-1.0` under `pip install A B`.
+    """Assumption reason of a result whose level an output line shows that other requests own too, so that any of them may have printed it, e.g. one `Fetched 10 kB in 1s` under `apt-get install -y a b`.
 
     The line is named by where it is, which is one line in a trial, so that the results that share it can be found together.
     """
@@ -293,7 +293,7 @@ class SharedOutputLineAssumptionReason:
 
 @dataclass(frozen=True, slots=True)
 class UnknownProgramOutputLinesAssumptionReason:
-    """Assumption reason of a result whose level an output line of its own shows, where `NetworkRequestResultKnowledge` knows no lines that the run of the request prints, e.g. `HTTP/1.1 200 OK` under `mytool https://a.org/x`.
+    """Assumption reason of a result whose level an output line that the request owns shows, also one that other requests own too, where `NetworkRequestResultKnowledge` knows no lines that the run of the request prints, e.g. `HTTP/1.1 200 OK` under `mytool https://a.org/x`.
 
     `treat_line_that_unknown_printer_may_have_printed_as_shared` chose to treat such a line as one that another run may have printed.
     """

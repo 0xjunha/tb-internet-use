@@ -340,14 +340,14 @@ def _option(name: str, value: str | None = None) -> ProgramOption:
     return ProgramOption(name, value)
 
 
-# The sudo, bash and pip that several cases expect.
+# The sudo, pip and curl that several cases expect.
 _SUDO = _program_invocation("sudo", exits_with_exit_code_of_next_program=True)
 _PIP_INSTALL = _program_invocation(
     "pip", subcommand_words=("install",), options=(_option("-q"),), arguments=("x",)
 )
 _CURL_U = _program_invocation("curl", arguments=("u",))
 
-# (words, 0-based indexes of the words with an expansion, the programs they run). Made-up commands that the reading was designed for, cases carried over from earlier tests and cases that showed a bug in an earlier version.
+# (case id, words, 0-based indexes of the words with an expansion, the programs they run). Made-up commands that the reading was designed for, cases carried over from earlier tests and cases that showed a bug in an earlier version.
 INVOCATION_CASES = [
     # The made-up commands that the reading was designed for.
     (
@@ -817,7 +817,7 @@ INVOCATION_CASES = [
         (),
         (_program_invocation("printf", arguments=("%s\\n", "a")),),
     ),
-    # A word with its own row before the first argument is read as today.
+    # A word with its own row before the first argument is read as that option.
     (
         "echo -n hello",
         ("echo", "-n", "hello"),
@@ -986,7 +986,7 @@ INVOCATION_CASES = [
     ("dir/ x", ("dir/", "x"), (), (UnknownProgramInvocation("dir/", ("x",)),)),
 ]
 
-# (words, 0-based indexes of the words with an expansion, the role of each word)
+# (case id, words, 0-based indexes of the words with an expansion, the role of each word)
 ROLE_CASES = [
     # echo leaves blank whether options end at its first argument, so -n after hello has an unknown role and is no option.
     (

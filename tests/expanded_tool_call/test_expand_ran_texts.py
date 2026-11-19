@@ -69,7 +69,7 @@ HANDLE = ExecutionHandle(ExecutionHandleKind.COMMAND, "h1")
 RUNNING = ToolCallResult(execution_status=ExecutionStatus.RUNNING, handles=(HANDLE,))
 OTHER_TRAJECTORY_RULE_NAME = treat_calls_of_other_trajectory_as_not_linked.__name__
 
-# Made-up rows, each named by the program and the cells that differ from the defaults of `conftest.py`. mytool, gdb and test have no row, and echo writes nothing that a test reads.
+# Made-up rows, each named by the program and the cells that differ from the defaults of `conftest.py`. mytool, gdb and test have no row, and the row of echo gives its words no file role.
 PROGRAM_BEHAVIOR_ROWS: list[dict[str, str]] = [
     {
         "program_name": "bash",
@@ -1083,7 +1083,7 @@ def test_writes_in_one_call_to_paths_of_two_files_keep_them_apart(
 def test_a_write_and_an_append_of_one_call_by_two_paths_of_one_file(
     knowledge: ExpandedToolCallKnowledge,
 ):
-    """One call that writes `/app/run.sh` and appends to `run.sh` writes one file, so a later run of either path sees both writes."""
+    """One call that writes `/app/run.sh` and appends to `run.sh` writes one file, so a later run of either path uses that file, whose content is not known after the append."""
     writer, runner = _expand(
         knowledge,
         _call(1, _heredoc_write("/app/run.sh", "curl a") + "\necho 'curl b' >> run.sh"),

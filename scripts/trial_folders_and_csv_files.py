@@ -1,6 +1,6 @@
 """Choose the trial folders that an audit script reads, bound the processes that read them and write the CSV files of its results.
 
-The audit scripts of the steps all read raw trial folders in worker processes and write CSVs under `out/`, so the choice of folders, e.g. `--limit 100` or `--trial-ids sample-trials.txt`, works the same in each.
+`run_pipeline.py` and the audit scripts that read raw trial folders in worker processes share the choice of folders, e.g. `--limit 100` or `--trial-ids sample-trials.txt`, and write CSVs under `out/`. `audit_results.py` is the exception, with its own `--limit` and no `--trial-ids`. `audit_export_knowledge.py` reads the saved results of a run and takes only `PROCESS_COUNT` and `write_csv` from here.
 A script imports this module after it puts its own folder on `sys.path`, since `python -I` leaves that folder off.
 """
 

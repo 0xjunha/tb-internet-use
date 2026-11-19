@@ -24,7 +24,7 @@ _SPEC = importlib.util.spec_from_file_location(
 )
 assert _SPEC is not None and _SPEC.loader is not None
 audit = importlib.util.module_from_spec(_SPEC)
-sys.modules[_SPEC.name] = audit  # dataclasses look the module up while it loads
+sys.modules[_SPEC.name] = audit  # registered as an import would do
 _SPEC.loader.exec_module(audit)
 
 _MISSING = UnreadableTrajectory(UnreadableTrajectoryReason.MISSING)
@@ -174,7 +174,7 @@ def _data_dir(tmp_path: Path, *, catalog_agent_of_t1: str = "claude-code") -> Pa
 
 
 class _InProcessPool:
-    """Stand-in for the process pool of `main`, which maps in the test process since a worker process could not import the script by its file path."""
+    """Stand-in for the process pool of `main`, which maps in the test process so that a test starts no worker process."""
 
     def __init__(self, process_count: int) -> None:
         pass
@@ -360,7 +360,7 @@ def test_main_ends_with_exit_code_1_only_when_a_count_differs_from_its_expectati
     )
     expected_file = tmp_path / "expected.json"
 
-    # The counts that the first run wrote agree, unless it left a count out of the CSV, which the second run would then find without an expectation.
+    # The counts that the first run wrote agree, unless it left out of the CSV a count that has a value, which the second run would then find without an expectation.
     expected_file.write_text(json.dumps(expected_counts))
     _run_main(
         monkeypatch, data_dir, tmp_path / "second", "--expected", str(expected_file)

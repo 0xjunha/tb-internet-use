@@ -63,7 +63,7 @@ class TrialLeaderboardMembership:
 
 @dataclass(frozen=True, slots=True)
 class UnreadableTrajectory:
-    """Result of reading a trial whose trajectory file gives no tool calls, returned in place of the calls so that the trial is not taken for one without calls.
+    """Result of reading a trial whose trajectory file could not be read, returned in place of its tool calls so that the trial is not taken for one without calls.
 
     It sits here and not beside `parse_trajectory`, which returns it, since a `Trial` holds it and a step never imports from a later step.
     """

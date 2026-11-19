@@ -1,4 +1,4 @@
-"""Tests for export/judgment_rules.py, one table of each rule with a made-up situation, the value it gives and the name it is counted under."""
+"""Tests for export/judgment_rules.py, with one table that holds a made-up situation of each rule and the value the rule gives, and a check that each use is counted under the name of the rule."""
 
 import dataclasses
 from collections import Counter
@@ -74,7 +74,10 @@ def _request(
     received_content_destination: ReceivedContentDestination,
     *host_names: str,
 ) -> NetworkRequest:
-    """Make the request of a made-up command for the situation of a rule, which reads none of its fields."""
+    """Make the request of a made-up command for the situation of a rule.
+
+    Of its fields only `target` is read, by `treat_request_without_host_name_as_sent_to_default_registry_host`.
+    """
     return NetworkRequest(
         tool_call_key=ToolCallKey("t1", "main", 1, 0),
         index_in_tool_call=0,
@@ -168,7 +171,7 @@ PAGE_READ_ROW_FROM_UNKNOWN_SENDER = NetworkRequestRow(
     is_among_success_line_owners_one_of_which_received=False,
 )
 
-# The row of each of `pip install A B` under one `Successfully installed A-1.0` that both own.
+# A row with the category, sender and bounds of each of `apt-get install -y a b` under one `Fetched 10 kB in 1s` that both own, whose other columns are those of a `curl` that saved what it received.
 PACKAGE_ROW_RECEIVED_IN_UPPER_BOUND_ONLY = build_network_request_row(
     NetworkRequestCategory.PACKAGE,
     NetworkRequestSender.TASK_ENVIRONMENT,

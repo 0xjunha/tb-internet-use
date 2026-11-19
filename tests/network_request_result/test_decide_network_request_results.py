@@ -502,7 +502,7 @@ def test_decides_whole_results_of_made_up_inputs(
     assert decided.judgment_rule_use_counts == expected_rule_uses
 
 
-# One case for each row of the table of results in the criteria, the input of a request that the row describes, with the level, stop reason and level certainty it gets.
+# One case for each of the eight rows of the table of results in the criteria and one for a request that asks for no content, each with the input of such a request and the level, stop reason and level certainty it gets.
 RESULT_TABLE_CASES = [
     pytest.param(
         _bash_call(1, "wget https://a.org/x.tgz", "'x.tgz' saved [1024/1024]"),

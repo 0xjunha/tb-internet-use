@@ -77,11 +77,11 @@ class NetworkRequestRow:
     sender: NetworkRequestSender
     result_view: NetworkRequestResultView
     # The bounds of the main measure in which this row makes its trial count as one that has a request of its category.
-    # `LOWER_AND_UPPER` for internet use by a request that is confirmed after the evidence, whatever its level, e.g. also when nothing shows that it ran. Only a confirmed `NOT_NEEDED` is `NEITHER`.
+    # `LOWER_AND_UPPER` for internet use by a request that is confirmed after the evidence, whatever its level, e.g. also when nothing shows that it ran. A `NOT_NEEDED` result is the exception. It is `NEITHER` when confirmed, and when assumed it is what `treat_assumed_not_needed_result_as_upper_bound_only` decides.
     request_measure_bound: MeasureBound
     # The bounds in which this row makes its trial count as one that received something of its category, by its own result alone.
     received_measure_bound: MeasureBound
-    # True when the request shares an output line of success with other confirmed requests of its category and sender that all received by their results and are each assumed for shared output lines alone, that line among them, so that whichever of them printed it certainly received, e.g. each of `pip install A B` under one `Successfully installed A-1.0` that both own.
+    # True when the request shares an output line of success with other confirmed requests of its category and sender that all received by their results and are each assumed for shared output lines alone, that line among them, so that whichever of them printed it certainly received, e.g. each of `apt-get install -y a b` under one `Fetched 10 kB in 1s` that both own.
     # It is set only where the line raises the bound of the trial, i.e. where no row of the category and sender is in the lower bound of received by its own result.
     # The trial then counts in the lower bound of received for the category and sender of the row, while `received_measure_bound` stays as the result of the request alone gives it.
     is_among_success_line_owners_one_of_which_received: bool
@@ -212,7 +212,7 @@ class HostService(StrEnum):
     PACKAGE_REGISTRY = "package_registry"  # e.g. pypi.org
     CODE_HOSTING = "code_hosting"  # e.g. github.com
     MODEL_HUB = "model_hub"  # e.g. huggingface.co
-    SEARCH_ENGINE = "search_engine"  # e.g. duckduckgo.com
+    SEARCH_ENGINE = "search_engine"  # e.g. html.duckduckgo.com
 
 
 @dataclass(frozen=True, slots=True)
@@ -292,7 +292,7 @@ class UnknownNetworkRequestSender:
 
 
 class NetworkRequestResultView(StrEnum):
-    """View of a result as reports show it, computed from its level and stop reason alone."""
+    """View of a result as reports show it, computed from its stop reason alone."""
 
     RECEIVED = "received"  # it got what it asked for
     NOT_RECEIVED = "not_received"

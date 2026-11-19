@@ -57,7 +57,7 @@ TRIAL_ROW_OF_READ_TRIAL_WITHOUT_REQUESTS = TrialRow(
 )
 
 
-# Request rows of one trial, i.e. a confirmed receipt of a file, a receipt whose internet use is not known, a search sent from the provider server, a page read by a fetch tool of the harness and a page read by a web tool whose sender is not known.
+# Request rows of one trial that stand for made-up results by their category, sender and bounds alone, i.e. a confirmed receipt of a file, a receipt whose internet use is not known, a search sent from the provider server, a page read by a fetch tool of the harness and a page read by a web tool whose sender is not known.
 FETCHED_FILE_ROW = build_network_request_row(
     NetworkRequestCategory.FETCHED_FILE,
     TASK_ENVIRONMENT,

@@ -555,7 +555,7 @@ NAMED_IN_FILE = UnknownNetworkRequestTarget(
     UnknownNetworkRequestTargetReason.NAMED_IN_FILE
 )
 
-# One line of each kind, owned by the one request of `words`, with the evidence it gives and the rules it asks besides the one about the run.
+# Lines of every kind, each owned by the one request of `words`, with the evidence it gives and the rules it asks besides the one about the run.
 LINE_CASES = {
     "wget saved": LineCase(
         "'x.tgz' saved [1024/1024]",
@@ -1625,7 +1625,7 @@ def test_exit_zero_is_read_through_an_outer_program_only_when_it_ends_with_the_n
 
 
 def no_run_evidence_case(which: str) -> tuple[NetworkRequest, list[ExpandedToolCall]]:
-    """Make a request whose command has no evidence of its own that it ran."""
+    """Make a request that has no evidence of its own that it ran."""
     curl = program("curl", options=(option("-s"),))
     if which == "a | b":
         first = command(
@@ -2394,7 +2394,7 @@ def shown_text_case(
 ) -> tuple[
     NetworkRequest, list[NetworkRequest], ExpandedToolCall, tuple[OutputLineOwners, ...]
 ]:
-    """Make a request of a command whose result shows a text that is not taken as its content."""
+    """Make a request whose result gives no `ShownContentEvidence`, e.g. a result with a failed line of the request, one that another request reaches too or one without text."""
     curl = command(0, "curl https://a.org/x", CURL, succeeded_if_text_exits_zero=False)
     network_request = request(K1, from_command(curl), "https://a.org/x")
     if which == "a failed line":

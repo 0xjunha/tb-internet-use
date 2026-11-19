@@ -37,7 +37,7 @@ from tb_internet_use.tool_call.model import ToolCallKey
 TOOL_CALL_KEY = ToolCallKey("trial", "main", 1, 0)
 CONTENT_SHOWN_IN_RESULT = ContentShownInResult()
 EXIT_CODE_EVIDENCE = ExitCodeEvidence(TOOL_CALL_KEY, 0, False)
-# `npm ERR! code E404` under `npx tsc`, a line that only this request can have printed.
+# A `NOT_FOUND` line that only this request can have printed. `NetworkRequestResult` reads only that the line is not shared.
 OWN_OUTPUT_LINE_EVIDENCE = OutputLineEvidence(
     TOOL_CALL_KEY, 0, None, OutputLineKind.NOT_FOUND, False
 )

@@ -471,7 +471,7 @@ def test_runs_the_decision_of_request_results_after_the_extraction_with_its_own_
         ]
         == 1
     )
-    # The result of a Claude Code `Bash` call gives no exit code, so no evidence shows that pip or mytool ran beyond the line of pip.
+    # The results of these Claude Code `Bash` calls have neither an `Exit code` line nor a structured result, so they give no exit code and no evidence shows that pip or mytool ran beyond the line of pip.
     assert network_request_result_judgment_rule_use_counts == Counter(
         {
             "treat_installed_line_as_no_evidence_of_download": 1,
@@ -728,7 +728,7 @@ def test_an_unreadable_trajectory_gives_its_reason_no_results_and_the_upper_boun
     assert {
         (row.request_measure_bound, row.received_measure_bound) for row in measure_rows
     } == {(MeasureBound.UPPER_ONLY, MeasureBound.UPPER_ONLY)}
-    # No step before `export_rows` ran, so no counter and no door counted anything.
+    # Only `collect_trials` and `export_rows` ran, and neither used a judgment rule or a door, so no counter and no door counted anything.
     assert not any(counters.values())
     assert not knowledge_doors.tool_call_knowledge.uses.row_use_counts
     assert not knowledge_doors.tool_call_knowledge.uses.unknown_input_counts

@@ -46,7 +46,7 @@ def expand_output_routes(
 
     `output_destination` is the stdout or stderr of the command as `parse_shell_text` gives it, and `pipe_readers_by_command_id` holds every command of the text that a pipe leads to.
     A reader that writes the piped output to files adds one route per file, ending there, e.g. log in `curl u | tee log | tail -1`.
-    The share at the end of a route is the least one that its readers pass on, e.g. `NONE` for `curl u | grep a | tar xz` and `PARTIAL` for `curl u | grep a | cat`.
+    The share at the end of a route is the least one that its readers pass on, e.g. `NONE` for `curl u | grep a | wc -c` and `PARTIAL` for `curl u | grep a | cat`.
     """
     pipe_reader_command_ids: list[int] = []
     pipe_reader_visibilities: list[OutputVisibility] = []

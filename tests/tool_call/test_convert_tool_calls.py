@@ -69,7 +69,7 @@ _DEVIN_DIFF_HEAD = (
     "replaced/removed in place, ' ' lines are unchanged context; '@@' line numbers index into the full output.]\n"
 )
 
-# Made-up results whose status or exit code the result text does not state, one or more per judgment rule.
+# Made-up results whose status or exit code the result text does not state, one or more for each judgment rule that a declared format names and for `treat_bash_output_without_exit_code_line_as_exit_code_0`, and one result that states both and uses no rule.
 # (harness, tool, result, expected status and exit code, expected judgment rule uses)
 JUDGMENT_RULE_CASES: list[
     tuple[str, str, dict[str, Any], tuple[ExecutionStatus, int | None], dict[str, int]]

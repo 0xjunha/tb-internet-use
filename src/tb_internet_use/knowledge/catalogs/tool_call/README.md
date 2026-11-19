@@ -1,6 +1,6 @@
 # Harness tool catalog
 
-The harness tool catalog is outside knowledge for `convert_tool_calls`, kept in the three CSVs of this folder. They are labeled and reviewed manually, and the conversion reads them only through `ToolCallKnowledge` in [tool_call_knowledge.py](../../tool_call_knowledge.py).
+The harness tool catalog is outside knowledge for `convert_tool_calls`, kept in the three CSVs of this folder. They are labeled by hand, their `reviewed` column says which rows a person has reviewed, and the conversion reads them only through `ToolCallKnowledge` in [tool_call_knowledge.py](../../tool_call_knowledge.py).
 
 All three files start with the columns `harness` and `tool`, the names that the trajectory gives the harness and the tool, e.g. `claude-code` and `Bash`, which key each row together with `argument` of `harness_tool_arguments.csv` and `return_code_interpretation` of `harness_return_code_interpretations.csv`.
 
@@ -37,6 +37,6 @@ A row the conversion cannot use raises `ValueError` when the catalog is loaded, 
 
 | Harness | Tool | Why | Decided by |
 |---|---|---|---|
-| codex | `exec` | Runs JS that can call several tools, so the steps of its `RunToolScriptAction` vary by call | The `tools.*` calls in the JS code of the `input` argument, read by [parse_codex_exec_script.py](../../../tool_call/parse_codex_exec_script.py). `apply_patch` and `web__run`, whose one argument holds several actions, are mapped in code, e.g. a file that a patch deletes to a `DeleteFileAction`. Any other tool of a script gets its action from its catalog row, e.g. `clock__curr_time`, which only scripts call |
+| codex | `exec` | Runs JS that can call several tools, so the steps of its `RunToolScriptAction` vary by call | The `tools.*` calls in the JS code of the `input` argument, read by [parse_codex_exec_script.py](../../../tool_call/parse_codex_exec_script.py). `apply_patch` and `web__run`, whose one argument holds several actions, are mapped in code, e.g. a file that a patch deletes to a `DeleteFileAction`. Any other tool of a script gets its action from its catalog row, e.g. `clock__curr_time`, which only scripts call. `exec`, `wait` and `request_user_input_async`, which a script cannot call, and a tool without a row are an `UnknownAction` |
 | codex | `web_search_call` | One tool searches, opens a page or finds text in a page, so the `ToolCallAction` type varies by call | The `action_type` argument: `search`, `open_page` or `find_in_page` |
 | cursor-cli | `mcpToolCall` | Wraps any MCP tool, such as Playwright `browser_navigate`, so the `ToolCallAction` type depends on the wrapped tool | The `toolName` argument, which names the wrapped tool. `browser_navigate` is a `WebFetchAction`, and a wrapped tool that the converter does not know is an `UnknownAction` |

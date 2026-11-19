@@ -40,7 +40,7 @@ from tb_internet_use.knowledge.expanded_tool_call_knowledge import (
     ExpandedToolCallKnowledge,
 )
 
-# A program row of `prog` whose every cell differs from what a default would give, so that a door that drops a column fails.
+# A program row of `prog` whose every fact cell reads differently from a blank cell, so that a door that drops a column fails.
 _PROGRAM_ROW_CELLS = {
     "program_name": "prog",
     "subcommand": "",
@@ -246,7 +246,7 @@ _CODE_RUNNER_ROWS_THAT_CANNOT_LOAD = [
     ({"runner": ""}, "runner is empty"),
     ({"runner_kind": "file_extension", "runner": "py"}, "does not start with a dot"),
 ]
-# Programs of the old tables whose rows were left out, since the 100 sample trials never run them, e.g. tac, or no page of the program could be read, e.g. tsx.
+# Programs of the old tables that have no row in `program_behaviors.csv`, e.g. stdbuf.
 _PROGRAMS_LEFT_OUT = frozenset({"clang", "stdbuf", "tsx"})
 # Wrappers whose page shows no `NAME=value` words before the command, which the old tables let them skip, e.g. `time [option ...] command [argument ...]` of time(1), since the bash reserved word time is no program.
 _WRAPPERS_THAT_SKIP_NO_ASSIGNMENT_WORDS_BY_THE_PAGE = frozenset({"time"})
@@ -254,7 +254,7 @@ _WRAPPERS_THAT_SKIP_NO_ASSIGNMENT_WORDS_BY_THE_PAGE = frozenset({"time"})
 _FILE_READERS_WITHOUT_STDIN_BY_THE_PAGE = frozenset({"strings"})
 # Options that the old tables gave every shell and that only bash has, since dash(1) lists no -O or +O.
 _SHELL_OPTIONS_OF_BASH_ONLY = frozenset({"-O", "+O"})
-# Programs whose option rows of the old tables went to a subcommand row, since the old tables gave them to every subcommand, with that subcommand, or None when they were left out, e.g. git `-b` of `git clone` and `git checkout`.
+# Programs whose option rows of the old tables went to a subcommand row, since the old tables gave them to every subcommand, with that subcommand, or None when no one subcommand holds them and some were left out, e.g. git `-b`, which no row of `git clone` or `git checkout` holds.
 _SUBCOMMAND_HOLDING_OPTIONS_BY_PROGRAM_NAME = {
     "bun": None,
     "conda": None,
@@ -307,7 +307,7 @@ class _OldOptionSyntax:
     script_options: frozenset[str]
 
 
-# The rows of the earlier program tables and of the earlier program catalog that the real catalogs carry over.
+# The rows of the earlier program tables and of the earlier program catalog, which the real catalogs carry over except where a constant above says otherwise, i.e. programs and options that they leave out, e.g. the programs of `_PROGRAMS_LEFT_OUT`, options that moved to a subcommand row, and facts that a page reads otherwise, e.g. the stdin of strings.
 # The tests that hold the real catalogs against those rows read them here.
 _OLD_WRAPPERS = {
     "sudo": _OldWrapper(
@@ -1391,7 +1391,7 @@ def test_shells_and_code_programs_of_the_old_tables_run_their_texts(real_knowled
         assert program_behavior.first_argument_role == ProgramWordRole.RUN_FILE
         assert program_behavior.stdin_role == ProgramWordRole.RUN_TEXT
         shell_c = _real_option_behavior_of(real_knowledge, name, "-c")
-        # The text after -c is the first argument and no value of -c, so that `bash -c -e a` runs a.
+        # The text after -c is the first argument and no value of -c, e.g. a of `bash -c a`.
         assert not shell_c.takes_value
         assert shell_c.first_argument_role_with_option == ProgramWordRole.RUN_TEXT
         for option_name in ("-o", "+o", "-O", "+O"):

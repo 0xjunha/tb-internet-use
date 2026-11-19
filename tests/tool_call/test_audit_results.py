@@ -24,7 +24,7 @@ _SPEC = importlib.util.spec_from_file_location(
 )
 assert _SPEC is not None and _SPEC.loader is not None
 audit = importlib.util.module_from_spec(_SPEC)
-sys.modules[_SPEC.name] = audit  # dataclasses look the module up while it loads
+sys.modules[_SPEC.name] = audit  # registered as an import would do
 _SPEC.loader.exec_module(audit)
 
 KEY = ("h", "t", "f")

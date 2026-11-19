@@ -1,6 +1,6 @@
 """Mark the request rows of one trial whose requests share an output line of success that shows that one of them received, so that the trial counts in the lower bound of received for their category and sender.
 
-When one output line of success has several owners, e.g. one `Successfully installed A-1.0` under `pip install A B`, `decide_network_request_results` gives each owner an assumed result, since any of them may have printed it. Whichever printed it received, so the trial received something of their category, while no row alone is confirmed.
+When one output line of success has several owners, e.g. one `Fetched 10 kB in 1s` under `apt-get install -y a b`, `decide_network_request_results` gives each owner an assumed result, since any of them may have printed it. Whichever printed it received, so the trial received something of their category, while no row alone is confirmed.
 """
 
 import dataclasses

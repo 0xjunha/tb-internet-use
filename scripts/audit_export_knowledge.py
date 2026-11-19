@@ -6,7 +6,7 @@ An equation whose right side is 0 counts rows that break a rule that holds whate
 
 | Equation | Left | Right |
 |---|---|---|
-| `<judgment rule>_uses_equal_its_situations` | Uses of a rule of `export/judgment_rules.py`, or of `treat_dotted_host_name_as_public`, which `export_rows` counts too | Rows of the situation of the rule, read from their columns, or for `treat_dotted_host_name_as_public` the dotted host names of the rows and of the default registries that decided them, or for `treat_trial_with_success_line_shared_by_confirmed_requests_as_received` the categories and senders of a trial with a row among success line owners one of which received |
+| `<judgment rule>_uses_equal_its_situations` | Uses of a rule of `export/judgment_rules.py`, or of `treat_dotted_host_name_as_public`, which `export_rows` counts too | Rows of the situation of the rule, read from their columns, for `treat_url_query_value_and_fragment_as_credential` the text cells with a redacted query value or fragment, for `treat_dotted_host_name_as_public` the dotted host names of the rows and of the default registries that decided them, and for `treat_trial_with_success_line_shared_by_confirmed_requests_as_received` the categories and senders of a trial with a row among success line owners one of which received |
 | `rows_decided_by_default_registry_without_known_registry` | Rows without a host name and not from a web tool whose internet use is decided, while their `package_registry` is blank or `unknown` or their target is a local path | 0 |
 | `judgment_rule_names_are_of_this_step` | Names counted in the counter of `export_rows` that are rules of `export/judgment_rules.py` or `treat_dotted_host_name_as_public` | Names counted |
 | `public_host_lookups_equal_public_host_scopes` | Lookups of `public_hosts.csv`, with a row or without | Hosts whose `host_scope` is `public` |
@@ -314,9 +314,9 @@ def situation_counts_of(
     network_request: NetworkRequest,
     own_export_knowledge: ExportKnowledge,
 ) -> Counter[str]:
-    """Count for one request row the situations of the rules and the lookups of the door that the module docstring sets beside them, each under the name of its equation.
+    """Count for one request row the situations of the rules and the lookups of the door that the module docstring sets beside them, a situation under the name of its rule and any other count under the name of its equation, all but the situation of `treat_trial_with_success_line_shared_by_confirmed_requests_as_received`, which `audit_trial` counts for each trial.
 
-    The conditions read the columns of the row, as a reader of the CSV would, and the request only for its host names before redaction and for whether its program has facts.
+    The conditions read the columns of the row, as a reader of the CSV would, and the request only for its host names before redaction, its target kind and its program.
     """
     row = network_request_row
     counts: Counter[str] = Counter()
@@ -514,7 +514,7 @@ class TrialAudit:
     """Result of auditing one trial, sent from a worker process to the main process that sums the trials."""
 
     trial_id: str
-    # None for a trial whose saved results could not be read.
+    # None for a trial whose saved results could not be read or exported again.
     task_key: TaskKey | None
     # The type name of the exception, or None when the trial was audited.
     exception_type_name: str | None = None
@@ -709,7 +709,7 @@ def _measure_rows_differing_from_request_rows_of(run_files: RunFiles) -> int:
 def _measure_row_counts_above_their_request_rows_of(
     run_files: RunFiles,
 ) -> tuple[int, int]:
-    """Give the main measure lines of read trials whose received bound is stronger than the strongest own received bound of their request rows, and the trials, categories and senders with a request row among success line owners one of which received."""
+    """Count the main measure lines of read trials whose received bound is stronger than the strongest own received bound of their request rows, and the trials, categories and senders with a request row among success line owners one of which received."""
     strongest_received_bounds: dict[tuple[str, str, str], str] = {}
     keys_with_success_line_owner_rows: set[tuple[str, str, str]] = set()
     for row in run_files.network_request_rows:

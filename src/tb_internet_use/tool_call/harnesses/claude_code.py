@@ -58,6 +58,7 @@ class ClaudeCodeConverter(HarnessToolCallConverter):
         """Read the structured result of `TaskOutput`, and the only content item of a `Read` result without text, e.g. the image a `Read` of an image file returns.
 
         Any other `Read` result has text, which its text formats read, so it gives None.
+        Any other tool with JSON formats, e.g. `TaskStop`, gets the default, the raw text decoded as a JSON object.
         """
         name = harness_tool_call.tool.name
         if name == "TaskOutput":

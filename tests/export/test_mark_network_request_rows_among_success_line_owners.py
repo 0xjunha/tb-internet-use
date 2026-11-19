@@ -1,4 +1,4 @@
-"""Tests for _mark_network_request_rows_among_success_line_owners.py, through `export_rows`, from made-up results of one trial whose requests share output lines to the rows of the trial."""
+"""Tests for _mark_network_request_rows_among_success_line_owners.py, through `export_rows`, from made-up results of one trial whose requests share output lines to the rows of the trial, and for its refusal of results and rows of other numbers, called directly."""
 
 import dataclasses
 from collections import Counter
@@ -68,7 +68,7 @@ READ_TRIAL = Trial(
     1.0,
     None,
 )
-# Where pip and curl put what they receive, a file whose name the words do not give.
+# Where `pip install` puts what it receives, a file whose name the words do not give. The curl of a fetched file below gets it too, and its row is the same as with `ContentSaved("x.tgz")`, which `curl -O` gives.
 SAVED_TO_NO_NAMED_FILE = ContentSaved(None)
 # The call of `pip install A B` and a later call that runs `cat pip.log` on the log it wrote.
 INSTALL_CALL = ToolCallKey("t1", "main", 1, 0)
@@ -192,7 +192,7 @@ def _result(
 
 PIP_INSTALL_A = _result(_pip_install("A", 0))
 PIP_INSTALL_B = _result(_pip_install("B", 1))
-# `curl -O https://a.org/x.tgz` in the same call, a fetched file, whose run may have printed the line too.
+# `curl -O https://a.org/x.tgz` in the same call, a fetched file, assumed for the line of `cat pip.log` alone, whose text its run may have printed too.
 CURL_OF_FETCHED_FILE = _result(
     _request(
         FromCommand(
@@ -456,7 +456,7 @@ def test_two_lines_counting_the_trial_for_one_category_and_sender_ask_the_rule_o
 def test_a_category_that_a_row_already_counts_in_the_lower_bound_of_received_marks_no_row(
     knowledge: ExportKnowledge,
 ):
-    # `apt-get install -y aaa bbb; ls` with an own `Get:1 ... bbb` line and a shared `Fetched 10 kB in`. bbb is confirmed and counts the trial by itself, so the shared line raises nothing.
+    # `apt-get install -y aaa bbb; ls` with an own `Get:1 ... bbb` line and a shared `Fetched 10 kB in`, made as two `pip install` requests that share `INSTALLED_LINE`. bbb is confirmed by its own line and counts the trial by itself, so the shared line raises nothing.
     apt_install_aaa = _result(_pip_install("aaa", 0))
     apt_install_bbb = _result(
         _pip_install("bbb", 1),
@@ -507,7 +507,7 @@ def _exported_marks_and_rule_uses(
     ], judgment_rule_use_counts[RULE]
 
 
-# A second line of the result of `pip install A B`, e.g. `Downloading X-1.0.whl`, and a line of the same index in the output string of a JSON object of the line before it.
+# A second line of success in the result of `pip install A B`, and lines 0 and 1 of the output string of a JSON object on its line 0, all 0-based.
 SECOND_LINE = _shared_line(INSTALL_CALL, 1)
 FIRST_LINE_OF_JSON_STRING = OutputLineEvidence(
     INSTALL_CALL, 0, 0, OutputLineKind.INSTALLED, True

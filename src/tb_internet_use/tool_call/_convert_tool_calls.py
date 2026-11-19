@@ -49,7 +49,7 @@ def convert_one_tool_call(
     knowledge: ToolCallKnowledge,
     judgment_rule_use_counts: Counter[str],
 ) -> ToolCall:
-    """Convert one tool call in the trajectory to common ToolCall type."""
+    """Convert one tool call of the trajectory to a `ToolCall`, building its result first, since the action of a poll takes the handles that the result names."""
     tool_call_result = convert_tool_call_result(
         harness_tool_call,
         converter,

@@ -201,7 +201,7 @@ def _certainties(
     ]
 
 
-# The cells of the table of what a means is known to do, with a public URL in its words and without one.
+# What a program is known to do, with a public URL in its words and without one.
 
 
 def test_a_program_known_to_fetch_gives_a_confirmed_request_for_a_visible_public_url():
@@ -798,7 +798,7 @@ def test_written_files_of_the_call_give_the_content_destination_also_when_it_did
 
 
 def test_the_number_of_requests_of_the_program_reaches_its_content_destination():
-    # curl writes the file of `-o` for the first URL only, so neither request is known to be the one saved in a.tgz.
+    # curl writes the file of `-o` for the first URL only, but with one file of `-o` and two requests `extract_received_content_destination` names no path for either request and gives both `ContentSaved(None)`.
     curl = _program("curl", options=(("-o", "a.tgz"),), arguments=(U, U + "2"))
     written_file = WrittenFile(
         "a.tgz", (WrittenFileWriter(0, FileWriteChannel.OWN_OUTPUT_FILE),), ()

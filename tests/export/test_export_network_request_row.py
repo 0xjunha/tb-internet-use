@@ -1,4 +1,4 @@
-"""Tests for _export_network_request_row.py, with made-up requests and made-up catalogs, one case for each condition of its module docstring in order, then requests that two conditions fit, each judgment rule with its other answer, and the text columns."""
+"""Tests for _export_network_request_row.py, with made-up requests and made-up catalogs, a case for each condition of internet use in the order of its module docstring and two for host names without a dot, then requests with hosts of two scopes or a web tool source beside a host, requests without a host and from no web tool, each judgment rule with its other answer, the result views and bounds of made-up results, and the text columns."""
 
 from collections import Counter
 from pathlib import Path
@@ -462,7 +462,7 @@ INTERNET_USE_CASES: list[
         },
         {},
     ),
-    # Requests that two conditions fit, where the first wins.
+    # Requests with hosts of two scopes or a web tool source beside a host, where the first condition that fits wins.
     (
         "a local and a public host",
         _request(
@@ -559,7 +559,7 @@ INTERNET_USE_CASES: list[
         {"is_internet_use": None},
         {RESERVED_HOST_RULE: 1},
     ),
-    # Requests without a host and from no web tool, in the order of the default registry rule.
+    # Requests without a host and from no web tool, each of which asks the default registry rule.
     (
         "pip install -e .",
         _request(
@@ -817,7 +817,7 @@ def test_internet_use_follows_the_other_answer_of_its_judgment_rule(
     assert network_request_row.is_internet_use is is_internet_use
 
 
-# (case, request, sender, unknown inputs of the door after the export)
+# (case, request, sender, unknown inputs of `harness_web_tools.csv` after the export)
 SENDER_CASES = [
     ("command", CURL_A_ORG, NetworkRequestSender.TASK_ENVIRONMENT, {}),
     (
@@ -1258,7 +1258,7 @@ BOUND_CASES: list[
     ("uncertain request received", _result(NPX_TSC), UPPER_ONLY, UPPER_ONLY, {DEFAULT_REGISTRY_RULE: 1, DOTTED_HOST_RULE: 1}),
     ("internet use not known, received", _result(CURL_TEMPLATED_HOST), UPPER_ONLY, UPPER_ONLY, {TEMPLATED_HOST_RULE: 1}),
     ("not internet use, received", _result(CURL_LOCALHOST), NEITHER, NEITHER, {}),
-    # Requests that two conditions fit, where the first wins.
+    # Requests that two conditions fit, where the first wins, and last a request that evidence lifted to confirmed, which counts as confirmed.
     (
         "not internet use, assumed not needed",
         _result(CURL_LOCALHOST, EXECUTED, NOT_NEEDED, ASSUMED),

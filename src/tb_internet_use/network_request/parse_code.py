@@ -169,7 +169,7 @@ class _OpenCall:
     """Call whose opening parenthesis `parse_code` has read and whose closing one it has not, collecting its strings and arguments."""
 
     name: str
-    # The index of the call among the calls of the code, in text order.
+    # The 0-based index of its place among the opened calls of the code, in text order, where a definition written like a call also takes a place.
     code_call_index: int
     # The 0-based position in the code right after its opening parenthesis.
     argument_start: int
@@ -205,7 +205,7 @@ class _CodeReadingState:
     open_brackets: list[_OpenBracket] = field(default_factory=list)
     # The closers of the open brackets, counted so that a closer without an opener is found without a walk of the brackets.
     open_closer_counts: Counter[str] = field(default_factory=Counter)
-    # The calls in text order, None while a call is open.
+    # The calls in text order, None while a call is open and for a definition written like a call, e.g. `async fetch(url) {` in a JavaScript class body.
     code_calls: list[CodeCall | None] = field(default_factory=list)
     string_assignments: list[CodeStringAssignment] = field(default_factory=list)
     is_at_line_start: bool = True
@@ -288,7 +288,7 @@ def _comment_end_of(state: _CodeReadingState, position: int) -> int | None:
 
 
 def _may_assign_here(state: _CodeReadingState) -> bool:
-    """Tell whether a statement can start here, i.e. no parenthesis or square bracket holds the position, so `url="x"` on its own line inside a call is no assignment."""
+    """Tell whether a statement can start here, i.e. no bracket is open or the innermost open bracket is a brace, so `url="x"` on its own line right inside the parentheses of a call is no assignment."""
     return not state.open_brackets or state.open_brackets[-1].closer == "}"
 
 

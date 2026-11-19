@@ -118,7 +118,7 @@ def decide_network_request_result_evidence(
 
     `network_requests` are all requests of the trial, so that a line of command a can stop the request of b in `a && b`, and `output_place_sources` tell whether the place of a line may show file content or page text and which runs reach it.
     Every use of a rule of `judgment_rules.py` adds one to `judgment_rule_use_counts`, and a request without evidence of its run counts `treat_command_without_own_evidence_as_no_evidence_of_run` once.
-    A call that may not have run ran nothing, so its requests get only the evidence of its status, e.g. a `curl u` call marked not run whose result holds a message of the harness.
+    A call whose result is `NOT_RUN` ran nothing, so its requests get only the evidence of its status, e.g. a `curl u` call marked not run whose result holds a message of the harness.
     """
     expanded_tool_call_by_key = {
         expanded_tool_call.tool_call.harness_tool_call.key: expanded_tool_call
@@ -279,7 +279,7 @@ def _unknown_printer_reasons_of(
 ) -> tuple[
     UnknownProgramOutputLinesAssumptionReason | UnknownRunBesideAssumptionReason, ...
 ]:
-    """Find the reasons that a line of the request, its own or shared with other requests, may still have been printed by a run whose lines are unknown, none when there is no such run or `treat_line_that_unknown_printer_may_have_printed_as_shared` keeps the line the request's own.
+    """Find the reasons that a line of the request, its own or shared with other requests, may still have been printed by a run whose lines are unknown, none when there is no such run or `treat_line_that_unknown_printer_may_have_printed_as_shared` answers `False`.
 
     One reason is the run of the request itself, e.g. `HTTP/1.1 200 OK` under `mytool https://a.org/x`. The other is a run that is not read beside it, only for a line that any program prints, e.g. `Connection refused` under `curl -s u; ./test.sh`. Both can hold, e.g. `Connection refused` under `mytool https://a.org/x; ./test.sh`, and the rule is asked once when either does.
     """
@@ -535,7 +535,7 @@ def _exit_code_evidence_of(
 ) -> list[EvidenceWithLevel]:
     """Find the evidence that the exit code of the call's text gives the request of a command, or none when that code does not belong to the command.
 
-    The code belongs to the command when the command is in the text of the call, the text finished, `succeeded_if_text_exits_zero` marks the command and every program outside the request's program ends with the exit code of the next, e.g. sudo.
+    The code belongs to the command when the command is in the text of the call, the text finished, `succeeded_if_text_exits_zero` marks the command, `structure_may_be_wrong` does not, and every program outside the request's program ends with the exit code of the next, e.g. sudo.
     Exit 0 then shows EXECUTED for each such command, both of `a && b` included.
     Another code belongs to the command only when it is the one command of the text so marked, e.g. `curl -f -s u -o x` alone or after `ls;`, and then the door is asked and its answer is not used.
     """
@@ -781,7 +781,7 @@ def _received_content_evidence_of(
     """Find the evidence of what the request received, from the HTTP status of a web fetch, the later uses of the file where it saved the content, and the result that shows the content.
 
     `has_failed_line` tells whether a line of the request shows FAILED, which keeps a shown result text from being taken as the content, as an HTTP status from 400 to 599 of a web fetch does.
-    The status and the result text count only for a web tool that is the call's own action, since a web step of a tool script prints nothing into the result of the script.
+    For a request of a web tool, the status and the result text count only when the web tool is the call's own action, since a web step of a tool script prints nothing into the result of the script.
     A status outside 100 to 599 shows no level and gives no evidence.
     A finished call of a web tool with neither a result text nor a status asks `treat_web_tool_call_without_result_text_as_no_evidence_of_answer`, e.g. a Codex `web_search_call` whose result is `null`.
     """

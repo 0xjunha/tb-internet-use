@@ -1,39 +1,39 @@
 """Run the steps up to `extract_network_requests` on raw trials, count the requests per harness and check the equations that the requests must meet.
 
 An equation sets a count of the requests beside a count that this script takes another way, e.g. from the words of the commands with its own URL pattern, from the counts of the door or from the actions of the calls, so that a request that the step dropped or made twice shows as a difference.
-An equation whose right side is 0 counts values that break a rule that holds whatever the data, e.g. two requests with the same index in one call.
+An equation whose right side is 0 counts values that break a rule that holds whatever the data, e.g. a request whose URL target has a host without `$` that is missing from `host_names`.
 Every equation starts at 0 for every trial, so that one the trials never reach still shows.
 
 | Equation | Left | Right |
 |---|---|---|
 | `program_invocations_equal_program_lookups` | `ProgramInvocation`s and `UnknownProgramInvocation`s of the commands | Lookups of program rows of `program_network_requests.csv`, i.e. uses and unknown inputs without an option and not under `any subcommand`, plus `UnknownProgramInvocation`s |
 | `command_request_runs_equal_fetching_and_public_url_runs` | Program runs with a request, i.e. distinct (call, command id, program invocation) of the `FromCommand` requests | Runs that a door of this script answers with `FetchingProgramLabel`, minus the counts `option_sends_no_request` and `no_target_arguments`, plus runs without a row that run nothing else and have a URL in their words, with the variables of one sure value filled, found with this script's own pattern, whose host `parse_host_name` does not read as local or reserved |
-| `code_texts_without_request_show_no_request` | `RanCodeText`s without a `FromCode` request | Those whose URLs, found with this script's own pattern, are all local, reserved, of a namespace host or on a line with a call of a `sends_no_network_request` row, and in which no call name of a `sends_network_request` row is followed by `(` |
+| `code_texts_without_request_show_no_request` | `RanCodeText`s without a `FromCode` request | Those whose URLs, found with this script's own pattern, are all local, reserved, of a namespace host with no dot in the last path part or on a line with a call of a `sends_no_network_request` row, and in which no call name of a `sends_network_request` row is followed by `(` outside strings and comments, before the point where `parse_code` stops reading and other than as the name of a JavaScript method definition |
 | `indexes_run_from_zero_in_each_call` | Calls with a request | Those whose requests have the indexes 0, 1, 2 and so on in order |
 | `no_request_repeats_a_request_of_the_text_it_runs` | Pairs of requests of one call with the same target where one comes from the command that runs the text of the other, e.g. `python -c` and its code | 0 |
-| `request_fields_agree` | Requests whose saved path is neither a written file of the call nor a file its command's stdout goes to, whose pipe reader is not a command of the same call that reads a stdout route of its command, e.g. tail that reads the output of `bash fetch.sh` for the curl in fetch.sh, or whose URL target has a host missing from `host_names` | 0 |
+| `request_fields_agree` | Fields of the requests that break, one for a saved path that is neither a written file of the call nor a file its command's stdout goes to, one for a pipe reader that is no command of the same call reading a stdout route of its command, and one for a URL target whose host holds no `$` and is missing from `host_names`. A tail that reads the output of `bash fetch.sh` reads a stdout route of the curl in fetch.sh, so that pipe reader breaks nothing | 0 |
 | `pip_install_requests_equal_targets` | Requests of `pip install` runs with arguments and without unread words, file options, value options, options that send no request, run time arguments or `$` in a word | Arguments that are no local path, plus 1 when one argument is a local path, by this script's own reading of a local path |
 | `code_requests_within_urls_and_calls` | `FromCode` requests over the bound of a code text | 0, where the bound is the places of `http://` or `https://` in the code, since each call without a row gives one request per URL of its own, plus the places where a call name of a `sends_network_request` or `runs_program` row is followed by `(` |
 | `web_tool_requests_equal_web_targets` | `FromWebTool` requests | Queries and URLs of the web actions of the calls and their script steps, plus 1 for each such action without one |
 | `judgment_rule_names_are_of_this_step` | Names counted in the counter of `extract_network_requests` | Those of `network_request/judgment_rules.py` |
 
 It writes these CSVs under the output folder, `out/network_request/` unless `--out-dir` names another, which `.gitignore` keeps out of the repo.
-They hold counts, harness names, trial ids, exception type names, program, option and call names of the catalogs and of what ran, never other text from a trajectory.
+They hold counts, harness names, trial ids, tool call keys, exception type names, host names, and the program names, subcommands, options, option values and call names of the catalogs and of what ran, never other text from a trajectory.
 
 | File | One row |
 |---|---|
 | `trial_outcomes.csv` | An outcome of a trial, e.g. `extracted`, `not found` or `exception` with its type name, with its trials and the first 20 trial ids |
 | `trials_not_extracted.csv` | A trial that was not extracted, with its outcome |
-| `counts_by_harness.csv` | A harness, or `all`, with a count, e.g. requests by certainty, source kind, target kind, uncertainty reason, destination of the received content and host scope, runs without a request by reason, and code texts not read to their end |
+| `counts_by_harness.csv` | A harness, or `all`, with a count, e.g. requests by certainty, source kind, target kind, uncertainty reason and destination of the received content, runs, calls and URLs without a request by reason, and code texts not read to their end |
 | `equations.csv` | An equation of the table, with its two sides and whether they are equal |
-| `equation_examples.csv` | A call where an equation differs, the first 20 per equation, with the program or call name that differs when there is one |
+| `equation_examples.csv` | A call where an equation differs, or a trial with a blank `tool_call_key` for an equation counted per trial, the first 20 per equation, with the call name or `url` that a code text without a request shows when there is one |
 | `judgment_rule_uses.csv` | A judgment rule, with its uses and trials |
-| `knowledge_row_uses.csv` | A row of a catalog of `NetworkRequestKnowledge`, with its uses and trials |
+| `knowledge_row_uses.csv` | A row of a catalog of `NetworkRequestKnowledge`, or a program name that code runs under `any subcommand`, with its uses and trials |
 | `unknown_inputs.csv` | A program, option or code call without a row, with its lookups, its trials and its tasks, most lookups first |
-| `uncertain_requests_by_means.csv` | An uncertainty reason and a program or call name, with its requests, commands or code texts, trials and tasks, most requests first, marking a program whose command runs a text that the trial does not hold |
+| `uncertain_requests_by_means.csv` | An uncertainty reason and a program or call name, with its requests, commands or code texts, trials and tasks, by reason and most requests first within a reason, marking a program whose command runs a text that the trial does not hold |
 | `uncertain_requests_by_trial.csv` | A trial and an uncertainty reason, with its requests |
-| `host_names_by_scope.csv` | A host scope, with the distinct host names of the requests, the requests and the trials, and each name that `treat_dotted_host_name_as_public` reads as public with its trials |
-| `subagent_prompt_urls.csv` | One row with the `StartSubagentAction` calls whose arguments hold a public URL and their trials |
+| `host_names_by_scope.csv` | A host scope with a blank host name, the number of host names of that scope that the requests name, once per request and name, and its trials, `no host name` with the requests that name none and their trials, or a name that `treat_dotted_host_name_as_public` reads as public with its requests and its trials |
+| `subagent_prompt_urls.csv` | One row with the `StartSubagentAction` calls whose arguments hold a URL that may be public, e.g. `http://db:5432/doc`, and their trials |
 
 The script ends with exit code 1 when a trial raised an exception or an equation differs.
 Run it as `nice -n 10 uv run python -I scripts/audit_network_requests.py <raw_trials_dir> [--limit N | --trial-ids FILE] [--out-dir DIR]`.
@@ -162,7 +162,7 @@ _JAVASCRIPT_STRING = re.compile(
     r"""//[^\n]*|/\*.*?\*/|'(?:\\.|[^'\\\n])*'|"(?:\\.|[^"\\\n])*"|`(?:\\.|[^`\\])*`""",
     re.DOTALL,
 )
-# A method definition of JavaScript after its name, i.e. its parameters and `{`, e.g. `(url) {` of `fetch(url) { return p }` in a class or an object.
+# A method definition of JavaScript after the `(` of its name, i.e. its parameters, `)` and `{`, e.g. `url) {` of `fetch(url) { return p }` in a class or an object.
 _JAVASCRIPT_METHOD_DEFINITION_END = re.compile(r"[^()]*\)\s*\{")
 # The tokens of Python that hold a string or a comment, i.e. the text of an f-string but not its `{...}` parts.
 _PYTHON_STRING_TOKEN_TYPES = frozenset(
@@ -349,7 +349,7 @@ def audit_trial(trial_dir: Path) -> TrialAudit:
         knowledge_doors.tool_call_knowledge.uses = KnowledgeUses()
         knowledge_doors.expanded_tool_call_knowledge.uses = KnowledgeUses()
         knowledge_doors.network_request_knowledge.uses = KnowledgeUses()
-        # The steps run as `run_steps_to_network_requests` runs them, keeping the expanded calls that the recounts read.
+        # The steps up to `extract_network_requests` run as `run_steps_to_network_request_results` runs them, keeping the expanded calls that the recounts read.
         expanded_tool_calls = run_steps_to_expanded_tool_calls(
             harness_tool_calls,
             knowledge_doors=knowledge_doors,
@@ -418,7 +418,7 @@ def code_call_names_from_csv(csv_path: Path) -> CodeCallNames:
 
 @dataclass(frozen=True, slots=True)
 class ProcessDoors:
-    """Doors of outside knowledge made once in each worker process and used for each of its trials, since reading the catalogs again for each trial is slow."""
+    """Doors of outside knowledge and the call names of the code call catalog, made once in each worker process and used for each of its trials."""
 
     # The doors that the steps ask.
     knowledge_doors: KnowledgeDoors = field(default_factory=KnowledgeDoors)
@@ -459,7 +459,7 @@ class TrialAudit:
             )
         )
     )
-    # (equation, tool call key, name) of each call where an equation differs.
+    # (equation, tool call key or a blank for an equation counted per trial, name) of each call or trial where an equation differs.
     equation_examples: list[tuple[str, str, str]] = field(default_factory=list)
     judgment_rule_use_counts: Counter[str] = field(default_factory=Counter)
     knowledge_uses: KnowledgeUses = field(default_factory=KnowledgeUses)
@@ -612,7 +612,7 @@ class TrialAuditTotal:
 class TrialChecker:
     """Checker of the requests of one trial, which adds its counts and the sides of each equation to a `TrialAudit`.
 
-    It reads the expanded calls, its own door and the code call catalog file, so its recounts do not go through the code they check.
+    It reads the expanded calls, its own door and the code call catalog file, so its recounts do not go through `extract_network_requests`, though they read URLs, host names and code with the same `parse_url`, `parse_host_name` and `parse_code`.
     """
 
     def __init__(
@@ -661,13 +661,13 @@ class TrialChecker:
         )
 
     def check_trial_without_call(self) -> None:
-        """Count a trial whose calls gave no request, for the trials with at least one."""
+        """Count the trial under `trials`, and under `trials with a request` when its calls gave a request."""
         self.trial_audit.count("trials")
         if self.network_requests:
             self.trial_audit.count("trials with a request")
 
     def count_requests(self) -> None:
-        """Count the requests by certainty, source, target kind, reason, destination and host scope, and the runs without a request by reason."""
+        """Count the requests by certainty, source, target kind, reason, destination and host scope, the runs, calls and URLs without a request by reason, and the code texts and those not read to their end."""
         trial_audit = self.trial_audit
         for network_request in self.network_requests:
             trial_audit.count("requests")
@@ -953,7 +953,7 @@ class TrialChecker:
         expanded_tool_call: ExpandedToolCall,
         network_requests: Sequence[NetworkRequest],
     ) -> None:
-        """Count the requests whose saved path, pipe reader or URL host does not agree with the call."""
+        """Count the fields of the requests of a call that do not agree with it, i.e. each saved path, pipe reader and URL host, so that a request with two such fields counts twice."""
         ran_commands_by_id = {
             ran_command.shell_command.id: (ran_text, ran_command)
             for ran_text in expanded_tool_call.ran_texts
@@ -1161,7 +1161,7 @@ def _is_namespace_url(url: str) -> bool:
 
 
 def _code_outside_strings(code: str, code_language: str) -> str:
-    """Blank the string literals and comments of a code text, keeping its lines and columns, so that a call name written in a string is not read as a call, e.g. `urlopen(` in `src.replace("urlopen(u)", "")`.
+    """Blank the string literals and comments of a code text, keeping the place of every other character, so that a call name written in a string is not read as a call, e.g. `urlopen(` in `src.replace("urlopen(u)", "")`.
 
     Python is split by `tokenize`, and a text that it cannot split is kept whole. JavaScript loses its comments and quoted strings by a pattern written here, so a call inside a template expression is blanked too.
     """
@@ -1220,7 +1220,7 @@ def _is_plain_pip_install(
 
 
 def _is_local_path(argument: str) -> bool:
-    """Tell whether a pip argument names a local path, by the list of the evidence of this step written again here, e.g. `./dist/x.whl`, `src/pkg` or `file:///tmp/x.whl`."""
+    """Tell whether a pip argument names a local path, by this script's own reading apart from `parse_target`, e.g. `./dist/x.whl`, `src/pkg` or `file:///tmp/x.whl`."""
     scheme_match = re.search(r"([a-z][a-z0-9+.-]*)://", argument)
     if scheme_match:
         scheme = scheme_match.group(1)

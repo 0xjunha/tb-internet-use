@@ -63,7 +63,7 @@ _PUBLIC_HOST_ROWS = (
 )
 # `h`, `blank` has a blank sender. The sender is not the first value of the enum, so that a door that gives it without reading the row fails.
 _HARNESS_WEB_TOOL_ROWS = ("h,search,provider_server", "h,blank,")
-# `pkg`, `add` has two hosts, and `pkg`, `blank` a blank registry.
+# `pkg`, `sub add` has two hosts, and `pkg`, `blank` a blank registry.
 _PROGRAM_PACKAGE_REGISTRY_ROWS = (
     "pkg,install,reg,reg.org",
     "pkg,sub add,reg,reg.org mirror.reg.org",
@@ -202,7 +202,7 @@ def test_package_registry_is_answered_only_by_the_row_of_the_very_subcommand_or_
         knowledge.package_registry(_program_invocation("pkg", "blank"))
         == UnknownPackageRegistry()
     )
-    # No row without a subcommand stands in for a missing one, and no row of a subcommand stands in for a command without one.
+    # The row of another subcommand stands in neither for a subcommand without a row nor for a command without a subcommand.
     assert (
         knowledge.package_registry(_program_invocation("pkg", "remove"))
         == UnknownPackageRegistry()

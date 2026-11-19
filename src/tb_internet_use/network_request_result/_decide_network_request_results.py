@@ -51,7 +51,7 @@ def decide_network_request_results(
 
     The lines of every call's result are read, also where no request reaches, so that a line that a pattern fits and that no request owns is counted, e.g. `Downloading torch-2.3.0.whl` in the result of `./setup.sh`.
     Every use of a rule of `judgment_rules.py` adds one to `judgment_rule_use_counts` under the name of the rule.
-    Every output line that a pattern fits and that gives no evidence adds one to `unused_output_line_counts` under its reason and kind. A line that no request owns also adds one to `program_counts_of_unowned_output_lines` for each program that reaches its place, as `decide_output_line_owners` says.
+    Every output line that a pattern fits and that gives no evidence adds one to `unused_output_line_counts` under its reason and kind. A line that no request owns under `NO_UNKNOWN_RUN` or `UNOWNED_LINE_IN_UNKNOWN_RUN` also adds one to `program_counts_of_unowned_output_lines` for each program name that `decide_output_line_owners` counts it under, e.g. echo and ls for `Downloading torch-2.3.0.whl` in the result of `echo Downloading torch-2.3.0.whl; ls`.
     """
     output_place_sources = decide_output_place_sources(expanded_tool_calls)
     output_line_owners = decide_output_line_owners(
@@ -97,7 +97,7 @@ def _output_lines_with_meaning_of(
         output_place_sources_of_call.showing_tool_call_key: output_place_sources_of_call.is_web_tool_result
         for output_place_sources_of_call in output_place_sources
     }
-    # A call of web tool actions alone with a result text is always an output place, so a call that is no place is never page text of web tools.
+    # A call of web tool actions alone whose result holds a text and is not `NOT_RUN` is always an output place, so the text of a call that is no place is read with the patterns of other output.
     return tuple(
         output_line_with_meaning
         for expanded_tool_call in expanded_tool_calls

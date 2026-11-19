@@ -50,7 +50,7 @@ def extract_received_content_destination(
     | Case | Destination |
     |---|---|
     | An option asks for no content, e.g. `curl -I u`, or the row says `no_content`, e.g. `ping` | `NoContentRequested` |
-    | The program gets more arguments when it runs, e.g. `xargs curl -O`, or an option has no row, e.g. `curl --foo u`, since either may send the content elsewhere as `-O` does | `UnknownReceivedContentDestination` |
+    | The program gets more arguments when it runs, e.g. `xargs curl -O`, or an option has no row of the request catalog, e.g. `curl -K cfg u`, since either may send the content elsewhere as `-O` does | `UnknownReceivedContentDestination` |
     | An option sends the content to stdout, e.g. `curl -o - u`, or the row says `stdout` and the command writes no file of its own, e.g. `curl u > a.tgz` | the end of the stdout route |
     | The command writes files of its own that may hold the content, e.g. `curl -o a.tgz u` | `ContentSaved` with the path when there is one file and one request, or `ContentDiscarded` when that file is `/dev/null`, else `ContentSaved(None)`, also for `curl -o /dev/null u1 -o /dev/null u2` |
     | The row says `own_file`, e.g. `pip install x` | `ContentSaved(None)` |

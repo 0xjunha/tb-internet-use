@@ -1,4 +1,4 @@
-"""Tests for the checks that the types of export/model.py make when they are built."""
+"""Tests for the checks that the types of export/model.py make when they are built, for the refusal of `UnknownPackageRegistry` to be read as True or False, and for the received bound that `trial_received_measure_bound_of` gives a request row."""
 
 import dataclasses
 import functools

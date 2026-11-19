@@ -955,7 +955,7 @@ def _parsed_shell_text_of(
     set_arguments_at_start: tuple[str, ...] = (),
     command_substitution_texts_run_by_outer_shell: frozenset[str] = frozenset(),
 ) -> ParsedShellText:
-    """Read a text that gives commands, with a counter of its own."""
+    """Read a text that gives a `ParsedShellText`, with a counter of its own."""
     parsed = parse_shell_text(
         text,
         judgment_rule_use_counts=Counter(),
@@ -1246,7 +1246,7 @@ def test_lines_joined_after_three_repairs_are_repaired_on_when_the_rule_says_no(
 
 
 def test_joined_lines_with_non_ascii_words():
-    # The positions where `;` goes are byte offsets.
+    # tree-sitter does not join these lines, so no `;` goes in and this case does not reach the byte offsets of the repair, which a second line such as `d é 2>&1 | e` would.
     parsed = _parsed_shell_text_of("echo 한글 | b | c\nd é | e")
     assert [c.words for c in parsed.commands] == [
         ("echo", "한글"),

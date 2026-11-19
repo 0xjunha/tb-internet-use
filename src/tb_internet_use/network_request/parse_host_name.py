@@ -1,6 +1,7 @@
 """Read whether a host name is public, local or reserved by the standards alone, and give the form of a name that they do not settle.
 
-The standards are the private, loopback, link-local and unspecified address blocks of IPv4 and IPv6 as `ipaddress` knows them, `localhost` and the reserved names of RFC 6761, the example names of RFC 2606, and the `.local` name of RFC 6762.
+The standards are the address blocks of IPv4 and IPv6 that `ipaddress` does not read as global, i.e. the shared block `100.64.0.0/10` of RFC 6598 and the blocks it reads as private, e.g. the loopback, link-local and unspecified blocks.
+They also name `localhost` and the reserved names of RFC 6761, the example names of RFC 2606, and the `.local` name of RFC 6762.
 `.internal` is read as local too, since ICANN set it aside for private networks in 2024.
 A name such as `files.acme.org` or `db` is in no such list, so whether it is public is a choice of `judgment_rules.py`.
 """

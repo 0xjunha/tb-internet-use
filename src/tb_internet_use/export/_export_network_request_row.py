@@ -7,7 +7,7 @@ Whether a request is internet use comes from the first condition below that fits
 
 - A public host gives True.
 - No host and a web tool source is decided by a judgment rule, e.g. a web search.
-- No host and any other source gives the hosts that a judgment rule takes it to be sent to, read by the conditions below, or None without such hosts, e.g. `git push origin main`.
+- No host and any other source gives the hosts that a judgment rule takes it to be sent to, read by the conditions below, or None without such hosts, e.g. `git fetch origin`.
 - A host name with a template is decided by a judgment rule.
 - A reserved host name is decided by a judgment rule.
 - Only local hosts or host names without a dot and a web tool source is decided by a judgment rule.
@@ -252,7 +252,7 @@ def _host_name_scopes_of(
 def _package_registry_for(
     network_request: NetworkRequest, *, knowledge: ExportKnowledge
 ) -> PackageRegistry | UnknownPackageRegistry | None:
-    """Find the default package registry of the program of a command whose target is a package name, e.g. `pypi` for `pip install requests`, or None for a request that the door is not asked about, e.g. `git push origin main` or code."""
+    """Find the default package registry of the program of a command whose target is a package name, e.g. `pypi` for `pip install requests`, or None for a request that the door is not asked about, e.g. `git fetch origin` or code."""
     source = network_request.source
     if (
         network_request.target_kind != NetworkRequestTargetKind.PACKAGE_NAME
@@ -462,7 +462,7 @@ def _received_content_destination_text_of(
 
 
 def _piped_content_destination_text_of(output_visibility: OutputVisibility) -> str:
-    """Give the word of content piped to a command, by how much of it the result still shows, e.g. `piped_none` after `| tar xz`."""
+    """Give the word of content piped to a command, by how much of it the result still shows, e.g. `piped_none` after `| wc -c`."""
     match output_visibility:
         case OutputVisibility.WHOLE:
             return "piped_whole"

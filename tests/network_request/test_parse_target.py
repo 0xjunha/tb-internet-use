@@ -61,7 +61,7 @@ def _host_only(host_name: str | None) -> ParsedTarget:
         ("main:main", TargetNotation.URL_OR_SCP_LIKE_ADDRESS, _host_only(None)),
         ("origin", TargetNotation.URL_OR_SCP_LIKE_ADDRESS, _host_only(None)),
         ("/local/repo", TargetNotation.URL_OR_SCP_LIKE_ADDRESS, _host_only(None)),
-        # ping, nc, dig and getent, whose target is a host.
+        # ping, nc, host, nslookup and getent, whose target is a host.
         ("pypi.org", TargetNotation.HOST_NAME, _host_only("pypi.org")),
         ("user@box", TargetNotation.HOST_NAME, _host_only("box")),
         ("@8.8.8.8", TargetNotation.HOST_NAME, _host_only("8.8.8.8")),

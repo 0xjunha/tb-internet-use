@@ -68,7 +68,7 @@ def format_kind_of(harness_result_format: HarnessResultFormat[Any]) -> str:
 
 
 def template_label_of(harness_result_format: HarnessResultFormat[Any]) -> str:
-    """Label a format in one line, by its template or its JSON rules, for the `template` column of the table.
+    """Label a format by its template or its JSON rules, for the `template` column of the table, with the line feeds of a template kept.
 
     A text format gives its template, with a carriage return written as `\\r` so that editors keep it, and a backslash as `\\\\`. A JSON format gives its present paths, absent paths and condition.
     """

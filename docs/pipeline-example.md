@@ -10,7 +10,7 @@ This is hard only because a request or its output is often not in the call that 
 
 | Case | Where the request and its output are | What the case shows |
 |---|---|---|
-| A | In the call itself | One output line fits two requests, so neither owns it |
+| A | In the call itself | One output line fits two requests, so the two share it |
 | B | Elsewhere in the trajectory | The request is in a script that an earlier call wrote, and the output shows up in two later calls |
 | C | Not in the trajectory | No call wrote the script that ran, so its output shows a download that no request is made for |
 
@@ -22,14 +22,14 @@ c1 to c6 are the calls, in order. The result of each call is shortened to the li
 |---|---|---|---|---|
 | c1 | A | `Bash` | `command: curl -sS --connect-timeout 30 -O https://a.example.org/x.tgz; curl -sS --connect-timeout 30 -O https://b.example.org/y.tgz; echo done` | `curl: (28) Connection timed out after 30001 milliseconds`, `done` |
 | c2 | B | `Write` | `file_path: fetch.sh`, `content: curl -sS -O https://data.example.org/a.tgz` | `File created successfully at: fetch.sh` |
-| c3 | B | `Bash` | `command: bash fetch.sh > fetch.log 2>&1 \|\| pip install requests`, `run_in_background: true` | `Command running in background with ID: task-1` |
+| c3 | B | `Bash` | `command: bash fetch.sh > fetch.log 2>&1 \|\| pip install requests`, `run_in_background: true` | `Command running in background with ID: task-1. Output is being written to: /tmp/task-1.output.` |
 | c4 | B | `TaskOutput` | `task_id: task-1` | `Downloading requests-2.32.3`, `Successfully installed requests-2.32.3` |
 | c5 | B | `Read` | `file_path: fetch.log` | `curl: (6) Could not resolve host: data.example.org` |
 | c6 | C | `Bash` | `command: bash setup.sh` | `Downloading torch-2.3.0`, `Successfully installed torch-2.3.0` |
 
 ## Where this ends
 
-The pipeline ends with one row per request, one row per trial and one row per category of request of a trial. The steps below show how each column is reached.
+The pipeline ends with one row per request, one row per trial and one row per category and sender of the requests of a trial. The steps below show how each column is reached.
 
 | Request | Case | Asked for | Category | How far it got | Why it stopped | How sure |
 |---|---|---|---|---|---|---|
@@ -56,7 +56,7 @@ Case C makes no request, so it has no row. The trial's rows for each category an
 | 5. Export rows | Which category is each request, and what do the rows say? | Two fetched files, received only in the upper bound | A fetched file not received, and a package received only in the upper bound | No row |
 
 Steps 1 and 2 are built to know nothing about the internet.
-Outside knowledge is the facts that no trajectory holds. Each step asks for it through one class of its own, e.g. `ToolCallKnowledge`, and gets a value or unknown.
+Outside knowledge is the facts that no trajectory holds. Each step from step 1 on asks for it through one class of its own, e.g. `ToolCallKnowledge`, and gets a value or unknown.
 
 ## Step 0: collect trials
 
@@ -66,7 +66,7 @@ The values are those that the trial's `detail.json` (written by the service that
 | Field | Where it comes from in the made-up trial |
 |---|---|
 | `task_name`, `harness`, `harness_version`, `model_name` | `task_name` and `agent_info` of `detail.json` |
-| `reward` | `verifier_result.rewards.reward` of `detail.json`, as a float. It is None when the file has no verifier result |
+| `reward` | `verifier_result.rewards.reward` of `detail.json`, as a float. It is None when `verifier_result` is null, and a file without that key raises `ValueError` |
 | `benchmark_version`, `leaderboard_row_id` | The one item of `memberships` of `status.json` |
 | `unreadable_trajectory` | Whether `read_trajectory` read the trajectory. It is None here, since the trajectory holds c1 to c6 |
 
@@ -88,7 +88,7 @@ A trial whose trajectory file is missing gets `unreadable_trajectory=UnreadableT
 
 ## Step 1: convert tool calls
 
-Each call is converted from its harness's own format into a `ToolCall`, which holds what the call asked for (its action) and what came back (its output).
+Each call is converted from its harness's own format into a `ToolCall`, which holds what the call asked for (its action) and what came back (its result).
 The command string (`command_str`) of each `RunCommandAction` is a shell text, split into commands by shell grammar alone, with when each runs and where its output goes, into its `parsed_shell_text`. Command ids are 0-based and unique within a call.
 
 | Asked through `ToolCallKnowledge` | Answer in this example |
@@ -133,7 +133,7 @@ c3.action = RunCommandAction(
         variable_assignments=(),
     ),
 )
-c3.result = ToolCallResult(execution_status=RUNNING, handles=(ExecutionHandle(COMMAND, "task-1"),), harness_result_format=MatchedFormat("background"))
+c3.result = ToolCallResult(execution_status=RUNNING, handles=(ExecutionHandle(COMMAND, "task-1"),), output_path="/tmp/task-1.output", harness_result_format=MatchedFormat("background"))
 ```
 
 ## Step 2: expand tool calls
@@ -199,7 +199,7 @@ c6_expanded = ExpandedToolCall(
     command_text_status=CommandTextStatus(FINISHED, exit_code=0, reporter_tool_call_key=c6),
     output_places=(OutputPlace(c6, command_ids=(0,)),),
     written_files=(),
-    # A line in c6's result can be content of setup.sh, which the task image holds.
+    # bash of c6 uses the content of setup.sh, which no call of the trial wrote.
     file_uses_without_known_writer=(FileUseWithoutKnownWriter(0, "setup.sh", USES_CONTENT),),
 )
 ```
@@ -221,19 +221,19 @@ In case A, `c1_expanded` holds only c1's own text. All three commands reach c1's
 
 For everything a call ran, the step asks whether it fetches its target.
 When the answer is yes, the step makes one request per target and marks it as a confirmed request. When the answer is no, it makes none.
-When the answer is unknown, the step makes an uncertain request only if a URL that may be public is visible, e.g. for `mytool https://a.example.org/x`.
+When the answer is unknown, the step makes an uncertain request only if a URL that may be public is visible, e.g. for `mytool https://a.org/x`.
 A program that runs another text the trial holds gives no request itself, e.g. bash of `bash fetch.sh`, since the commands of that text give them.
 The step looks only at what ran, and step 4 reads what came back.
 
 | Asked through `NetworkRequestKnowledge` | Answer in this example |
 |---|---|
 | Does curl fetch? | Yes. Each URL argument is a target, and what it receives goes to stdout unless the command writes a file of its own |
-| What do curl's `-s`, `-S`, `--connect-timeout` and `-O` change about the request? | Nothing. The file that `-O` writes comes from step 2 |
+| What do curl's `-s`, `-S`, `--connect-timeout` and `-O` change about the request? | `-s`, `-S` and `--connect-timeout` change nothing. `-O` sends what curl receives to a file, whose name comes from step 2 |
 | Does `pip install` fetch? | Yes. Each package name is a target, and pip keeps what it receives in files of its own |
 | Does `echo` fetch? | No |
 | Does `bash` fetch? | There is no row, and it runs fetch.sh, whose commands give the requests |
 
-An option that has no row in the catalog of this step makes the request uncertain, since it may be one that sends nothing, e.g. `--version`. The catalog has rows for the options of fetching programs that the sample of trials uses, e.g. `-s`, `-L` and `-X POST` of curl, `-q` of pip and `-y` of apt-get, while `curl -X $1 u` stays uncertain because `$1` may be `HEAD`.
+An option that has no row in the catalog of this step makes the request uncertain, since it may be one that sends nothing, e.g. `--version`. The catalog has rows for options of fetching programs that the trials use, e.g. `-s`, `-L` and `-X POST` of curl, `-q` of pip and `-y` of apt-get, while `curl -X $1 u` stays uncertain because `$1` may be `HEAD`.
 
 ```python
 # c3's own text has `bash fetch.sh` with id 0 and `pip install requests` with id 1, and the curl of fetch.sh gets the next id 2 of the call.
@@ -289,7 +289,7 @@ A line goes to the requests whose output reaches its place, whose run can print 
 | Several | Evidence they share. A result that rests on it is only assumed |
 | None | No evidence and no request. The line is counted by its reason, e.g. it shows a file's content after `cat README.md`, or a run whose content is unknown reaches its place |
 
-Then each request is judged on its own evidence, i.e. its lines, the exit code of the text that ran it, the status of its call and later uses of the file it saved.
+Then each request is judged on its own evidence, i.e. its lines, the HTTP status of a web fetch, the exit code of the text that ran it, the status of its call, the content its result shows and later uses of the file it saved.
 `request_certainty_after_evidence` says how sure the pipeline is that something is a request, and `level_certainty` says how sure it is of how far the request got. An assumed result lists every reason of that in `assumption_reasons`, e.g. a line that other requests own too, named by where it is so that the results that share it can be found together, or a judgment rule. Line indexes are 0-based.
 
 | Asked through `NetworkRequestResultKnowledge` | Answer in this example |
@@ -304,7 +304,7 @@ Then each request is judged on its own evidence, i.e. its lines, the exit code o
 | Output place | Commands that reach it | Lines a pattern fits | Owner | Result |
 |---|---|---|---|---|
 | c1's result | curl x.tgz, curl y.tgz, echo | `Connection timed out` | r1 and r2 share it | Both executed, failed, assumed |
-| c4's result | bash and pip of c3 | `Downloading requests-2.32.3`, `Successfully installed requests-2.32.3` | r4 | Reached, not visible, confirmed |
+| c4's result | pip of c3 | `Downloading requests-2.32.3`, `Successfully installed requests-2.32.3` | r4 | Reached, not visible, confirmed |
 | c5's result | bash and curl of c3, through fetch.log | `Could not resolve host: data.example.org` | r3 | Executed, failed, confirmed |
 | c6's result | bash of c6, which ran unknown content | `Downloading torch-2.3.0`, `Successfully installed torch-2.3.0` | None | Two lines counted as unused under `UNOWNED_LINE_IN_UNKNOWN_RUN`, and by the program `bash` that reaches the place |
 
@@ -317,8 +317,8 @@ r1.result = NetworkRequestResult(
     # The only failure line may be r2's.
     level_certainty=ASSUMED,
     evidence=(OutputLineEvidence(showing_tool_call_key=c1, line_index=0, line_index_in_json_string=None, kind=CONNECTION_FAILED, is_shared_with_other_requests=True),),
-    # r2's result names the same line.
-    assumption_reasons=(SharedOutputLineAssumptionReason(showing_tool_call_key=c1, line_index=0, line_index_in_json_string=None),),
+    # r2's result names the same line. `--connect-timeout` has no row of `program_output_lines.csv`, so a run of this curl may print any line.
+    assumption_reasons=(SharedOutputLineAssumptionReason(showing_tool_call_key=c1, line_index=0, line_index_in_json_string=None), UnknownProgramOutputLinesAssumptionReason()),
 )
 r4.result = NetworkRequestResult(
     network_request=r4,
@@ -367,9 +367,9 @@ The category is computed from what the request's own text shows, so the same com
 | Internet use | Yes for all four | r1 to r3 name their hosts, which are read as public in this example. r4 names no host, so `treat_request_without_host_name_as_sent_to_default_registry_host` gives it the host of the default registry of `pip install`, `pypi.org`, which is public |
 | Request bounds | Both bounds for r1 to r4 | Each is a confirmed request that is internet use. How far it got does not matter here |
 | Received bounds | Neither for r3, the upper bound only for r1, r2 and r4 | r3's own line confirms that it failed. r1 and r2 share one error line, so their failure is assumed and `treat_assumed_failure_as_possibly_received` keeps them in the upper bound. r4's lines show that a download began but not that the package arrived |
-| Among success line owners one of which received | No for all four | r1 and r2 share one line, but it shows a failure. Had it been a line of success that either `curl` may have printed, whichever printed it would have received, so both rows would say yes and the trial would count in the lower bound of fetched files received, while each row's own received bound stays in the upper bound only |
+| Among success line owners one of which received | No for all four | r1 and r2 share one line, but it shows a failure. Had it been a line of success, both rows would still say no, since `--connect-timeout` has no row of `program_output_lines.csv`, so a run of either `curl` may print any line. Without that option, whichever `curl` printed the line would have received, so both rows would say yes and the trial would count in the lower bound of fetched files received, while each row's own received bound stays in the upper bound only |
 
-Each category of the trial then gets one row with the strongest bounds of its requests, where a row among success line owners one of which received counts in the lower bound of received, which gives the last table of [Where this ends](#where-this-ends). The trial row takes the strongest bounds of all requests that the task environment sent.
+Each category and sender of the trial then gets one row with the strongest bounds of its requests, where a row among success line owners one of which received counts in the lower bound of received. All four requests here have the sender `task_environment`, which gives the last table of [Where this ends](#where-this-ends). The trial row takes the strongest bounds of all requests that the task environment sent.
 The lines of case C give no request and no row. `decide_network_request_results` only counts them as unused lines.
 Some columns need a choice that facts alone do not settle, e.g. whether a request that names no host goes to the default registry of its program. Such choices are the judgment rules of `export/judgment_rules.py`, all provisional but the one that counts a request to a host name without a dot as no internet use and the one that counts a trial with a line of success shared by confirmed requests as one that received, and each use of one is counted.
 The entry function `export_rows` calls these pieces in order.
@@ -377,7 +377,7 @@ The entry function `export_rows` calls these pieces in order.
 | Piece | What it gives |
 |---|---|
 | `export_network_request_row` | For each request, its row, with the category from `export_network_request_category` and its text columns passed through `redact_credentials` |
-| `mark_network_request_rows_among_success_line_owners` | The rows again, with `is_among_success_line_owners_one_of_which_received` set on the owners of each shared line of success that shows that one of them received |
+| `mark_network_request_rows_among_success_line_owners` | The rows again, with `is_among_success_line_owners_one_of_which_received` set on the owners of each shared line of success that shows that one of them received, where no row of their category and sender is received by its own result |
 | `export_trial_row` | The trial row, with the bounds of all requests that the task environment sent |
 | `export_trial_category_measure_rows` | One row per category and sender of the trial's requests, with the strongest bounds of its requests |
 

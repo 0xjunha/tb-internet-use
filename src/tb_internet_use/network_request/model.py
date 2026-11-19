@@ -83,7 +83,7 @@ def _is_uncertainty_reason_possible_for_source(
         case None:
             return not _is_unknown_program_or_code_call(source)
         case NetworkRequestUncertaintyReason.UNKNOWN_PROGRAM:
-            # A program without a row of either program catalog in a command, or a program that a code call with a row runs, e.g. `subprocess.run(["mytool", "https://a.org/x"])`.
+            # A program in a command without a row of the program request catalog, e.g. `mytool https://a.org/x` or `bash setup.sh https://a.org/x`, or a program that a code call with a row runs, e.g. `subprocess.run(["mytool", "https://a.org/x"])`.
             return isinstance(source, FromCommand) or (
                 isinstance(source, FromCode) and isinstance(source.call_name, str)
             )
@@ -134,20 +134,20 @@ class FromCommand:
 
 @dataclass(frozen=True, slots=True)
 class FromCode:
-    """Request source for a network call in Python or JavaScript code that a command of the call ran or that a poll typed."""
+    """Request source for a call or a URL in Python or JavaScript code that a command of the tool call ran or that a poll typed, e.g. `requests.get(u)` or `BASE = "https://a.org"`."""
 
     # None for code typed through a poll, whose runner is a command of the call that started the handle, named by `code_text_source.starter_tool_call_key`.
     runner_command_id: int | None
     # Where the code is.
     code_text_source: CodeTextSource
     code_language: CodeLanguage
-    # The call that sends it, e.g. `requests.get`. An `UnknownCodeCall` when a public URL sits in code and no known call holds it, also when no call holds it at all.
+    # The call that sends it, e.g. `requests.get`. An `UnknownCodeCall` when the request comes from a URL that no call with a row holds, also when no call holds it at all.
     call_name: str | UnknownCodeCall
 
 
 @dataclass(frozen=True, slots=True)
 class UnknownCodeCall:
-    """Call in code that no fact covers, or no call at all, for a public URL in code, e.g. `mylib.fetch("https://a.org/x")` or `URL = "https://a.org/x"`."""
+    """Call in code that no fact covers, or no call at all, for a URL in code that gives an uncertain request, e.g. `mylib.fetch("https://a.org/x")` in Python or `URL = "https://a.org/x"`."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -209,7 +209,7 @@ class UnknownNetworkRequestTargetKind:
 
 @dataclass(frozen=True, slots=True)
 class NoContentRequested:
-    """Content destination of a request that asks for no content back, e.g. `ping`, `curl -I` or `git push`."""
+    """Content destination of a request that asks for no content back, e.g. `ping`, `curl -I` or `npm ping`."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -235,7 +235,7 @@ class ContentPipedToCommand:
     """Content destination of a request whose content goes to another command, e.g. `curl u | tar xz` or `curl u | jq .`."""
 
     reader_command_id: int
-    # How much of the content the result still shows, e.g. `PARTIAL` after `| jq .` and `NONE` after `| tar xz`.
+    # How much of the content the result still shows, e.g. `PARTIAL` after `| head` and `NONE` after `| wc -c`.
     visibility_at_end: OutputVisibility
 
 
@@ -249,22 +249,22 @@ class NetworkRequestCertainty(StrEnum):
 
     # What made it is known to fetch, e.g. `pip install x` or `curl u`.
     CONFIRMED = "confirmed"
-    # It may be a request, e.g. a public URL in the words of a program that no fact covers, or a program that fetches only what is missing, e.g. `npx tsc`.
+    # It may be a request, e.g. a URL that may be public in the words of a program that no fact covers, or a program that fetches only what is missing, e.g. `npx tsc`.
     UNCERTAIN = "uncertain"
 
 
 class NetworkRequestUncertaintyReason(StrEnum):
     """Reason a request is uncertain, so that uncertain requests can be grouped into what knowledge would settle and what would not."""
 
-    # The words of the program show a public URL and no fact says whether the program fetches. This holds for a program that no fact covers, e.g. `mytool https://a.org/x`. It also holds for a program that has a row only in the catalog of program behaviors of `expand_tool_calls`, e.g. `bash setup.sh u`, and for a program run by code.
+    # The words of the program show a URL that may be public or whose host cannot be read, e.g. `http://db:5432` or `http://[::1/x`, and no fact says whether the program fetches. This holds for a program that no fact covers, e.g. `mytool https://a.org/x`. It also holds for a program that has a row only in the catalog of program behaviors of `expand_tool_calls`, e.g. `bash setup.sh u`, and for a program run by code.
     UNKNOWN_PROGRAM = "unknown_program"
     # The program invocation has unread words, since an option has no row in the catalog of `expand_tool_calls`, e.g. `curl --foo x u`.
     UNREAD_WORDS = "unread_words"
-    # The program has a row and an option it was read with has none in the request catalog, which may stop the request, e.g. `curl -L` without a row.
+    # The program has a row and an option it was read with has none in the request catalog, which may stop the request, e.g. `-K` of `curl -K cfg u`.
     UNKNOWN_OPTION_EFFECT = "unknown_option_effect"
-    # A public URL sits in the arguments of a call that has no row, e.g. `mylib.fetch("https://a.org/x")`.
+    # A URL that may be public or whose host cannot be read sits in the arguments of a call that has no row, e.g. `mylib.fetch("https://a.org/x")` in Python.
     UNKNOWN_CODE_CALL = "unknown_code_call"
-    # A public URL sits in code outside the arguments of every call, e.g. `URL = "https://a.org/x"`. No added fact settles it.
+    # A URL that may be public sits in code outside the arguments of every call, e.g. `URL = "https://a.org/x"`. No added fact settles it.
     URL_OUTSIDE_CODE_CALL = "url_outside_code_call"
     # Code runs a program that may fetch, and its words are not read, e.g. `subprocess.run(["pip", "install", "x"])`.
     PROGRAM_RUN_BY_CODE = "program_run_by_code"
@@ -344,7 +344,7 @@ class ProgramContentRoute(StrEnum):
 
     STDOUT = "stdout"  # e.g. `curl`
     OWN_FILE = "own_file"  # e.g. `wget`, `pip install` or `git clone`
-    NO_CONTENT = "no_content"  # e.g. `ping` or `git push`
+    NO_CONTENT = "no_content"  # e.g. `ping` or `npm ping`
 
 
 @dataclass(frozen=True, slots=True)
@@ -441,7 +441,7 @@ class CodeCall:
     argument_text: str | UnreadableCodeCallArguments
     # The quoted strings of its arguments, in order, without those inside the parentheses of a nested call, which belong to that call.
     string_literals: tuple[str, ...]
-    # The first argument, or the argument named `url`, when it is one string literal, e.g. the URL of `requests.get("https://a.org/x")`.
+    # The first argument when it is positional, or else the argument named `url`, when that argument is one string literal, e.g. the URL of `requests.get("https://a.org/x")` or of `requests.get(timeout=3, url="https://a.org/x")`.
     first_argument_string: str | None
     # The same argument when it is one bare name, e.g. `URL` in `requests.get(URL)`.
     first_argument_name: str | None
@@ -477,7 +477,7 @@ class NoNetworkRequestReason(StrEnum):
     NO_TARGET_ARGUMENTS = "no_target_arguments"
     # The program has no row and runs something else whose text the trial holds, e.g. `sudo`.
     PROGRAM_RUNS_SOMETHING_ELSE = "program_runs_something_else"
-    # A program or a code call without a row shows no URL that may be public.
+    # A program without a row, also one that code runs, or a code call without a row shows no URL that may be public or whose host cannot be read, e.g. `mytool sync`.
     NO_URL_THAT_MAY_BE_PUBLIC = "no_url_that_may_be_public"
     NON_FETCHING_CODE_CALL = "non_fetching_code_call"
     NON_FETCHING_PROGRAM_RUN_BY_CODE = "non_fetching_program_run_by_code"
@@ -499,7 +499,7 @@ class ParsedTarget:
 
 
 class HostNameScope(StrEnum):
-    """Scope of a host name as `parse_host_name` reads it from the standards, read when rows are exported to tell internet use."""
+    """Scope of a host name as `parse_host_name` reads it from the standards, read by `extract_network_requests` to tell which URLs may be public and when rows are exported to tell internet use."""
 
     PUBLIC = "public"  # e.g. a public IP address
     LOCAL = "local"  # e.g. `localhost`, `10.0.0.5` or a `.internal` name

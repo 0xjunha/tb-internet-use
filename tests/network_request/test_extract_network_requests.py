@@ -1,6 +1,8 @@
-"""Tests for network_request/_extract_network_requests.py, with made-up tool calls run through the real `expand_tool_calls` and the real doors on made-up catalogs whose rows the cases name, so that a case does not change when the real catalogs gain rows.
+"""Tests for network_request/_extract_network_requests.py, with made-up tool calls run through the real `expand_tool_calls` and the real doors.
 
-The first case follows the made-up trial of `docs/pipeline-example.md` with whole `NetworkRequest` values. The others take one row each of the table of requests per target and of the table of what is a request, then the order of the requests, their indexes and the counts.
+Most cases use made-up catalogs whose rows the cases name, so that they do not change when the real catalogs gain rows, and the last two tests use the real catalogs, so that a row missing there fails.
+
+The first case follows the made-up trial of `docs/pipeline-example.md` with whole `NetworkRequest` values. The next ones take one kind of target or one answer about a means each, then the order of the requests, their indexes and the counts.
 """
 
 import csv
@@ -618,7 +620,7 @@ def _python_code(code: str) -> str:
     return f"python -c '{code}'"
 
 
-# One row per cell of the table of what is a request, with a command, code and a web tool where the cell has one, and the requests as (source type, certainty, reason).
+# One case for each answer about a means, i.e. fetches, unknown or does not fetch, with a visible URL and without one, for a command and for code, and one web tool case that fetches. Then two uncertain commands. The requests are (source type, certainty, reason).
 @pytest.mark.parametrize(
     ("action", "expected_requests"),
     [
@@ -858,7 +860,7 @@ URL_KIND = NetworkRequestTargetKind.URL
 NAMED_IN_FILE = UnknownNetworkRequestTarget(
     UnknownNetworkRequestTargetReason.NAMED_IN_FILE
 )
-# Commands whose rows a review of the catalogs checked against their pages, as (text, requests as (target, target kind, hosts, certainty), unknown inputs as (catalog, key)) on the real catalogs.
+# Commands of rows that a review of the catalogs checked against their pages, as (text, requests as (target, target kind, hosts, certainty), unknown inputs as (catalog, key)) on the real catalogs. A case may also use a row that the review left as `not checked, from the old table`, e.g. the row of host in `program_network_requests.csv`.
 _REVIEWED_REAL_CATALOG_CASES = [
     # dig has no row, since its first argument can be the server or a query option, e.g. @1.1.1.1 or +short, so no word of it is taken for the name and a host without a URL gives no request.
     ("dig a.org", [], {(PROGRAM_BEHAVIORS_CSV, ("dig", ""))}),
@@ -894,7 +896,7 @@ _REVIEWED_REAL_CATALOG_CASES = [
     ),
     # git log fetches missing objects in a partial clone, which no row can state, so it stays an unknown input.
     ("git log", [], {(PROGRAM_NETWORK_REQUESTS_CSV, ("git", "log", "", ""))}),
-    # pip list sends a request only with --outdated, which no option effect can state for a program that does not fetch otherwise.
+    # pip list sends a request only with --outdated or --uptodate, which no option effect can state for a program that does not fetch otherwise.
     (
         "pip list --outdated",
         [],

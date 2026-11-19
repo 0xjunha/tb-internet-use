@@ -1,7 +1,7 @@
 [project]
 name = "tb-internet-use"
 version = "0.1.0"
-description = "Add your description here"
+description = "Finds how agents on the Terminal-Bench leaderboard use the internet, reading their trajectories alone."
 readme = "README.md"
 authors = [
     { name = "Junha Park", email = "0xjunha@gmail.com" }

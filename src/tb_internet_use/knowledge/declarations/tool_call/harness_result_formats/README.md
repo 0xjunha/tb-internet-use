@@ -1,6 +1,6 @@
 # Harness result formats
 
-How each harness writes the results of its tools is outside knowledge for step 1, e.g. that Claude Code `Bash` writes `Exit code 1` before the output of a failed command. It is declared in Python, one module per harness, since a format is a template or a set of JSON paths, and some formats carry a function that builds the tool output text.
+How each harness writes the results of its tools is outside knowledge for `convert_tool_calls`, e.g. that Claude Code `Bash` writes `Exit code 1` before the output of a failed command. It is declared in Python, one module per harness, since a format is a template or a set of JSON paths, and some formats carry a function that builds the tool output text.
 
 | File | What it holds |
 |---|---|
@@ -9,7 +9,7 @@ How each harness writes the results of its tools is outside knowledge for step 1
 | [harness_result_format_reviews.csv](harness_result_format_reviews.csv) | The review record, one hand-filled row per declared format |
 | [harness_result_format_declaration.py](../../../harness_result_format_declaration.py) | The types formats are declared in and how a result is matched against them |
 
-Step 1 reaches them only through `ToolCallKnowledge.has_json_result_formats` and `ToolCallKnowledge.harness_result_format` in [tool_call_knowledge.py](../../../tool_call_knowledge.py). Terms, the two kinds of format and how one result is converted are in [Result formats](../../../../tool_call/README.md#result-formats).
+`convert_tool_calls` reaches them only through `ToolCallKnowledge.has_json_result_formats` and `ToolCallKnowledge.harness_result_format` in [tool_call_knowledge.py](../../../tool_call_knowledge.py). Terms, the two kinds of format and how one result is converted are in [Result formats](../../../../tool_call/README.md#result-formats).
 
 ## Table of declared result formats
 

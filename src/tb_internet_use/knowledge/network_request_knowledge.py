@@ -65,7 +65,7 @@ class NetworkRequestKnowledge:
 
     An answer is a value or an `Unknown…` type of the step's model, never a default.
     `uses` counts every catalog row that answered and every input without one.
-    The loaded catalog is cached per process, so making a door per trial is cheap.
+    The loaded catalogs are cached per process, so making a door per trial is cheap.
     """
 
     def __init__(self, *, catalogs_dir: Path = NETWORK_REQUEST_CATALOGS_DIR) -> None:
@@ -102,7 +102,7 @@ class NetworkRequestKnowledge:
         | that of the invocation | blank, for every value |
         | blank | blank |
 
-        One lookup counts that row, or when none fits the narrowest key, i.e. the subcommand and the value of the option as asked, e.g. `(curl, "", -L, "")`.
+        One lookup counts that row, or when none fits the narrowest key, i.e. the subcommand and the value of the option as asked, e.g. `(curl, "", -X, TRACE)` for `curl -X TRACE`.
         An option that takes no value is asked with a blank value.
         """
         program_name, subcommand, _, _ = _program_row_key_of(program_invocation)

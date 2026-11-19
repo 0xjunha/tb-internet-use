@@ -1,4 +1,4 @@
-"""Tests for scripts/run_pipeline.py, i.e. the count of the main measure per task, the cells of a row, the equations between steps, the files that `main` writes and the runs of trials in worker processes, with made-up rows and made-up trial folders."""
+"""Tests for scripts/run_pipeline.py, e.g. the count of the main measure per task, the cells of a row, the equations between steps, the files that `main` writes and the runs of trials in worker processes, with made-up rows and made-up trial folders."""
 
 import csv
 import dataclasses
@@ -49,7 +49,7 @@ _SPEC = importlib.util.spec_from_file_location(
 )
 assert _SPEC is not None and _SPEC.loader is not None
 run_pipeline = importlib.util.module_from_spec(_SPEC)
-sys.modules[_SPEC.name] = run_pipeline  # dataclasses look the module up while it loads
+sys.modules[_SPEC.name] = run_pipeline  # pickle finds `TrialRun` under this name
 _SPEC.loader.exec_module(run_pipeline)
 
 LOWER_AND_UPPER = MeasureBound.LOWER_AND_UPPER
@@ -110,7 +110,7 @@ def _network_request_row(
     *,
     request_index: int = 0,
 ) -> NetworkRequestRow:
-    """Make a request row of one category, sender and pair of bounds, whose other columns no count of the script reads."""
+    """Make a request row of one category, sender and pair of bounds, whose other columns are those of a received `curl` of `https://a.org/x`."""
     return NetworkRequestRow(
         trial_id=trial_id,
         trajectory_id="main",
@@ -166,7 +166,7 @@ def _rows_of_trial(
 
 
 class _InProcessPool:
-    """Stand-in for the process pool of `run_trials`, which runs each task in the test process at once since a worker process of `main` could not import the script by its file path, and keeps the process count it was asked for."""
+    """Stand-in for the process pool of `run_trials`, which runs each task in the test process at once so that what a test patches on the script reaches the task, and keeps the process count it was asked for."""
 
     # The process counts that `main` asked for, kept across instances.
     process_counts: ClassVar[list[int]] = []
@@ -947,7 +947,7 @@ def test_a_key_counts_each_trial_that_has_it_once_and_each_task_once():
     key_count_total.add_trial(Counter({"a": 1}), ("4-0-0", "task-1"))
     key_count_total.add_trial(Counter({"a": 1, "c": 1}), ("4-0-0", "task-2"))
 
-    # A key a trial counted 0 times is listed only when asked for.
+    # A key that a trial counted 0 times stays listed with 0 trials and 0 tasks, and `d`, which no trial counted, is listed because it is asked for.
     assert key_count_total.rows(["d"]) == [
         ("a", 5, 3, 2),
         ("c", 1, 1, 1),

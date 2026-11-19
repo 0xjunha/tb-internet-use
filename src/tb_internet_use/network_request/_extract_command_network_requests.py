@@ -1,7 +1,8 @@
 """Extract the network requests of one shell command, asking for each of its programs, the outermost first, whether it fetches and for which targets.
 
 One command can run several programs, e.g. `sudo curl u` or `npx -y playwright install chromium`, and each is asked on its own.
-A program that runs another one whose text the trial holds gives no request itself, e.g. sudo in `sudo curl u` or bash in `bash fetch.sh`, since the program it runs gives them.
+A program without a row of the request catalog that runs a next program or a text that the trial holds gives no request itself, e.g. sudo in `sudo curl u` or bash in `bash fetch.sh` after another call wrote fetch.sh, since what it runs gives them.
+A program with a row gives its own requests all the same, e.g. npx in `npx tsc`.
 """
 
 from collections import Counter
@@ -83,7 +84,7 @@ def extract_command_network_requests(
     | No fact of `expand_tool_calls` covers it otherwise, e.g. `mytool https://a.org/x` | one uncertain request per URL in its words that may be public or whose host cannot be read |
     | The request catalog says it does not fetch, e.g. `echo https://a.org` | none |
     | No row of the request catalog, and it runs a next program or a text that the trial holds, e.g. sudo in `sudo curl u` | none, since what it runs gives them |
-    | No row of the request catalog otherwise, e.g. `bash setup.sh https://a.org/x` for a setup.sh that the trial does not hold | one uncertain request per URL in its words that may be public |
+    | No row of the request catalog otherwise, e.g. `bash setup.sh https://a.org/x` for a setup.sh that the trial does not hold | one uncertain request per URL in its words that may be public or whose host cannot be read |
     | The request catalog says it fetches, e.g. `curl u` | one request per target that its words show, and one for those they do not show |
 
     Every program run that gives no request adds one to `no_network_request_counts` under its reason.
@@ -171,7 +172,7 @@ def _extract_program_network_requests(
 
     An option that sends no request gives none. Unread words give one request whose target and content destination are unknown, e.g. `curl --foo x u`, since the unread option may name the target or a file.
     Otherwise `extract_network_request_targets` gives the targets, and no target means no request, e.g. `curl` alone.
-    A request is uncertain when an option has no row of the request catalog, e.g. `curl -L u` without a row of `-L`, or else when the program or an option fetches only what is missing, e.g. `npx tsc`.
+    A request is uncertain when an option has no row of the request catalog, e.g. `-K` of `curl -K cfg u`, or else when the program or an option fetches only what is missing, e.g. `npx tsc`.
     """
     program_option_effects = _program_option_effects_of(program_invocation, knowledge)
     if ProgramOptionEffect.SENDS_NO_REQUEST in program_option_effects:

@@ -72,7 +72,8 @@ _URL = re.compile(r"https?://", re.IGNORECASE)
 def parse_codex_exec_script(code: str) -> list[tuple[str, Any]]:
     """List each `tools.NAME(argument)` call in the script, in order, as the name and the literal value of the argument.
 
-    The value is None when it is not a literal.
+    The value is None when it is not a literal, e.g. for `tools.exec_command(x)`.
+    An object is read key by key and keeps only the keys whose values are literals, e.g. `{}` for `{cmd: "ls " + dir}`.
     A call inside a loop or a branch is listed once, whether it ran or not.
     """
     try:

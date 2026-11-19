@@ -1,4 +1,4 @@
-"""Tests for tool_call/_convert_tool_call_result.py, with made-up annotations matched by `HarnessToolResultDeclaration.harness_result_format_of`."""
+"""Tests for tool_call/_convert_tool_call_result.py, with made-up result formats matched by `HarnessToolResultDeclaration.harness_result_format_of`."""
 
 import json
 from collections import Counter

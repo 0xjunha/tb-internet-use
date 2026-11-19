@@ -1328,7 +1328,7 @@ class _ShellTextStartState:
 
     # The assignments of the outer text that the text sees, for a text run in the calling shell.
     outer_variable_assignments: tuple[VariableAssignment, ...]
-    # The options of a new shell as `set` takes them, e.g. `("-e",)` for `bash -e f.sh`.
+    # The options of a new shell as `set` takes them, e.g. `("-o", "pipefail")` for `bash -o pipefail f.sh`.
     set_arguments_at_start: tuple[str, ...]
 
 
@@ -1345,7 +1345,7 @@ def _shell_text_start_state_of_program(
     """Give the outer assignments and the shell options that a shell text run by a program of a command starts with.
 
     A text run in the calling shell, e.g. by `eval` or `source`, sees the assignments of the outer text up to the running command.
-    A new shell, e.g. `bash -c`, sees none of them by a rule, and starts with the one-letter options and the `-o` or `+o` names of the program, e.g. `-e` of `bash -e f.sh`.
+    A new shell, e.g. `bash -c`, sees none of them by a rule, and starts with the one-letter options and the `-o` or `+o` names of the program, e.g. `-o pipefail` of `bash -o pipefail f.sh`.
     """
     program_behavior = command_reading.program_behaviors[program_index]
     runner_command_id = command_reading.shell_command.id
@@ -1375,7 +1375,7 @@ def _shell_text_start_state_of_program(
 def _set_arguments_at_start_of(
     program_invocation: ProgramInvocation | UnknownProgramInvocation,
 ) -> tuple[str, ...]:
-    """Give the one-letter options without a value and the `-o` or `+o` options with their names of a program that runs shell text, e.g. `("-e", "-o", "pipefail")` for `bash -eo pipefail f.sh`, as `set` takes them."""
+    """Give the one-letter options without a value and the `-o` or `+o` options with their names of a program that runs shell text, e.g. `("-o", "pipefail")` for `bash -o pipefail f.sh`, as `set` takes them."""
     if isinstance(program_invocation, UnknownProgramInvocation):
         return ()
     set_arguments: list[str] = []
@@ -1471,7 +1471,7 @@ def _interpreter_line_of(
 
 
 def _shell_text_start_state_of_interpreter_line(content: str) -> _ShellTextStartState:
-    """Give the shell options that the `#!` line of a shell file starts its text with, e.g. `("-e",)` for `#!/bin/bash -e`, as `_set_arguments_at_start_of` picks them for `bash -e f.sh`.
+    """Give the shell options that the `#!` line of a shell file starts its text with, e.g. `("-e",)` for `#!/bin/bash -e`, in the form that `_set_arguments_at_start_of` gives for a command, e.g. `("-o", "pipefail")` for `bash -o pipefail f.sh`.
 
     The text runs in a new shell, so it sees no outer assignment.
     """
@@ -1761,7 +1761,7 @@ def _file_extension_of(path: str) -> str | None:
 
 
 class TrialFileContents:
-    """State of the files that the calls of one trajectory wrote so far, kept while `expand_ran_texts` reads the calls in order. Every method that records returns the `FileTouch` it records.
+    """State of the files that the calls of one trajectory wrote so far, kept while `expand_ran_texts` reads the calls in order. Every method that records a touch of a file returns that `FileTouch`.
 
     Each write, removal and use asks rules about how two paths name one file and how earlier writes count, so that the choices are in one place.
     A method returns None when a rule leaves the touch out, e.g. for a glob such as `*.sh`.
@@ -2023,7 +2023,9 @@ class TrialFileContents:
     ) -> WrittenFileKey:
         """Give the key of the one file that the call wrote earlier and that a path can name by each path it was written by, or a new key with this path.
 
-        A path that fits several of them gets the key of the one first written by this very path, since a key holds the call and that path, e.g. a fourth write to run.sh after writes to run.sh, /a/run.sh and /b/run.sh in one call, which fits the file of the first two and that of /b/run.sh.
+        A path that fits several of them gets the key that holds this very path, since a key holds the call and a path.
+        That is the key of the file first written by it, e.g. a fourth write to run.sh after writes to run.sh, /a/run.sh and /b/run.sh in one call, which fits the file of the first two and that of /b/run.sh.
+        It is a new key when no file of the call was first written by it, e.g. run.sh after /a/run.sh and /b/run.sh.
         """
         written_file_keys = self._written_file_keys_of_tool_call.setdefault(
             tool_call_key, []
@@ -2059,8 +2061,9 @@ class TrialFileContents:
 
         A later write of the same call to the same file keeps the writes as they are and adds its path to those of the file, so that later paths must fit it too. It leaves the content of each other written file that the path fits unknown, as a write of another call does.
         A path that fits several written files starts a file of its own, since the text does not say which of them it writes, and leaves the content of each of them unknown, since it may have changed any of them.
-        A path that fits several files that the same call wrote earlier joins the file of the key it was given and leaves its content unknown too, since the text does not say which of them it writes, e.g. the fourth write to run.sh after writes to run.sh, /a/run.sh and /b/run.sh in one call.
+        A path that fits several files that the same call wrote earlier joins the file first written by this very path and leaves its content unknown too, since the text does not say which of them it writes, e.g. the fourth write to run.sh after writes to run.sh, /a/run.sh and /b/run.sh in one call.
         A later run of /a/run.sh then sees content changed by a command that was not read, while after the same writes in four calls it sees a path that fits several written files.
+        Without a file first written by this very path it starts a file of its own, as a path that fits several written files does, e.g. run.sh after /a/run.sh and /b/run.sh in one call, after which a run of /a/run.sh sees a path that fits several written files.
         """
         written_content = (
             None if appends or fits_several_written_files_of_tool_call else content

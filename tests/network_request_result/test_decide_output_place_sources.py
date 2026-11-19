@@ -152,7 +152,7 @@ def shows_content_use(
 def call_reading_file(
     tool_call_key: ToolCallKey, *, stdout: OutputRouteEnd = RESULT
 ) -> ExpandedToolCall:
-    """A call of `cat <file>` whose command 0 reads a file, with the place of its own result when its stdout ends there."""
+    """Make a call of `cat <file>` whose command 0 reads a file, with the place of its own result when its stdout ends there."""
     return expanded_tool_call(
         tool_call_key,
         ran_commands=(ran_command(0, stdout=stdout),),
@@ -571,7 +571,7 @@ def test_tool_script_with_a_web_step_mixes_page_text_into_command_output_or_is_p
     [
         # The script's code prints what `cat build.log` printed.
         ("step output shown", (0,), ((K1, (0,)), (K2, (0,)))),
-        # The step's stdout ends in the result, but the rule on script steps says the result does not show it.
+        # The step's stdout ends in the result, but no `OutputPlace` of the call names it, as when `treat_script_step_output_as_shown_in_call_result` answers `False`.
         ("step output not shown", (), ()),
     ],
 )

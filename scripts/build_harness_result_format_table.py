@@ -1,6 +1,6 @@
 """Write the table of the result formats that the harnesses declare in `knowledge/`, one row per format, for a person to read.
 
-It reads no trajectory. Rows follow the order in which the formats are tried.
+It reads no trajectory. Within one format list the rows follow the order in which the formats are tried, and per harness the lists for results marked as errors come first, then the text lists, then the JSON lists.
 The table goes to `out/tool_call_knowledge/` by default, which `.gitignore` keeps out of the repo, since the Python declarations are the source and the table only shows them.
 
 Run it as `uv run python -I scripts/build_harness_result_format_table.py [output_csv]`.

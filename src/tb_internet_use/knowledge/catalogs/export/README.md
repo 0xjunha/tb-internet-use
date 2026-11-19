@@ -1,6 +1,6 @@
 # Export catalog
 
-The export catalog is outside knowledge for `export_rows`, kept in the three CSVs of this folder. They say what a public host serves, where a web tool sends its requests from and which registry a package command asks by default, so that `export_rows` can compute the category, the sender and whether a request is internet use. They are filled and reviewed by hand, and `export_rows` reads them only through `ExportKnowledge` in [export_knowledge.py](../../export_knowledge.py).
+The export catalog is outside knowledge for `export_rows`, kept in the three CSVs of this folder. They say what a public host serves, where a web tool sends its requests from and which registry a package command asks by default, so that `export_rows` can compute the category, the sender and whether a request is internet use. They are filled by hand, their `reviewed` column says which rows a person has reviewed, and `export_rows` reads them only through `ExportKnowledge` in [export_knowledge.py](../../export_knowledge.py).
 
 Whether a host is public at all is no fact of this folder. It is read from the name by `parse_host_name` of `network_request/`, and only a public host is looked up here.
 
@@ -10,7 +10,7 @@ In each file a blank is unknown only in the column that answers the question of 
 
 | Column | Cell | Blank |
 |---|---|---|
-| `host_name` | The host name in lower case, e.g. `files.pythonhosted.org` | Fails the load |
+| `host_name` | The host name in lower case, e.g. `pypi.org` | Fails the load |
 | `service` | A `HostService` value, e.g. `package_registry` or `code_hosting` | Unknown |
 | `package_registry` | The registry name when `service` is `package_registry`, e.g. `pypi` | Required for a registry, and blank for any other service |
 

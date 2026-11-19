@@ -111,7 +111,7 @@ class MatchedOutputLinePattern:
 def _output_line_meaning_from(
     pattern: OutputLinePattern, match: re.Match[str]
 ) -> OutputLineMeaning:
-    """Make the meaning of a line from the pattern that matched it, with the text of each group as the line writes it."""
+    """Make the meaning of a line from the pattern that matched it, with the text of each group as the line writes it and the status code as a number."""
     texts = {
         _GROUP_NUMBER.sub("", name): text
         for name, text in match.groupdict().items()

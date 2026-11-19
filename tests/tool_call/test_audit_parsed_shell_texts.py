@@ -37,7 +37,7 @@ _SPEC = importlib.util.spec_from_file_location(
 )
 assert _SPEC is not None and _SPEC.loader is not None
 audit = importlib.util.module_from_spec(_SPEC)
-sys.modules[_SPEC.name] = audit  # dataclasses look the module up while it loads
+sys.modules[_SPEC.name] = audit  # registered as an import would do
 _SPEC.loader.exec_module(audit)
 
 ParsedShellTextCheck = audit.ParsedShellTextCheck
@@ -78,7 +78,7 @@ def _read_trajectory_raising(trial_dir: Path) -> Never:
     raise ValueError(trial_dir.name)
 
 
-# (made-up action, the check that one of its values breaks), one case per half of each check.
+# (made-up action, the check that one of its values breaks), one case per way of breaking a check.
 VIOLATING_ACTIONS = [
     pytest.param(
         RunCommandAction("a", None),
@@ -241,7 +241,7 @@ VIOLATING_ACTIONS = [
 ]
 
 
-# (text, kind of its first character), one case per kind.
+# (text, kind of its first character), with every kind at least once.
 FIRST_CHARACTER_KIND_CASES = [
     ("", "empty"),
     ("curl u", "letter"),

@@ -59,7 +59,7 @@ def _command_ids_of(action: ToolCallAction) -> list[int]:
     return [command.id for command in action.parsed_shell_text.commands]
 
 
-# (tool of Claude Code, arguments of a call, action of the call), one case per kind of field value.
+# (tool of Claude Code, arguments of a call, action of the call), for a field of several values, a whole number field and fields that take the argument as it is.
 FIELD_VALUE_CASES = [
     # One URL becomes a tuple of URLs.
     ("WebFetch", {"url": "http://x"}, WebFetchAction(("http://x",))),

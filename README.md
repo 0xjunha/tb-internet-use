@@ -16,7 +16,7 @@ For each task and each category of request (e.g. packages, fetched files, web se
 - the share of trials that received what such a request asked for
 
 Each share comes as a lower bound, which counts only what the trajectory confirms, and an upper bound, which also counts what it cannot rule out.
-The unit is the trial, so a trial counts as one that received when the trajectory confirms that one of its requests did, even when it does not show which, e.g. one `Successfully installed A-1.0` under `pip install A B` that either request may have printed.
+The unit is the trial, so a trial counts as one that received when the trajectory confirms that one of its requests did, even when it does not show which, e.g. one `Fetched 10 kB in 1s` under `apt-get install -y a b` that either request may have printed.
 Every request is kept as a row with its place in the trajectory and its evidence, so other questions can be answered from the same rows.
 
 ## What counts
@@ -36,7 +36,7 @@ Every request is kept as a row with its place in the trajectory and its evidence
 
 ## How it reads a trajectory
 
-The pipeline reads only the text of tool calls and their results. It runs nothing from a trajectory, and it has no network logs to check against.
+From a trajectory the pipeline reads only the text of tool calls and their results. It runs nothing from a trajectory, and it has no network logs to check against.
 The hard part is that a request, or its output, is often not in the call that caused it.
 
 | | In the call itself | Elsewhere in the trajectory | Not in the trajectory |
@@ -47,8 +47,8 @@ The hard part is that a request, or its output, is often not in the call that ca
 
 Two rules follow from this.
 
-- What the trajectory does not show is recorded as unknown and never filled with a default such as "finished". This is why the results come as bounds.
-- Facts that no trajectory holds are outside knowledge, e.g. that `curl -o` takes a file name, or how a harness words a timeout. They are kept apart from the steps, in catalogs that a person fills and reviews. When a fact is missing, the answer is unknown. Each run lists its unknowns by how many trials they touch, which is the list of facts to add next.
+- What the trajectory does not show is recorded as unknown, which is why the results come as bounds. It gets a value only from a named judgment rule, e.g. `treat_bash_output_without_exit_code_line_as_finished` reads a Claude Code result without an `Exit code` line as finished.
+- Facts that no trajectory holds are outside knowledge, e.g. that `curl -o` takes a file name, or how a harness words a timeout. They are kept apart from the steps, in catalogs and declarations whose rows say what each fact was checked against and whether a person reviewed it. When a fact is missing, the answer is unknown. Each run lists its unknowns by how many trials they touch, which is the list of facts to add next.
 
 ## Pipeline
 
@@ -58,20 +58,20 @@ The [pipeline example](docs/pipeline-example.md) follows six made-up tool calls 
 |---|---|---|---|---|---|---|
 | 0 | Collect trials | Which trials are there, and what is known about each (e.g. task, reward)? | `collect_trials` in `trial/` | `Trial` | 0 | Built |
 | 1 | Convert tool calls | What did the trajectory record, in types that hide the harness? | `convert_tool_calls` in `tool_call/` | `ToolCall` | 18 | Built, with each shell text split into commands by shell grammar |
-| 2 | Expand tool calls | What did each call actually run, and where does that output show up? | `expand_tool_calls` in `expanded_tool_call/` | `ExpandedToolCall` | 23 | Built and run on a sample of 100 trials, where many programs and options still have no catalog row and come out as unknown inputs |
-| 3 | Extract network requests | Which of what ran is a request, and for which target? | `extract_network_requests` in `network_request/` | `NetworkRequest` | 6 | Built and run on a sample of 100 trials, where a program or option without a catalog row still comes out as an unknown input or an uncertain request |
-| 4 | Decide request results | How far did each request get, and on what evidence? | `decide_network_request_results` in `network_request_result/` | `NetworkRequestResult` | 19 | Built and run on a sample of 100 trials, where many results stay at `ATTEMPTED` since the exit code of a text shows nothing of a command in a loop, before a pipe or in a file |
-| 5 | Export rows | Which category is each request, and what do the rows say for each task? | `export_rows` in `export/` | `NetworkRequestRow`, `TrialRow`, `TrialCategoryMeasureRow` | 19 | Built and run on a sample of 100 trials, where most public hosts and web tools still have no catalog row and come out as unknown inputs |
+| 2 | Expand tool calls | What did each call actually run, and where does that output show up? | `expand_tool_calls` in `expanded_tool_call/` | `ExpandedToolCall` | 23 | Built and run on the full data, where programs and options without a catalog row still come out as unknown inputs |
+| 3 | Extract network requests | Which of what ran is a request, and for which target? | `extract_network_requests` in `network_request/` | `NetworkRequest` | 6 | Built and run on the full data, where programs, options and code calls without a catalog row still come out as unknown inputs or uncertain requests |
+| 4 | Decide request results | How far did each request get, and on what evidence? | `decide_network_request_results` in `network_request_result/` | `NetworkRequestResult` | 19 | Built and run on the full data, where most results stay at `ATTEMPTED`, e.g. a command in a loop, before a pipe or in a file, whose run the exit code of its text does not show |
+| 5 | Export rows | Which category is each request, and what do the rows say for each task? | `export_rows` in `export/` | `NetworkRequestRow`, `TrialRow`, `TrialCategoryMeasureRow` | 19 | Built and run on the full data, where most public hosts and some web tools still have no catalog row and come out as unknown inputs |
 
 Each step is a package of `src/tb_internet_use/` whose `__init__.py` exports only its entry function, and whose types are in its `model.py`.
-`run_steps_of_trial` in `pipeline.py` reads the files of one trial folder, makes the doors of outside knowledge and calls the six entry functions in order. The steps themselves take text and types, never a path.
+`run_steps_of_trial` in `pipeline.py` reads the files of one trial folder and calls the six entry functions in order. Each of them from `convert_tool_calls` on gets its door of outside knowledge from the `KnowledgeDoors` that the caller passes. The steps themselves take text and types, never a path.
 
 Steps 1 and 2 are built to know nothing about the internet, so they can serve other analyses of tool calls. Steps 3 to 5 are the internet analysis.
 
 ## Outside knowledge
 
-Each step from step 1 on asks for outside knowledge only through its door, one class in `knowledge/` named after its output type, which its entry function takes as `knowledge`.
-An answer of a door is a value or an `Unknown…` type, never a default, and the door counts each fact it used and each input it had no fact for.
+Each step from step 1 on asks for outside knowledge only through its door, one class in `knowledge/` named after its package, which its entry function takes as `knowledge`.
+An answer of a door is a value or an `Unknown…` type, never a default. The door counts each fact it used and each input it had no fact for, except an output line that no pattern fits, which has no name to count it under, and an argument of a tool call without a row of `harness_tool_arguments.csv`, which the door never looks up, so it fills no field without a count, e.g. a Claude Code `Bash` call whose command came as `cmd` would get no command text.
 
 | Door | Step | Where its facts live |
 |---|---|---|
@@ -81,13 +81,13 @@ An answer of a door is a value or an `Unknown…` type, never a default, and the
 | `NetworkRequestResultKnowledge` | `decide_network_request_results` | `catalogs/network_request_result/`, and the output line patterns under `declarations/network_request_result/` |
 | `ExportKnowledge` | `export_rows` | `catalogs/export/` |
 
-A catalog is a hand-filled CSV, one row per fact, e.g. one program of `program_behaviors.csv`. A declaration is Python, for facts whose order matters or that share parts, e.g. the output line patterns, of which the first that fits a line gives its meaning. Every row says what it was checked against and whether a person reviewed it.
-The [knowledge README](src/tb_internet_use/knowledge/README.md) lists every file with the question it answers, and the README beside each catalog folder describes its columns.
+A catalog is a hand-filled CSV, one row per fact, e.g. one program of `program_behaviors.csv`. A declaration is Python, for facts whose order matters or that share parts, e.g. the output line patterns, of which the first that fits a line gives its meaning. Every row of a catalog says what it was checked against and whether a person reviewed it. A declaration has a review file with the same two columns, which are still blank for the harness result formats.
+The [knowledge README](src/tb_internet_use/knowledge/README.md) lists every file with the question it answers, and the README in each catalog folder describes its columns.
 
 ## Judgment rules
 
 A judgment rule is a choice that facts alone do not settle, e.g. whether a negative exit code means the command was killed.
-Judgment rules are kept apart from outside knowledge, one function each in the `judgment_rules.py` of the step, which counts each of its uses. Each is marked provisional or decided. Two are decided today, both of `export/`. `treat_single_label_host_name_as_not_internet_use` counts a request to a host name without a dot, e.g. `db`, as no internet use, since such a name resolves only inside the task environment. `treat_trial_with_success_line_shared_by_confirmed_requests_as_received` counts a trial as one that received when one output line of success shows that one of several confirmed requests of a category received, without showing which, and each of them rests on that shared line alone, so that no other request or unread run may have printed it.
+Judgment rules are kept apart from outside knowledge, one function each in the `judgment_rules.py` of the step, which counts each of its uses. Each is marked provisional or decided. Two are decided today, both of `export/`. `treat_single_label_host_name_as_not_internet_use` counts a request to a host name without a dot, e.g. `db`, as no internet use, since such a name resolves only inside the task environment. `treat_trial_with_success_line_shared_by_confirmed_requests_as_received` counts a trial as one that received when one output line of success shows that one of several confirmed requests of one category and sender received, without showing which. It applies only when each of those requests is assumed for no reason other than output lines that other requests share, this line among them. A run that is not read beside them breaks it only for a line that other programs print too, so `./setup.sh` beside `apt-get install -y a b` does not break it for `Fetched 10 kB in 1s`, which only apt prints.
 A provisional rule keeps the choice of the earlier code, or where there was none the choice that claims least, e.g. that a command with no evidence of its own that it ran is not known to have run, so that the lower bounds stay true.
 
 ## Running
@@ -109,7 +109,7 @@ nice -n 10 uv run python -I scripts/run_pipeline.py <raw_trials_dir> [--limit N 
 
 The script exits with 1 when a trial raised or an equation differs. `--resume` goes on with a run that stopped, and `--export-only` runs only `export_rows` again on the saved output of the steps before it. Its docstring lists every file and equation.
 
-Each step also has an audit script that runs the steps up to it, counts its output per harness and checks equations that the output must meet. They write under `out/` and print no text of a trajectory.
+Each step also has an audit script. Those of `expand_tool_calls`, `extract_network_requests` and `decide_network_request_results` each run the steps up to their own step, count its output per harness and check equations that the output must meet. The table says what the others do. They write under `out/` by default and print counts, except `audit_results.py`, which also prints the first and last line of each result of an unknown format with paths, ids, long tokens and numbers masked, and the keys of such a JSON result unmasked.
 
 | Script | Step |
 |---|---|

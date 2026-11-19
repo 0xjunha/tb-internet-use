@@ -64,7 +64,7 @@ def export_network_request_category(
 
     `public_hosts` holds the answers of `ExportKnowledge` for the public hosts among `NetworkRequest.host_names`.
     A target kind that is not known gives `UNKNOWN`, while a target that is not known does not, e.g. `pip install $PKG` is `PACKAGE`.
-    A request that asks for no content is `CONNECTIVITY_CHECK` whatever its host, e.g. `ping pypi.org`, unless it is for a repository, e.g. `git push origin main`.
+    A request that asks for no content is `CONNECTIVITY_CHECK` whatever its host, e.g. `ping pypi.org`, unless it is for a repository, which `treat_repository_request_for_no_content_as_other_web` decides.
     A request for a URL or a repository whose content is saved is `FETCHED_FILE`, e.g. `git clone u`. Shown content is `PAGE_READ` from a web tool or a code hosting host, e.g. `curl https://github.com/a/b/README.md`.
     What host services and content destinations cannot tell apart is `OTHER_WEB`, e.g. `curl https://a.org/x` or `curl u | mytool`.
     Each judgment rule adds one to `judgment_rule_use_counts` under its name when it decides a condition.

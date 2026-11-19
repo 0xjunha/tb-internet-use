@@ -109,7 +109,7 @@ _WRITE_STDIN = HarnessResultFormatList[str](
 )
 
 # exec runs a script, and wait polls a script that was still running.
-# Both results start with the script's state, e.g. "Script completed", then this head.
+# A result that tells the state of the script starts with it, e.g. "Script completed", then this head.
 _SCRIPT_HEAD = "\nWall time {seconds:line_without_brackets} seconds\nOutput:\n"
 _SCRIPT_COMPLETED = "Script completed" + _SCRIPT_HEAD
 _SCRIPT_FAILED = "Script failed" + _SCRIPT_HEAD

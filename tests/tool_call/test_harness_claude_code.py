@@ -95,7 +95,7 @@ def _result(
     structured_result: dict[str, Any] | None = None,
     is_error: bool | None = None,
 ) -> dict[str, Any]:
-    """Give a result as Harbor writes it in the trajectory, with the original block kept in the metadata and blocks appended to content."""
+    """Give a result as Harbor writes it in the trajectory, with the original block kept in the metadata and a placeholder as its `content`, which the converter reads only when the metadata holds no block."""
     metadata: dict[str, Any] = {
         "raw_tool_result": {"type": "tool_result", "content": block}
     }

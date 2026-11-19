@@ -1,6 +1,6 @@
-"""Tests for scripts/audit_network_requests.py, with a made-up trial run through the steps on the catalogs of the repo, made-up requests that break one equation each, and made-up trial folders run through `audit_trial` and `main`.
+"""Tests for scripts/audit_network_requests.py, with a made-up trial run through the steps on the catalogs of the repo, broken copies of its output that each make a named equation differ, and made-up trial folders run through `audit_trial` and `main`.
 
-The equations hold whatever the catalogs say, so the cases use the catalogs of the repo and assert no count that a new row would change.
+The equations hold whatever the catalogs say, so the cases use the catalogs of the repo. The counts they assert rest on the made-up names `mytool` and `mylib.fetch` having no row.
 """
 
 import csv
@@ -59,7 +59,7 @@ _SPEC = importlib.util.spec_from_file_location(
 )
 assert _SPEC is not None and _SPEC.loader is not None
 audit = importlib.util.module_from_spec(_SPEC)
-sys.modules[_SPEC.name] = audit  # dataclasses look the module up while it loads
+sys.modules[_SPEC.name] = audit  # registered as an import would do
 _SPEC.loader.exec_module(audit)
 
 
@@ -79,7 +79,7 @@ def _harness_tool_call(
     )
 
 
-# A made-up Claude Code trial with a request of each means. The comments name what each call adds.
+# A made-up Claude Code trial with a request of each means. The comments name what the `Bash` calls add.
 _MADE_UP_TRIAL = (
     _harness_tool_call(
         1,
@@ -901,7 +901,7 @@ def test_audit_trial_names_a_missing_folder_apart_from_a_missing_trajectory(
 
 
 class _InProcessPool:
-    """Stand-in for the process pool of `main`, which maps in the test process since a worker process could not import the script by its file path, and keeps the process count it was asked for."""
+    """Stand-in for the process pool of `main`, which maps in the test process so that a function that a test replaces is replaced in the run too, and keeps the process count it was asked for."""
 
     # The process counts that `main` asked for, kept across instances.
     process_counts: ClassVar[list[int]] = []

@@ -226,7 +226,10 @@ def _bound_names(tree: ast.Module) -> set[str]:
 
 
 def _exported_names(tree: ast.Module) -> list[str] | None:
-    """Read the names that `__all__` lists, or None when the module changes `__all__` in any other way than one assignment of a literal."""
+    """Read the names that `__all__` lists, or None when the module assigns `__all__` more than once or by anything but a plain assignment.
+
+    A plain assignment of anything but a literal raises `ValueError` when it is the first assignment of `__all__`, e.g. `__all__ = names` alone or before `__all__ = ["a"]`.
+    """
     exported: list[str] | None = []
     assignments = 0
     for node in ast.walk(tree):
