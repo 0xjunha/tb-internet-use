@@ -92,6 +92,7 @@ The table shows only one situation, a shell command that exits with code 0 and p
 
 | Harness | Tool | Format | Result in the trajectory |
 |---|---|---|---|
+| Antigravity CLI | `run_command` | `exited` | `Created At: 2026-11-13T02:21:04Z`<br>`Completed At: 2026-11-13T02:21:04Z`<br>`Command exited with code 0.`<br><br>`Command output:`<br>`hello` |
 | Claude Code | `Bash` | `bare_output` | `hello`, with no exit code line |
 | Codex | `exec_command` | `exited` | `Chunk ID: a1b2c3`<br>`Wall time: 0.0512 seconds`<br>`Process exited with code 0`<br>`Original token count: 1`<br>`Output:`<br>`hello` |
 | Cursor CLI | `shellToolCall` | `exited` | `{"success": {"exitCode": 0, "interleavedOutput": "hello"}}` |
@@ -113,7 +114,7 @@ annotated output = annotation + tool output
 |---|---|---|
 | Tool output | What the tool itself produced | `ToolCallResult.tool_output_text` |
 | Annotation | What the harness wrote about the call, e.g. an exit code line | Execution status, exit code, HTTP status, handles, output path, truncation |
-| Notice | A message the harness may add at the start or end of any result, e.g. Grok Build's completion notifications | Cut before matching, fills no field. Still in `harness_tool_call.result` for later steps |
+| Notice | A message the harness may add at the start or end of any result, e.g. Grok Build's completion notifications or the `Created At` lines of Antigravity CLI | Cut before matching, fills no field. Still in `harness_tool_call.result` for later steps |
 
 A truncation marker, which a harness leaves inside a tool output it cut, stays in the tool output and sets `is_truncated`.
 
@@ -203,12 +204,12 @@ Each use of a rule is counted in the `judgment_rule_use_counts` of `convert_tool
 | `treat_get_output_without_exit_code_as_running` | Devin `get_output` formats `running` and `running_incremental` | Output without an `Exit code` line is from a command still running |
 | `treat_web_fetch_text_as_finished` | Claude Code `WebFetch` format `page` | Page text is a finished fetch |
 | `treat_negative_exit_code_as_killed` | Devin `exec` format `killed` and `get_output` format `killed_silent_twice` | A negative exit code, which only Devin writes as -1 for a command it stopped, means the command was killed |
-| `treat_written_input_as_running_target` | Devin `write_to_process` format `written` | A process that got input is still running |
+| `treat_written_input_as_running_target` | Devin `write_to_process` format `written`, Antigravity CLI `manage_task` format `input_sent` | A process that got input is still running |
 | `treat_accepted_stop_request_as_killed` | Muse Code `work_stop` format `accepted` | Work whose stop request was accepted was killed |
 | `treat_failed_task_without_exit_code_as_killed` | Grok Build `get_command_or_subagent_output` formats `failed_signaled` and `failed_signaled_empty` | A failed task without an `Exit Code` line was killed |
 | `treat_exit_code_130_after_ctrl_c_as_killed` | [codex.py](harnesses/codex.py) | Exit code 130 after a Codex `write_stdin` that sent Ctrl-C means the process was killed |
 | `treat_wait_on_several_tasks_as_their_shared_status` | [grok_build.py](harnesses/grok_build.py) | A Grok Build wait on several tasks gets the status of the state they all share, and unknown when the states differ |
-| `treat_tool_failure_message_as_not_run` | Claude Code `tool_use_error`, Muse Code `rejected`, Codex `exec_command` formats `rejected` and `rejected_command`, `write_stdin` format `rejected_stdin` and `wait` format `rejected_arguments`, Grok Build `rejected` and `rejected_arguments`, Devin `rejected` of `exec`, `get_output`, `kill_shell`, `read`, `write`, `edit` and `webfetch` | A call whose result says only that it failed did no work |
+| `treat_tool_failure_message_as_not_run` | Claude Code `tool_use_error`, Muse Code `rejected`, Codex `exec_command` formats `rejected` and `rejected_command`, `write_stdin` format `rejected_stdin` and `wait` format `rejected_arguments`, Grok Build `rejected` and `rejected_arguments`, Devin `rejected` of `exec`, `get_output`, `kill_shell`, `read`, `write`, `edit` and `webfetch`, Antigravity CLI `failed` of `run_command`, `manage_task`, `read_file`, `write_file`, `edit_file` and `search_web` and `manage_task` format `rejected_arguments` | A call whose result says only that it failed did no work |
 | `treat_shell_id_with_exit_code_as_running` | Cursor CLI `shellToolCall` formats `background` and `background_requested` | A shell result with a shell id is a command still running, and its exit code is not read |
 | `treat_stop_request_for_ended_work_as_finished` | Muse Code `work_stop` format `already_ended` | Work that had already ended when asked to stop finished |
 | `treat_cut_off_web_search_as_finished` | Claude Code `WebSearch` format `cut_off` | A search cut off before any result is a finished search |

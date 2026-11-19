@@ -1,4 +1,15 @@
 harness,tool,action_type,stops_execution,checked_against,reviewed,note
+antigravity-cli,define_subagent,OtherAction,,"all 4 tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,defines a subagent type for later invoke_subagent calls
+antigravity-cli,edit_file,EditFileAction,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,
+antigravity-cli,invoke_subagent,StartSubagentAction,,"all 22 tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,"the subagent's own calls are not in the trajectory, only the transcript file its result names"
+antigravity-cli,manage_subagents,OtherAction,,"all 48 tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,"lists the subagents or kills all of them, and a kill names no subagent"
+antigravity-cli,manage_task,Deferred,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,
+antigravity-cli,read_file,ReadFileAction,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,
+antigravity-cli,run_command,RunCommandAction,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,
+antigravity-cli,schedule,OtherAction,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,a timer that wakes the agent after a time or when a task ends
+antigravity-cli,search_web,WebSearchAction,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,
+antigravity-cli,send_message,PollAction,no,"all 16 tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,the message text fills no field since no later step reads what is said to a subagent
+antigravity-cli,write_file,Deferred,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,
 claude-code,,UnknownAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 claude-code,"""",UnknownAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 claude-code,"""]",UnknownAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,

@@ -3,6 +3,7 @@
 from collections.abc import Mapping
 
 from tb_internet_use.knowledge.declarations.tool_call.harness_result_formats import (
+    antigravity_cli,
     claude_code,
     codex,
     cursor_cli,
@@ -16,6 +17,7 @@ from tb_internet_use.knowledge.harness_result_format_declaration import (
 )
 
 RESULT_FORMATS_BY_HARNESS: Mapping[str, Mapping[str, HarnessToolResultDeclaration]] = {
+    "antigravity-cli": antigravity_cli.RESULT_FORMATS_BY_TOOL,
     "claude-code": claude_code.RESULT_FORMATS_BY_TOOL,
     "codex": codex.RESULT_FORMATS_BY_TOOL,
     "cursor-cli": cursor_cli.RESULT_FORMATS_BY_TOOL,

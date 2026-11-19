@@ -79,10 +79,10 @@ def action_from_label(label: HarnessToolLabel, args: dict[str, Any]) -> ToolCall
         field_name = label.action_field_by_argument_name.get(argument_name)
         if field_name is None:
             continue
-        value = _field_value_from_argument(field_name, argument_value)
+        value = field_value_from_argument(field_name, argument_value)
         if field_name not in field_values:
             field_values[field_name] = value
-        # `_field_value_from_argument` gives a tuple for a field of several values and never for another field.
+        # `field_value_from_argument` gives a tuple for a field of several values and never for another field.
         elif isinstance(value, tuple):
             both = (*field_values[field_name], *value)
             field_values[field_name] = tuple(dict.fromkeys(both))
@@ -91,7 +91,7 @@ def action_from_label(label: HarnessToolLabel, args: dict[str, Any]) -> ToolCall
     return TOOL_CALL_ACTION_CLASSES[label.action_type](**field_values)
 
 
-def _field_value_from_argument(field_name: str, value: Any) -> Any:
+def field_value_from_argument(field_name: str, value: Any) -> Any:
     """Turn an argument in the trajectory into the type of its `ToolCallAction` field.
 
     An argument of another type than its field leaves the field empty, since the harness may not have read it as the text or number the field holds.

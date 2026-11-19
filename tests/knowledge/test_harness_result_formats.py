@@ -103,6 +103,13 @@ FORMATS_BY_JUDGMENT_RULE: dict[str, list[tuple[str, str, str]]] = {
         ("grok-build", "search_replace", "missing"),
     ],
     "treat_tool_failure_message_as_not_run": [
+        ("antigravity-cli", "run_command", "failed"),
+        ("antigravity-cli", "manage_task", "rejected_arguments"),
+        ("antigravity-cli", "manage_task", "failed"),
+        ("antigravity-cli", "read_file", "failed"),
+        ("antigravity-cli", "write_file", "failed"),
+        ("antigravity-cli", "edit_file", "failed"),
+        ("antigravity-cli", "search_web", "failed"),
         ("claude-code", "Bash", "tool_use_error"),
         ("claude-code", "Read", "tool_use_error"),
         ("claude-code", "Write", "tool_use_error"),
@@ -147,7 +154,10 @@ FORMATS_BY_JUDGMENT_RULE: dict[str, list[tuple[str, str, str]]] = {
         ("devin", "get_output", "running_incremental"),
         ("devin", "get_output", "running"),
     ],
-    "treat_written_input_as_running_target": [("devin", "write_to_process", "written")],
+    "treat_written_input_as_running_target": [
+        ("antigravity-cli", "manage_task", "input_sent"),
+        ("devin", "write_to_process", "written"),
+    ],
     "treat_failed_task_without_exit_code_as_killed": [
         ("grok-build", "get_command_or_subagent_output", "failed_signaled_empty"),
         ("grok-build", "get_command_or_subagent_output", "failed_signaled"),

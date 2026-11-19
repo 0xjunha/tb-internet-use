@@ -1,4 +1,12 @@
 harness,tool,argument,action_field,handle_kind,checked_against,reviewed,note
+antigravity-cli,edit_file,Path,path,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,
+antigravity-cli,edit_file,Replacement,new,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,
+antigravity-cli,edit_file,Target,old,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,
+antigravity-cli,read_file,Path,path,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,
+antigravity-cli,read_file,StartLine,offset,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,"EndLine fills no field, since limit is a count of lines and EndLine the last line"
+antigravity-cli,run_command,CommandLine,command_str,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,
+antigravity-cli,search_web,query,queries,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,
+antigravity-cli,send_message,Recipient,handles,subagent,"all 16 tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,the conversationId that the result of invoke_subagent names
 claude-code,Bash,command,command_str,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 claude-code,Edit,file_path,path,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 claude-code,Edit,new_string,new,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,

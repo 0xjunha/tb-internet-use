@@ -141,6 +141,7 @@ Each step also has an audit script. Those of `expand_tool_calls`, `extract_netwo
 - Only ATIF trajectories are read. ATIF lacks some calls of several harnesses, so what is counted for them is less than what happened:
   - Devin, Grok Build: subagent and pre-compaction calls missing.
   - Cursor CLI: subagents' inner calls missing.
+  - Antigravity CLI: subagents' calls missing, and the end of a command that ran on in the background is missing when it came only in a system step of the trajectory, which holds no tool result.
 - Requests made outside the trajectory, such as those of the image build or the verifier, are out of scope.
 
 ## Development

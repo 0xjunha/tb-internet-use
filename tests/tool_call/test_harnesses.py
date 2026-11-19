@@ -21,6 +21,9 @@ from tb_internet_use.knowledge.tool_call_knowledge import (
 )
 from tb_internet_use.tool_call import convert_tool_calls
 from tb_internet_use.tool_call.harnesses import CONVERTERS, converter_for
+from tb_internet_use.tool_call.harnesses.antigravity_cli import (
+    AntigravityCliConverter,
+)
 from tb_internet_use.tool_call.harnesses.claude_code import ClaudeCodeConverter
 from tb_internet_use.tool_call.harnesses.codex import CodexConverter
 from tb_internet_use.tool_call.harnesses.cursor_cli import CursorCliConverter
@@ -40,6 +43,7 @@ from tb_internet_use.tool_call.model import (
     ToolCallKey,
     ToolCallResult,
     UnknownAction,
+    WriteFileAction,
 )
 
 
@@ -54,6 +58,8 @@ CATALOG_TOOLS = [
 ]
 # The action of each Deferred tool for a call without arguments.
 DEFERRED_ACTION_WITHOUT_ARGUMENTS = {
+    HarnessTool("antigravity-cli", "manage_task"): UnknownAction(),
+    HarnessTool("antigravity-cli", "write_file"): WriteFileAction(),
     HarnessTool("codex", "exec"): RunToolScriptAction(),
     HarnessTool("codex", "web_search_call"): UnknownAction(),
     HarnessTool("cursor-cli", "mcpToolCall"): UnknownAction(),
@@ -179,6 +185,7 @@ def test_each_harness_gets_the_converter_of_its_own_class():
         harness: type(converter_for(harness)) for harness in CONVERTERS
     }
     assert converter_classes == {
+        "antigravity-cli": AntigravityCliConverter,
         "claude-code": ClaudeCodeConverter,
         "codex": CodexConverter,
         "cursor-cli": CursorCliConverter,
