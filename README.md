@@ -57,7 +57,7 @@ The [pipeline example](docs/pipeline-example.md) follows six made-up tool calls 
 | # | Step | Question it answers | Entry function | Output | Judgment rules | Status |
 |---|---|---|---|---|---|---|
 | 0 | Collect trials | Which trials are there, and what is known about each (e.g. task, reward)? | `collect_trials` in `trial/` | `Trial` | 0 | Built |
-| 1 | Convert tool calls | What did the trajectory record, in types that hide the harness? | `convert_tool_calls` in `tool_call/` | `ToolCall` | 18 | Built, with each shell text split into commands by shell grammar |
+| 1 | Convert tool calls | What did the trajectory record, in types that hide the harness? | `convert_tool_calls` in `tool_call/` | `ToolCall` | 19 | Built, with each shell text split into commands by shell grammar |
 | 2 | Expand tool calls | What did each call actually run, and where does that output show up? | `expand_tool_calls` in `expanded_tool_call/` | `ExpandedToolCall` | 23 | Built and run on the full data, where programs and options without a catalog row still come out as unknown inputs |
 | 3 | Extract network requests | Which of what ran is a request, and for which target? | `extract_network_requests` in `network_request/` | `NetworkRequest` | 6 | Built and run on the full data, where programs, options and code calls without a catalog row still come out as unknown inputs or uncertain requests |
 | 4 | Decide request results | How far did each request get, and on what evidence? | `decide_network_request_results` in `network_request_result/` | `NetworkRequestResult` | 19 | Built and run on the full data, where most results stay at `ATTEMPTED`, e.g. a command in a loop, before a pipe or in a file, whose run the exit code of its text does not show |

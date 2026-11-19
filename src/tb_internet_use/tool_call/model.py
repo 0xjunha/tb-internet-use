@@ -16,6 +16,7 @@ type ToolCallAction = (
     | WriteFileAction
     | EditFileAction
     | DeleteFileAction
+    | ChangeFilesAction
     | ReadFileAction
     | SearchFilesAction
     | ListFilesAction
@@ -83,12 +84,15 @@ def join_texts(texts: Iterable[str]) -> str | None:
 def indexed_action_steps_of(
     action: ToolCallAction,
 ) -> tuple[tuple[int | None, ToolCallAction], ...]:
-    """List the steps of a tool script with their 0-based index, or the action alone with index None when it is not a script.
+    """List the steps of a tool script with their 0-based index, or else the actions of the call with index None, i.e. the file changes of a `ChangeFilesAction` or the action alone.
 
     One call can run a script of several tool steps, e.g. a Codex `exec` that runs a command and then fetches a page, and later steps read each step, e.g. to record which step a request came from.
+    The file changes of a `ChangeFilesAction` get no index, since they are parts of the call's own action and not steps of a script.
     """
     if isinstance(action, RunToolScriptAction):
         return tuple(enumerate(action.steps))
+    if isinstance(action, ChangeFilesAction):
+        return tuple((None, file_change) for file_change in action.file_changes)
     return ((None, action),)
 
 
@@ -263,6 +267,18 @@ class DeleteFileAction:
     """Action of a tool call that deletes a file with a dedicated tool."""
 
     path: str | None = None  # None when the trajectory has none
+
+
+@dataclass(frozen=True, slots=True)
+class ChangeFilesAction:
+    """Action of a tool call that adds, changes and deletes files in one go with a dedicated tool, e.g. a patch of Copilot CLI `apply_patch`.
+
+    Later steps read each file change as they read a call of a write, edit or delete tool, through `indexed_action_steps_of`.
+    A patch in a Codex `exec` script gives its file changes as steps of the `RunToolScriptAction` instead.
+    """
+
+    # In the order of the patch, e.g. a `WriteFileAction` for an added file, then an `EditFileAction` for each hunk of a changed one.
+    file_changes: tuple[WriteFileAction | EditFileAction | DeleteFileAction, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

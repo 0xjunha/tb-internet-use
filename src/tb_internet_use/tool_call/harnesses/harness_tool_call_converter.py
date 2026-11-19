@@ -94,7 +94,7 @@ class HarnessToolCallConverter:
     ) -> bool:
         """Tell whether the harness marked the result as an error, which picks the tool's formats for such results when it has them.
 
-        By default, it is False. Claude Code reads its mark from the trajectory.
+        By default, it is False. Claude Code and Copilot CLI read their marks from the trajectory.
         """
         return False
 

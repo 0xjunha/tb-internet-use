@@ -176,7 +176,7 @@ class CodexConverter(HarnessToolCallConverter):
         """
         actions: list[ToolCallAction]
         if name == "apply_patch":
-            actions = parse_patch(argument) if isinstance(argument, str) else []
+            actions = [*parse_patch(argument)] if isinstance(argument, str) else []
         elif name == "web__run":
             actions = (
                 actions_from_web_run_argument(argument)

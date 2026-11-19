@@ -27,6 +27,7 @@ from tb_internet_use.knowledge.expanded_tool_call_knowledge import (
     ExpandedToolCallKnowledge,
 )
 from tb_internet_use.tool_call.model import (
+    ChangeFilesAction,
     DeleteFileAction,
     EditFileAction,
     ExecutionStatus,
@@ -510,7 +511,13 @@ def test_a_program_without_a_row_uses_the_file_without_replacing_its_write(
 
 
 @pytest.mark.parametrize(
-    "removing_action", ["rm f.sh", DeleteFileAction("f.sh")], ids=["rm", "delete tool"]
+    "removing_action",
+    [
+        "rm f.sh",
+        DeleteFileAction("f.sh"),
+        ChangeFilesAction((DeleteFileAction("f.sh"),)),
+    ],
+    ids=["rm", "delete tool", "patch"],
 )
 def test_a_removal_is_no_use_and_ends_the_link_to_the_write(
     knowledge: ExpandedToolCallKnowledge, removing_action: ToolCallAction | str
@@ -543,18 +550,25 @@ def test_a_call_that_did_not_run_lists_its_writes_without_uses_and_links_no_use(
     )
 
 
-def test_writes_of_a_tool_script_make_one_written_file_per_path_in_first_write_order(
-    knowledge: ExpandedToolCallKnowledge,
-):
-    script = RunToolScriptAction(
-        steps=(
-            WriteFileAction("b.py", "x = 1"),
-            WriteFileAction("a.py", "y = 2"),
-            EditFileAction("b.py", "1", "3"),
-        )
-    )
+WRITES_OF_ONE_CALL = (
+    WriteFileAction("b.py", "x = 1"),
+    WriteFileAction("a.py", "y = 2"),
+    EditFileAction("b.py", "1", "3"),
+)
 
-    assert _written_files(knowledge, [_call(1, script)]) == (
+
+@pytest.mark.parametrize(
+    "action",
+    [
+        RunToolScriptAction(steps=WRITES_OF_ONE_CALL),
+        ChangeFilesAction(WRITES_OF_ONE_CALL),
+    ],
+    ids=["tool script", "patch"],
+)
+def test_writes_of_one_call_make_one_written_file_per_path_in_first_write_order(
+    knowledge: ExpandedToolCallKnowledge, action: ToolCallAction
+):
+    assert _written_files(knowledge, [_call(1, action)]) == (
         (
             WrittenFile("b.py", (TOOL_WRITER, TOOL_WRITER), ()),
             WrittenFile("a.py", (TOOL_WRITER,), ()),

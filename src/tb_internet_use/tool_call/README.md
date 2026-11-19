@@ -36,6 +36,7 @@ A tool that touches the task environment gets the type for what it does, the sam
 | `WriteFileAction` | Writes a whole file | Claude Code `Write` |
 | `EditFileAction` | Replaces text in a file | Grok Build `search_replace` |
 | `DeleteFileAction` | Deletes a file | Cursor CLI `deleteToolCall`, a `Delete File` of a Codex patch |
+| `ChangeFilesAction` | Adds, changes and deletes files in one go, with one `WriteFileAction`, `EditFileAction` or `DeleteFileAction` per file change | Copilot CLI `apply_patch` |
 | `ReadFileAction` | Reads a file, an image too | Devin `read`, Codex `view_image` |
 | `SearchFilesAction` | Searches the content of files | Grok Build `grep`, Muse Code `search` |
 | `ListFilesAction` | Finds files by name or lists a folder | Cursor CLI `globToolCall`, Grok Build `list_dir` |
@@ -95,6 +96,7 @@ The table shows only one situation, a shell command that exits with code 0 and p
 | Antigravity CLI | `run_command` | `exited` | `Created At: 2026-11-13T02:21:04Z`<br>`Completed At: 2026-11-13T02:21:04Z`<br>`Command exited with code 0.`<br><br>`Command output:`<br>`hello` |
 | Claude Code | `Bash` | `bare_output` | `hello`, with no exit code line |
 | Codex | `exec_command` | `exited` | `Chunk ID: a1b2c3`<br>`Wall time: 0.0512 seconds`<br>`Process exited with code 0`<br>`Original token count: 1`<br>`Output:`<br>`hello` |
+| Copilot CLI | `bash` | `exited` | `hello`<br>`<shellId: 3 completed with exit code 0>`<br>`{"detailedContent": "hello\n<shellId: 3 completed with exit code 0>", "structuredContent": {"shellId": "3"}}` |
 | Cursor CLI | `shellToolCall` | `exited` | `{"success": {"exitCode": 0, "interleavedOutput": "hello"}}` |
 | Devin | `exec` | `exited` | `Output from command in shell 3:`<br>`hello`<br>`Exit code: 0` |
 | Grok Build | `run_terminal_command` | `exited` | `exit: 0`<br>`hello` |
@@ -168,9 +170,9 @@ Both give `tool_output_text="hello"`, `exit_code=0`, status `finished`.
 
 [`convert_tool_call_result`](_convert_tool_call_result.py) hands a call with a result to [`HarnessToolCallConverter.convert_result`](harnesses/harness_tool_call_converter.py), which runs these steps in order. A harness overrides a hook when its trajectory differs.
 
-1. `tool_result_raw_text_of`: the result text in the trajectory.
+1. `tool_result_raw_text_of`: the result text in the trajectory, e.g. without the JSON line that ends every Copilot CLI result.
 2. `tool_result_json_of`: the JSON object, asked only for a tool that `ToolCallKnowledge.has_json_result_formats` says has JSON formats. A harness may hold a result without text as a JSON object from the trajectory, e.g. the one image item of a Claude Code `Read` of an image file, or the empty result entry of a Codex `web_search_call`.
-3. `is_marked_as_error`: whether the harness marked the result as an error, which only Claude Code reads.
+3. `is_marked_as_error`: whether the harness marked the result as an error, which only Claude Code and Copilot CLI read.
 4. `ToolCallKnowledge.harness_result_format`: the declared format the result has, or an `UnmatchedFormat`. It picks the tool's JSON list when there is a JSON object, its list for results marked as errors when it has one and the result is marked, else its text list, then cuts the notices and tries the formats in order. It counts the format or the unmatched result.
 5. [`result_from_matched_or_unmatched_format`](_convert_tool_call_result.py): build `ToolCallResult` from the format that matched, or keep the raw text when none did.
    A format whose result text does not tell the status names a rule of [judgment_rules.py](judgment_rules.py) in place of a status, e.g. Claude Code `Bash` output without an `Exit code` line, and the rule decides it.
@@ -190,7 +192,7 @@ Both give `tool_output_text="hello"`, `exit_code=0`, status `finished`.
 
 ## Judgment rules
 
-A judgment rule is a choice that the trajectory does not settle, here a status or exit code that the result text does not state, or how far to repair a shell text that tree-sitter-bash misreads. The eighteen of this step are in [judgment_rules.py](judgment_rules.py), and all are provisional, since they keep the choice of the earlier code.
+A judgment rule is a choice that the trajectory does not settle, here a status or exit code that the result text does not state, or how far to repair a shell text that tree-sitter-bash misreads. The nineteen of this step are in [judgment_rules.py](judgment_rules.py), and all are provisional, since they keep the choice of the earlier code or, where it had none, take the choice that claims least.
 A declared result format names the rule that decides its status with `judgment_rule="<function name>"`, and a harness converter calls a rule itself when the situation is more than one format. `parse_shell_text` calls the rule about joined lines itself.
 Each use of a rule is counted in the `judgment_rule_use_counts` of `convert_tool_calls`, and [audit_tool_call_knowledge.py](../../../scripts/audit_tool_call_knowledge.py) writes the sums over the trials to `out/tool_call_knowledge/judgment_rule_uses.csv`.
 
@@ -200,16 +202,17 @@ Each use of a rule is counted in the `judgment_rule_use_counts` of `convert_tool
 | `treat_bash_output_without_exit_code_line_as_exit_code_0` | [claude_code.py](harnesses/claude_code.py) | Such a command that its structured result does not call interrupted or give a `returnCodeInterpretation` exited 0 |
 | `treat_script_syntax_error_as_not_run` | Codex `exec` format `failed_syntax` | A script that failed with a `SyntaxError` ran nothing |
 | `treat_web_search_call_without_content_as_finished` | Codex `web_search_call` format `no_content` | A `web_search_call` result without content is a finished search |
-| `treat_failed_file_tool_call_as_not_run` | The failure formats of Claude Code `Read`, Grok Build `read_file` and `search_replace` and Cursor CLI `readToolCall` and `editToolCall` | A file tool call that gives a reason it failed did no work |
+| `treat_failed_file_tool_call_as_not_run` | The failure formats of Claude Code `Read`, Grok Build `read_file` and `search_replace`, Cursor CLI `readToolCall` and `editToolCall` and Copilot CLI `view`, `create` and `edit` | A file tool call that gives a reason it failed did no work |
 | `treat_get_output_without_exit_code_as_running` | Devin `get_output` formats `running` and `running_incremental` | Output without an `Exit code` line is from a command still running |
 | `treat_web_fetch_text_as_finished` | Claude Code `WebFetch` format `page` | Page text is a finished fetch |
 | `treat_negative_exit_code_as_killed` | Devin `exec` format `killed` and `get_output` format `killed_silent_twice` | A negative exit code, which only Devin writes as -1 for a command it stopped, means the command was killed |
 | `treat_written_input_as_running_target` | Devin `write_to_process` format `written`, Antigravity CLI `manage_task` format `input_sent` | A process that got input is still running |
+| `treat_idle_subagent_as_unknown_status` | Copilot CLI `read_agent` format `idle` | A subagent that is idle and waits for a message has an unknown status, since a message can set it to work again |
 | `treat_accepted_stop_request_as_killed` | Muse Code `work_stop` format `accepted` | Work whose stop request was accepted was killed |
 | `treat_failed_task_without_exit_code_as_killed` | Grok Build `get_command_or_subagent_output` formats `failed_signaled` and `failed_signaled_empty` | A failed task without an `Exit Code` line was killed |
 | `treat_exit_code_130_after_ctrl_c_as_killed` | [codex.py](harnesses/codex.py) | Exit code 130 after a Codex `write_stdin` that sent Ctrl-C means the process was killed |
 | `treat_wait_on_several_tasks_as_their_shared_status` | [grok_build.py](harnesses/grok_build.py) | A Grok Build wait on several tasks gets the status of the state they all share, and unknown when the states differ |
-| `treat_tool_failure_message_as_not_run` | Claude Code `tool_use_error`, Muse Code `rejected`, Codex `exec_command` formats `rejected` and `rejected_command`, `write_stdin` format `rejected_stdin` and `wait` format `rejected_arguments`, Grok Build `rejected` and `rejected_arguments`, Devin `rejected` of `exec`, `get_output`, `kill_shell`, `read`, `write`, `edit` and `webfetch`, Antigravity CLI `failed` of `run_command`, `manage_task`, `read_file`, `write_file`, `edit_file` and `search_web` and `manage_task` format `rejected_arguments` | A call whose result says only that it failed did no work |
+| `treat_tool_failure_message_as_not_run` | Claude Code `tool_use_error`, Muse Code `rejected`, Codex `exec_command` formats `rejected` and `rejected_command`, `write_stdin` format `rejected_stdin` and `wait` format `rejected_arguments`, Grok Build `rejected` and `rejected_arguments`, Devin `rejected` of `exec`, `get_output`, `kill_shell`, `read`, `write`, `edit` and `webfetch`, Copilot CLI `invalid_delay` of `read_bash` and `invalid_input` of `create`, `edit` and `read_agent`, Antigravity CLI `failed` of `run_command`, `manage_task`, `read_file`, `write_file`, `edit_file` and `search_web` and `manage_task` format `rejected_arguments` | A call whose result says only that it failed did no work |
 | `treat_shell_id_with_exit_code_as_running` | Cursor CLI `shellToolCall` formats `background` and `background_requested` | A shell result with a shell id is a command still running, and its exit code is not read |
 | `treat_stop_request_for_ended_work_as_finished` | Muse Code `work_stop` format `already_ended` | Work that had already ended when asked to stop finished |
 | `treat_cut_off_web_search_as_finished` | Claude Code `WebSearch` format `cut_off` | A search cut off before any result is a finished search |

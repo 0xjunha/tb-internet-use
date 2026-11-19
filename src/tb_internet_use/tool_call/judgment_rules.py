@@ -142,7 +142,7 @@ def treat_failed_file_tool_call_as_not_run(
 ) -> ToolCallResult:
     """Read a file tool call whose result gives a reason it failed as a call that did no work.
 
-    It rests on the file tools that read or change a file, i.e. Claude Code `Read`, Grok Build `read_file` and `search_replace` and Cursor CLI `readToolCall` and `editToolCall`, whose results give a reason such as `File does not exist.` without saying whether the tool touched anything.
+    It rests on the file tools that read or change a file, i.e. Claude Code `Read`, Grok Build `read_file` and `search_replace`, Cursor CLI `readToolCall` and `editToolCall` and Copilot CLI `view`, `create` and `edit`, whose results give a reason such as `File does not exist.` without saying whether the tool touched anything.
     A use is a result of one of their failure formats, e.g. `missing`, `too_large` or `not_unique`.
 
     Provisional. It keeps the choice of the earlier code.
@@ -193,6 +193,20 @@ def treat_written_input_as_running_target(
     return replace(tool_call_result, execution_status=ExecutionStatus.RUNNING)
 
 
+def treat_idle_subagent_as_unknown_status(
+    tool_call_result: ToolCallResult, *, use_counts: Counter[str]
+) -> ToolCallResult:
+    """Read a result that reports a subagent as idle as one whose status is unknown.
+
+    It rests on Copilot CLI `read_agent`, whose result `Agent is idle (waiting for messages)` says that the subagent ended its turn and waits for a message, which can set it to work again. The text says neither that the subagent's work ended nor that it goes on.
+    A use is a result of the format `idle`.
+
+    Provisional. No earlier code read Copilot CLI, so it takes the status that claims least.
+    """
+    use_counts[treat_idle_subagent_as_unknown_status.__name__] += 1
+    return replace(tool_call_result, execution_status=ExecutionStatus.UNKNOWN)
+
+
 def treat_accepted_stop_request_as_killed(
     tool_call_result: ToolCallResult, *, use_counts: Counter[str]
 ) -> ToolCallResult:
@@ -226,7 +240,7 @@ def treat_tool_failure_message_as_not_run(
 ) -> ToolCallResult:
     """Read a result whose text says only that the tool call failed as a call that did no work.
 
-    It rests on the messages in which a harness reports a failed call without saying whether the tool started, i.e. Claude Code `<tool_use_error>`, Muse Code `tool failed`, Codex `exec_command failed` and `write_stdin failed`, Grok Build ``Tool `...` failed``, Antigravity CLI `Encountered error in step execution` and the failures to parse or validate the arguments of Codex `exec_command` and `wait`, of Grok Build tools, of Devin tools and of Antigravity CLI `manage_task`, e.g. Devin `Tool 'exec' validation failed`.
+    It rests on the messages in which a harness reports a failed call without saying whether the tool started, i.e. Claude Code `<tool_use_error>`, Muse Code `tool failed`, Codex `exec_command failed` and `write_stdin failed`, Grok Build ``Tool `...` failed``, Antigravity CLI `Encountered error in step execution` and the failures to parse or validate the arguments of Codex `exec_command` and `wait`, of Grok Build tools, of Devin tools, of Antigravity CLI `manage_task` and of Copilot CLI tools, e.g. Devin `Tool 'exec' validation failed` or Copilot CLI `Invalid input`.
     A use is a result of one of their formats, e.g. `tool_use_error`, `rejected`, `rejected_stdin`, `rejected_arguments` or `failed`.
 
     Provisional. It keeps the choice of the earlier code.

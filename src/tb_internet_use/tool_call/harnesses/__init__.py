@@ -3,6 +3,7 @@
 from tb_internet_use.tool_call.harnesses.antigravity_cli import AntigravityCliConverter
 from tb_internet_use.tool_call.harnesses.claude_code import ClaudeCodeConverter
 from tb_internet_use.tool_call.harnesses.codex import CodexConverter
+from tb_internet_use.tool_call.harnesses.copilot_cli import CopilotCliConverter
 from tb_internet_use.tool_call.harnesses.cursor_cli import CursorCliConverter
 from tb_internet_use.tool_call.harnesses.grok_build import GrokBuildConverter
 from tb_internet_use.tool_call.harnesses.harness_tool_call_converter import (
@@ -14,6 +15,7 @@ CONVERTERS: dict[str, HarnessToolCallConverter] = {
     "antigravity-cli": AntigravityCliConverter(),
     "claude-code": ClaudeCodeConverter(),
     "codex": CodexConverter(),
+    "copilot-cli": CopilotCliConverter(),
     "cursor-cli": CursorCliConverter(),
     # Every part of Devin conversion is shared, so it needs no converter of its own.
     "devin": HarnessToolCallConverter(),

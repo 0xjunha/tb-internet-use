@@ -26,6 +26,7 @@ from tb_internet_use.tool_call.harnesses.antigravity_cli import (
 )
 from tb_internet_use.tool_call.harnesses.claude_code import ClaudeCodeConverter
 from tb_internet_use.tool_call.harnesses.codex import CodexConverter
+from tb_internet_use.tool_call.harnesses.copilot_cli import CopilotCliConverter
 from tb_internet_use.tool_call.harnesses.cursor_cli import CursorCliConverter
 from tb_internet_use.tool_call.harnesses.grok_build import GrokBuildConverter
 from tb_internet_use.tool_call.harnesses.harness_tool_call_converter import (
@@ -39,6 +40,7 @@ from tb_internet_use.tool_call.model import (
     HarnessToolCall,
     HarnessToolLabel,
     PollAction,
+    ReadFileAction,
     RunToolScriptAction,
     ToolCallKey,
     ToolCallResult,
@@ -62,6 +64,8 @@ DEFERRED_ACTION_WITHOUT_ARGUMENTS = {
     HarnessTool("antigravity-cli", "write_file"): WriteFileAction(),
     HarnessTool("codex", "exec"): RunToolScriptAction(),
     HarnessTool("codex", "web_search_call"): UnknownAction(),
+    HarnessTool("copilot-cli", "apply_patch"): UnknownAction(),
+    HarnessTool("copilot-cli", "view"): ReadFileAction(),
     HarnessTool("cursor-cli", "mcpToolCall"): UnknownAction(),
 }
 # Muse Code ends a truncated shell output with this reminder.
@@ -188,6 +192,7 @@ def test_each_harness_gets_the_converter_of_its_own_class():
         "antigravity-cli": AntigravityCliConverter,
         "claude-code": ClaudeCodeConverter,
         "codex": CodexConverter,
+        "copilot-cli": CopilotCliConverter,
         "cursor-cli": CursorCliConverter,
         "devin": HarnessToolCallConverter,
         "grok-build": GrokBuildConverter,
@@ -228,6 +233,16 @@ def test_claude_code_calls_get_the_claude_code_converter():
     )
     tool_call_result = _converted_result(harness_tool_call, Counter())
     assert tool_call_result.tool_output_text == "full\n"
+
+
+def test_copilot_cli_calls_get_the_copilot_cli_converter():
+    # Only the Copilot CLI converter cuts the JSON line that ends every result.
+    content = 'hi\n<shellId: 4 completed with exit code 0>\n{"detailedContent": "hi"}'
+    harness_tool_call = _harness_tool_call(
+        "copilot-cli", "bash", {"command": "x"}, {"content": content}
+    )
+    tool_call_result = _converted_result(harness_tool_call, Counter())
+    assert (tool_call_result.tool_output_text, tool_call_result.exit_code) == ("hi", 0)
 
 
 def test_grok_build_calls_get_the_grok_build_converter():

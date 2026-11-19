@@ -32,6 +32,18 @@ codex,wait,cell_id,handles,script,tool calls in the trajectories (terminal-bench
 codex,wait,terminate,terminate,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 codex,write_stdin,chars,input,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 codex,write_stdin,session_id,handles,command,tool calls in the trajectories (terminal-bench 2026-10-08),yes,an exec_command session
+copilot-cli,bash,command,command_str,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,
+copilot-cli,create,file_text,content,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,
+copilot-cli,create,path,path,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,
+copilot-cli,edit,new_str,new,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,
+copilot-cli,edit,old_str,old,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,
+copilot-cli,edit,path,path,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,
+copilot-cli,grep,path,paths,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,
+copilot-cli,grep,paths,paths,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,
+copilot-cli,read_agent,agent_id,handles,subagent,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,a subagent that a task call started
+copilot-cli,read_bash,shellId,handles,command,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,a bash shell session
+copilot-cli,rg,paths,paths,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,
+copilot-cli,stop_bash,shellId,handles,command,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,a bash shell session
 cursor-cli,awaitToolCall,taskId,handles,command,tool calls in the trajectories (terminal-bench 2026-10-08),yes,a background shell
 cursor-cli,deleteToolCall,path,path,,8 sampled tool calls in the trajectories (terminal-bench 2026-10-08),,
 cursor-cli,editToolCall,path,path,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,

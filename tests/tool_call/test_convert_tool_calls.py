@@ -157,6 +157,16 @@ JUDGMENT_RULE_CASES: list[
         (S.RUNNING, None),
         {"treat_written_input_as_running_target": 1},
     ),
+    # An idle subagent ended its turn and waits for a message, which can set it to work again.
+    (
+        "copilot-cli",
+        "read_agent",
+        {
+            "content": "Agent is idle (waiting for messages). agent_id: a1, agent_type: explore, status: idle, description: Look around\n\n[Turn 0]\nDone.\n{}"
+        },
+        (S.UNKNOWN, None),
+        {"treat_idle_subagent_as_unknown_status": 1},
+    ),
     (
         "muse-code",
         "work_stop",

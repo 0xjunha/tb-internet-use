@@ -65,6 +65,27 @@ codex,wait,PollAction,no,tool calls in the trajectories (terminal-bench 2026-10-
 codex,wait_agent,PollAction,no,8 sampled tool calls in the trajectories (terminal-bench 2026-10-08),,
 codex,web_search_call,Deferred,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 codex,write_stdin,PollAction,no,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
+copilot-cli,apply_patch,Deferred,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,"A patch can change several files, so the action is decided per call from the patch."
+copilot-cli,bash,RunCommandAction,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,
+copilot-cli,create,WriteFileAction,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,
+copilot-cli,edit,EditFileAction,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,
+copilot-cli,glob,ListFilesAction,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,
+copilot-cli,grep,SearchFilesAction,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,
+copilot-cli,list_agents,OtherAction,,"all 11 tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,Lists the subagents without reading one.
+copilot-cli,list_bash,OtherAction,,"all 16 tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,Lists the shell sessions without reading one.
+copilot-cli,read_agent,PollAction,no,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,
+copilot-cli,read_bash,PollAction,no,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,
+copilot-cli,rg,SearchFilesAction,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,
+copilot-cli,session_store_sql,OtherAction,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,Queries Copilot CLI's store of past sessions.
+copilot-cli,skill,OtherAction,,"the only tool call in the trajectories (terminal-bench 4.1, 2026-11-19)",,
+copilot-cli,sql,OtherAction,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,"Queries Copilot CLI's session database, e.g. its to-do table."
+copilot-cli,stop_bash,PollAction,yes,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,
+copilot-cli,str_replace,UnknownAction,,"all 2 tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,Copilot CLI answers that the tool does not exist.
+copilot-cli,str_replace_editor,UnknownAction,,"all 2 tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,Copilot CLI answers that the tool does not exist.
+copilot-cli,str_replace_placeholder,UnknownAction,,"the only tool call in the trajectories (terminal-bench 4.1, 2026-11-19)",,Copilot CLI answers that the tool does not exist.
+copilot-cli,task,StartSubagentAction,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,
+copilot-cli,tool_search_tool,OtherAction,,"all 3 tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,Searches the names of tools Copilot CLI can load.
+copilot-cli,view,Deferred,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,"Reads a file or lists a folder, which only the result tells."
 cursor-cli,awaitToolCall,PollAction,no,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 cursor-cli,deleteToolCall,DeleteFileAction,,8 sampled tool calls in the trajectories (terminal-bench 2026-10-08),,
 cursor-cli,editToolCall,EditFileAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,

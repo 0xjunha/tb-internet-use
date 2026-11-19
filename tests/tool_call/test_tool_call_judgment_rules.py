@@ -15,6 +15,7 @@ from tb_internet_use.tool_call.judgment_rules import (
     treat_failed_file_tool_call_as_not_run,
     treat_failed_task_without_exit_code_as_killed,
     treat_get_output_without_exit_code_as_running,
+    treat_idle_subagent_as_unknown_status,
     treat_lines_joined_after_three_repairs_as_left_joined,
     treat_negative_exit_code_as_killed,
     treat_script_syntax_error_as_not_run,
@@ -121,6 +122,14 @@ def test_a_status_rule_keeps_every_other_field_and_counts_once(
     assert decided.execution_status is not S.UNKNOWN
     assert replace(decided, execution_status=S.UNKNOWN) == UNDECIDED
     assert use_counts == Counter({judgment_rule.__name__: 1})
+
+
+def test_an_idle_subagent_has_an_unknown_status_whatever_its_format_stated_and_counts_once():
+    use_counts: Counter[str] = Counter()
+    assert treat_idle_subagent_as_unknown_status(
+        replace(UNDECIDED, execution_status=S.FINISHED), use_counts=use_counts
+    ) == replace(UNDECIDED, execution_status=S.UNKNOWN)
+    assert use_counts == Counter({"treat_idle_subagent_as_unknown_status": 1})
 
 
 def test_a_finished_bash_output_without_exit_code_line_gets_exit_code_0_and_counts_once():
