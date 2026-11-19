@@ -134,6 +134,12 @@ PROGRAM_BEHAVIOR_ROWS: list[dict[str, str]] = [
     },
     {"program_name": "rm", "argument_role": "deleted_file"},
     {
+        "program_name": "apply_patch",
+        "argument_role": "patch_text",
+        "stdin_role": "patch_text",
+        "options_end_at_first_argument": "yes",
+    },
+    {
         "program_name": "curl",
         "argument_role": "",
         "first_argument_role": "",
@@ -1265,6 +1271,112 @@ def test_an_edit_without_old_text_leaves_the_content_unknown(
     assert _texts_with_words((ran_text,)) == [
         (FileText(0, "f.sh", K1), Reason.CHANGED_BY_UNREAD_COMMAND)
     ]
+
+
+def _patch(*lines: str) -> str:
+    return "\n".join(("*** Begin Patch", *lines, "*** End Patch"))
+
+
+ADD_F_SH = _patch("*** Add File: f.sh", "+curl a")
+
+
+# (case id, the command that gives apply_patch its patch, the file that the next `bash` runs, its commands or the reason they cannot be followed)
+PATCH_CASES = [
+    ("heredoc", f"apply_patch <<'EOF'\n{ADD_F_SH}\nEOF", (("curl", "a"),)),
+    ("argument", f"apply_patch '{ADD_F_SH}'", (("curl", "a"),)),
+    ("herestring", f"apply_patch <<< '{ADD_F_SH}'", (("curl", "a"),)),
+    (
+        "heredoc that bash expands",
+        "apply_patch <<EOF\n" + _patch("*** Add File: f.sh", "+curl $U") + "\nEOF",
+        Reason.NOT_WRITTEN_IN_TRIAL,
+    ),
+    (
+        "argument built at run time",
+        'apply_patch "$PATCH"',
+        Reason.NOT_WRITTEN_IN_TRIAL,
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    ("patching_text", "followed"),
+    [case[1:] for case in PATCH_CASES],
+    ids=[case[0] for case in PATCH_CASES],
+)
+def test_a_file_that_a_patch_adds_is_written_by_the_command_that_takes_the_patch(
+    knowledge: ExpandedToolCallKnowledge,
+    patching_text: str,
+    followed: tuple[tuple[str, ...], ...] | UnknownRanTextReason,
+):
+    patching, running = _expand(
+        knowledge, _call(1, patching_text), _call(2, "bash f.sh")
+    )
+
+    if isinstance(followed, UnknownRanTextReason):
+        assert patching.file_touches == ()
+        assert _texts_with_words(running.ran_texts[-1:]) == [
+            (FileTextWithoutKnownWriter(0, "f.sh"), followed)
+        ]
+    else:
+        assert patching.file_touches == (
+            _touch(
+                0,
+                "f.sh",
+                Kind.WRITES,
+                WrittenFileKey(K1, "f.sh"),
+                channel=Channel.OWN_OUTPUT_FILE,
+            ),
+        )
+        assert _texts_with_words(running.ran_texts[-1:]) == [
+            (FileText(0, "f.sh", K1), followed)
+        ]
+
+
+def test_a_patch_edits_and_removes_the_files_it_names_in_its_order(
+    knowledge: ExpandedToolCallKnowledge,
+):
+    patch = _patch(
+        "*** Update File: f.sh",
+        "@@",
+        "-curl a",
+        "+curl b",
+        "*** Delete File: g.sh",
+    )
+    results = _expand(
+        knowledge,
+        _call(1, WriteFileAction("f.sh", "curl a")),
+        _call(2, WriteFileAction("g.sh", "curl c")),
+        _call(3, f"cd /app && apply_patch <<'EOF'\n{patch}\nEOF"),
+        _call(4, "bash f.sh"),
+    )
+
+    assert results[2].file_touches == (
+        _touch(
+            1,
+            "f.sh",
+            Kind.WRITES,
+            WrittenFileKey(K3, "f.sh"),
+            channel=Channel.OWN_OUTPUT_FILE,
+        ),
+        _touch(1, "g.sh", Kind.DELETES, WrittenFileKey(K2, "g.sh")),
+    )
+    assert _texts_with_words(results[3].ran_texts[-1:]) == [
+        (FileText(0, "f.sh", K3), (("curl", "b"),))
+    ]
+
+
+def test_a_patch_from_a_stdin_file_is_a_use_of_that_file(
+    knowledge: ExpandedToolCallKnowledge,
+):
+    _, patching = _expand(
+        knowledge,
+        _call(1, WriteFileAction("p.txt", ADD_F_SH)),
+        _call(2, "apply_patch < p.txt"),
+    )
+
+    assert patching.file_touches == (
+        _touch(0, "p.txt", Kind.USES_CONTENT, WrittenFileKey(K1, "p.txt")),
+    )
 
 
 def test_reads_of_the_harness_output_file_are_marked(

@@ -95,6 +95,7 @@ from tb_internet_use.tool_call.model import (
     WriteFileAction,
     indexed_action_steps_of,
 )
+from tb_internet_use.tool_call.parse_patch import parse_patch
 from tb_internet_use.tool_call.parse_shell_text import (
     command_substitution_texts_of,
     parse_shell_text,
@@ -143,6 +144,7 @@ _APPENDS_OF_WRITTEN_FILE_ROLE = {
 _ROLES_IN_PLACE_OF_STDIN = frozenset(
     {
         ProgramWordRole.RUN_TEXT,
+        ProgramWordRole.PATCH_TEXT,
         ProgramWordRole.RUN_FILE,
         ProgramWordRole.READ_FILE,
         ProgramWordRole.USED_FILE,
@@ -152,7 +154,8 @@ _ROLES_IN_PLACE_OF_STDIN = frozenset(
 # The roles of a word that names a file, read for the files that a program gets at run time, e.g. sed in `ls | xargs sed -i s/a/b/`.
 _FILE_ROLES = frozenset(
     {
-        *_ROLES_IN_PLACE_OF_STDIN - {ProgramWordRole.RUN_TEXT},
+        *_ROLES_IN_PLACE_OF_STDIN
+        - {ProgramWordRole.RUN_TEXT, ProgramWordRole.PATCH_TEXT},
         *_APPENDS_OF_WRITTEN_FILE_ROLE,
         ProgramWordRole.WRITTEN_FILE_SOURCE,
         ProgramWordRole.CHANGED_FILE,
@@ -601,44 +604,12 @@ def _record_file_touches_of_tool(
     """Record the file that a write, edit, delete, read or content search tool writes, removes or reads, as a touch without a command."""
     trial_file_contents = tool_call_state.trial_file_contents
     file_touches: list[FileTouch | None] = []
-    if isinstance(tool_call_action, WriteFileAction) and tool_call_action.path:
-        file_touches.append(
-            trial_file_contents.record_write(
-                tool_call_state.tool_call_key,
-                None,
-                tool_call_action.path,
-                FileWriteChannel.TOOL_ARGUMENT,
-                tool_call_action.content,
-                appends=False,
-                may_have_run=tool_call_state.may_have_run,
-                may_be_glob=False,
-            )
-        )
-    elif isinstance(tool_call_action, EditFileAction) and tool_call_action.path:
-        file_touches.append(
-            trial_file_contents.record_write(
-                tool_call_state.tool_call_key,
-                None,
-                tool_call_action.path,
-                FileWriteChannel.TOOL_ARGUMENT,
-                _content_after_edit_of(
-                    tool_call_action,
-                    trial_file_contents.file_text(tool_call_action.path),
-                    judgment_rule_use_counts=tool_call_state.judgment_rule_use_counts,
-                ),
-                appends=False,
-                may_have_run=tool_call_state.may_have_run,
-                may_be_glob=False,
-            )
-        )
+    if isinstance(
+        tool_call_action, (WriteFileAction, EditFileAction, DeleteFileAction)
+    ):
+        _record_file_touches_of_file_change(tool_call_state, None, tool_call_action)
     elif not tool_call_state.may_have_run:
         return
-    elif isinstance(tool_call_action, DeleteFileAction) and tool_call_action.path:
-        file_touches.append(
-            trial_file_contents.record_deletion(
-                None, tool_call_action.path, may_be_glob=False
-            )
-        )
     elif isinstance(tool_call_action, ReadFileAction) and tool_call_action.path:
         file_touches.append(
             trial_file_contents.record_use(
@@ -658,6 +629,54 @@ def _record_file_touches_of_tool(
     tool_call_state.file_touches += [
         file_touch for file_touch in file_touches if file_touch is not None
     ]
+
+
+def _record_file_touches_of_file_change(
+    tool_call_state: _ToolCallState,
+    command_id: int | None,
+    file_change: WriteFileAction | EditFileAction | DeleteFileAction,
+) -> None:
+    """Record the file that a write, an edit or a removal names, made by a tool when `command_id` is None and else by that command, e.g. a.py of `*** Add File: a.py` in the patch of `apply_patch`.
+
+    A path names one file as written, so it is no glob, e.g. `app/[id]/page.tsx`.
+    A removal by a call that did not run records nothing, since it changes no file and names no write.
+    """
+    trial_file_contents = tool_call_state.trial_file_contents
+    if not file_change.path:
+        return
+    channel = (
+        FileWriteChannel.TOOL_ARGUMENT
+        if command_id is None
+        else FileWriteChannel.OWN_OUTPUT_FILE
+    )
+    if isinstance(file_change, DeleteFileAction):
+        if tool_call_state.may_have_run:
+            _add_file_touch(
+                tool_call_state,
+                trial_file_contents.record_deletion(
+                    command_id, file_change.path, may_be_glob=False
+                ),
+            )
+        return
+    _add_file_touch(
+        tool_call_state,
+        trial_file_contents.record_write(
+            tool_call_state.tool_call_key,
+            command_id,
+            file_change.path,
+            channel,
+            file_change.content
+            if isinstance(file_change, WriteFileAction)
+            else _content_after_edit_of(
+                file_change,
+                trial_file_contents.file_text(file_change.path),
+                judgment_rule_use_counts=tool_call_state.judgment_rule_use_counts,
+            ),
+            appends=False,
+            may_have_run=tool_call_state.may_have_run,
+            may_be_glob=False,
+        ),
+    )
 
 
 def _content_after_edit_of(
@@ -840,6 +859,10 @@ def _record_file_touches_of_command(
                 )
         elif word_role == ProgramWordRole.CHANGED_FILE:
             _record_write_of_own_output_file(tool_call_state, shell_command, path)
+        elif word_role == ProgramWordRole.PATCH_TEXT:
+            _record_file_changes_of_patch_word(
+                tool_call_state, command_reading, word_index
+            )
         elif word_role in (
             ProgramWordRole.COPY_SOURCE,
             ProgramWordRole.COPY_DESTINATION,
@@ -936,6 +959,34 @@ def _record_write_of_own_output_file(
                 may_have_run=tool_call_state.may_have_run,
                 may_be_glob=True,
             ),
+        )
+
+
+def _record_file_changes_of_patch_word(
+    tool_call_state: _ToolCallState, command_reading: _CommandReading, word_index: int
+) -> None:
+    """Record the files that the patch of a word with the role `PATCH_TEXT` adds, changes and removes, e.g. a.py of `apply_patch '*** Begin Patch ... *** Add File: a.py ...'`.
+
+    A word that holds an expansion is filled with the variables of exactly one value, and a patch that still holds an expansion is built at run time and records nothing, e.g. `apply_patch "$PATCH"`.
+    """
+    shell_command = command_reading.shell_command
+    patch = command_reading.filled_word_for(word_index)
+    if word_index in shell_command.expansion_word_indexes and _is_built_at_run_time(
+        patch, frozenset()
+    ):
+        return
+    _record_file_changes_of_patch(tool_call_state, shell_command, patch)
+
+
+def _record_file_changes_of_patch(
+    tool_call_state: _ToolCallState, shell_command: ShellCommand, patch: str
+) -> None:
+    """Record the files that a patch given to a command adds, changes and removes, in the order of the patch, as `parse_patch` reads them, e.g. a write of a.py for `*** Add File: a.py`."""
+    if not _may_touch_files(tool_call_state, shell_command):
+        return
+    for file_change in parse_patch(patch):
+        _record_file_touches_of_file_change(
+            tool_call_state, shell_command.id, file_change
         )
 
 
@@ -1581,6 +1632,7 @@ def _expand_ran_text_of_stdin(
 
     The program reads its stdin only when none of the command's words names a file or a text, apart from `-`.
     A heredoc that a program without a row or with an unknown stdin role takes is text in an unknown language, and a written file it takes is a use of unknown kind.
+    A heredoc or herestring with the role `PATCH_TEXT` records the files its patch changes, e.g. `apply_patch <<'EOF'`, and a file with that role is a use of its content, e.g. p.txt of `apply_patch < p.txt`.
     """
     shell_command = command_reading.shell_command
     program_invocations = command_reading.ran_command.program_invocations
@@ -1640,6 +1692,24 @@ def _expand_ran_text_of_stdin(
         elif command_reading.reads_pipe:
             tool_call_state.ran_texts.append(
                 UnknownRanText(source, UnknownRanTextReason.READ_FROM_PIPE)
+            )
+    elif stdin_role == ProgramWordRole.PATCH_TEXT:
+        if stdin_text is not None:
+            _record_file_changes_of_patch(tool_call_state, shell_command, stdin_text)
+        elif (
+            may_record_use
+            and stdin_file_path is not None
+            and _may_touch_files(tool_call_state, shell_command)
+        ):
+            # The program works on the patch in the file without showing it, and the files the patch changes are not read here.
+            _add_file_touch(
+                tool_call_state,
+                tool_call_state.trial_file_contents.record_use(
+                    shell_command.id,
+                    stdin_file_path,
+                    FileTouchKind.USES_CONTENT,
+                    may_be_glob=True,
+                ),
             )
     elif isinstance(stdin_role, UnknownProgramWordRole):
         if shell_command.stdin_text is not None:

@@ -612,6 +612,8 @@ class ProgramWordRole(StrEnum):
     WRITTEN_FILE_SOURCE = "written_file_source"
     # The program changes the content and the text does not show the result, e.g. `sed -i`.
     CHANGED_FILE = "changed_file"
+    # The word is a patch whose file changes the program makes, in the notation that the `apply_patch` tool of Codex reads, e.g. the heredoc of `apply_patch <<'EOF'`.
+    PATCH_TEXT = "patch_text"
     COPY_SOURCE = "copy_source"
     COPY_DESTINATION = "copy_destination"
     DELETED_FILE = "deleted_file"
