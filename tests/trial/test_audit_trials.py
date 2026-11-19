@@ -551,6 +551,15 @@ def test_counts_trials_by_value_on_made_up_trials():
     }
 
 
+def test_counts_a_trial_without_a_model_name_apart_from_the_distinct_model_names():
+    counts = _counts_of(
+        audit.count_trials, [_trial("t1"), _trial("t2", model_name=None)]
+    )
+
+    assert counts["distinct_model_name_count"] == 1
+    assert counts["trial_without_model_name_count"] == 1
+
+
 def test_counts_a_repeated_trial_id_once_among_the_distinct_ids():
     counts = _counts_of(audit.count_trials, [_trial("t1"), _trial("t1")])
 

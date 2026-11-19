@@ -11,7 +11,7 @@ from tb_internet_use.trial.model import TrialDetail
 def parse_trial_detail(detail_text: str | bytes, trial_id: str) -> TrialDetail:
     """Read the text of one trial's detail file into a `TrialDetail`, keeping the reward as the file writes it.
 
-    The text can be the bytes of the file. Text that is not JSON, or that lacks a key or holds a value of another type than the ones read here, raises ValueError with the trial id as a note.
+    The text can be the bytes of the file. The model name is None when `agent_info.model_info` is null, as in the detail files of one leaderboard row of claude-code. Text that is not JSON, or that lacks a key or holds a value of another type than the ones read here, raises ValueError with the trial id as a note.
     """
     try:
         match json.loads(detail_text):
@@ -20,7 +20,7 @@ def parse_trial_detail(detail_text: str | bytes, trial_id: str) -> TrialDetail:
                 "agent_info": {
                     "name": str(harness),
                     "version": str(harness_version),
-                    "model_info": {"name": str(model_name)},
+                    "model_info": model_info,
                 },
                 "verifier_result": verifier_result,
             }:
@@ -28,16 +28,32 @@ def parse_trial_detail(detail_text: str | bytes, trial_id: str) -> TrialDetail:
                     task_name=task_name,
                     harness=harness,
                     harness_version=harness_version,
-                    model_name=model_name,
+                    model_name=_model_name_from_model_info(model_info),
                     reward=_reward_from_verifier_result(verifier_result),
                 )
             case _:
                 raise ValueError(
-                    "the detail file lacks one of `task_name`, `agent_info.name`, `agent_info.version`, `agent_info.model_info.name` and `verifier_result`, or one of the first four is no text"
+                    "the detail file lacks one of `task_name`, `agent_info.name`, `agent_info.version`, `agent_info.model_info` and `verifier_result`, or one of the first three is no text"
                 )
     except ValueError as error:
         error.add_note(f"trial_id: {trial_id}")
         raise
+
+
+def _model_name_from_model_info(model_info: object) -> str | None:
+    """Give the name of the model info of a detail file, or None when the file writes the model info as null.
+
+    Model info that is neither null nor an object with a text `name` raises ValueError.
+    """
+    match model_info:
+        case None:
+            return None
+        case {"name": str(model_name)}:
+            return model_name
+        case _:
+            raise ValueError(
+                "the model info of the detail file is neither null nor an object with a text `name`"
+            )
 
 
 def _reward_from_verifier_result(verifier_result: object) -> float | None:

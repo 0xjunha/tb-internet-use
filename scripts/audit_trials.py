@@ -229,7 +229,7 @@ class EvidenceCountTotal:
 def count_trials(total: EvidenceCountTotal, trials: Sequence[Trial]) -> None:
     """Count the trials, their distinct values and their trials per value, from the `Trial` values alone.
 
-    The trials per benchmark version, harness and reward, the distinct tasks, models and leaderboard rows, the trials per leaderboard row and task and the tasks per leaderboard row are held against nothing, so they catch a change of a value later.
+    The trials per benchmark version, harness and reward, the distinct tasks, models and leaderboard rows, the trials without a model name, the trials per leaderboard row and task and the tasks per leaderboard row are held against nothing, so they catch a change of a value later.
     The leaderboard rows and tasks with several harness versions and the leaderboard rows with several harnesses or models are held against nothing too. A harness version that varies within the trials of one task of one leaderboard row breaks the premise that one run used one harness setup for every task.
     """
     total.counts["trial_count"] = len(trials)
@@ -245,7 +245,10 @@ def count_trials(total: EvidenceCountTotal, trials: Sequence[Trial]) -> None:
         {(trial.benchmark_version, trial.task_name) for trial in trials}
     )
     total.counts["distinct_model_name_count"] = len(
-        {trial.model_name for trial in trials}
+        {trial.model_name for trial in trials if trial.model_name is not None}
+    )
+    total.counts["trial_without_model_name_count"] = sum(
+        trial.model_name is None for trial in trials
     )
     total.counts["distinct_leaderboard_row_id_count"] = len(
         {trial.leaderboard_row_id for trial in trials}
@@ -272,7 +275,7 @@ def count_trials(total: EvidenceCountTotal, trials: Sequence[Trial]) -> None:
         tuple[str, str], set[str]
     ] = defaultdict(set)
     harnesses_and_model_names_by_leaderboard_row_id: defaultdict[
-        str, set[tuple[str, str]]
+        str, set[tuple[str, str | None]]
     ] = defaultdict(set)
     for trial in trials:
         harness_versions_by_leaderboard_row_and_task_name[

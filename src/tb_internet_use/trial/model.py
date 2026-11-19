@@ -24,7 +24,8 @@ class Trial:
     harness: str
     # The agent version of the detail file. The check that one leaderboard row ran every task with one harness version reads it.
     harness_version: str
-    model_name: str
+    # The model name of the detail file. None when the detail file writes its model info as null.
+    model_name: str | None
     # None when the detail file has no verifier result.
     reward: float | None
     # None when the trajectory file could be read, also when it holds no tool call.
@@ -49,7 +50,7 @@ class TrialDetail:
     task_name: str
     harness: str
     harness_version: str
-    model_name: str
+    model_name: str | None  # None when the file writes its model info as null
     reward: float | None  # None when the file has no verifier result
 
 

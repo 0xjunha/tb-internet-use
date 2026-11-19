@@ -110,6 +110,7 @@ FORMATS_BY_JUDGMENT_RULE: dict[str, list[tuple[str, str, str]]] = {
         ("claude-code", "TaskStop", "tool_use_error"),
         ("codex", "exec_command", "rejected"),
         ("codex", "exec_command", "rejected_command"),
+        ("codex", "exec_command", "rejected_arguments"),
         ("codex", "write_stdin", "rejected_stdin"),
         ("codex", "wait", "rejected_arguments"),
         ("devin", "exec", "rejected"),

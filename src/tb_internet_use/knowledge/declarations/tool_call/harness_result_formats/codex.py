@@ -30,6 +30,12 @@ _TRUNCATED_NO_LINE_COUNT = (
 
 _V2 = "Wall time: {seconds:line_without_brackets} seconds\nOutput:\n"
 
+# Codex writes this when the arguments of a call are not of the types the tool takes, e.g. an `exec_command` whose `cmd` is a list of words.
+_REJECTED_ARGUMENTS = Text(
+    "rejected_arguments",
+    "failed to parse function arguments: {reason:text}",
+    judgment_rule="treat_tool_failure_message_as_not_run",
+)
 # Formats that exec_command and write_stdin share, of a command that exited or still runs.
 _SHELL_EXITED_TRUNCATED = Text(
     "exited_truncated",
@@ -87,6 +93,7 @@ _EXEC_COMMAND = HarnessResultFormatList[str](
             "exec_command failed for `{command:text}`: {reason:text}",
             judgment_rule="treat_tool_failure_message_as_not_run",
         ),
+        _REJECTED_ARGUMENTS,
         Text(
             "rejected_patch",
             "apply_patch verification failed: {reason:text}",
@@ -186,11 +193,7 @@ _WAIT = HarnessResultFormatList[str](
             "Script terminated" + _SCRIPT_HEAD + "{tool_output:text}",
             S.KILLED,
         ),
-        Text(
-            "rejected_arguments",
-            "failed to parse function arguments: {reason:text}",
-            judgment_rule="treat_tool_failure_message_as_not_run",
-        ),
+        _REJECTED_ARGUMENTS,
     )
 )
 

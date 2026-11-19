@@ -92,15 +92,21 @@ def action_from_label(label: HarnessToolLabel, args: dict[str, Any]) -> ToolCall
 
 
 def _field_value_from_argument(field_name: str, value: Any) -> Any:
-    """Turn an argument in the trajectory into the type of its `ToolCallAction` field."""
+    """Turn an argument in the trajectory into the type of its `ToolCallAction` field.
+
+    An argument of another type than its field leaves the field empty, since the harness may not have read it as the text or number the field holds.
+    E.g. Codex rejects an `exec_command` whose `cmd` is a list of words with `failed to parse function arguments`, so the call ran no command line.
+    """
     match field_name:
         case "queries" | "urls" | "paths":
             return strings_from_values(value)
         case "handles":
             return handles_from_ids(ExecutionHandleKind.UNKNOWN, value)
         case "input":
-            return value or None
+            return value if isinstance(value, str) and value else None
         case "offset" | "limit":
             return value if isinstance(value, int) else None
+        case "command_str" | "path" | "content" | "old" | "new":
+            return value if isinstance(value, str) else None
         case _:
             return value

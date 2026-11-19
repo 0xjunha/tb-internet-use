@@ -379,7 +379,7 @@ class HarnessToolCall:
     args: dict[str, Any]
     # The result object in the trajectory, or None when the call has none.
     result: dict[str, Any] | None
-    # True for a call of a subagent trajectory, or of a step whose `extra.is_sidechain` is true in the trajectory.
+    # True for a call of a subagent trajectory, or of a step whose `extra.is_sidechain` is true or whose `extra.parentToolCallId` is set in the trajectory.
     is_subagent: bool = False
 
 

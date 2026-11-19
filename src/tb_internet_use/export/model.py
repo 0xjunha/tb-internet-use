@@ -113,7 +113,8 @@ class TrialRow:
     leaderboard_row_id: str
     harness: str
     harness_version: str
-    model_name: str
+    # None when the detail file of the trial writes its model info as null.
+    model_name: str | None
     # None when the trial has none.
     reward: float | None
     # None when the trajectory was read. A trial with a reason has no request rows, which does not mean that it made no requests.

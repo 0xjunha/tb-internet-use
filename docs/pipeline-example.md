@@ -65,7 +65,7 @@ The values are those that the trial's `detail.json` (written by the service that
 
 | Field | Where it comes from in the made-up trial |
 |---|---|
-| `task_name`, `harness`, `harness_version`, `model_name` | `task_name` and `agent_info` of `detail.json` |
+| `task_name`, `harness`, `harness_version`, `model_name` | `task_name` and `agent_info` of `detail.json`. `model_name` is None when `agent_info.model_info` is null |
 | `reward` | `verifier_result.rewards.reward` of `detail.json`, as a float. It is None when `verifier_result` is null, and a file without that key raises `ValueError` |
 | `benchmark_version`, `leaderboard_row_id` | The one item of `memberships` of `status.json` |
 | `unreadable_trajectory` | Whether `read_trajectory` read the trajectory. It is None here, since the trajectory holds c1 to c6 |

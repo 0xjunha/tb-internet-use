@@ -306,6 +306,13 @@ RESULT_FORMAT_CASES: list[tuple[str, str | None, ToolCallResult]] = [
         "code-mode host exited with status exit status: 1",
         ToolCallResult("", S.UNKNOWN, harness_result_format=_format("host_exited")),
     ),
+    (
+        "exec_command",
+        "failed to parse function arguments: invalid type: sequence, expected a string",
+        ToolCallResult(
+            "", S.NOT_RUN, harness_result_format=_format("rejected_arguments")
+        ),
+    ),
     *_script_cases("wait"),
     (
         "wait",

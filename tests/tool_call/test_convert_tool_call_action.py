@@ -59,7 +59,7 @@ def _command_ids_of(action: ToolCallAction) -> list[int]:
     return [command.id for command in action.parsed_shell_text.commands]
 
 
-# (tool of Claude Code, arguments of a call, action of the call), for a field of several values, a whole number field and fields that take the argument as it is.
+# (tool of Claude Code, arguments of a call, action of the call), for a field of several values, a whole number field and fields of one text.
 FIELD_VALUE_CASES = [
     # One URL becomes a tuple of URLs.
     ("WebFetch", {"url": "http://x"}, WebFetchAction(("http://x",))),
@@ -69,13 +69,18 @@ FIELD_VALUE_CASES = [
         {"file_path": "/a", "offset": 2, "limit": "x"},
         ReadFileAction("/a", 2, None),
     ),
-    # Any other field takes the argument as it is.
+    # A field of one text takes a text argument as it is.
     ("Write", {"file_path": "/a", "content": "x"}, WriteFileAction("/a", "x")),
     (
         "Edit",
         {"file_path": "/a", "old_string": "o", "new_string": "n"},
         EditFileAction("/a", "o", "n"),
     ),
+    # A command that is a list of words or an object is no text, so the call keeps its action without a command string, and neither the words are joined nor a key of the object read.
+    ("Bash", {"command": ["curl", "u"]}, RunCommandAction()),
+    ("Bash", {"command": {"$text": "curl u"}}, RunCommandAction()),
+    # A path that is no text is dropped too, while the text arguments of the call stay.
+    ("Write", {"file_path": ["/a"], "content": "x"}, WriteFileAction(None, "x")),
 ]
 
 

@@ -82,6 +82,20 @@ def test_verifier_result_without_a_reward_that_is_a_number_raises_with_the_trial
     _assert_raises_with_the_trial_id(detail_file_contents)
 
 
+def test_model_info_written_as_null_gives_no_model_name(detail_file_contents):
+    detail_file_contents["agent_info"]["model_info"] = None
+
+    assert parse_trial_detail(json.dumps(detail_file_contents), "t1").model_name is None
+
+
+def test_model_info_that_is_neither_null_nor_an_object_raises_with_the_trial_id(
+    detail_file_contents,
+):
+    detail_file_contents["agent_info"]["model_info"] = "model-a"
+
+    _assert_raises_with_the_trial_id(detail_file_contents)
+
+
 @pytest.mark.parametrize(
     "key_path", [pytest.param(path, id=".".join(path)) for path in REQUIRED_KEY_PATHS]
 )

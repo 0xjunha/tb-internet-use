@@ -15,8 +15,12 @@ from tb_internet_use.tool_call.model import (
 )
 from tb_internet_use.trial.model import UnreadableTrajectory, UnreadableTrajectoryReason
 
-_SUPPORTED_SCHEMA_VERSIONS = {"ATIF-v1.7", "ATIF-v1.8"}
-_AGENT_LOOP_MESSAGE_PREFIX = "Tool call error"
+_SUPPORTED_SCHEMA_VERSIONS = {"ATIF-v1.6", "ATIF-v1.7", "ATIF-v1.8"}
+# The starts of the messages that the mini-swe-agent loop writes to the model beside the results of the calls of a step, e.g. after a response without a tool call.
+_AGENT_LOOP_MESSAGE_PREFIXES = (
+    "Tool call error",
+    "Your previous response reached the output token limit",
+)
 _MINI_SWE_AGENT = "mini-swe-agent"
 
 
@@ -64,7 +68,7 @@ def _walk_trajectory(
         calls = step.get("tool_calls") or []
         results = (step.get("observation") or {}).get("results") or []
         results = _drop_agent_loop_messages(harness, results)
-        is_sidechain = bool((step.get("extra") or {}).get("is_sidechain"))
+        is_subagent_step = _is_subagent_step(step)
 
         pairs = _pair_calls_with_results(calls, results)
         for call_index, (call, result) in enumerate(pairs):
@@ -74,7 +78,7 @@ def _walk_trajectory(
                 tool_call_id=call["tool_call_id"],
                 args=call["arguments"],
                 result=result,
-                is_subagent=is_subagent or is_sidechain,
+                is_subagent=is_subagent or is_subagent_step,
             )
 
     for index, subagent in enumerate(trajectory.get("subagent_trajectories") or []):
@@ -83,16 +87,31 @@ def _walk_trajectory(
         )
 
 
+def _is_subagent_step(step: dict[str, Any]) -> bool:
+    """Tell whether a step of a trajectory holds the calls of a subagent, as Claude Code and Copilot CLI mark them in the main trajectory.
+
+    Claude Code sets `extra.is_sidechain` to true. Copilot CLI sets `extra.parentToolCallId` to the id of the `task` call that started the subagent, e.g. on the `bash` calls of a subagent that a `task` call with that id launched.
+    """
+    step_extra = step.get("extra") or {}
+    return (
+        bool(step_extra.get("is_sidechain"))
+        or step_extra.get("parentToolCallId") is not None
+    )
+
+
 def _drop_agent_loop_messages(
     harness: str, results: list[dict[str, Any]]
 ) -> list[dict[str, Any]]:
-    """Remove mini-swe-agent's loop messages, which are not results of any tool call."""
+    """Remove mini-swe-agent's loop messages, which are not results of any tool call.
+
+    mini-swe-agent results carry no `source_call_id`, so a loop message left in would take the place of a call's result when results pair by position. A step holds such a message when one of its responses had no usable tool call, e.g. `Tool call error` with `No tool calls found in the response` or `Your previous response reached the output token limit`.
+    """
     if harness != _MINI_SWE_AGENT:
         return results
     return [
         r
         for r in results
-        if not str(r.get("content")).startswith(_AGENT_LOOP_MESSAGE_PREFIX)
+        if not str(r.get("content")).startswith(_AGENT_LOOP_MESSAGE_PREFIXES)
     ]
 
 

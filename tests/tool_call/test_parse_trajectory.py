@@ -21,9 +21,45 @@ def _call(tool_call_id: str = "a") -> dict[str, Any]:
     return {"tool_call_id": tool_call_id, "function_name": "bash", "arguments": {}}
 
 
-def test_drops_loop_message_for_mini_swe_agent():
+OUTPUT_TOKEN_LIMIT_LOOP_MESSAGE = {
+    "content": "Your previous response reached the output token limit (finish_reason=length) before you produced a tool call, so it was cut off."
+}
+
+
+@pytest.mark.parametrize(
+    "loop_message",
+    [
+        pytest.param(LOOP_MESSAGE, id="tool call error"),
+        pytest.param(OUTPUT_TOKEN_LIMIT_LOOP_MESSAGE, id="output token limit"),
+    ],
+)
+def test_drops_loop_message_for_mini_swe_agent(loop_message):
     result = {"content": '{"returncode": 0, "output": "ok"}'}
-    assert _drop_agent_loop_messages("mini-swe-agent", [result, LOOP_MESSAGE]) == [
+    assert _drop_agent_loop_messages("mini-swe-agent", [result, loop_message]) == [
+        result
+    ]
+
+
+def test_a_step_of_mini_swe_agent_with_loop_messages_pairs_its_call_with_the_bash_result():
+    # A made-up step of one call whose step also holds two later responses without a usable tool call, as trajectories of mini-swe-agent show.
+    result = {"content": '{"returncode": 0, "output": "ok"}'}
+    trajectory = {
+        "steps": [
+            {
+                "step_id": 1,
+                "tool_calls": [_call()],
+                "observation": {
+                    "results": [result, OUTPUT_TOKEN_LIMIT_LOOP_MESSAGE, LOOP_MESSAGE]
+                },
+            }
+        ]
+    }
+
+    harness_tool_calls = list(
+        _walk_trajectory(trajectory, "t", "mini-swe-agent", "main", False)
+    )
+
+    assert [harness_tool_call.result for harness_tool_call in harness_tool_calls] == [
         result
     ]
 
@@ -86,16 +122,26 @@ def test_subagent_calls_are_yielded_once():
     assert harness_tool_calls[0].is_subagent is True
 
 
-def test_sidechain_step_is_subagent():
+@pytest.mark.parametrize(
+    ("harness", "subagent_step_extra"),
+    [
+        pytest.param("claude-code", {"is_sidechain": True}, id="claude code sidechain"),
+        # The id of the `task` call that started the subagent, which Copilot CLI writes on the steps of the subagent.
+        pytest.param(
+            "copilot-cli",
+            {"parentToolCallId": "toolu_task"},
+            id="copilot cli parent tool call",
+        ),
+    ],
+)
+def test_step_marked_as_one_of_a_subagent_is_subagent(harness, subagent_step_extra):
     trajectory = {
         "steps": [
-            {"step_id": 1, "tool_calls": [_call()]},
-            {"step_id": 2, "tool_calls": [_call()], "extra": {"is_sidechain": True}},
+            {"step_id": 1, "tool_calls": [_call()], "extra": {}},
+            {"step_id": 2, "tool_calls": [_call()], "extra": subagent_step_extra},
         ]
     }
-    harness_tool_calls = list(
-        _walk_trajectory(trajectory, "t", "claude-code", "main", False)
-    )
+    harness_tool_calls = list(_walk_trajectory(trajectory, "t", harness, "main", False))
 
     assert [
         harness_tool_call.is_subagent for harness_tool_call in harness_tool_calls
@@ -105,14 +151,15 @@ def test_sidechain_step_is_subagent():
     ]
 
 
-def test_reads_the_calls_of_a_trajectory_text():
+@pytest.mark.parametrize("schema_version", ["ATIF-v1.6", "ATIF-v1.7"])
+def test_reads_the_calls_of_a_trajectory_text(schema_version):
     step = {
         "step_id": 3,
         "tool_calls": [_call("a")],
         "observation": {"results": [{"source_call_id": "a", "content": "ok"}]},
     }
     trajectory = {
-        "schema_version": "ATIF-v1.7",
+        "schema_version": schema_version,
         "agent": {"name": "codex"},
         "steps": [step],
     }
