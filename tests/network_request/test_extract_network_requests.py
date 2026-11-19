@@ -871,10 +871,11 @@ _REVIEWED_REAL_CATALOG_CASES = [
     ("nslookup a.org 8.8.8.8", [("a.org", HOST, ("a.org",), CONFIRMED)], set()),
     # The arguments of the install of browsers are browser names and no targets.
     ("playwright install chromium", [(None, URL_KIND, (), CONFIRMED)], set()),
+    # --with-deps also installs system packages, a request to other hosts that no option effect can state, so the option has no row and the request is uncertain.
     (
         "playwright install --with-deps chromium",
-        [(None, URL_KIND, (), CONFIRMED)],
-        set(),
+        [(None, URL_KIND, (), UNCERTAIN)],
+        {(PROGRAM_NETWORK_REQUESTS_CSV, ("playwright", "install", "--with-deps", ""))},
     ),
     ("agent-browser install", [(None, URL_KIND, (), CONFIRMED)], set()),
     ("dnf install -y curl", [("curl", PACKAGE_NAME, (), CONFIRMED)], set()),
