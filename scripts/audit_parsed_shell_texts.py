@@ -2,30 +2,11 @@
 
 A check holds for every value whatever the shell text, so each violation is a bug of the split and never a property of the data.
 A shell text is the command string of one `RunCommandAction`, a step of a Codex `exec` script included.
+Each check of `ParsedShellTextCheck` has above its member the condition under which it holds.
 
-| Check | What must hold |
-|---|---|
-| `parsed_shell_text_is_none_exactly_when_command_str_is_none` | A `RunCommandAction` without a command string has `parsed_shell_text` None and one with a command string has a `ParsedShellText` or an `UnreadableShellText`, so the actions add up to those without a command string plus the parsed and the unreadable shell texts |
-| `command_ids_continue_within_call` | The command ids of all shell texts of one call, in step and command order, are 0, 1, 2 and so on |
-| `pipe_reader_and_deciding_command_ids_are_commands_of_shell_text` | Each `PipeDestination.reader_id` and each `deciding_command_ids` names a command of the same shell text, and a deciding command comes before the one it decides |
-| `expansion_word_indexes_point_at_expansions` | The `expansion_word_indexes` of a command rise, stay below the number of its words and point at words that hold `$`, a backtick, `<(` or `>(` |
-| `structure_marks_agree_within_shell_text` | The commands of one shell text are all marked `structure_may_be_wrong` or none is |
-| `assignment_positions_are_in_shell_text` | A `next_command_id` lies from the first id of its shell text to one past its last, and a for loop item's is at most its `next_command_id_after_for_loop` |
-
-A check looks at one value at a time, i.e. one action, one shell text, one command or one variable assignment, and `checks.csv` counts those values.
-A trial on which `read_trajectory` or `convert_tool_calls` raises breaks none of the checks and shows in `trial_outcomes.csv` instead.
-The output types do not say why a shell text is marked `structure_may_be_wrong`, e.g. a syntax error, a brace list or lines left joined, so the counts do not split the marks by reason.
-
-It writes five CSVs under `out/parsed_shell_texts/`, which `.gitignore` keeps out of the repo.
+It writes `trial_outcomes.csv`, `checks.csv`, `check_violation_examples.csv`, `counts_by_harness.csv` and `unreadable_shell_text_shape_examples.csv` under `out/parsed_shell_texts/`, which `.gitignore` keeps out of the repo.
 They hold counts, check names, trial outcomes, harness names, trial ids, tool call keys and masked shapes only, never text from a trajectory.
-
-| File | One row |
-|---|---|
-| `trial_outcomes.csv` | An outcome of a trial, e.g. `converted`, `converted without tool calls`, `unreadable` with its reason or `exception` with its type name, with its trials and the first 20 trial ids |
-| `checks.csv` | A check, with the values it looked at and the values that broke it |
-| `check_violation_examples.csv` | A call that broke a check, at most one row per check and call and the first 20 calls per check, beside the number of values that broke the check in all |
-| `counts_by_harness.csv` | A harness, with the counts of `ShellTextCounts` |
-| `unreadable_shell_text_shape_examples.csv` | An `UnreadableShellText`, as its harness, the length of its shell text and the kind of its first character, the first 20 in all |
+The rows of each file are described above the call that writes it in `main`.
 
 Run it as `nice -n 10 uv run python -I scripts/audit_parsed_shell_texts.py <raw_trials_dir> [--limit N | --trial-ids FILE]`.
 """
@@ -77,17 +58,23 @@ _EXPANSION_MARKS = ("$", "`", "<(", ">(")
 class ParsedShellTextCheck(StrEnum):
     """Check that the `parsed_shell_text` of every `RunCommandAction` must pass, named in the CSVs of this script."""
 
+    # Holds when a `RunCommandAction` without a command string has `parsed_shell_text` None and one with a command string has a `ParsedShellText` or an `UnreadableShellText`, so the actions add up to those without a command string plus the parsed and the unreadable shell texts.
     PARSED_SHELL_TEXT_IS_NONE_EXACTLY_WHEN_COMMAND_STR_IS_NONE = (
         "parsed_shell_text_is_none_exactly_when_command_str_is_none"
     )
+    # Holds when the command ids of all shell texts of one call, in step and command order, are 0, 1, 2 and so on.
     COMMAND_IDS_CONTINUE_WITHIN_CALL = "command_ids_continue_within_call"
+    # Holds when each `PipeDestination.reader_id` and each `deciding_command_ids` names a command of the same shell text, and a deciding command comes before the one it decides.
     PIPE_READER_AND_DECIDING_COMMAND_IDS_ARE_COMMANDS_OF_SHELL_TEXT = (
         "pipe_reader_and_deciding_command_ids_are_commands_of_shell_text"
     )
+    # Holds when the `expansion_word_indexes` of a command rise, stay below the number of its words and point at words that hold `$`, a backtick, `<(` or `>(`.
     EXPANSION_WORD_INDEXES_POINT_AT_EXPANSIONS = (
         "expansion_word_indexes_point_at_expansions"
     )
+    # Holds when the commands of one shell text are all marked `structure_may_be_wrong` or none is.
     STRUCTURE_MARKS_AGREE_WITHIN_SHELL_TEXT = "structure_marks_agree_within_shell_text"
+    # Holds when a `next_command_id` lies from the first id of its shell text to one past its last, and a for loop item's is at most its `next_command_id_after_for_loop`.
     ASSIGNMENT_POSITIONS_ARE_IN_SHELL_TEXT = "assignment_positions_are_in_shell_text"
 
 
@@ -106,6 +93,8 @@ def main() -> None:
             total.add_trial(trial_audit)
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
+    # `trial_outcomes.csv` has one row for each outcome of a trial, e.g. `converted`, `converted without tool calls`, `unreadable` with its reason or `exception` with its type name, with its trials and the first 20 trial ids.
+    # A trial on which `read_trajectory` or `convert_tool_calls` raises breaks none of the checks and shows in `trial_outcomes.csv` instead.
     write_csv(
         OUT_DIR / "trial_outcomes.csv",
         ("outcome", "trial_count", "first_trial_ids"),
@@ -118,6 +107,8 @@ def main() -> None:
             for outcome, trial_count in sorted(total.outcome_counts.items())
         ),
     )
+    # `checks.csv` has one row for each check, with the values it looked at and the values that broke it.
+    # A check looks at one value at a time, i.e. one action, one shell text, one command or one variable assignment, and `checks.csv` counts those values.
     write_csv(
         OUT_DIR / "checks.csv",
         ("check", "checked_count", "violation_count"),
@@ -126,6 +117,7 @@ def main() -> None:
             for check in ParsedShellTextCheck
         ),
     )
+    # `check_violation_examples.csv` has one row for each call that broke a check, at most one row per check and call and the first 20 calls per check, beside the number of values that broke the check in all.
     write_csv(
         OUT_DIR / "check_violation_examples.csv",
         ("check", "trial_id", "tool_call_key", "violation_count"),
@@ -134,6 +126,8 @@ def main() -> None:
             for check, trial_id, tool_call_key in total.violation_examples
         ),
     )
+    # `counts_by_harness.csv` has one row for each harness, with the counts of `ShellTextCounts`.
+    # The output types do not say why a shell text is marked `structure_may_be_wrong`, e.g. a syntax error, a brace list or lines left joined, so the counts do not split the marks by reason.
     write_csv(
         OUT_DIR / "counts_by_harness.csv",
         ("harness", *(column.name for column in fields(ShellTextCounts))),
@@ -144,6 +138,7 @@ def main() -> None:
             )
         ),
     )
+    # `unreadable_shell_text_shape_examples.csv` has one row for each `UnreadableShellText`, as its harness, the length of its shell text and the kind of its first character, the first 20 in all.
     write_csv(
         OUT_DIR / "unreadable_shell_text_shape_examples.csv",
         ("harness", "shell_text_length", "first_character_kind"),

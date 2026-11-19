@@ -128,12 +128,10 @@ class ExpandedToolCallKnowledge:
         `program_behavior` is the answer of `program_behavior` for the command, and `word` is the word as written, e.g. `-o`, `-fsSLoout`, `--output=f` or `+o`.
         The rows are searched in this order, as the reading of a command in `expand_tool_calls` gives it.
 
-        | Word | Options it holds |
-        |---|---|
-        | `--name=value` | the row of `--name`, with the attached value `value` |
-        | a word with a row of its own, e.g. `-pe` of node or `-maxdepth` of find | that row |
-        | a `-` or `+` and several letters, when the program row says `yes` in `takes_one_letter_options_joined` | the row of each letter, e.g. `-f` and `-s` for `-fs`. The rest of the word after a letter that takes a value is that value, e.g. `out` of `-oout` |
-        | a word whose role is `OPTION_CLUSTER`, with `is_option_cluster` | the row of each letter named with a `-`, e.g. `-x`, `-z` and `-f` for `xzf` of tar, with no attached values |
+        1. `--name=value` holds the row of `--name`, with the attached value `value`.
+        2. A word with a row of its own holds that row, e.g. `-pe` of node or `-maxdepth` of find.
+        3. A `-` or `+` and several letters, when the program row says `yes` in `takes_one_letter_options_joined`, holds the row of each letter, e.g. `-f` and `-s` for `-fs`. The rest of the word after a letter that takes a value is that value, e.g. `out` of `-oout`.
+        4. A word whose role is `OPTION_CLUSTER`, with `is_option_cluster`, holds the row of each letter named with a `-`, with no attached values, e.g. `-x`, `-z` and `-f` for `xzf` of tar.
 
         When `takes_one_letter_options_joined` is `no` or blank, a word of several letters without a row of its own is `UnknownProgramOptionWord`, e.g. `-ne` of echo, since the letters are not read one by one.
         A word that starts with `+` is `ProgramArgumentWord` when no row of the program or its subcommand names an option that starts with `+`, e.g. `+x` of chmod.

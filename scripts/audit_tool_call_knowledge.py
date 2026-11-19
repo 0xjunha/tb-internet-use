@@ -1,20 +1,8 @@
 """Run `convert_tool_calls` on raw trials and list which rows of the harness tool catalog and which declared result formats were used, which harness tools and return code interpretations have no row, which results have no format, which arguments the tool calls have and how often each judgment rule was used.
 
-It writes four CSVs under `out/tool_call_knowledge/`, which `.gitignore` keeps out of the repo, since tool and argument names come from trajectories and can hold hidden task content.
+It writes `row_uses.csv`, `unknown_inputs.csv`, `harness_tool_arguments_in_data.csv` and `judgment_rule_uses.csv` under `out/tool_call_knowledge/`, which `.gitignore` keeps out of the repo, since tool and argument names come from trajectories and can hold hidden task content.
 They hold counts and names only, never result text.
-
-| File | One row |
-|---|---|
-| `row_uses.csv` | A catalog row or a declared result format that answered a lookup, with its lookups and trials |
-| `unknown_inputs.csv` | A key that a lookup found no row for, e.g. a harness tool without a row, a return code interpretation without a row or the `unknown_format` results of a tool |
-| `harness_tool_arguments_in_data.csv` | An argument of a harness tool in the trajectories, with its calls, trials, value types and the action field the catalog maps it to |
-| `judgment_rule_uses.csv` | A judgment rule of `tool_call/judgment_rules.py`, with its uses and trials, and 0 for a rule that was never used |
-
-A lookup of a harness tool is one tool call or one step of a Codex `exec` script other than `apply_patch`, `web__run`, `exec`, `wait` and `request_user_input_async`, which the converter reads without asking the door, a lookup of a result format is one tool call with a result whose format the converter asks for, and a lookup of a return code interpretation is one Claude Code `Bash` result with the status finished that matched a format without an `Exit code` line, whose structured result does not call it interrupted and has a `returnCodeInterpretation` other than null.
-An argument row counts once for every lookup of its tool by a call or a script step that has that argument, so its count is the third file's `call_count` of the argument plus the script steps with such a lookup that have it.
-The `source` column of the first two files names the catalog file or the declarations folder that the row belongs to, e.g. `harness_tools.csv`, `harness_return_code_interpretations.csv` or `harness_result_formats`.
-A row key is written as a JSON array of its key column values.
-The first two files list the keys of the most trials first, and a row that no lookup used is in neither.
+The rows of each file are described above the call that writes it in `main`, together with what one lookup of the door is.
 
 Run it as `nice -n 10 uv run python -I scripts/audit_tool_call_knowledge.py <raw_trials_dir> [--limit N | --trial-ids FILE]`.
 """
@@ -85,6 +73,10 @@ def main() -> None:
             total.add_trial(trial_audit)
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
+    # `row_uses.csv` has one row for each catalog row or a declared result format that answered a lookup, with its lookups and trials.
+    # A row that no lookup used is not in it.
+    # A lookup of a harness tool is one tool call or one step of a Codex `exec` script other than `apply_patch`, `web__run`, `exec`, `wait` and `request_user_input_async`, which the converter reads without asking the door, a lookup of a result format is one tool call with a result whose format the converter asks for, and a lookup of a return code interpretation is one Claude Code `Bash` result with the status finished that matched a format without an `Exit code` line, whose structured result does not call it interrupted and has a `returnCodeInterpretation` other than null.
+    # An argument row counts once for every lookup of its tool by a call or a script step that has that argument, so its count is the `call_count` of the argument in `harness_tool_arguments_in_data.csv` plus the script steps with such a lookup that have it.
     write_csv(
         OUT_DIR / "row_uses.csv",
         ("source", "row_key", "lookup_count", "trial_count"),
@@ -93,6 +85,7 @@ def main() -> None:
             total.knowledge_uses_total.row_trial_counts,
         ),
     )
+    # `unknown_inputs.csv` has one row for each key that a lookup found no row for, e.g. a harness tool without a row, a return code interpretation without a row or the `unknown_format` results of a tool.
     write_csv(
         OUT_DIR / "unknown_inputs.csv",
         ("source", "key_asked", "lookup_count", "trial_count"),
@@ -101,6 +94,7 @@ def main() -> None:
             total.knowledge_uses_total.unknown_input_trial_counts,
         ),
     )
+    # `harness_tool_arguments_in_data.csv` has one row for each argument of a harness tool in the trajectories, with its calls, trials, value types and the action field the catalog maps it to.
     write_csv(
         OUT_DIR / "harness_tool_arguments_in_data.csv",
         (
@@ -114,6 +108,7 @@ def main() -> None:
         ),
         _argument_rows(total.argument_value_call_counts, total.argument_trial_counts),
     )
+    # `judgment_rule_uses.csv` has one row for each judgment rule of `tool_call/judgment_rules.py`, with its uses and trials, and 0 for a rule that was never used.
     write_csv(
         OUT_DIR / "judgment_rule_uses.csv",
         ("judgment_rule", "use_count", "trial_count"),
@@ -234,7 +229,11 @@ def _lookup_rows(
     lookup_counts: Counter[KnowledgeLookupKey],
     trial_counts: Counter[KnowledgeLookupKey],
 ) -> Iterable[tuple[str, str, int, int]]:
-    """List the lookups per source and key as CSV rows, those of the most trials first and then those of the most lookups."""
+    """List the lookups per source and key as CSV rows, those of the most trials first and then those of the most lookups.
+
+    The `source` column names the catalog file or the declarations folder that the row belongs to, e.g. `harness_tools.csv`, `harness_return_code_interpretations.csv` or `harness_result_formats`.
+    A row key is written as a JSON array of its key column values.
+    """
     for lookup_key in sorted(
         lookup_counts, key=lambda key: (-trial_counts[key], -lookup_counts[key], key)
     ):

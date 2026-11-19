@@ -95,12 +95,10 @@ class NetworkRequestKnowledge:
 
         The rows are tried in this order, and the first that the catalog has answers.
 
-        | Subcommand | Value |
-        |---|---|
-        | that of the invocation | the value of the option, e.g. `-` for `curl -o -` |
-        | blank, for every subcommand | the value of the option |
-        | that of the invocation | blank, for every value |
-        | blank | blank |
+        1. The row of the subcommand of the invocation and the value of the option, e.g. `-` for `curl -o -`.
+        2. The row with a blank subcommand, for every subcommand, and the value of the option.
+        3. The row of the subcommand of the invocation with a blank value, for every value.
+        4. The row with a blank subcommand and a blank value.
 
         One lookup counts that row, or when none fits the narrowest key, i.e. the subcommand and the value of the option as asked, e.g. `(curl, "", -X, TRACE)` for `curl -X TRACE`.
         An option that takes no value is asked with a blank value.

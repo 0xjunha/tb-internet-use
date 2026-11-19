@@ -107,7 +107,7 @@ nice -n 10 uv run python -I scripts/run_pipeline.py <raw_trials_dir> [--limit N 
 | `equations.csv` | An equation between steps, e.g. that every network request result gives one request row |
 | `raised_trials.csv`, `summary.csv` | A trial that raised or ran too long, and the counts of the run |
 
-The script exits with 1 when a trial raised or an equation differs. `--resume` goes on with a run that stopped, and `--export-only` runs only `export_rows` again on the saved output of the steps before it. Its docstring lists every file and equation.
+The script exits with 1 when a trial raised or an equation differs. `--resume` goes on with a run that stopped, and `--export-only` runs only `export_rows` again on the saved output of the steps before it. Its docstring names every file it writes. The rows of each file are described above the statement that writes it, and each equation above its name in `EQUATIONS`.
 
 Each step also has an audit script. Those of `expand_tool_calls`, `extract_network_requests` and `decide_network_request_results` each run the steps up to their own step, count its output per harness and check equations that the output must meet. The table says what the others do. They write under `out/` by default and print counts, except `audit_results.py`, which also prints the first and last line of each result of an unknown format with paths, ids, long tokens and numbers masked, and the keys of such a JSON result unmasked.
 

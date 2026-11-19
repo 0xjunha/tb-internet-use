@@ -1,53 +1,12 @@
 """Run every step of the pipeline on raw trials and write the rows of each trial, the unknown inputs and use counts of each step, the trials that raised and the equations between steps.
 
-Each trial runs `run_steps_of_trial` as its own task in one of at most 4 worker processes, whose doors are made once per process and start empty for each trial.
-A trial that runs longer than `--trial-time-limit-seconds` (600 unless given) counts as raised, and the workers are killed and started again for the other trials, since a process cannot stop a task that runs in another.
-A worker process that dies, e.g. by a crash in a C extension, breaks every task that was running beside it. Those trials run again one at a time, so that the one that kills its worker alone counts as raised and the others give their rows.
+Each trial runs as its own task in one of at most 4 worker processes. A trial that raises, runs longer than `--trial-time-limit-seconds` (600 unless given) or kills its worker counts as raised, and the other trials still give their rows.
 The `Trial` and the network request results of each trial are saved as they come, so that a long run that stops can go on with `--resume`, and `--export-only` runs `export_rows` again on the saved results without reading a trajectory, e.g. after a rule of `export/judgment_rules.py` changed.
-Each saved file holds a digest of the code and catalogs under `src/tb_internet_use/` that the steps before `export_rows` read, i.e. every `.py` and `.csv` file there except those of `export/`, its catalogs and its door. A saved file whose digest differs from that of the code being run came from other code, so `--resume` runs that trial again from its folder and `--export-only` counts it as raised.
-The rows are written once all trials are done, sorted by trial id, so that they do not depend on the order in which the trials finished. A trial id that the chosen list repeats runs once.
-Progress goes to stderr every few hundred trials. No text of a trajectory is printed.
+Each equation of `EQUATIONS` has its definition above its name. Progress goes to stderr, and no text of a trajectory is printed.
 
-It writes these files under the output folder, `out/pipeline/` unless `--out-dir` names another, which `.gitignore` keeps out of the repo, since the rows hold targets and host names from trajectories.
-
-| File | One row |
-|---|---|
-| `network_request_rows.csv` | A `NetworkRequestRow`, with the fields of the type as columns in their order |
-| `trial_rows.csv` | A `TrialRow` |
-| `trial_category_measure_rows.csv` | A `TrialCategoryMeasureRow` |
-| `task_category_measures.csv` | A task, a category and a sender, with the trials of the task, the trials in each bound of the main measure and the request rows, as `count_task_category_measures` counts them |
-| `raised_trials.csv` | A trial that counts as raised, with the reason, i.e. the type name of the exception that ended its run, `worker_process_died`, `timed_out_after_<n>_seconds` or `saved_results_of_other_code` |
-| `summary.csv` | A count of the run, e.g. the trial folders chosen, the trial rows written or the trials whose trajectory could not be read by reason |
-| `equations.csv` | An equation between steps of the table below, with its two sides and whether they are equal |
-| `<step package>/row_uses.csv` | A catalog row or a declared row of the door of the step that answered, with its lookups, trials and tasks |
-| `<step package>/unknown_inputs.csv` | A key that the door of the step found no row for, with its lookups, trials and tasks, most trials first |
-| `<step package>/judgment_rule_uses.csv` | A judgment rule of the step or a rule of another step that it counts, with its uses, trials and tasks, and 0 for a rule of the step that was never used |
-| `network_request/no_network_request_reasons.csv` | A reason why a program run, code call or URL in code gave no request, with its count, trials and tasks |
-| `network_request_result/unused_output_lines.csv` | A reason and an output line kind of lines that a pattern fits and that gave no evidence, with its lines, trials and tasks |
-| `network_request_result/unowned_output_line_programs.csv` | A reason, an output line kind and the name of a program whose run reaches the place of lines that no request owns, blank when no command reaches it, with its lines, trials and tasks |
-| `network_request_results/<trial id>.pickle` | The code digest, the `Trial`, the network request results and the counts of the steps before `export_rows` of one trial. A run stopped while writing can leave a `<trial id>.partial` beside it, which no run reads |
-
-A row key is written as a JSON array of its key column values. In the row files, None is a blank cell, an enum is its value and a bool is `true` or `false`.
-The words of a key of `unknown_inputs.csv` and the program names of `unowned_output_line_programs.csv` come from trajectories, and these lists are meant to be read and passed on as the knowledge to fill. So `cut_key_word` cuts an option word, i.e. one that starts with `-`, at its first `=`, which drops a value such as the token of `--token=ghp_x`, and cuts any word after 64 characters, which drops prose that a command reads as an option, e.g. a task text of 500 characters. The cut part becomes a mark with its number of characters, e.g. `--token=ghp_x` becomes `--token[6 characters cut]`.
-A bare word that is a credential, e.g. a token given as an argument, is cut only after 64 characters, and the export step's `redact_credentials`, which hides only the userinfo, query values and fragment of URLs, is not called here, since its module is private to `export/`.
-
-| Equation | Left | Right |
-|---|---|---|
-| `trial_rows_equal_trial_folders_chosen` | Lines of the written `trial_rows.csv` | Trial folders chosen, after a repeated trial id is dropped. A run over the whole data folder must give 15,990 |
-| `written_trial_rows_equal_chosen_trials_without_written_raised_trials` | Lines of the written `trial_rows.csv` | Chosen trial ids that the written `raised_trials.csv` does not name |
-| `trial_rows_have_distinct_trial_ids` | Distinct trial ids of the `TrialRow`s | `TrialRow`s |
-| `network_requests_equal_network_request_results` | `NetworkRequest`s of `extract_network_requests` | `NetworkRequestResult`s of `decide_network_request_results`, both counted before `export_rows` |
-| `request_rows_equal_network_request_results` | `NetworkRequestRow`s | `NetworkRequestResult`s, counted before `export_rows` |
-| `trials_with_request_rows_equal_trials_with_results` | Trials with a `NetworkRequestRow` | Trials with a `NetworkRequestResult` |
-| `readable_trials_equal_trials_with_request_rows_and_readable_trials_without_results` | Trials whose trajectory could be read | Trials with a `NetworkRequestRow`, plus trials whose trajectory could be read and that have no result |
-| `request_rows_of_unreadable_trials` | `NetworkRequestRow`s of trials whose trajectory could not be read | 0 |
-| `request_rows_sharing_their_first_five_columns` | `NetworkRequestRow`s whose trial, trajectory, step, call and request index another row has too | 0 |
-| `received_rows_equal_results_without_stop_reason` | Request rows whose `result_view` is `received` | Results without a stop reason |
-| `not_received_rows_equal_failed_results` | Rows whose `result_view` is `not_received` | Results that stopped as `FAILED` |
-| `unknown_result_rows_equal_not_visible_results` | Rows whose `result_view` is `unknown` | Results that stopped as `NOT_VISIBLE` |
-| `not_needed_rows_equal_not_needed_results` | Rows whose `result_view` is `not_needed` | Results that stopped as `NOT_NEEDED` |
-| `measure_rows_of_read_trials_equal_their_categories_and_senders` | `TrialCategoryMeasureRow`s of trials whose trajectory could be read | Distinct trial, category and sender of the `NetworkRequestRow`s |
-| `measure_rows_of_unreadable_trials_equal_each_category_and_known_sender` | `TrialCategoryMeasureRow`s of trials whose trajectory could not be read | Those trials times the categories times the three senders other than `unknown` |
+It writes `network_request_rows.csv`, `trial_rows.csv`, `trial_category_measure_rows.csv`, `task_category_measures.csv`, `raised_trials.csv`, `summary.csv`, `equations.csv`, `<step package>/row_uses.csv`, `<step package>/unknown_inputs.csv`, `<step package>/judgment_rule_uses.csv`, `network_request/no_network_request_reasons.csv`, `network_request_result/unused_output_lines.csv`, `network_request_result/unowned_output_line_programs.csv` and the saved results `network_request_results/<trial id>.pickle` under the output folder, `out/pipeline/` unless `--out-dir` names another, which `.gitignore` keeps out of the repo, since the rows hold targets and host names from trajectories.
+The rows of each file are described above the statement that writes it in `write_pipeline_run_files`, and the saved results in `run_trial`.
+The words of a key of `unknown_inputs.csv` and the program names of `unowned_output_line_programs.csv` come from trajectories, and these lists are meant to be read and passed on as the knowledge to fill, so `cut_key_word` cuts an option word at its first `=` and any word after 64 characters. A bare word that is a credential, e.g. a token given as an argument, is cut only after 64 characters.
 
 The script ends with exit code 1 when a trial raised or an equation differs.
 Run it as `nice -n 10 uv run python -I scripts/run_pipeline.py <raw_trials_dir> [--limit N | --trial-ids FILE] [--out-dir DIR] [--resume | --export-only] [--trial-time-limit-seconds N]`.
@@ -140,22 +99,39 @@ JUDGMENT_RULES_BY_STEP_PACKAGE: dict[str, ModuleType] = {
     "network_request_result": network_request_result_judgment_rules,
     "export": export_judgment_rules,
 }
-# Every equation of the module docstring, in its order, which is also the order of the output.
+# Every equation in the order of the output.
+# The comment above each name gives its left side beside its right side.
 EQUATIONS = (
+    # Lines of the written `trial_rows.csv` beside trial folders chosen, after a repeated trial id is dropped.
+    # A run over the whole data folder must give 15,990.
     "trial_rows_equal_trial_folders_chosen",
+    # Lines of the written `trial_rows.csv` beside chosen trial ids that the written `raised_trials.csv` does not name.
     "written_trial_rows_equal_chosen_trials_without_written_raised_trials",
+    # Distinct trial ids of the `TrialRow`s beside `TrialRow`s.
     "trial_rows_have_distinct_trial_ids",
+    # `NetworkRequest`s of `extract_network_requests` beside `NetworkRequestResult`s of `decide_network_request_results`, both counted before `export_rows`.
     "network_requests_equal_network_request_results",
+    # `NetworkRequestRow`s beside `NetworkRequestResult`s, counted before `export_rows`.
     "request_rows_equal_network_request_results",
+    # Trials with a `NetworkRequestRow` beside trials with a `NetworkRequestResult`.
     "trials_with_request_rows_equal_trials_with_results",
+    # Trials whose trajectory could be read beside trials with a `NetworkRequestRow`, plus trials whose trajectory could be read and that have no result.
     "readable_trials_equal_trials_with_request_rows_and_readable_trials_without_results",
+    # `NetworkRequestRow`s of trials whose trajectory could not be read beside 0.
     "request_rows_of_unreadable_trials",
+    # `NetworkRequestRow`s whose trial, trajectory, step, call and request index another row has too, beside 0.
     "request_rows_sharing_their_first_five_columns",
+    # Request rows whose `result_view` is `received` beside results without a stop reason.
     "received_rows_equal_results_without_stop_reason",
+    # Rows whose `result_view` is `not_received` beside results that stopped as `FAILED`.
     "not_received_rows_equal_failed_results",
+    # Rows whose `result_view` is `unknown` beside results that stopped as `NOT_VISIBLE`.
     "unknown_result_rows_equal_not_visible_results",
+    # Rows whose `result_view` is `not_needed` beside results that stopped as `NOT_NEEDED`.
     "not_needed_rows_equal_not_needed_results",
+    # `TrialCategoryMeasureRow`s of trials whose trajectory could be read beside distinct trial, category and sender of the `NetworkRequestRow`s.
     "measure_rows_of_read_trials_equal_their_categories_and_senders",
+    # `TrialCategoryMeasureRow`s of trials whose trajectory could not be read beside those trials times the categories times the three senders other than `unknown`.
     "measure_rows_of_unreadable_trials_equal_each_category_and_known_sender",
 )
 # The result view of a request row for each stop reason of its result, None for none, as the equations compare them.
@@ -272,8 +248,8 @@ def run_trials(
 ) -> Iterator[TrialRun]:
     """Run each trial folder as its own task in worker processes and yield the run of each as it ends, in any order.
 
-    A trial that runs longer than the time limit gives a `TrialRun` raised as timed out. The workers are then killed and the trials that ran beside it run again in a new pool.
-    When a worker process dies, every task of the pool fails. The trials that were running then run again one at a time in a new pool, so that only the one that kills its worker alone gives a `TrialRun` raised as `worker_process_died`.
+    A trial that runs longer than the time limit gives a `TrialRun` raised as timed out. The workers are then killed, since a process cannot stop a task that runs in another, and the trials that ran beside it run again in a new pool.
+    When a worker process dies, e.g. by a crash in a C extension, every task of the pool fails. The trials that were running then run again one at a time in a new pool, so that only the one that kills its worker alone gives a `TrialRun` raised as `worker_process_died`.
     """
     waiting_trial_dirs = deque(trial_dirs)
     # The trials that were running when a worker died, each to run alone.
@@ -394,6 +370,8 @@ def run_trial(
     Saved results are reused only when their code digest is `code_digest`. The results of a trial that ran from its folder are saved under `results_dir` only after `run_steps_of_trial` returns, and that function runs `export_rows` too, so a trial whose `export_rows` raises has no saved results and `--export-only` counts it as raised.
     """
     trial_id = trial_dir.name
+    # `network_request_results/<trial id>.pickle` holds the code digest, the `Trial`, the network request results and the counts of the steps before `export_rows` of one trial.
+    # A run stopped while writing can leave a `<trial id>.partial` beside it, which no run reads.
     saved_results_path = results_dir / f"{trial_id}.pickle"
     try:
         if reuses_saved_results and saved_results_path.exists():
@@ -666,7 +644,7 @@ class KeyCountTotal[Key: Hashable]:
 
 @dataclass(slots=True)
 class PipelineRunTotal:
-    """Sum of the `TrialRun` of all trials of a run in the order of their trial ids, built by `main` to write the files of the module docstring."""
+    """Sum of the `TrialRun` of all trials of a run in the order of their trial ids, built by `main` to write the files of the run."""
 
     chosen_trial_ids: list[str]
     # The number of entries of the chosen list that repeat an earlier trial id, since each trial runs once.
@@ -773,7 +751,7 @@ class PipelineRunTotal:
         written_trial_ids: Sequence[str],
         written_raised_trial_ids: Sequence[str],
     ) -> list[tuple[str, int, int]]:
-        """Give each equation of the module docstring with its two sides, in the order of `EQUATIONS`.
+        """Give each equation of `EQUATIONS` with its two sides, in its order.
 
         The trial ids of the written `trial_rows.csv` and `raised_trials.csv` are read back from the files, so that the first two equations compare what was written with what was chosen.
         """
@@ -896,14 +874,17 @@ class PipelineRunTotal:
 def write_pipeline_run_files(
     total: PipelineRunTotal, out_dir: Path
 ) -> list[tuple[str, int, int]]:
-    """Write the files of the module docstring from the sum of the trials, all but the saved results, which `run_trial` writes, and return the equation rows.
+    """Write the files of the run from the sum of the trials, with the rows of each described above the statement that writes it, all but the saved results, which `run_trial` writes, and return the equation rows.
 
     The equations are counted after the rows and the raised trials are written, from the trial ids read back from those files.
     """
     out_dir.mkdir(parents=True, exist_ok=True)
     for file_name, row_type, rows in (
+        # `network_request_rows.csv` has one row for each `NetworkRequestRow`, with the fields of the type as columns in their order.
         ("network_request_rows.csv", NetworkRequestRow, total.network_request_rows),
+        # `trial_rows.csv` has one row for each `TrialRow`.
         ("trial_rows.csv", TrialRow, total.trial_rows),
+        # `trial_category_measure_rows.csv` has one row for each `TrialCategoryMeasureRow`.
         (
             "trial_category_measure_rows.csv",
             TrialCategoryMeasureRow,
@@ -915,6 +896,7 @@ def write_pipeline_run_files(
             [row_field.name for row_field in dataclasses.fields(row_type)],
             (csv_cells_of(row) for row in rows),
         )
+    # `task_category_measures.csv` has one row for each task, a category and a sender, with the trials of the task, the trials in each bound of the main measure and the request rows, as `count_task_category_measures` counts them.
     write_csv(
         out_dir / "task_category_measures.csv",
         TASK_CATEGORY_MEASURE_COLUMNS,
@@ -924,6 +906,7 @@ def write_pipeline_run_files(
             total.trial_category_measure_rows,
         ),
     )
+    # `raised_trials.csv` has one row for each trial that counts as raised, with the reason, i.e. the type name of the exception that ended its run, `worker_process_died`, `timed_out_after_<n>_seconds` or `saved_results_of_other_code`.
     write_csv(
         out_dir / "raised_trials.csv", ("trial_id", "reason"), total.raised_trials
     )
@@ -931,7 +914,9 @@ def write_pipeline_run_files(
         _first_column_values_of(out_dir / "trial_rows.csv"),
         _first_column_values_of(out_dir / "raised_trials.csv"),
     )
+    # `summary.csv` has one row for each count of the run, e.g. the trial folders chosen, the trial rows written or the trials whose trajectory could not be read by reason.
     write_csv(out_dir / "summary.csv", ("count_name", "count"), total.summary_rows())
+    # `equations.csv` has one row for each equation between steps of `EQUATIONS`, with its two sides and whether they are equal.
     write_csv(
         out_dir / "equations.csv",
         ("equation", "left", "right", "holds"),
@@ -943,8 +928,11 @@ def write_pipeline_run_files(
     for step_package, judgment_rules in JUDGMENT_RULES_BY_STEP_PACKAGE.items():
         step_dir = out_dir / step_package
         step_dir.mkdir(exist_ok=True)
+        # A row key is written as a JSON array of its key column values.
         for file_name, key_column_name, key_count_total in (
+            # `<step package>/row_uses.csv` has one row for each catalog row or a declared row of the door of the step that answered, with its lookups, trials and tasks.
             ("row_uses.csv", "row_key", total.row_use_totals[step_package]),
+            # `<step package>/unknown_inputs.csv` has one row for each key that the door of the step found no row for, with its lookups, trials and tasks, most trials first.
             (
                 "unknown_inputs.csv",
                 "key_asked",
@@ -978,6 +966,7 @@ def write_pipeline_run_files(
                     ), count, trial_count, task_count in key_count_total.rows()
                 ),
             )
+        # `<step package>/judgment_rule_uses.csv` has one row for each judgment rule of the step or a rule of another step that it counts, with its uses, trials and tasks, and 0 for a rule of the step that was never used.
         write_csv(
             step_dir / "judgment_rule_uses.csv",
             ("judgment_rule", "use_count", "trial_count", "task_count"),
@@ -985,6 +974,7 @@ def write_pipeline_run_files(
                 judgment_rule_names_of(judgment_rules)
             ),
         )
+    # `network_request/no_network_request_reasons.csv` has one row for each reason why a program run, code call or URL in code gave no request, with its count, trials and tasks.
     write_csv(
         out_dir / "network_request" / "no_network_request_reasons.csv",
         ("reason", "count", "trial_count", "task_count"),
@@ -993,6 +983,7 @@ def write_pipeline_run_files(
             for reason, count, trial_count, task_count in total.no_network_request_total.rows()
         ),
     )
+    # `network_request_result/unused_output_lines.csv` has one row for each reason and an output line kind of lines that a pattern fits and that gave no evidence, with its lines, trials and tasks.
     write_csv(
         out_dir / "network_request_result" / "unused_output_lines.csv",
         ("reason", "output_line_kind", "line_count", "trial_count", "task_count"),
@@ -1004,6 +995,7 @@ def write_pipeline_run_files(
             ), count, trial_count, task_count in total.unused_output_line_total.rows()
         ),
     )
+    # `network_request_result/unowned_output_line_programs.csv` has one row for each reason, an output line kind and the name of a program whose run reaches the place of lines that no request owns, blank when no command reaches it, with its lines, trials and tasks.
     write_csv(
         out_dir / "network_request_result" / "unowned_output_line_programs.csv",
         (
@@ -1042,7 +1034,9 @@ def _first_column_values_of(path: Path) -> list[str]:
 def cut_key_word(word: object) -> object:
     """Cut a word of a key from a trajectory before it is written, i.e. an option word at its first `=` and any word after `KEY_WORD_LENGTH_LIMIT` characters, marking how many characters were cut, and give any other value as it is.
 
+    An option word is one that starts with `-`. The cut at `=` drops a value such as the token of `--token=ghp_x`, and the cut by length drops prose that a command reads as an option, e.g. a task text of 500 characters.
     e.g. `--token=ghp_x` becomes `--token[6 characters cut]`.
+    The export step's `redact_credentials`, which hides only the userinfo, query values and fragment of URLs, is not called here, since its module is private to `export/`.
     """
     if not isinstance(word, str):
         return word

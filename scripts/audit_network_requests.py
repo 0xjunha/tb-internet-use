@@ -2,38 +2,11 @@
 
 An equation sets a count of the requests beside a count that this script takes another way, e.g. from the words of the commands with its own URL pattern, from the counts of the door or from the actions of the calls, so that a request that the step dropped or made twice shows as a difference.
 An equation whose right side is 0 counts values that break a rule that holds whatever the data, e.g. a request whose URL target has a host without `$` that is missing from `host_names`.
-Every equation starts at 0 for every trial, so that one the trials never reach still shows.
+Each equation of `EQUATIONS` has its definition above its name.
 
-| Equation | Left | Right |
-|---|---|---|
-| `program_invocations_equal_program_lookups` | `ProgramInvocation`s and `UnknownProgramInvocation`s of the commands | Lookups of program rows of `program_network_requests.csv`, i.e. uses and unknown inputs without an option and not under `any subcommand`, plus `UnknownProgramInvocation`s |
-| `command_request_runs_equal_fetching_and_public_url_runs` | Program runs with a request, i.e. distinct (call, command id, program invocation) of the `FromCommand` requests | Runs that a door of this script answers with `FetchingProgramLabel`, minus the counts `option_sends_no_request` and `no_target_arguments`, plus runs without a row that run nothing else and have a URL in their words, with the variables of one sure value filled, found with this script's own pattern, whose host `parse_host_name` does not read as local or reserved |
-| `code_texts_without_request_show_no_request` | `RanCodeText`s without a `FromCode` request | Those whose URLs, found with this script's own pattern, are all local, reserved, of a namespace host with no dot in the last path part or on a line with a call of a `sends_no_network_request` row, and in which no call name of a `sends_network_request` row is followed by `(` outside strings and comments, before the point where `parse_code` stops reading and other than as the name of a JavaScript method definition |
-| `indexes_run_from_zero_in_each_call` | Calls with a request | Those whose requests have the indexes 0, 1, 2 and so on in order |
-| `no_request_repeats_a_request_of_the_text_it_runs` | Pairs of requests of one call with the same target where one comes from the command that runs the text of the other, e.g. `python -c` and its code | 0 |
-| `request_fields_agree` | Fields of the requests that break, one for a saved path that is neither a written file of the call nor a file its command's stdout goes to, one for a pipe reader that is no command of the same call reading a stdout route of its command, and one for a URL target whose host holds no `$` and is missing from `host_names`. A tail that reads the output of `bash fetch.sh` reads a stdout route of the curl in fetch.sh, so that pipe reader breaks nothing | 0 |
-| `pip_install_requests_equal_targets` | Requests of `pip install` runs with arguments and without unread words, file options, value options, options that send no request, run time arguments or `$` in a word | Arguments that are no local path, plus 1 when one argument is a local path, by this script's own reading of a local path |
-| `code_requests_within_urls_and_calls` | `FromCode` requests over the bound of a code text | 0, where the bound is the places of `http://` or `https://` in the code, since each call without a row gives one request per URL of its own, plus the places where a call name of a `sends_network_request` or `runs_program` row is followed by `(` |
-| `web_tool_requests_equal_web_targets` | `FromWebTool` requests | Queries and URLs of the web actions of the calls and their script steps, plus 1 for each such action without one |
-| `judgment_rule_names_are_of_this_step` | Names counted in the counter of `extract_network_requests` | Those of `network_request/judgment_rules.py` |
-
-It writes these CSVs under the output folder, `out/network_request/` unless `--out-dir` names another, which `.gitignore` keeps out of the repo.
+It writes `trial_outcomes.csv`, `trials_not_extracted.csv`, `counts_by_harness.csv`, `equations.csv`, `equation_examples.csv`, `judgment_rule_uses.csv`, `knowledge_row_uses.csv`, `unknown_inputs.csv`, `uncertain_requests_by_means.csv`, `uncertain_requests_by_trial.csv`, `host_names_by_scope.csv` and `subagent_prompt_urls.csv` under the output folder, `out/network_request/` unless `--out-dir` names another, which `.gitignore` keeps out of the repo.
 They hold counts, harness names, trial ids, tool call keys, exception type names, host names, and the program names, subcommands, options, option values and call names of the catalogs and of what ran, never other text from a trajectory.
-
-| File | One row |
-|---|---|
-| `trial_outcomes.csv` | An outcome of a trial, e.g. `extracted`, `not found` or `exception` with its type name, with its trials and the first 20 trial ids |
-| `trials_not_extracted.csv` | A trial that was not extracted, with its outcome |
-| `counts_by_harness.csv` | A harness, or `all`, with a count, e.g. requests by certainty, source kind, target kind, uncertainty reason and destination of the received content, runs, calls and URLs without a request by reason, and code texts not read to their end |
-| `equations.csv` | An equation of the table, with its two sides and whether they are equal |
-| `equation_examples.csv` | A call where an equation differs, or a trial with a blank `tool_call_key` for an equation counted per trial, the first 20 per equation, with the call name or `url` that a code text without a request shows when there is one |
-| `judgment_rule_uses.csv` | A judgment rule, with its uses and trials |
-| `knowledge_row_uses.csv` | A row of a catalog of `NetworkRequestKnowledge`, or a program name that code runs under `any subcommand`, with its uses and trials |
-| `unknown_inputs.csv` | A program, option or code call without a row, with its lookups, its trials and its tasks, most lookups first |
-| `uncertain_requests_by_means.csv` | An uncertainty reason and a program or call name, with its requests, commands or code texts, trials and tasks, by reason and most requests first within a reason, marking a program whose command runs a text that the trial does not hold |
-| `uncertain_requests_by_trial.csv` | A trial and an uncertainty reason, with its requests |
-| `host_names_by_scope.csv` | A host scope with a blank host name, the number of host names of that scope that the requests name, once per request and name, and its trials, `no host name` with the requests that name none and their trials, or a name that `treat_dotted_host_name_as_public` reads as public with its requests and its trials |
-| `subagent_prompt_urls.csv` | One row with the `StartSubagentAction` calls whose arguments hold a URL that may be public, e.g. `http://db:5432/doc`, and their trials |
+The rows of each file are described above the call that writes it in `write_audit_files`.
 
 The script ends with exit code 1 when a trial raised an exception or an equation differs.
 Run it as `nice -n 10 uv run python -I scripts/audit_network_requests.py <raw_trials_dir> [--limit N | --trial-ids FILE] [--out-dir DIR]`.
@@ -119,17 +92,30 @@ from trial_folders_and_csv_files import (
 )
 
 OUT_DIR = Path(__file__).resolve().parents[1] / "out" / "network_request"
-# Every equation of the module docstring, in its order, which is also the order of the output.
+# Every equation in the order of the output.
+# The comment above each name gives its left side beside its right side.
 EQUATIONS = (
+    # `ProgramInvocation`s and `UnknownProgramInvocation`s of the commands beside lookups of program rows of `program_network_requests.csv`, i.e. uses and unknown inputs without an option and not under `any subcommand`, plus `UnknownProgramInvocation`s.
     "program_invocations_equal_program_lookups",
+    # Program runs with a request, i.e. distinct (call, command id, program invocation) of the `FromCommand` requests, beside runs that a door of this script answers with `FetchingProgramLabel`, minus the counts `option_sends_no_request` and `no_target_arguments`, plus runs without a row that run nothing else and have a URL in their words, with the variables of one sure value filled, found with this script's own pattern, whose host `parse_host_name` does not read as local or reserved.
     "command_request_runs_equal_fetching_and_public_url_runs",
+    # `RanCodeText`s without a `FromCode` request beside those whose URLs, found with this script's own pattern, are all local, reserved, of a namespace host with no dot in the last path part or on a line with a call of a `sends_no_network_request` row, and in which no call name of a `sends_network_request` row is followed by `(` outside strings and comments, before the point where `parse_code` stops reading and other than as the name of a JavaScript method definition.
     "code_texts_without_request_show_no_request",
+    # Calls with a request beside those whose requests have the indexes 0, 1, 2 and so on in order.
     "indexes_run_from_zero_in_each_call",
+    # Pairs of requests of one call with the same target where one comes from the command that runs the text of the other, e.g. `python -c` and its code, beside 0.
     "no_request_repeats_a_request_of_the_text_it_runs",
+    # Fields of the requests that break, one for a saved path that is neither a written file of the call nor a file its command's stdout goes to, one for a pipe reader that is no command of the same call reading a stdout route of its command, and one for a URL target whose host holds no `$` and is missing from `host_names`, beside 0.
+    # A tail that reads the output of `bash fetch.sh` reads a stdout route of the curl in fetch.sh, so that pipe reader breaks nothing.
     "request_fields_agree",
+    # Requests of `pip install` runs with arguments and without unread words, file options, value options, options that send no request, run time arguments or `$` in a word, beside arguments that are no local path, plus 1 when one argument is a local path, by this script's own reading of a local path.
     "pip_install_requests_equal_targets",
+    # `FromCode` requests over the bound of a code text beside 0.
+    # The bound is the places of `http://` or `https://` in the code, since each call without a row gives one request per URL of its own, plus the places where a call name of a `sends_network_request` or `runs_program` row is followed by `(`.
     "code_requests_within_urls_and_calls",
+    # `FromWebTool` requests beside queries and URLs of the web actions of the calls and their script steps, plus 1 for each such action without one.
     "web_tool_requests_equal_web_targets",
+    # Names counted in the counter of `extract_network_requests` beside those of `network_request/judgment_rules.py`.
     "judgment_rule_names_are_of_this_step",
 )
 # The two sides of an equation, as `equations.csv` names them.
@@ -195,8 +181,9 @@ def main() -> None:
 
 
 def write_audit_files(total: TrialAuditTotal, out_dir: Path) -> None:
-    """Write the CSVs of the module docstring from the sum of the trials."""
+    """Write the CSVs from the sum of the trials, with the rows of each described above the call that writes it."""
     out_dir.mkdir(parents=True, exist_ok=True)
+    # `trial_outcomes.csv` has one row for each outcome of a trial, e.g. `extracted`, `not found` or `exception` with its type name, with its trials and the first 20 trial ids.
     write_csv(
         out_dir / "trial_outcomes.csv",
         ("outcome", "trial_count", "first_trial_ids"),
@@ -205,11 +192,13 @@ def write_audit_files(total: TrialAuditTotal, out_dir: Path) -> None:
             for outcome, count in sorted(total.outcome_counts.items())
         ),
     )
+    # `trials_not_extracted.csv` has one row for each trial that was not extracted, with its outcome.
     write_csv(
         out_dir / "trials_not_extracted.csv",
         ("trial_id", "outcome"),
         total.trials_not_extracted,
     )
+    # `counts_by_harness.csv` has one row for each harness, or `all`, with a count, e.g. requests by certainty, source kind, target kind, uncertainty reason and destination of the received content, runs, calls and URLs without a request by reason, and code texts not read to their end.
     write_csv(
         out_dir / "counts_by_harness.csv",
         ("harness", "count_name", "count"),
@@ -218,6 +207,7 @@ def write_audit_files(total: TrialAuditTotal, out_dir: Path) -> None:
             for (harness, count_name), count in sorted(total.counts.items())
         ),
     )
+    # `equations.csv` has one row for each equation of `EQUATIONS`, with its two sides and whether they are equal.
     write_csv(
         out_dir / "equations.csv",
         ("equation", "left", "right", "holds"),
@@ -226,11 +216,13 @@ def write_audit_files(total: TrialAuditTotal, out_dir: Path) -> None:
             for equation, left, right in total.equation_rows()
         ),
     )
+    # `equation_examples.csv` has one row for each call where an equation differs, or a trial with a blank `tool_call_key` for an equation counted per trial, the first 20 per equation, with the call name or `url` that a code text without a request shows when there is one.
     write_csv(
         out_dir / "equation_examples.csv",
         ("equation", "trial_id", "tool_call_key", "name"),
         total.equation_examples,
     )
+    # `judgment_rule_uses.csv` has one row for each judgment rule, with its uses and trials.
     write_csv(
         out_dir / "judgment_rule_uses.csv",
         ("judgment_rule", "use_count", "trial_count"),
@@ -240,6 +232,7 @@ def write_audit_files(total: TrialAuditTotal, out_dir: Path) -> None:
         ),
     )
     uses_total = total.knowledge_uses_total
+    # `knowledge_row_uses.csv` has one row for each row of a catalog of `NetworkRequestKnowledge`, or a program name that code runs under `any subcommand`, with its uses and trials.
     write_csv(
         out_dir / "knowledge_row_uses.csv",
         ("catalog", "row_key", "use_count", "trial_count"),
@@ -253,6 +246,7 @@ def write_audit_files(total: TrialAuditTotal, out_dir: Path) -> None:
             for (catalog, row_key), count in uses_total.row_use_counts.most_common()
         ),
     )
+    # `unknown_inputs.csv` has one row for each program, option or code call without a row, with its lookups, its trials and its tasks, most lookups first.
     write_csv(
         out_dir / "unknown_inputs.csv",
         ("catalog", "row_key", "lookup_count", "trial_count", "task_count"),
@@ -270,6 +264,7 @@ def write_audit_files(total: TrialAuditTotal, out_dir: Path) -> None:
             )
         ),
     )
+    # `uncertain_requests_by_means.csv` has one row for each uncertainty reason and a program or call name, with its requests, commands or code texts, trials and tasks, by reason and most requests first within a reason, marking a program whose command runs a text that the trial does not hold.
     write_csv(
         out_dir / "uncertain_requests_by_means.csv",
         (
@@ -297,11 +292,13 @@ def write_audit_files(total: TrialAuditTotal, out_dir: Path) -> None:
             )
         ),
     )
+    # `uncertain_requests_by_trial.csv` has one row for each trial and an uncertainty reason, with its requests.
     write_csv(
         out_dir / "uncertain_requests_by_trial.csv",
         ("trial_id", "uncertainty_reason", "request_count"),
         sorted(total.uncertain_requests_by_trial),
     )
+    # `host_names_by_scope.csv` has one row for each host scope with a blank host name, the number of host names of that scope that the requests name, once per request and name, and its trials, `no host name` with the requests that name none and their trials, or a name that `treat_dotted_host_name_as_public` reads as public with its requests and its trials.
     write_csv(
         out_dir / "host_names_by_scope.csv",
         ("host_scope", "host_name", "request_count", "trial_count"),
@@ -322,6 +319,7 @@ def write_audit_files(total: TrialAuditTotal, out_dir: Path) -> None:
             )
         ],
     )
+    # `subagent_prompt_urls.csv` has one row, with the `StartSubagentAction` calls whose arguments hold a URL that may be public, e.g. `http://db:5432/doc`, and their trials.
     write_csv(
         out_dir / "subagent_prompt_urls.csv",
         ("call_count", "trial_count"),
@@ -451,7 +449,7 @@ class TrialAudit:
     task: str = ""
     # By (harness or `all`, count name).
     counts: Counter[tuple[str, str]] = field(default_factory=Counter)
-    # By (equation, `left` or `right`), every side at 0 before the trial adds to it.
+    # By (equation, `left` or `right`), every side at 0 before the trial adds to it, so that an equation the trials never reach still shows.
     equation_sides: Counter[tuple[str, str]] = field(
         default_factory=lambda: Counter(
             dict.fromkeys(

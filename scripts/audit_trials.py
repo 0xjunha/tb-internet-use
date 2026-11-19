@@ -1,32 +1,11 @@
 """Run `collect_trials` on raw trials, count the values of the `Trial` of each, hold them against sources that `collect_trials` does not read and compare every count with an expectation file.
 
 Apart from its `trial_id`, which is the name of its folder, and its `unreadable_trajectory`, a `Trial` holds only what the detail and status file of a trial write, so a bug that reads the wrong key shows only beside another source.
-The counts on the `Trial` values alone catch a later change of a value, and the counts beside the other sources catch a key read wrongly.
+The counts on the `Trial` values alone catch a later change of a value, and the counts beside the other sources catch a key read wrongly. `count_trials` and each `count_trials_against_` function say what they count and what they hold it against.
+`--catalog` names the catalog of the collection, a JSON line per trial. `--snapshots` names the folder of the leaderboard snapshots, with a `row-<row id>-<page>.json` per page of a leaderboard row and a `board-*.json` per leaderboard. `--baseline` names the `per_trial.csv` of an earlier run. `--expected` names the expectation file of the expected counts, with the trials read by hand under `trials_read_by_hand`.
 
-| Count | What it holds the `Trial` values against |
-|---|---|
-| Trials, trial ids and folders | The trial folders, and the `id` of the detail file and the `trial_id` of the status file, which `collect_trials` does not read |
-| Trials per benchmark version, harness and reward, distinct tasks, models and leaderboard rows, trials per leaderboard row and task, tasks per leaderboard row | Nothing, so they catch a change of a value later |
-| Leaderboard rows and tasks with several harness versions, leaderboard rows with several harnesses or models | Nothing. A harness version that varies within the trials of one task of one leaderboard row breaks the premise that one run used one harness setup for every task |
-| `Trial.unreadable_trajectory` | The download state of the trajectory file that the status file writes in `assets.trajectory.status` |
-| `Trial.harness` | The harness of the first tool call that `read_trajectory` gives, which `parse_trajectory` reads from the trajectory |
-| Each field of `Trial` | The catalog of the collection, a JSON line per trial that names the task without its `terminal-bench/` part, the benchmark as e.g. `TB4` and the model as `<provider>/<name>`, so these three are aligned before they are compared |
-| `Trial.leaderboard_row_id` and `Trial.benchmark_version` | The leaderboard snapshots, a `row-<row id>-<page>.json` per page of a leaderboard row that lists trial ids of the row and a `board-*.json` per leaderboard whose `leaderboard.name` is its benchmark version and whose `rows` are its leaderboard rows |
-| `Trial.unreadable_trajectory` and `Trial.harness` | A `per_trial.csv` of an earlier run that has the columns `trial_id`, `trajectory_status` and `harness`, with the status `ok`, `missing` or `invalid_json` and a harness left empty when no tool call gave one |
-| Each field of `Trial` but `unreadable_trajectory` | The values that another reader wrote down from the two files of a few trials before this script ran, given in the expectation file under `trials_read_by_hand` |
-
-It reads each trial folder with `read_trial_file_texts` and `read_trajectory` in a worker process and calls `collect_trials` once for all trials.
-It writes three CSVs under `out/trials/`, or the folder that `--out-dir` names, which should lie under `out/` too, since `.gitignore` keeps that out of the repo. They hold trial ids, benchmark versions, task names, leaderboard row ids, harness names and versions, model names, rewards, reasons of `unreadable_trajectory`, count names and counts, never text from a trajectory.
-
-| File | One row |
-|---|---|
-| `trials.csv` | A `Trial`, with its fields as columns and the reason of `unreadable_trajectory` or nothing |
-| `evidence_counts.csv` | A count, or one key of a count by key, with the expected count from the expectation file, the count found and whether the two differ |
-| `differing_trial_examples.csv` | A trial that a count of differences counted, the first 20 per count and key, and every field that differs from `trials_read_by_hand` with its trial |
-
-A count that the expectation file names and the run does not make, e.g. a misspelled name, shows with an empty found count and differs, and so does a count that the run makes and the expectation file lacks, with an empty expected count.
-A count by key with no key found and none expected has no row, e.g. `trial_counts_by_field_differing_from_catalog` when no field differs.
-A key of a count by key that the run does not find is found as 0, e.g. the reward key `below 0, above 1 or NaN`.
+It writes `trials.csv`, `evidence_counts.csv` and `differing_trial_examples.csv` under `out/trials/`, or the folder that `--out-dir` names, which should lie under `out/` too, since `.gitignore` keeps that out of the repo. They hold trial ids, benchmark versions, task names, leaderboard row ids, harness names and versions, model names, rewards, reasons of `unreadable_trajectory`, count names and counts, never text from a trajectory.
+The rows of each file are described above the call that writes it in `main`.
 The script ends with exit code 1 when an expectation file is given and a count differs from it.
 
 Run it as `nice -n 10 uv run python -I scripts/audit_trials.py <raw_trials_dir> --catalog FILE --snapshots DIR --baseline FILE [--expected FILE] [--out-dir DIR] [--limit N | --trial-ids FILE]`.
@@ -117,6 +96,7 @@ def main() -> None:
     )
     trials_read_by_hand = expected_counts.pop("trials_read_by_hand", [])
     total = EvidenceCountTotal()
+    # The trial folders, which the trials and trial ids that `count_trials` counts are held against.
     total.counts["trial_folder_count"] = len(trial_dirs_of(arguments.raw_trials_dir))
     count_trials(total, trials)
     count_trials_against_folders(total, trials, trial_folder_readings)
@@ -134,16 +114,22 @@ def main() -> None:
 
     evidence_rows = list(evidence_rows_of(total.counts, expected_counts))
     arguments.out_dir.mkdir(parents=True, exist_ok=True)
+    # `trials.csv` has one row for each `Trial`, with its fields as columns and the reason of `unreadable_trajectory` or nothing.
     write_csv(
         arguments.out_dir / "trials.csv",
         [column.name for column in fields(Trial)],
         (_trial_row_of(trial) for trial in trials),
     )
+    # `evidence_counts.csv` has one row for each count, or one key of a count by key, with the expected count from the expectation file, the count found and whether the two differ.
+    # A count that the expectation file names and the run does not make, e.g. a misspelled name, shows with an empty found count and differs, and so does a count that the run makes and the expectation file lacks, with an empty expected count.
+    # A count by key with no key found and none expected has no row, e.g. `trial_counts_by_field_differing_from_catalog` when no field differs.
+    # A key of a count by key that the run does not find is found as 0, e.g. the reward key `below 0, above 1 or NaN`.
     write_csv(
         arguments.out_dir / "evidence_counts.csv",
         ("count_name", "key", "expected_count", "found_count", "differs"),
         evidence_rows,
     )
+    # `differing_trial_examples.csv` has one row for each trial that a count of differences counted, the first 20 per count and key, and every field that differs from `trials_read_by_hand` with its trial.
     write_csv(
         arguments.out_dir / "differing_trial_examples.csv",
         ("count_name", "key", "trial_id"),
@@ -241,7 +227,11 @@ class EvidenceCountTotal:
 
 
 def count_trials(total: EvidenceCountTotal, trials: Sequence[Trial]) -> None:
-    """Count the trials, their distinct values and their trials per value, from the `Trial` values alone."""
+    """Count the trials, their distinct values and their trials per value, from the `Trial` values alone.
+
+    The trials per benchmark version, harness and reward, the distinct tasks, models and leaderboard rows, the trials per leaderboard row and task and the tasks per leaderboard row are held against nothing, so they catch a change of a value later.
+    The leaderboard rows and tasks with several harness versions and the leaderboard rows with several harnesses or models are held against nothing too. A harness version that varies within the trials of one task of one leaderboard row breaks the premise that one run used one harness setup for every task.
+    """
     total.counts["trial_count"] = len(trials)
     total.counts["distinct_trial_id_count"] = len({trial.trial_id for trial in trials})
     total.counts["trial_counts_by_benchmark_version"] = Counter(
@@ -338,7 +328,11 @@ def count_trials_against_folders(
     trials: Sequence[Trial],
     trial_folder_readings: Sequence[TrialFolderReading],
 ) -> None:
-    """Hold each `Trial` against what the worker read from its folder beyond the texts that `collect_trials` reads, i.e. the trial ids in the two files, the download state of the trajectory and the harness of the first tool call."""
+    """Hold each `Trial` against what the worker read from its folder beyond the texts that `collect_trials` reads, i.e. the trial ids in the two files, the download state of the trajectory and the harness of the first tool call.
+
+    The trial ids are the `id` of the detail file and the `trial_id` of the status file, which `collect_trials` does not read.
+    `Trial.unreadable_trajectory` is held against the download state of the trajectory file that the status file writes in `assets.trajectory.status`, and `Trial.harness` against the harness of the first tool call that `read_trajectory` gives, which `parse_trajectory` reads from the trajectory.
+    """
     total.start_counts_at_zero(
         "trial_whose_folder_name_differs_from_detail_id_or_status_trial_id_count",
         "trial_whose_unreadable_trajectory_differs_from_status_trajectory_status_count",
@@ -382,7 +376,10 @@ def count_trials_against_catalog(
     trials: Sequence[Trial],
     catalog_records: Mapping[str, Mapping[str, Any]],
 ) -> None:
-    """Hold each field of each `Trial` against the catalog record of its trial id, aligning the task, benchmark and model names of the catalog first."""
+    """Hold each field of each `Trial` against the catalog record of its trial id, aligning the task, benchmark and model names of the catalog first.
+
+    The catalog of the collection has a JSON line per trial that names the task without its `terminal-bench/` part, the benchmark as e.g. `TB4` and the model as `<provider>/<name>`, so these three are aligned before they are compared.
+    """
     total.counts["trial_counts_by_field_differing_from_catalog"] = Counter()
     total.start_counts_at_zero("trial_missing_from_catalog_count")
     for trial in trials:
@@ -496,7 +493,10 @@ def count_trials_against_snapshots(
 def snapshot_rows_from_folder(
     snapshots_dir: Path,
 ) -> tuple[dict[str, list[str]], dict[str, str]]:
-    """Give the trial ids of each leaderboard row of the snapshots, joining the pages of a row and keeping an id that it lists twice, and the benchmark version of the leaderboard that holds each row."""
+    """Give the trial ids of each leaderboard row of the snapshots, joining the pages of a row and keeping an id that it lists twice, and the benchmark version of the leaderboard that holds each row.
+
+    The snapshots are a `row-<row id>-<page>.json` per page of a leaderboard row that lists trial ids of the row and a `board-*.json` per leaderboard whose `leaderboard.name` is its benchmark version and whose `rows` are its leaderboard rows.
+    """
     trial_ids_by_snapshot_row_id: defaultdict[str, list[str]] = defaultdict(list)
     for row_path in sorted(snapshots_dir.glob("row-*.json")):
         # The name is `row-<row id>-<page>.json`, and a row id holds dashes too.
@@ -519,7 +519,10 @@ def count_trials_against_baseline(
     trials: Sequence[Trial],
     baseline_rows: Sequence[Mapping[str, str]],
 ) -> None:
-    """Hold whether the trajectory of each `Trial` was read and its harness against the row of an earlier run's `per_trial.csv`, whose harness is empty when no tool call gave one."""
+    """Hold whether the trajectory of each `Trial` was read and its harness against the row of an earlier run's `per_trial.csv`, whose harness is empty when no tool call gave one.
+
+    The file has the columns `trial_id`, `trajectory_status` and `harness`, with the status `ok`, `missing` or `invalid_json`.
+    """
     total.start_counts_at_zero(
         "trial_missing_from_baseline_count",
         "trial_whose_unreadable_trajectory_differs_from_baseline_trajectory_status_count",
@@ -571,7 +574,10 @@ def count_trials_against_trials_read_by_hand(
     trials: Sequence[Trial],
     trials_read_by_hand: Sequence[Mapping[str, Any]],
 ) -> None:
-    """Hold each field of a `Trial` but `unreadable_trajectory` against the value that another reader wrote down from the detail and status files of the trial, counting the fields that differ."""
+    """Hold each field of a `Trial` but `unreadable_trajectory` against the value that another reader wrote down from the detail and status files of the trial, counting the fields that differ.
+
+    The values are those of a few trials, written down before this script ran and given in the expectation file under `trials_read_by_hand`.
+    """
     total.start_counts_at_zero(
         "trial_read_by_hand_compared_count",
         "field_differing_from_trial_read_by_hand_count",

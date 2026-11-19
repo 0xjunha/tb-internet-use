@@ -2,48 +2,11 @@
 
 An equation sets a count of the output beside a count that this script takes another way, e.g. from the `ToolCall`s, from the words of the commands or from the counts of the door, so that a text, a command or a use that the expansion dropped or made twice shows as a difference.
 An equation whose right side is 0 counts values that break a rule that holds whatever the data, e.g. a `FileUse` of a file that a call which did not run wrote.
-Every equation starts at 0 for every trial, so that one the trials never reach still shows.
+Each equation of `EQUATIONS` has its definition above its name.
 
-| Equation | Left | Right |
-|---|---|---|
-| `expanded_calls_equal_tool_calls` | `ExpandedToolCall`s | Those equal in place to a `ToolCall` of a second run of `convert_tool_calls` |
-| `expanded_calls_equal_tool_calls_in_number` | `ExpandedToolCall`s | `ToolCall`s of a second run of `convert_tool_calls` |
-| `ran_commands_equal_commands_of_call_texts` | `ShellCommand`s of the `parsed_shell_text` of each `RunCommandAction`, script steps included | `RanCommand`s of the texts whose source is `CallCommandText` or `ScriptStepText` |
-| `missing_texts_equal_command_actions_without_text` | `RunCommandAction`s without a command string | `UnknownRanText`s of reason `MISSING_FROM_TRAJECTORY` |
-| `unreadable_texts_equal_unreadable_call_texts` | `UnreadableShellText`s of the `RunCommandAction`s | `UnknownRanText`s of reason `UNREADABLE_SHELL_TEXT` whose source is `CallCommandText` or `ScriptStepText` |
-| `commands_of_runner_names_fall_in_a_branch` | Commands whose first word, without its folder, is one of `RUNNER_NAMES` | Those with a ran text whose runner is the command, plus four branches, i.e. unread words, a next program, no argument and no stdin, a program without a row |
-| `program_invocations_hold_the_words_of_their_command` | Commands | Commands whose words and program invocations hold the same characters, `-` and `=` left out |
-| `cat_arguments_equal_file_uses` | Arguments of an innermost `cat` without unread words in a call that may have run, with variables of one sure value filled, or its stdin file when no argument names a file, that are no glob, no `-`, no repeat of the file of an earlier one and no harness output file | Uses of a file without a known writer plus groups of `FileUse`s of the same command, i.e. of written files that can name one file or that one argument fits when the path fits several |
-| `unknown_program_invocations_equal_unknown_program_lookups` | `UnknownProgramInvocation`s | Unknown inputs of `program_behaviors.csv` plus program words that are expansions |
-| `unread_words_equal_unknown_option_lookups` | `ProgramInvocation`s with unread words, plus those whose first unread word is an option cluster word without a row and whose later unread words hold an option without a row, which give a second unknown input | Unknown inputs of `program_option_behaviors.csv` plus blank `options_end_at_first_argument` cells that left a word unread, i.e. unknown inputs under `BLANK_PROGRAM_BEHAVIOR_CELLS`, plus options with a row that take a value and are the last word, which give none |
-| `pointers_stay_inside_trial` | `OutputPlace`s and `FileUse`s | Those whose call is in the trial, with the command ids of an `OutputPlace` among the commands of the call that holds it and the command id of a `FileUse`, if it has one, among the commands of its using call |
-| `routes_without_pipe_reader_are_whole` | `OutputRoute`s without a pipe reader | Those that are `WHOLE` |
-| `route_visibility_follows_pipe_readers` | `OutputRoute`s with a pipe reader | Those whose visibility this script gets again from the rows of the readers |
-| `values_in_turn_only_in_loops` | `VariableValues` taken in turn | Those of a command in a loop body |
-| `tool_written_files_equal_tool_paths` | `WrittenFile`s written by a tool argument | Distinct paths of the `WriteFileAction`s and `EditFileAction`s of the same call |
-| `file_text_writers_hold_the_file` | `FileText`s | Those whose writer is of the same trajectory and holds a written file of that path |
-| `calls_not_run_reach_nothing` | Values that tie a call that did not run to its output or to a later call | 0 |
-| `harness_output_file_reads_are_output_places` | Later calls of the same trajectory that show the content of the `output_path` of a call that may have run, when that call or the call that started what it polls has an `OutputPlace` | `OutputPlace`s of such reading calls |
-| `harness_output_file_reads_are_no_uses_without_writer` | Uses of a file without a known writer that read an earlier `output_path` | 0 |
-| `poll_inputs_fall_in_a_branch` | `PollAction`s with an input | Uses of `treat_input_of_key_presses_only_as_no_text`, plus texts from a poll input, plus inputs typed into a program whose row gives its stdin a known role other than `run_text` |
-| `other_trajectory_rule_uses_equal_recount` | Uses of `treat_calls_of_other_trajectory_as_not_linked` | Runs and uses that only another trajectory fits, counted again here |
-| `pointers_stay_inside_trajectory` | `FileUse`s, `FileText`s, `PollInputText`s and `OutputPlace`s | Those that point at a call of the same trajectory |
-| `judgment_rule_names_are_of_this_step` | Names counted in the counter of `expand_tool_calls` | Those of `expanded_tool_call/judgment_rules.py` and `treat_lines_joined_after_three_repairs_as_left_joined` |
-
-It writes these CSVs under the output folder, `out/expanded_tool_call/` unless `--out-dir` names another, which `.gitignore` keeps out of the repo.
+It writes `trial_outcomes.csv`, `trials_not_expanded.csv`, `counts_by_harness.csv`, `equations.csv`, `equation_examples.csv`, `judgment_rule_uses.csv`, `knowledge_row_uses.csv`, `unknown_inputs.csv` and `unknown_touch_programs.csv` under the output folder, `out/expanded_tool_call/` unless `--out-dir` names another, which `.gitignore` keeps out of the repo.
 They hold counts, harness names, trial ids, tool call keys, exception type names, file extensions, program and option names of the catalogs and of the commands, never other text from a trajectory.
-
-| File | One row |
-|---|---|
-| `trial_outcomes.csv` | An outcome of a trial, e.g. `expanded`, `not found` or `exception` with its type name, with its trials and the first 20 trial ids, or the trial ids given more than once, which run once |
-| `trials_not_expanded.csv` | A trial that was not expanded, with its outcome |
-| `counts_by_harness.csv` | A harness, or `all`, with a count of the output, e.g. ran texts by source |
-| `equations.csv` | An equation of the table, with its two sides and whether they are equal |
-| `equation_examples.csv` | A call where an equation differs, or a trial with an empty `tool_call_key` when the sides were added for the whole trial, the first 20 per equation |
-| `judgment_rule_uses.csv` | A judgment rule, with its uses and trials |
-| `knowledge_row_uses.csv` | A row of a catalog of `ExpandedToolCallKnowledge`, or a program name that the door read without its version, with its uses and trials |
-| `unknown_inputs.csv` | A program or option without a row, a program or file extension without a row of `code_runners.csv`, or a blank cell of a program row that left a word unread, with its lookups, i.e. commands, its trials and its tasks, most lookups first |
-| `unknown_touch_programs.csv` | A program whose commands made a file use of unknown kind, changed a followed file text so that it is unknown, or read a pipe whose visibility is unknown, with those commands, their trials and their tasks. A tool that made a use of unknown kind counts as one command of its call, and a followed file text that no command is found to have changed counts under `(no changing command found)`, as the command that ran the text |
+The rows of each file are described above the call that writes it in `write_audit_files`.
 
 The script ends with exit code 1 when a trial raised an exception or an equation differs.
 Run it as `nice -n 10 uv run python -I scripts/audit_expanded_tool_calls.py <raw_trials_dir> [--limit N | --trial-ids FILE] [--out-dir DIR]`.
@@ -136,30 +99,54 @@ from trial_folders_and_csv_files import (
 )
 
 OUT_DIR = Path(__file__).resolve().parents[1] / "out" / "expanded_tool_call"
-# Every equation of the module docstring, in its order, which is also the order of the output.
+# Every equation in the order of the output.
+# The comment above each name gives its left side beside its right side.
 EQUATIONS = (
+    # `ExpandedToolCall`s beside those equal in place to a `ToolCall` of a second run of `convert_tool_calls`.
     "expanded_calls_equal_tool_calls",
+    # `ExpandedToolCall`s beside `ToolCall`s of a second run of `convert_tool_calls`.
     "expanded_calls_equal_tool_calls_in_number",
+    # `ShellCommand`s of the `parsed_shell_text` of each `RunCommandAction`, script steps included, beside `RanCommand`s of the texts whose source is `CallCommandText` or `ScriptStepText`.
     "ran_commands_equal_commands_of_call_texts",
+    # `RunCommandAction`s without a command string beside `UnknownRanText`s of reason `MISSING_FROM_TRAJECTORY`.
     "missing_texts_equal_command_actions_without_text",
+    # `UnreadableShellText`s of the `RunCommandAction`s beside `UnknownRanText`s of reason `UNREADABLE_SHELL_TEXT` whose source is `CallCommandText` or `ScriptStepText`.
     "unreadable_texts_equal_unreadable_call_texts",
+    # Commands whose first word, without its folder, is one of `RUNNER_NAMES`, beside those with a ran text whose runner is the command, plus four branches, i.e. unread words, a next program, no argument and no stdin, a program without a row.
     "commands_of_runner_names_fall_in_a_branch",
+    # Commands beside commands whose words and program invocations hold the same characters, `-` and `=` left out.
     "program_invocations_hold_the_words_of_their_command",
+    # Arguments of an innermost `cat` without unread words in a call that may have run, with variables of one sure value filled, or its stdin file when no argument names a file, that are no glob, no `-`, no repeat of the file of an earlier one and no harness output file, beside uses of a file without a known writer plus groups of `FileUse`s of the same command, i.e. of written files that can name one file or that one argument fits when the path fits several.
     "cat_arguments_equal_file_uses",
+    # `UnknownProgramInvocation`s beside unknown inputs of `program_behaviors.csv` plus program words that are expansions.
     "unknown_program_invocations_equal_unknown_program_lookups",
+    # `ProgramInvocation`s with unread words, plus those whose first unread word is an option cluster word without a row and whose later unread words hold an option without a row, which give a second unknown input, beside unknown inputs of `program_option_behaviors.csv` plus blank `options_end_at_first_argument` cells that left a word unread, i.e. unknown inputs under `BLANK_PROGRAM_BEHAVIOR_CELLS`, plus options with a row that take a value and are the last word, which give none.
     "unread_words_equal_unknown_option_lookups",
+    # `OutputPlace`s and `FileUse`s beside those whose call is in the trial, with the command ids of an `OutputPlace` among the commands of the call that holds it and the command id of a `FileUse`, if it has one, among the commands of its using call.
     "pointers_stay_inside_trial",
+    # `OutputRoute`s without a pipe reader beside those that are `WHOLE`.
     "routes_without_pipe_reader_are_whole",
+    # `OutputRoute`s with a pipe reader beside those whose visibility this script gets again from the rows of the readers.
     "route_visibility_follows_pipe_readers",
+    # `VariableValues` taken in turn beside those of a command in a loop body.
     "values_in_turn_only_in_loops",
+    # `WrittenFile`s written by a tool argument beside distinct paths of the `WriteFileAction`s and `EditFileAction`s of the same call.
     "tool_written_files_equal_tool_paths",
+    # `FileText`s beside those whose writer is of the same trajectory and holds a written file of that path.
     "file_text_writers_hold_the_file",
+    # Values that tie a call that did not run to its output or to a later call beside 0.
     "calls_not_run_reach_nothing",
+    # Later calls of the same trajectory that show the content of the `output_path` of a call that may have run, when that call or the call that started what it polls has an `OutputPlace`, beside `OutputPlace`s of such reading calls.
     "harness_output_file_reads_are_output_places",
+    # Uses of a file without a known writer that read an earlier `output_path` beside 0.
     "harness_output_file_reads_are_no_uses_without_writer",
+    # `PollAction`s with an input beside uses of `treat_input_of_key_presses_only_as_no_text`, plus texts from a poll input, plus inputs typed into a program whose row gives its stdin a known role other than `run_text`.
     "poll_inputs_fall_in_a_branch",
+    # Uses of `treat_calls_of_other_trajectory_as_not_linked` beside runs and uses that only another trajectory fits, counted again here.
     "other_trajectory_rule_uses_equal_recount",
+    # `FileUse`s, `FileText`s, `PollInputText`s and `OutputPlace`s, beside those that point at a call of the same trajectory.
     "pointers_stay_inside_trajectory",
+    # Names counted in the counter of `expand_tool_calls` beside those of `expanded_tool_call/judgment_rules.py` and `treat_lines_joined_after_three_repairs_as_left_joined`.
     "judgment_rule_names_are_of_this_step",
 )
 # The two sides of an equation, as `equations.csv` names them.
@@ -229,8 +216,9 @@ def main() -> None:
 
 
 def write_audit_files(total: TrialAuditTotal, out_dir: Path) -> None:
-    """Write the CSVs of the module docstring from the sum of the trials."""
+    """Write the CSVs from the sum of the trials, with the rows of each described above the call that writes it."""
     out_dir.mkdir(parents=True, exist_ok=True)
+    # `trial_outcomes.csv` has one row for each outcome of a trial, e.g. `expanded`, `not found` or `exception` with its type name, with its trials and the first 20 trial ids, or the trial ids given more than once, which run once.
     write_csv(
         out_dir / "trial_outcomes.csv",
         ("outcome", "trial_count", "first_trial_ids"),
@@ -250,11 +238,13 @@ def write_audit_files(total: TrialAuditTotal, out_dir: Path) -> None:
             else []
         ),
     )
+    # `trials_not_expanded.csv` has one row for each trial that was not expanded, with its outcome.
     write_csv(
         out_dir / "trials_not_expanded.csv",
         ("trial_id", "outcome"),
         total.trials_not_expanded,
     )
+    # `counts_by_harness.csv` has one row for each harness, or `all`, with a count of the output, e.g. ran texts by source.
     write_csv(
         out_dir / "counts_by_harness.csv",
         ("harness", "count_name", "count"),
@@ -263,6 +253,7 @@ def write_audit_files(total: TrialAuditTotal, out_dir: Path) -> None:
             for (harness, count_name), count in sorted(total.counts.items())
         ),
     )
+    # `equations.csv` has one row for each equation of `EQUATIONS`, with its two sides and whether they are equal.
     write_csv(
         out_dir / "equations.csv",
         ("equation", "left", "right", "holds"),
@@ -271,11 +262,13 @@ def write_audit_files(total: TrialAuditTotal, out_dir: Path) -> None:
             for equation, left, right in total.equation_rows()
         ),
     )
+    # `equation_examples.csv` has one row for each call where an equation differs, or a trial with an empty `tool_call_key` when the sides were added for the whole trial, the first 20 per equation.
     write_csv(
         out_dir / "equation_examples.csv",
         ("equation", "trial_id", "tool_call_key"),
         total.equation_examples,
     )
+    # `judgment_rule_uses.csv` has one row for each judgment rule, with its uses and trials.
     write_csv(
         out_dir / "judgment_rule_uses.csv",
         ("judgment_rule", "use_count", "trial_count"),
@@ -285,6 +278,7 @@ def write_audit_files(total: TrialAuditTotal, out_dir: Path) -> None:
         ),
     )
     uses_total = total.knowledge_uses_total
+    # `knowledge_row_uses.csv` has one row for each row of a catalog of `ExpandedToolCallKnowledge`, or a program name that the door read without its version, with its uses and trials.
     write_csv(
         out_dir / "knowledge_row_uses.csv",
         ("catalog", "row_key", "use_count", "trial_count"),
@@ -298,6 +292,7 @@ def write_audit_files(total: TrialAuditTotal, out_dir: Path) -> None:
             for (catalog, row_key), count in uses_total.row_use_counts.most_common()
         ),
     )
+    # `unknown_inputs.csv` has one row for each program or option without a row, a program or file extension without a row of `code_runners.csv`, or a blank cell of a program row that left a word unread, with its lookups, i.e. commands, its trials and its tasks, most lookups first.
     write_csv(
         out_dir / "unknown_inputs.csv",
         (
@@ -323,6 +318,8 @@ def write_audit_files(total: TrialAuditTotal, out_dir: Path) -> None:
             )
         ),
     )
+    # `unknown_touch_programs.csv` has one row for each program whose commands made a file use of unknown kind, changed a followed file text so that it is unknown, or read a pipe whose visibility is unknown, with those commands, their trials and their tasks.
+    # A tool that made a use of unknown kind counts as one command of its call, and a followed file text that no command is found to have changed counts under `(no changing command found)`, as the command that ran the text.
     write_csv(
         out_dir / "unknown_touch_programs.csv",
         ("list", "program_name", "command_count", "trial_count", "task_count"),
@@ -426,7 +423,7 @@ class TrialAudit:
     task: str = ""
     # By (harness or `all`, count name).
     counts: Counter[tuple[str, str]] = field(default_factory=Counter)
-    # By (equation, `left` or `right`), every side at 0 before the trial adds to it.
+    # By (equation, `left` or `right`), every side at 0 before the trial adds to it, so that an equation the trials never reach still shows.
     equation_sides: Counter[tuple[str, str]] = field(
         default_factory=lambda: Counter(
             dict.fromkeys(

@@ -3,41 +3,10 @@
 `run_pipeline.py` saves the `Trial` and the network request results of each trial, so this script reads no trajectory. It makes its own door for the trials of each worker process and counts each trial apart, so that its counts do not rest on the files of the run, and it reads the four CSVs of the run for the equations about what was written.
 An equation sets a count of the uses of a judgment rule or of a lookup of the door beside a count that this script takes from the columns of the rows, e.g. the uses of `treat_discarded_content_as_other_web` beside the rows whose content is discarded, so that a rule asked in the wrong place shows as a difference.
 An equation whose right side is 0 counts rows that break a rule that holds whatever the catalogs say, e.g. a `connectivity_check` row whose content was requested.
+Each equation of `EQUATIONS` has its definition above its name, and the equations of the judgment rules, named `<judgment rule>_uses_equal_its_situations`, have theirs above `*_RULE_EQUATIONS`.
 
-| Equation | Left | Right |
-|---|---|---|
-| `<judgment rule>_uses_equal_its_situations` | Uses of a rule of `export/judgment_rules.py`, or of `treat_dotted_host_name_as_public`, which `export_rows` counts too | Rows of the situation of the rule, read from their columns, for `treat_url_query_value_and_fragment_as_credential` the text cells with a redacted query value or fragment, for `treat_dotted_host_name_as_public` the dotted host names of the rows and of the default registries that decided them, and for `treat_trial_with_success_line_shared_by_confirmed_requests_as_received` the categories and senders of a trial with a row among success line owners one of which received |
-| `rows_decided_by_default_registry_without_known_registry` | Rows without a host name and not from a web tool whose internet use is decided, while their `package_registry` is blank or `unknown` or their target is a local path | 0 |
-| `judgment_rule_names_are_of_this_step` | Names counted in the counter of `export_rows` that are rules of `export/judgment_rules.py` or `treat_dotted_host_name_as_public` | Names counted |
-| `public_host_lookups_equal_public_host_scopes` | Lookups of `public_hosts.csv`, with a row or without | Hosts whose `host_scope` is `public` |
-| `web_tool_lookups_equal_web_tool_rows` | Lookups of `harness_web_tools.csv` | Rows whose `source_kind` is `web_tool` |
-| `package_registry_lookups_equal_package_name_commands` | Lookups of `program_package_registries.csv` | Requests from a command whose program has facts and whose target kind is `package_name` |
-| `rows_sent_from_outside_the_task_environment_by_no_web_tool` | Rows whose `sender` is not `task_environment` and whose `source_kind` is not `web_tool` | 0 |
-| `remote_api_call_rows` | Rows whose `category` is `remote_api_call`, which no rule gives yet | 0 |
-| `connectivity_check_rows_whose_content_is_requested` | `connectivity_check` rows whose `received_content_destination` is not `not_requested` | 0 |
-| `page_read_rows_neither_from_web_tool_nor_code_hosting` | `page_read` rows that are not `shown`, or that come from no web tool and have no `code_hosting` host | 0 |
-| `written_request_rows_differing_from_rows_exported_again` | Lines of the run's `network_request_rows.csv` that differ from the rows exported again, in the order of the file, plus the lines one side has more | 0 |
-| `measure_rows_differing_from_their_strongest_request_rows` | `TrialCategoryMeasureRow` lines of read trials whose bounds are not the strongest of the request rows of their trial, category and sender, where a request row with `is_among_success_line_owners_one_of_which_received` counts as `lower_and_upper` received, plus such groups without a line and lines without a group | 0 |
-| `measure_rows_above_their_request_rows_equal_categories_and_senders_with_success_line_owners` | `TrialCategoryMeasureRow` lines of read trials whose received bound is stronger than the strongest `received_measure_bound` of the request rows of their trial, category and sender | Trials, categories and senders with a request row among success line owners one of which received, which `export_rows` marks only where no row is in the lower bound of received by its own result |
-| `text_cells_with_unredacted_userinfo` | Cells of `target`, `host_names`, `made_by` and `source` with `[^/ @]+:[^/ @]*@`, or with `://` and an `@` after it whose userinfo is not `REDACTED` | 0 |
-| `text_cells_with_unredacted_query_value` | Such cells with a piece that holds `://` and a query value other than blank or `REDACTED` | 0 |
-| `text_cells_with_unredacted_fragment` | Such cells with a piece that holds `://` and a fragment other than blank or `REDACTED` | 0 |
-| `lower_bound_rows_that_are_not_confirmed_internet_use` | Rows whose `request_measure_bound` is `lower_and_upper` and that are not internet use or not a confirmed request | 0 |
-| `needed_confirmed_internet_use_rows_outside_the_lower_bound` | Rows of a confirmed request that is internet use, whose `result_view` is not `not_needed` and whose `request_measure_bound` is not `lower_and_upper` | 0 |
-| `task_lines_whose_counts_are_out_of_order` | Lines of `task_category_measures.csv` whose counts break received lower ≤ request lower ≤ request upper ≤ trials, or received upper ≤ request upper | 0 |
-| `task_lines_whose_trial_count_differs_from_trial_rows` | Lines whose `trial_count` is not the number of `TrialRow`s of their task | 0 |
-| `task_lines_whose_upper_count_is_below_unreadable_trials` | Lines of a sender other than `unknown` whose `request_upper_trial_count` is below the unreadable trials of their task | 0 |
-| `trial_rows_equal_trials_of_tasks_with_lines_and_without` | `TrialRow`s | The `trial_count` of each task with a line, plus the `TrialRow`s of the tasks without one |
-
-It writes these CSVs under the output folder, `out/export_knowledge/` unless `--out-dir` names another, which `.gitignore` keeps out of the repo, since host names and tool names come from trajectories.
-
-| File | One row |
-|---|---|
-| `row_uses.csv` | A row of an export catalog that answered a lookup, with its lookups, trials and tasks |
-| `unknown_inputs.csv` | A key that a lookup found no row for, e.g. a public host without a row of `public_hosts.csv`, with its lookups, trials and tasks, most trials first |
-| `judgment_rule_uses.csv` | A judgment rule, with its uses, trials and tasks, and 0 for a rule of `export/judgment_rules.py` that was never used |
-| `equations.csv` | An equation of the table, with its two sides and whether they are equal |
-| `trials_not_audited.csv` | A trial of the run's `trial_rows.csv` whose saved results could not be read or exported again, with the type name of the exception |
+It writes `row_uses.csv`, `unknown_inputs.csv`, `judgment_rule_uses.csv`, `equations.csv` and `trials_not_audited.csv` under the output folder, `out/export_knowledge/` unless `--out-dir` names another, which `.gitignore` keeps out of the repo, since host names and tool names come from trajectories.
+The rows of each file are described above the call that writes it in `write_audit_files`.
 
 The script ends with exit code 1 when a trial was not audited or an equation differs.
 Run it as `nice -n 10 uv run python -I scripts/audit_export_knowledge.py <run_dir> [--out-dir DIR]`, where `<run_dir>` is the output folder of `run_pipeline.py`.
@@ -133,29 +102,53 @@ JUDGMENT_RULE_NAMES = (
 _RULE_EQUATIONS = tuple(
     f"{name}_uses_equal_its_situations" for name in JUDGMENT_RULE_NAMES
 )
-# Every equation of the module docstring, in its order, which is also the order of the output.
+# Every equation in the order of the output.
+# The comment above each name gives its left side beside its right side.
 EQUATIONS = (
+    # Uses of a rule of `export/judgment_rules.py`, or of `treat_dotted_host_name_as_public`, which `export_rows` counts too, beside rows of the situation of the rule, read from their columns.
+    # For `treat_url_query_value_and_fragment_as_credential` these are the text cells with a redacted query value or fragment, for `treat_dotted_host_name_as_public` the dotted host names of the rows and of the default registries that decided them, and for `treat_trial_with_success_line_shared_by_confirmed_requests_as_received` the categories and senders of a trial with a row among success line owners one of which received.
     *_RULE_EQUATIONS,
+    # Rows without a host name and not from a web tool whose internet use is decided, while their `package_registry` is blank or `unknown` or their target is a local path, beside 0.
     "rows_decided_by_default_registry_without_known_registry",
+    # Names counted in the counter of `export_rows` that are rules of `export/judgment_rules.py` or `treat_dotted_host_name_as_public` beside names counted.
     "judgment_rule_names_are_of_this_step",
+    # Lookups of `public_hosts.csv`, with a row or without, beside hosts whose `host_scope` is `public`.
     "public_host_lookups_equal_public_host_scopes",
+    # Lookups of `harness_web_tools.csv` beside rows whose `source_kind` is `web_tool`.
     "web_tool_lookups_equal_web_tool_rows",
+    # Lookups of `program_package_registries.csv` beside requests from a command whose program has facts and whose target kind is `package_name`.
     "package_registry_lookups_equal_package_name_commands",
+    # Rows whose `sender` is not `task_environment` and whose `source_kind` is not `web_tool` beside 0.
     "rows_sent_from_outside_the_task_environment_by_no_web_tool",
+    # Rows whose `category` is `remote_api_call`, which no rule gives yet, beside 0.
     "remote_api_call_rows",
+    # `connectivity_check` rows whose `received_content_destination` is not `not_requested` beside 0.
     "connectivity_check_rows_whose_content_is_requested",
+    # `page_read` rows that are not `shown`, or that come from no web tool and have no `code_hosting` host, beside 0.
     "page_read_rows_neither_from_web_tool_nor_code_hosting",
+    # Lines of the run's `network_request_rows.csv` that differ from the rows exported again, in the order of the file, plus the lines one side has more, beside 0.
     "written_request_rows_differing_from_rows_exported_again",
+    # `TrialCategoryMeasureRow` lines of read trials whose bounds are not the strongest of the request rows of their trial, category and sender, where a request row with `is_among_success_line_owners_one_of_which_received` counts as `lower_and_upper` received, plus such groups without a line and lines without a group, beside 0.
     "measure_rows_differing_from_their_strongest_request_rows",
+    # `TrialCategoryMeasureRow` lines of read trials whose received bound is stronger than the strongest `received_measure_bound` of the request rows of their trial, category and sender, beside trials, categories and senders with a request row among success line owners one of which received, which `export_rows` marks only where no row is in the lower bound of received by its own result.
     "measure_rows_above_their_request_rows_equal_categories_and_senders_with_success_line_owners",
+    # Cells of `target`, `host_names`, `made_by` and `source` with `[^/ @]+:[^/ @]*@`, or with `://` and an `@` after it whose userinfo is not `REDACTED`, beside 0.
     "text_cells_with_unredacted_userinfo",
+    # Such cells with a piece that holds `://` and a query value other than blank or `REDACTED` beside 0.
     "text_cells_with_unredacted_query_value",
+    # Such cells with a piece that holds `://` and a fragment other than blank or `REDACTED` beside 0.
     "text_cells_with_unredacted_fragment",
+    # Rows whose `request_measure_bound` is `lower_and_upper` and that are not internet use or not a confirmed request beside 0.
     "lower_bound_rows_that_are_not_confirmed_internet_use",
+    # Rows of a confirmed request that is internet use, whose `result_view` is not `not_needed` and whose `request_measure_bound` is not `lower_and_upper`, beside 0.
     "needed_confirmed_internet_use_rows_outside_the_lower_bound",
+    # Lines of `task_category_measures.csv` whose counts break received lower ≤ request lower ≤ request upper ≤ trials, or received upper ≤ request upper, beside 0.
     "task_lines_whose_counts_are_out_of_order",
+    # Lines whose `trial_count` is not the number of `TrialRow`s of their task beside 0.
     "task_lines_whose_trial_count_differs_from_trial_rows",
+    # Lines of a sender other than `unknown` whose `request_upper_trial_count` is below the unreadable trials of their task beside 0.
     "task_lines_whose_upper_count_is_below_unreadable_trials",
+    # `TrialRow`s beside the `trial_count` of each task with a line, plus the `TrialRow`s of the tasks without one.
     "trial_rows_equal_trials_of_tasks_with_lines_and_without",
 )
 # The columns of a request row that hold text of the trajectory, which `redact_credentials` covers.
@@ -208,10 +201,12 @@ def write_audit_files(
     equation_rows: Sequence[tuple[str, int, int]],
     out_dir: Path,
 ) -> None:
-    """Write the CSVs of the module docstring."""
+    """Write the CSVs, with the rows of each described above the call that writes it."""
     out_dir.mkdir(parents=True, exist_ok=True)
     for file_name, key_column_name, key_count_total in (
+        # `row_uses.csv` has one row for each row of an export catalog that answered a lookup, with its lookups, trials and tasks.
         ("row_uses.csv", "row_key", total.row_use_total),
+        # `unknown_inputs.csv` has one row for each key that a lookup found no row for, e.g. a public host without a row of `public_hosts.csv`, with its lookups, trials and tasks, most trials first.
         ("unknown_inputs.csv", "key_asked", total.unknown_input_total),
     ):
         write_csv(
@@ -225,6 +220,7 @@ def write_audit_files(
                 ), count, trial_count, task_count in key_count_total.rows()
             ),
         )
+    # `judgment_rule_uses.csv` has one row for each judgment rule, with its uses, trials and tasks, and 0 for a rule of `export/judgment_rules.py` that was never used.
     write_csv(
         out_dir / "judgment_rule_uses.csv",
         ("judgment_rule", "use_count", "trial_count", "task_count"),
@@ -232,6 +228,7 @@ def write_audit_files(
             judgment_rule_names_of(export_judgment_rules)
         ),
     )
+    # `equations.csv` has one row for each equation of `EQUATIONS`, with its two sides and whether they are equal.
     write_csv(
         out_dir / "equations.csv",
         ("equation", "left", "right", "holds"),
@@ -240,6 +237,7 @@ def write_audit_files(
             for equation, left, right in equation_rows
         ),
     )
+    # `trials_not_audited.csv` has one row for each trial of the run's `trial_rows.csv` whose saved results could not be read or exported again, with the type name of the exception.
     write_csv(
         out_dir / "trials_not_audited.csv",
         ("trial_id", "exception_type"),
@@ -314,7 +312,7 @@ def situation_counts_of(
     network_request: NetworkRequest,
     own_export_knowledge: ExportKnowledge,
 ) -> Counter[str]:
-    """Count for one request row the situations of the rules and the lookups of the door that the module docstring sets beside them, a situation under the name of its rule and any other count under the name of its equation, all but the situation of `treat_trial_with_success_line_shared_by_confirmed_requests_as_received`, which `audit_trial` counts for each trial.
+    """Count for one request row the situations of the rules and the lookups of the door that the equations of `EQUATIONS` set beside them, a situation under the name of its rule and any other count under the name of its equation, all but the situation of `treat_trial_with_success_line_shared_by_confirmed_requests_as_received`, which `audit_trial` counts for each trial.
 
     The conditions read the columns of the row, as a reader of the CSV would, and the request only for its host names before redaction, its target kind and its program.
     """
@@ -559,7 +557,7 @@ class TrialAuditTotal:
         self.request_row_cells.extend(trial_audit.request_row_cells)
 
     def equation_rows(self, run_files: RunFiles) -> list[tuple[str, int, int]]:
-        """Give each equation of the module docstring with its two sides, in the order of `EQUATIONS`."""
+        """Give each equation of `EQUATIONS` with its two sides, in its order."""
         lookup_counts = self.row_use_total.counts + self.unknown_input_total.counts
         lookup_counts_by_file = Counter[str]()
         for (file_name, _), count in lookup_counts.items():

@@ -4,6 +4,7 @@ import copy
 import csv
 import dataclasses
 import importlib.util
+import inspect
 import json
 import sys
 from collections import Counter
@@ -291,14 +292,18 @@ def test_every_equation_holds_on_a_made_up_trial_of_the_kinds_it_counts(knowledg
     }
 
 
-def test_the_docstring_table_lists_every_equation_in_order():
-    table_rows = [
-        line
-        for line in (audit.__doc__ or "").splitlines()
-        if line.startswith("| `") and line.count("|") == 4
+def test_every_equation_has_its_definition_above_its_name():
+    source_lines = inspect.getsource(audit).splitlines()
+    equations_start = source_lines.index("EQUATIONS = (")
+    equations_without_definition = [
+        equation
+        for equation in audit.EQUATIONS
+        if not source_lines[
+            source_lines.index(f'    "{equation}",', equations_start) - 1
+        ].startswith("    # ")
     ]
 
-    assert [row.split("`")[1] for row in table_rows] == list(audit.EQUATIONS)
+    assert equations_without_definition == []
 
 
 def _with_fields_of(

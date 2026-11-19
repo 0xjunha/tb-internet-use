@@ -78,14 +78,12 @@ def extract_command_network_requests(
 ) -> tuple[NetworkRequest, ...]:
     """Extract the requests of the programs of one command, the outermost first, numbering them in the call from `first_index_in_tool_call` on.
 
-    | Program | Requests |
-    |---|---|
-    | No fact of `expand_tool_calls` covers it, and it runs a text that the trial holds, e.g. `./fetch.sh https://a.org/x` after another call wrote fetch.sh | none, since the commands of the text give them |
-    | No fact of `expand_tool_calls` covers it otherwise, e.g. `mytool https://a.org/x` | one uncertain request per URL in its words that may be public or whose host cannot be read |
-    | The request catalog says it does not fetch, e.g. `echo https://a.org` | none |
-    | No row of the request catalog, and it runs a next program or a text that the trial holds, e.g. sudo in `sudo curl u` | none, since what it runs gives them |
-    | No row of the request catalog otherwise, e.g. `bash setup.sh https://a.org/x` for a setup.sh that the trial does not hold | one uncertain request per URL in its words that may be public or whose host cannot be read |
-    | The request catalog says it fetches, e.g. `curl u` | one request per target that its words show, and one for those they do not show |
+    - A program that no fact of `expand_tool_calls` covers and that runs a text that the trial holds gives none, since the commands of the text give them, e.g. `./fetch.sh https://a.org/x` after another call wrote fetch.sh.
+    - Any other program that no fact of `expand_tool_calls` covers gives one uncertain request per URL in its words that may be public or whose host cannot be read, e.g. `mytool https://a.org/x`.
+    - A program that the request catalog says does not fetch gives none, e.g. `echo https://a.org`.
+    - A program without a row of the request catalog that runs a next program or a text that the trial holds gives none, since what it runs gives them, e.g. sudo in `sudo curl u`.
+    - Any other program without a row of the request catalog gives one uncertain request per URL in its words that may be public or whose host cannot be read, e.g. `bash setup.sh https://a.org/x` for a setup.sh that the trial does not hold.
+    - A program that the request catalog says fetches gives one request per target that its words show, and one for those they do not show, e.g. `curl u`.
 
     Every program run that gives no request adds one to `no_network_request_counts` under its reason.
     """

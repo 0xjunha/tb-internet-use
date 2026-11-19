@@ -47,14 +47,12 @@ def extract_received_content_destination(
 ) -> ReceivedContentDestination:
     """Extract where the received content of the requests of one program in a command goes, taking the first case below that fits.
 
-    | Case | Destination |
-    |---|---|
-    | An option asks for no content, e.g. `curl -I u`, or the row says `no_content`, e.g. `ping` | `NoContentRequested` |
-    | The program gets more arguments when it runs, e.g. `xargs curl -O`, or an option has no row of the request catalog, e.g. `curl -K cfg u`, since either may send the content elsewhere as `-O` does | `UnknownReceivedContentDestination` |
-    | An option sends the content to stdout, e.g. `curl -o - u`, or the row says `stdout` and the command writes no file of its own, e.g. `curl u > a.tgz` | the end of the stdout route |
-    | The command writes files of its own that may hold the content, e.g. `curl -o a.tgz u` | `ContentSaved` with the path when there is one file and one request, or `ContentDiscarded` when that file is `/dev/null`, else `ContentSaved(None)`, also for `curl -o /dev/null u1 -o /dev/null u2` |
-    | The row says `own_file`, e.g. `pip install x` | `ContentSaved(None)` |
-    | The row leaves the route blank | `UnknownReceivedContentDestination` |
+    1. When an option asks for no content, e.g. `curl -I u`, or the row says `no_content`, e.g. `ping`, it is `NoContentRequested`.
+    2. When the program gets more arguments when it runs, e.g. `xargs curl -O`, or an option has no row of the request catalog, e.g. `curl -K cfg u`, it is `UnknownReceivedContentDestination`, since either may send the content elsewhere as `-O` does.
+    3. When an option sends the content to stdout, e.g. `curl -o - u`, or the row says `stdout` and the command writes no file of its own, e.g. `curl u > a.tgz`, it is the end of the stdout route.
+    4. When the command writes files of its own that may hold the content, e.g. `curl -o a.tgz u`, it is `ContentSaved` with the path when there is one file and one request, or `ContentDiscarded` when that file is `/dev/null`, else `ContentSaved(None)`, also for `curl -o /dev/null u1 -o /dev/null u2`.
+    5. When the row says `own_file`, e.g. `pip install x`, it is `ContentSaved(None)`.
+    6. When the row leaves the route blank, it is `UnknownReceivedContentDestination`.
 
     A file of its own may hold the content unless it is the value of an option whose effect is not `SENDS_CONTENT_TO_FILE`, e.g. h.txt of `curl -D h.txt u`, whose content goes to stdout, or of `curl -D h.txt u > b.txt`, whose content goes to b.txt.
     `program_option_effects` holds the answer of `NetworkRequestKnowledge` for each of `program_invocation.options`, at the same index, and `network_request_count` is the number of requests of the program in the command.
