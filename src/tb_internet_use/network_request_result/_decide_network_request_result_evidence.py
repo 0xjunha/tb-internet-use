@@ -43,7 +43,6 @@ from tb_internet_use.network_request_result.model import (
     ExecutionStatusEvidence,
     ExitCodeEvidence,
     FileUseEvidence,
-    FileWrittenByAnotherRequestAssumptionReason,
     HttpStatusEvidence,
     JudgmentRuleAssumptionReason,
     MissingProgramOfAnotherCommandAssumptionReason,
@@ -56,6 +55,7 @@ from tb_internet_use.network_request_result.model import (
     OutputLineOwners,
     OutputPlaceSources,
     ProgramExitCodeMeaning,
+    SharedFileUseAssumptionReason,
     SharedHttpStatusAssumptionReason,
     SharedOutputLineAssumptionReason,
     ShownContentEvidence,
@@ -259,7 +259,7 @@ def _output_line_evidence_of(
                 ),
                 level=level,
                 stop_reason=stop_reason,
-                assumption_reasons=_assumption_reasons_from(
+                assumption_reasons=_evidence_assumption_reasons_from(
                     may_belong_to_another_request_reasons,
                     rests_on_judgment_rule=rests_on_judgment_rule,
                 ),
@@ -307,7 +307,7 @@ def _unknown_printer_reasons_of(
     return ()
 
 
-def _assumption_reasons_from(
+def _evidence_assumption_reasons_from(
     may_belong_to_another_request_reasons: tuple[
         NetworkRequestResultAssumptionReason, ...
     ],
@@ -606,7 +606,7 @@ def _exit_code_evidence_of(
             ),
             level,
             stop_reason,
-            assumption_reasons=_assumption_reasons_from(
+            assumption_reasons=_evidence_assumption_reasons_from(
                 (), rests_on_judgment_rule=rests_on_judgment_rule
             ),
         )
@@ -943,10 +943,8 @@ def _file_use_evidence_with_level_of(
         FileUseEvidence(file_use),
         _RECEIVED,
         None,
-        assumption_reasons=_assumption_reasons_from(
-            (FileWrittenByAnotherRequestAssumptionReason(),)
-            if is_written_by_another_request
-            else (),
+        assumption_reasons=_evidence_assumption_reasons_from(
+            (SharedFileUseAssumptionReason(),) if is_written_by_another_request else (),
             rests_on_judgment_rule=rests_on_judgment_rule,
         ),
     )

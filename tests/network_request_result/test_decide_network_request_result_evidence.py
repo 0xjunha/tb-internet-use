@@ -63,7 +63,6 @@ from tb_internet_use.network_request_result.model import (
     ExecutionStatusEvidence,
     ExitCodeEvidence,
     FileUseEvidence,
-    FileWrittenByAnotherRequestAssumptionReason,
     HttpStatusEvidence,
     JudgmentRuleAssumptionReason,
     MissingProgramOfAnotherCommandAssumptionReason,
@@ -77,6 +76,7 @@ from tb_internet_use.network_request_result.model import (
     OutputLineWithMeaning,
     OutputPlaceSourceCommands,
     OutputPlaceSources,
+    SharedFileUseAssumptionReason,
     SharedHttpStatusAssumptionReason,
     SharedOutputLineAssumptionReason,
     ShownContentEvidence,
@@ -468,9 +468,7 @@ def file_use_evidence(
         RECEIVED,
         None,
         assumption_reasons_from(
-            FileWrittenByAnotherRequestAssumptionReason()
-            if is_written_by_another_request
-            else None,
+            SharedFileUseAssumptionReason() if is_written_by_another_request else None,
             rests_on_judgment_rule=rests_on_judgment_rule,
         ),
     )

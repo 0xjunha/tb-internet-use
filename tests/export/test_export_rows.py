@@ -445,7 +445,7 @@ def test_example_of_the_pipeline_example_reaches_its_last_table(
         result_view=NetworkRequestResultView.NOT_RECEIVED,
         request_measure_bound=LOWER_AND_UPPER,
         received_measure_bound=UPPER_ONLY,
-        is_received_by_one_of_its_line_owners=False,
+        is_among_success_line_owners_one_of_which_received=False,
     )
     assert network_request_rows == (
         fetched_file_row_of_r1,

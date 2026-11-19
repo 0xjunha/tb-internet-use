@@ -19,7 +19,7 @@ from tb_internet_use.export.judgment_rules import (
     treat_content_piped_to_showing_command_as_other_web,
     treat_discarded_content_as_other_web,
     treat_host_target_that_may_receive_content_as_other_web,
-    treat_local_host_name_of_web_tool_as_unknown_internet_use,
+    treat_local_or_single_label_host_name_of_web_tool_as_unknown_internet_use,
     treat_repository_request_for_no_content_as_other_web,
     treat_request_of_unknown_sender_as_possibly_from_task_environment,
     treat_request_without_host_name_as_sent_to_default_registry_host,
@@ -28,8 +28,8 @@ from tb_internet_use.export.judgment_rules import (
     treat_shown_content_from_registry_or_model_hub_host_as_other_web,
     treat_shown_content_from_search_engine_host_as_other_web,
     treat_single_label_host_name_as_not_internet_use,
-    treat_success_line_shared_by_confirmed_requests_as_received_by_one_of_them,
     treat_templated_host_name_as_unknown_internet_use,
+    treat_trial_with_success_line_shared_by_confirmed_requests_as_received,
     treat_url_query_value_and_fragment_as_credential,
     treat_web_tool_request_without_host_name_as_internet_use,
 )
@@ -165,7 +165,7 @@ PAGE_READ_ROW_FROM_UNKNOWN_SENDER = NetworkRequestRow(
     result_view=NetworkRequestResultView.RECEIVED,
     request_measure_bound=MeasureBound.LOWER_AND_UPPER,
     received_measure_bound=MeasureBound.UPPER_ONLY,
-    is_received_by_one_of_its_line_owners=False,
+    is_among_success_line_owners_one_of_which_received=False,
 )
 
 # The row of each of `pip install A B` under one `Successfully installed A-1.0` that both own.
@@ -339,7 +339,7 @@ JUDGMENT_RULE_CASES: list[tuple[Callable[..., object], tuple[object, ...], objec
         True,
     ),
     (
-        treat_local_host_name_of_web_tool_as_unknown_internet_use,
+        treat_local_or_single_label_host_name_of_web_tool_as_unknown_internet_use,
         (
             _web_tool_request(
                 HarnessTool("claude-code", "WebFetch"),
@@ -375,7 +375,7 @@ JUDGMENT_RULE_CASES: list[tuple[Callable[..., object], tuple[object, ...], objec
         True,
     ),
     (
-        treat_success_line_shared_by_confirmed_requests_as_received_by_one_of_them,
+        treat_trial_with_success_line_shared_by_confirmed_requests_as_received,
         (
             [
                 dataclasses.replace(

@@ -26,7 +26,7 @@ def export_trial_row(
     """Export the `TrialRow` of one trial from its `Trial` and its request rows.
 
     The two bounds are the strongest among the rows that the task environment sent, since the question of the tasks most affected is about turning off the internet of the task environment. They are `NEITHER` when there is no such row.
-    The received bound of a row is `trial_received_measure_bound_of` it, so a row received by one of its line owners counts in the lower bound, e.g. each of `pip install A B` under one `Successfully installed A-1.0` that both own.
+    The received bound of a row is `trial_received_measure_bound_of` it, so a row among success line owners one of which received counts in the lower bound, e.g. each of `pip install A B` under one `Successfully installed A-1.0` that both own.
     A row whose sender is not known, e.g. a web tool without a row of the web tool catalog, counts as `treat_request_of_unknown_sender_as_possibly_from_task_environment` says, which it is asked once for each such row.
     A trial whose trajectory could not be read gets `UPPER_ONLY` for both, since its requests are not known.
     Request rows of another trial raise `ValueError`, since they would give this trial the bounds of that one.

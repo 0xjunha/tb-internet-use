@@ -37,7 +37,6 @@ from tb_internet_use.network_request_result.model import (
     ExecutionStatusEvidence,
     ExitCodeEvidence,
     FileUseEvidence,
-    FileWrittenByAnotherRequestAssumptionReason,
     HttpStatusEvidence,
     JudgmentRuleAssumptionReason,
     NetworkRequestResult,
@@ -48,6 +47,7 @@ from tb_internet_use.network_request_result.model import (
     NetworkRequestResultStopReason,
     OutputLineEvidence,
     OutputLineKind,
+    SharedFileUseAssumptionReason,
     SharedHttpStatusAssumptionReason,
     SharedOutputLineAssumptionReason,
     ShownContentEvidence,
@@ -152,7 +152,7 @@ def may_belong_reason_of(
         case HttpStatusEvidence():
             return SharedHttpStatusAssumptionReason()
         case FileUseEvidence():
-            return FileWrittenByAnotherRequestAssumptionReason()
+            return SharedFileUseAssumptionReason()
         case _:
             return UnknownRunBesideAssumptionReason()
 

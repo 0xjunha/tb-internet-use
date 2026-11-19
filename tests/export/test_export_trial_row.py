@@ -269,7 +269,7 @@ def test_trial_row_counts_a_row_received_by_one_of_its_line_owners_in_the_lower_
         sender,
         LOWER_AND_UPPER,
         UPPER_ONLY,
-        is_received_by_one_of_its_line_owners=True,
+        is_among_success_line_owners_one_of_which_received=True,
     )
 
     trial_row = export_trial_row(READ_TRIAL, [row], judgment_rule_use_counts=Counter())

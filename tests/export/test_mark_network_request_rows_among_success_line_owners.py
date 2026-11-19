@@ -1,4 +1,4 @@
-"""Tests for _mark_network_request_rows_received_by_one_of_their_line_owners.py, through `export_rows`, from made-up results of one trial whose requests share output lines to the rows of the trial."""
+"""Tests for _mark_network_request_rows_among_success_line_owners.py, through `export_rows`, from made-up results of one trial whose requests share output lines to the rows of the trial."""
 
 import dataclasses
 from collections import Counter
@@ -9,11 +9,11 @@ from made_up_export_catalogs import write_made_up_export_catalogs
 
 from tb_internet_use.expanded_tool_call.model import CallCommandText, ProgramInvocation
 from tb_internet_use.export import export_rows
-from tb_internet_use.export._mark_network_request_rows_received_by_one_of_their_line_owners import (
-    mark_network_request_rows_received_by_one_of_their_line_owners,
+from tb_internet_use.export._mark_network_request_rows_among_success_line_owners import (
+    mark_network_request_rows_among_success_line_owners,
 )
 from tb_internet_use.export.judgment_rules import (
-    treat_success_line_shared_by_confirmed_requests_as_received_by_one_of_them,
+    treat_trial_with_success_line_shared_by_confirmed_requests_as_received,
 )
 from tb_internet_use.export.model import (
     MeasureBound,
@@ -55,9 +55,7 @@ TASK_ENVIRONMENT = NetworkRequestSender.TASK_ENVIRONMENT
 RECEIVED = NetworkRequestResultLevel.RECEIVED
 CONFIRMED = NetworkRequestResultCertainty.CONFIRMED
 ASSUMED = NetworkRequestResultCertainty.ASSUMED
-RULE = (
-    treat_success_line_shared_by_confirmed_requests_as_received_by_one_of_them.__name__
-)
+RULE = treat_trial_with_success_line_shared_by_confirmed_requests_as_received.__name__
 
 READ_TRIAL = Trial(
     "t1",
@@ -284,10 +282,12 @@ CASES = [
 ]
 
 
-@pytest.mark.parametrize(("network_request_results", "is_lifted"), CASES)
-def test_a_shared_line_of_success_lifts_the_trial_only_when_every_owner_is_a_confirmed_request_of_the_category_that_received(
+@pytest.mark.parametrize(
+    ("network_request_results", "counts_trial_in_received_lower_bound"), CASES
+)
+def test_a_shared_line_of_success_counts_the_trial_in_the_received_lower_bound_only_when_every_owner_is_a_confirmed_request_of_the_category_that_received(
     network_request_results: tuple[NetworkRequestResult, ...],
-    is_lifted: bool,
+    counts_trial_in_received_lower_bound: bool,
     knowledge: ExportKnowledge,
 ):
     judgment_rule_use_counts: Counter[str] = Counter()
@@ -299,7 +299,9 @@ def test_a_shared_line_of_success_lifts_the_trial_only_when_every_owner_is_a_con
         judgment_rule_use_counts=judgment_rule_use_counts,
     )
 
-    expected_received_measure_bound = LOWER_AND_UPPER if is_lifted else UPPER_ONLY
+    expected_received_measure_bound = (
+        LOWER_AND_UPPER if counts_trial_in_received_lower_bound else UPPER_ONLY
+    )
     assert [
         (row.category, row.sender, row.received_measure_bound)
         for row in trial_category_measure_rows
@@ -308,12 +310,15 @@ def test_a_shared_line_of_success_lifts_the_trial_only_when_every_owner_is_a_con
         trial_row.any_category_received_measure_bound == expected_received_measure_bound
     )
     assert [
-        row.is_received_by_one_of_its_line_owners for row in network_request_rows
-    ] == [is_lifted] * len(network_request_rows)
-    assert judgment_rule_use_counts[RULE] == int(is_lifted)
+        row.is_among_success_line_owners_one_of_which_received
+        for row in network_request_rows
+    ] == [counts_trial_in_received_lower_bound] * len(network_request_rows)
+    assert judgment_rule_use_counts[RULE] == int(counts_trial_in_received_lower_bound)
 
 
-def test_the_rows_of_a_lifted_trial_keep_their_own_bounds(knowledge: ExportKnowledge):
+def test_the_rows_of_a_trial_counted_by_a_shared_line_keep_their_own_bounds(
+    knowledge: ExportKnowledge,
+):
     _, network_request_rows, _ = export_rows(
         READ_TRIAL,
         (PIP_INSTALL_A, PIP_INSTALL_B),
@@ -327,7 +332,9 @@ def test_the_rows_of_a_lifted_trial_keep_their_own_bounds(knowledge: ExportKnowl
     ] == [(LOWER_AND_UPPER, UPPER_ONLY, ASSUMED)] * 2
 
 
-def test_owners_of_another_category_lift_neither_category(knowledge: ExportKnowledge):
+def test_owners_of_another_category_count_the_trial_for_neither_category(
+    knowledge: ExportKnowledge,
+):
     curl_sharing_the_line = dataclasses.replace(
         CURL_OF_FETCHED_FILE,
         evidence=(INSTALLED_LINE,),
@@ -346,12 +353,13 @@ def test_owners_of_another_category_lift_neither_category(knowledge: ExportKnowl
         UPPER_ONLY
     }
     assert not any(
-        row.is_received_by_one_of_its_line_owners for row in network_request_rows
+        row.is_among_success_line_owners_one_of_which_received
+        for row in network_request_rows
     )
     assert judgment_rule_use_counts[RULE] == 0
 
 
-def test_owners_of_another_sender_do_not_lift_the_trial(knowledge: ExportKnowledge):
+def test_owners_of_another_sender_do_not_count_the_trial(knowledge: ExportKnowledge):
     # Two page reads share one line, one by Codex `web_search_call` from the provider server and one by Claude Code `Fetch`, whose sender is not known.
     network_request_results = tuple(
         _result(_page_read_by_web_tool(harness_tool, index))
@@ -381,11 +389,11 @@ def test_owners_of_another_sender_do_not_lift_the_trial(knowledge: ExportKnowled
     assert judgment_rule_use_counts[RULE] == 0
 
 
-def test_the_same_text_shown_by_two_calls_is_two_lines_that_each_lift_by_themselves(
+def test_the_same_text_shown_by_two_calls_is_two_lines_that_each_count_the_trial_by_themselves(
     knowledge: ExportKnowledge,
 ):
     # A and B own the line in the result of `pip install A B` and the same text in `cat pip.log`, which the curl of a fetched file owns too.
-    # The first line lifts `package` by itself, while the second lifts nothing and so does not mark the curl.
+    # The first line counts the trial for `package` by itself, while the second counts nothing and so does not mark the curl.
     pip_install_a, pip_install_b = (
         _result(network_request, (INSTALLED_LINE, INSTALLED_LINE_OF_LOG))
         for network_request in (
@@ -410,7 +418,8 @@ def test_the_same_text_shown_by_two_calls_is_two_lines_that_each_lift_by_themsel
         (NetworkRequestCategory.FETCHED_FILE, UPPER_ONLY),
     ]
     assert [
-        row.is_received_by_one_of_its_line_owners for row in network_request_rows
+        row.is_among_success_line_owners_one_of_which_received
+        for row in network_request_rows
     ] == [
         True,
         True,
@@ -419,7 +428,7 @@ def test_the_same_text_shown_by_two_calls_is_two_lines_that_each_lift_by_themsel
     assert judgment_rule_use_counts[RULE] == 1
 
 
-def test_two_lifting_lines_of_one_category_and_sender_ask_the_rule_once(
+def test_two_lines_counting_the_trial_for_one_category_and_sender_ask_the_rule_once(
     knowledge: ExportKnowledge,
 ):
     pip_install_a, pip_install_b = (
@@ -474,7 +483,8 @@ def test_a_category_that_a_row_already_counts_in_the_lower_bound_of_received_mar
         LOWER_AND_UPPER
     ]
     assert not any(
-        row.is_received_by_one_of_its_line_owners for row in network_request_rows
+        row.is_among_success_line_owners_one_of_which_received
+        for row in network_request_rows
     )
     assert judgment_rule_use_counts[RULE] == 0
 
@@ -483,7 +493,7 @@ def _exported_marks_and_rule_uses(
     network_request_results: tuple[NetworkRequestResult, ...],
     knowledge: ExportKnowledge,
 ) -> tuple[list[bool], int]:
-    """Give whether each row is received by one of its line owners, and the uses of the rule."""
+    """Give whether each row is among success line owners one of which received, and the uses of the rule."""
     judgment_rule_use_counts: Counter[str] = Counter()
     _, network_request_rows, _ = export_rows(
         READ_TRIAL,
@@ -492,7 +502,8 @@ def _exported_marks_and_rule_uses(
         judgment_rule_use_counts=judgment_rule_use_counts,
     )
     return [
-        row.is_received_by_one_of_its_line_owners for row in network_request_rows
+        row.is_among_success_line_owners_one_of_which_received
+        for row in network_request_rows
     ], judgment_rule_use_counts[RULE]
 
 
@@ -511,7 +522,7 @@ def _curl_owning(line: OutputLineEvidence) -> NetworkRequestResult:
     return _result(CURL_OF_FETCHED_FILE.network_request, (line,))
 
 
-def test_an_owner_assumed_for_another_line_alone_keeps_the_line_from_lifting(
+def test_an_owner_assumed_for_another_line_alone_keeps_the_line_from_counting_the_trial(
     knowledge: ExportKnowledge,
 ):
     # A is received by line 0. X holds line 0 too, but is assumed only for line 1, which the curl of a fetched file shares, so X may have printed line 0 without receiving by it.
@@ -524,7 +535,7 @@ def test_an_owner_assumed_for_another_line_alone_keeps_the_line_from_lifting(
     ) == ([False] * 3, 0)
 
 
-def test_a_line_that_no_owner_is_assumed_for_lifts_nothing(knowledge: ExportKnowledge):
+def test_a_line_that_no_owner_is_assumed_for_counts_nothing(knowledge: ExportKnowledge):
     # A and B hold lines 0 and 1, but are assumed only for line 1, which the curl of a fetched file shares too.
     pip_install_a, pip_install_b = (
         _result(
@@ -542,7 +553,7 @@ def test_a_line_that_no_owner_is_assumed_for_lifts_nothing(knowledge: ExportKnow
 
 
 @pytest.mark.parametrize(
-    ("lifting_line", "other_line"),
+    ("line_counting_the_trial", "other_line"),
     [
         pytest.param(
             INSTALLED_LINE, SECOND_LINE, id="lines that differ in their index"
@@ -555,13 +566,13 @@ def test_a_line_that_no_owner_is_assumed_for_lifts_nothing(knowledge: ExportKnow
     ],
 )
 def test_two_lines_of_one_call_are_told_apart_by_both_indexes(
-    lifting_line: OutputLineEvidence,
+    line_counting_the_trial: OutputLineEvidence,
     other_line: OutputLineEvidence,
     knowledge: ExportKnowledge,
 ):
-    # A and B are assumed for the lifting line, and the curl of a fetched file for the other line alone.
+    # A and B are assumed for the line that counts the trial, and the curl of a fetched file for the other line alone.
     pip_install_a, pip_install_b = (
-        _result(network_request, (lifting_line,))
+        _result(network_request, (line_counting_the_trial,))
         for network_request in (
             PIP_INSTALL_A.network_request,
             PIP_INSTALL_B.network_request,
@@ -573,7 +584,7 @@ def test_two_lines_of_one_call_are_told_apart_by_both_indexes(
     ) == ([True, True, False], 1)
 
 
-def test_every_owner_of_every_lifting_line_of_a_category_is_marked(
+def test_every_owner_of_every_line_counting_the_trial_for_a_category_is_marked(
     knowledge: ExportKnowledge,
 ):
     # A and B own line 0, and C and D own line 1.
@@ -606,7 +617,7 @@ def test_results_and_rows_of_other_numbers_are_refused(knowledge: ExportKnowledg
     with pytest.raises(
         ValueError, match="2 network request results and 1 request rows"
     ):
-        mark_network_request_rows_received_by_one_of_their_line_owners(
+        mark_network_request_rows_among_success_line_owners(
             (PIP_INSTALL_A, PIP_INSTALL_B),
             network_request_rows[:1],
             judgment_rule_use_counts=Counter(),

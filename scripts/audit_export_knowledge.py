@@ -6,7 +6,7 @@ An equation whose right side is 0 counts rows that break a rule that holds whate
 
 | Equation | Left | Right |
 |---|---|---|
-| `<judgment rule>_uses_equal_its_situations` | Uses of a rule of `export/judgment_rules.py`, or of `treat_dotted_host_name_as_public`, which `export_rows` counts too | Rows of the situation of the rule, read from their columns, or for `treat_dotted_host_name_as_public` the dotted host names of the rows and of the default registries that decided them, or for `treat_success_line_shared_by_confirmed_requests_as_received_by_one_of_them` the categories and senders of a trial with a row received by one of its line owners |
+| `<judgment rule>_uses_equal_its_situations` | Uses of a rule of `export/judgment_rules.py`, or of `treat_dotted_host_name_as_public`, which `export_rows` counts too | Rows of the situation of the rule, read from their columns, or for `treat_dotted_host_name_as_public` the dotted host names of the rows and of the default registries that decided them, or for `treat_trial_with_success_line_shared_by_confirmed_requests_as_received` the categories and senders of a trial with a row among success line owners one of which received |
 | `rows_decided_by_default_registry_without_known_registry` | Rows without a host name and not from a web tool whose internet use is decided, while their `package_registry` is blank or `unknown` or their target is a local path | 0 |
 | `judgment_rule_names_are_of_this_step` | Names counted in the counter of `export_rows` that are rules of `export/judgment_rules.py` or `treat_dotted_host_name_as_public` | Names counted |
 | `public_host_lookups_equal_public_host_scopes` | Lookups of `public_hosts.csv`, with a row or without | Hosts whose `host_scope` is `public` |
@@ -17,8 +17,8 @@ An equation whose right side is 0 counts rows that break a rule that holds whate
 | `connectivity_check_rows_whose_content_is_requested` | `connectivity_check` rows whose `received_content_destination` is not `not_requested` | 0 |
 | `page_read_rows_neither_from_web_tool_nor_code_hosting` | `page_read` rows that are not `shown`, or that come from no web tool and have no `code_hosting` host | 0 |
 | `written_request_rows_differing_from_rows_exported_again` | Lines of the run's `network_request_rows.csv` that differ from the rows exported again, in the order of the file, plus the lines one side has more | 0 |
-| `measure_rows_differing_from_their_strongest_request_rows` | `TrialCategoryMeasureRow` lines of read trials whose bounds are not the strongest of the request rows of their trial, category and sender, where a request row with `is_received_by_one_of_its_line_owners` counts as `lower_and_upper` received, plus such groups without a line and lines without a group | 0 |
-| `measure_rows_above_their_request_rows_equal_categories_and_senders_lifted_by_line_owners` | `TrialCategoryMeasureRow` lines of read trials whose received bound is stronger than the strongest `received_measure_bound` of the request rows of their trial, category and sender | Trials, categories and senders with a request row received by one of its line owners, which `export_rows` marks only where no row is in the lower bound of received by its own result |
+| `measure_rows_differing_from_their_strongest_request_rows` | `TrialCategoryMeasureRow` lines of read trials whose bounds are not the strongest of the request rows of their trial, category and sender, where a request row with `is_among_success_line_owners_one_of_which_received` counts as `lower_and_upper` received, plus such groups without a line and lines without a group | 0 |
+| `measure_rows_above_their_request_rows_equal_categories_and_senders_with_success_line_owners` | `TrialCategoryMeasureRow` lines of read trials whose received bound is stronger than the strongest `received_measure_bound` of the request rows of their trial, category and sender | Trials, categories and senders with a request row among success line owners one of which received, which `export_rows` marks only where no row is in the lower bound of received by its own result |
 | `text_cells_with_unredacted_userinfo` | Cells of `target`, `host_names`, `made_by` and `source` with `[^/ @]+:[^/ @]*@`, or with `://` and an `@` after it whose userinfo is not `REDACTED` | 0 |
 | `text_cells_with_unredacted_query_value` | Such cells with a piece that holds `://` and a query value other than blank or `REDACTED` | 0 |
 | `text_cells_with_unredacted_fragment` | Such cells with a piece that holds `://` and a fragment other than blank or `REDACTED` | 0 |
@@ -65,7 +65,7 @@ from tb_internet_use.export.judgment_rules import (
     treat_content_piped_to_showing_command_as_other_web,
     treat_discarded_content_as_other_web,
     treat_host_target_that_may_receive_content_as_other_web,
-    treat_local_host_name_of_web_tool_as_unknown_internet_use,
+    treat_local_or_single_label_host_name_of_web_tool_as_unknown_internet_use,
     treat_repository_request_for_no_content_as_other_web,
     treat_request_of_unknown_sender_as_possibly_from_task_environment,
     treat_request_without_host_name_as_sent_to_default_registry_host,
@@ -74,8 +74,8 @@ from tb_internet_use.export.judgment_rules import (
     treat_shown_content_from_registry_or_model_hub_host_as_other_web,
     treat_shown_content_from_search_engine_host_as_other_web,
     treat_single_label_host_name_as_not_internet_use,
-    treat_success_line_shared_by_confirmed_requests_as_received_by_one_of_them,
     treat_templated_host_name_as_unknown_internet_use,
+    treat_trial_with_success_line_shared_by_confirmed_requests_as_received,
     treat_url_query_value_and_fragment_as_credential,
     treat_web_tool_request_without_host_name_as_internet_use,
 )
@@ -147,7 +147,7 @@ EQUATIONS = (
     "page_read_rows_neither_from_web_tool_nor_code_hosting",
     "written_request_rows_differing_from_rows_exported_again",
     "measure_rows_differing_from_their_strongest_request_rows",
-    "measure_rows_above_their_request_rows_equal_categories_and_senders_lifted_by_line_owners",
+    "measure_rows_above_their_request_rows_equal_categories_and_senders_with_success_line_owners",
     "text_cells_with_unredacted_userinfo",
     "text_cells_with_unredacted_query_value",
     "text_cells_with_unredacted_fragment",
@@ -276,12 +276,12 @@ def audit_trial(saved_results_path: Path) -> TrialAudit:
             )
         # The rule is asked once for each category and sender of the trial whose rows it marks.
         trial_audit.situation_counts[
-            treat_success_line_shared_by_confirmed_requests_as_received_by_one_of_them.__name__
+            treat_trial_with_success_line_shared_by_confirmed_requests_as_received.__name__
         ] = len(
             {
                 (row.category, row.sender)
                 for row in network_request_rows
-                if row.is_received_by_one_of_its_line_owners
+                if row.is_among_success_line_owners_one_of_which_received
             }
         )
         trial_audit.request_row_cells = [
@@ -358,7 +358,7 @@ def situation_counts_of(
         treat_reserved_host_name_as_unknown_internet_use: not has_public
         and not has_templated
         and has_reserved,
-        treat_local_host_name_of_web_tool_as_unknown_internet_use: is_local_or_single_label
+        treat_local_or_single_label_host_name_of_web_tool_as_unknown_internet_use: is_local_or_single_label
         and is_web_tool,
         treat_single_label_host_name_as_not_internet_use: is_local_or_single_label
         and not is_web_tool
@@ -604,7 +604,7 @@ class TrialAuditTotal:
                 _measure_rows_differing_from_request_rows_of(run_files),
                 0,
             ),
-            "measure_rows_above_their_request_rows_equal_categories_and_senders_lifted_by_line_owners": _lifted_measure_row_counts_of(
+            "measure_rows_above_their_request_rows_equal_categories_and_senders_with_success_line_owners": _measure_row_counts_above_their_request_rows_of(
                 run_files
             ),
             **{
@@ -682,7 +682,7 @@ def _differing_line_count_of(
 def _measure_rows_differing_from_request_rows_of(run_files: RunFiles) -> int:
     """Count the main measure lines of read trials whose bounds are not the strongest of the request rows of their trial, category and sender, plus the groups of request rows without a line and the lines without a group.
 
-    A request row received by one of its line owners counts as `lower_and_upper` received, as for the trial.
+    A request row among success line owners one of which received counts as `lower_and_upper` received, as for the trial.
     """
     strongest_bounds: dict[tuple[str, str, str], tuple[str, str]] = {}
     for row in run_files.network_request_rows:
@@ -695,7 +695,7 @@ def _measure_rows_differing_from_request_rows_of(run_files: RunFiles) -> int:
             _stronger_bound_of(
                 received_bound,
                 MeasureBound.LOWER_AND_UPPER.value
-                if row["is_received_by_one_of_its_line_owners"] == "true"
+                if row["is_among_success_line_owners_one_of_which_received"] == "true"
                 else row["received_measure_bound"],
             ),
         )
@@ -706,19 +706,21 @@ def _measure_rows_differing_from_request_rows_of(run_files: RunFiles) -> int:
     )
 
 
-def _lifted_measure_row_counts_of(run_files: RunFiles) -> tuple[int, int]:
-    """Give the main measure lines of read trials whose received bound is stronger than the strongest own received bound of their request rows, and the trials, categories and senders with a request row received by one of its line owners."""
+def _measure_row_counts_above_their_request_rows_of(
+    run_files: RunFiles,
+) -> tuple[int, int]:
+    """Give the main measure lines of read trials whose received bound is stronger than the strongest own received bound of their request rows, and the trials, categories and senders with a request row among success line owners one of which received."""
     strongest_received_bounds: dict[tuple[str, str, str], str] = {}
-    keys_with_rows_received_by_line_owners: set[tuple[str, str, str]] = set()
+    keys_with_success_line_owner_rows: set[tuple[str, str, str]] = set()
     for row in run_files.network_request_rows:
         key = (row["trial_id"], row["category"], row["sender"])
         strongest_received_bounds[key] = _stronger_bound_of(
             strongest_received_bounds.get(key, MeasureBound.NEITHER.value),
             row["received_measure_bound"],
         )
-        if row["is_received_by_one_of_its_line_owners"] == "true":
-            keys_with_rows_received_by_line_owners.add(key)
-    lifted_measure_row_count = sum(
+        if row["is_among_success_line_owners_one_of_which_received"] == "true":
+            keys_with_success_line_owner_rows.add(key)
+    measure_row_count_above_request_rows = sum(
         _stronger_bound_of(
             received_bound, strongest_received_bounds.get(key, received_bound)
         )
@@ -727,7 +729,7 @@ def _lifted_measure_row_counts_of(run_files: RunFiles) -> tuple[int, int]:
             run_files
         ).items()
     )
-    return lifted_measure_row_count, len(keys_with_rows_received_by_line_owners)
+    return measure_row_count_above_request_rows, len(keys_with_success_line_owner_rows)
 
 
 def _measure_bounds_of_read_trials_of(

@@ -124,23 +124,29 @@ def test_unknown_package_registry_refuses_to_be_read_as_true_or_false():
         (LOWER_AND_UPPER, NetworkRequestResultView.UNKNOWN),
     ],
 )
-def test_request_row_refuses_to_be_received_by_one_of_its_line_owners_unless_a_confirmed_request_in_the_lower_bound_received(
+def test_request_row_refuses_to_be_among_success_line_owners_one_of_which_received_unless_a_confirmed_request_in_the_lower_bound_received(
     request_measure_bound: MeasureBound, result_view: NetworkRequestResultView
 ):
     row = build_package_row(LOWER_AND_UPPER, UPPER_ONLY)
 
-    with pytest.raises(ValueError, match="received by one of its line owners"):
+    with pytest.raises(
+        ValueError, match="among success line owners one of which received"
+    ):
         dataclasses.replace(
             row,
             request_measure_bound=request_measure_bound,
             received_measure_bound=UPPER_ONLY,
             result_view=result_view,
-            is_received_by_one_of_its_line_owners=True,
+            is_among_success_line_owners_one_of_which_received=True,
         )
 
 
 @pytest.mark.parametrize(
-    ("received_measure_bound", "is_received_by_one_of_its_line_owners", "expected"),
+    (
+        "received_measure_bound",
+        "is_among_success_line_owners_one_of_which_received",
+        "expected",
+    ),
     [
         (UPPER_ONLY, True, LOWER_AND_UPPER),
         (UPPER_ONLY, False, UPPER_ONLY),
@@ -149,13 +155,13 @@ def test_request_row_refuses_to_be_received_by_one_of_its_line_owners_unless_a_c
 )
 def test_trial_received_measure_bound_is_lower_and_upper_for_a_row_received_by_one_of_its_line_owners_and_its_own_otherwise(
     received_measure_bound: MeasureBound,
-    is_received_by_one_of_its_line_owners: bool,
+    is_among_success_line_owners_one_of_which_received: bool,
     expected: MeasureBound,
 ):
     row = build_package_row(
         LOWER_AND_UPPER,
         received_measure_bound,
-        is_received_by_one_of_its_line_owners=is_received_by_one_of_its_line_owners,
+        is_among_success_line_owners_one_of_which_received=is_among_success_line_owners_one_of_which_received,
     )
 
     assert trial_received_measure_bound_of(row) == expected

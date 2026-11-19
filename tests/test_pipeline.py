@@ -744,7 +744,7 @@ def test_a_trial_folder_without_a_detail_file_raises(tmp_path, write_trial_folde
 
 
 @pytest.mark.parametrize(
-    ("command", "output", "category", "is_lifted"),
+    ("command", "output", "category", "counts_trial_in_received_lower_bound"),
     [
         # A run that is not read beside the two `curl` may have printed the line, since other programs print it too.
         pytest.param(
@@ -792,8 +792,13 @@ def test_a_trial_folder_without_a_detail_file_raises(tmp_path, write_trial_folde
         ),
     ],
 )
-def test_a_shared_line_of_success_lifts_the_trial_only_when_no_run_that_is_not_read_may_have_printed_it(
-    tmp_path, write_trial_folder, command, output, category, is_lifted
+def test_a_shared_line_of_success_counts_the_trial_in_the_received_lower_bound_only_when_no_run_that_is_not_read_may_have_printed_it(
+    tmp_path,
+    write_trial_folder,
+    command,
+    output,
+    category,
+    counts_trial_in_received_lower_bound,
 ):
     trial_dir = write_trial_folder(tmp_path, "trial-1", [(command, output)])
 
@@ -808,17 +813,23 @@ def test_a_shared_line_of_success_lifts_the_trial_only_when_no_run_that_is_not_r
         (
             result.level_certainty,
             row.received_measure_bound,
-            row.is_received_by_one_of_its_line_owners,
+            row.is_among_success_line_owners_one_of_which_received,
         )
         for result, row in zip(
             network_request_results, network_request_rows, strict=True
         )
     ] == [
-        (NetworkRequestResultCertainty.ASSUMED, MeasureBound.UPPER_ONLY, is_lifted)
+        (
+            NetworkRequestResultCertainty.ASSUMED,
+            MeasureBound.UPPER_ONLY,
+            counts_trial_in_received_lower_bound,
+        )
     ] * 2
     assert [(row.category, row.received_measure_bound) for row in measure_rows] == [
         (
             category,
-            MeasureBound.LOWER_AND_UPPER if is_lifted else MeasureBound.UPPER_ONLY,
+            MeasureBound.LOWER_AND_UPPER
+            if counts_trial_in_received_lower_bound
+            else MeasureBound.UPPER_ONLY,
         )
     ]

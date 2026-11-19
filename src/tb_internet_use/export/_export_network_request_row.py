@@ -54,7 +54,7 @@ from tb_internet_use.export._redact_credentials import redact_credentials
 from tb_internet_use.export.judgment_rules import (
     treat_assumed_failure_as_possibly_received,
     treat_assumed_not_needed_result_as_upper_bound_only,
-    treat_local_host_name_of_web_tool_as_unknown_internet_use,
+    treat_local_or_single_label_host_name_of_web_tool_as_unknown_internet_use,
     treat_request_without_host_name_as_sent_to_default_registry_host,
     treat_reserved_host_name_as_unknown_internet_use,
     treat_single_label_host_name_as_not_internet_use,
@@ -132,7 +132,7 @@ def export_network_request_row(
     It asks `knowledge` about each public host of the request, about the package registry of a command whose target is a package name, and about the sender of a web tool.
     Each judgment rule adds one to `judgment_rule_use_counts` under its name when it decides something, also the rule of `extract_network_requests` that reads a dotted host name as public.
     The four columns that hold text of the trajectory, i.e. `source`, `made_by`, `target` and `host_names`, pass through `redact_credentials`.
-    `is_received_by_one_of_its_line_owners` is False here, since it rests on the rows of the other requests that share an output line, and `mark_network_request_rows_received_by_one_of_their_line_owners` sets it once all rows of the trial are made.
+    `is_among_success_line_owners_one_of_which_received` is False here, since it rests on the rows of the other requests that share an output line, and `mark_network_request_rows_among_success_line_owners` sets it once all rows of the trial are made.
     """
     network_request = network_request_result.network_request
     host_name_scopes = _host_name_scopes_of(
@@ -224,7 +224,7 @@ def export_network_request_row(
             request_measure_bound,
             judgment_rule_use_counts=judgment_rule_use_counts,
         ),
-        is_received_by_one_of_its_line_owners=False,
+        is_among_success_line_owners_one_of_which_received=False,
     )
 
 
@@ -330,7 +330,7 @@ def _internet_use_from_nonempty_host_name_scopes(
         )
     if isinstance(network_request.source, FromWebTool):
         return _internet_use_from_rule_answer(
-            treat_local_host_name_of_web_tool_as_unknown_internet_use(
+            treat_local_or_single_label_host_name_of_web_tool_as_unknown_internet_use(
                 network_request, use_counts=judgment_rule_use_counts
             )
         )

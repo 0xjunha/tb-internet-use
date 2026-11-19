@@ -140,7 +140,7 @@ def _network_request_row(
         result_view=NetworkRequestResultView.RECEIVED,
         request_measure_bound=request_measure_bound,
         received_measure_bound=received_measure_bound,
-        is_received_by_one_of_its_line_owners=False,
+        is_among_success_line_owners_one_of_which_received=False,
     )
 
 

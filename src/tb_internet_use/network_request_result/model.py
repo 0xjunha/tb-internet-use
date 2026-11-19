@@ -33,7 +33,7 @@ type NetworkRequestResultAssumptionReason = (
     | UnknownRunBesideAssumptionReason
     | MissingProgramOfAnotherCommandAssumptionReason
     | SharedHttpStatusAssumptionReason
-    | FileWrittenByAnotherRequestAssumptionReason
+    | SharedFileUseAssumptionReason
     | JudgmentRuleAssumptionReason
 )
 
@@ -318,8 +318,8 @@ class SharedHttpStatusAssumptionReason:
 
 
 @dataclass(frozen=True, slots=True)
-class FileWrittenByAnotherRequestAssumptionReason:
-    """Assumption reason of a result whose level a use of its saved file shows, where another request of the call wrote the same file, e.g. `tar xzf a` after `curl -o a u1; curl -o a u2`."""
+class SharedFileUseAssumptionReason:
+    """Assumption reason of a result whose level a use of its saved file shows, where another request of the call saved the same file, so that the use may be of the content of either, e.g. `tar xzf a` after `curl -o a u1; curl -o a u2`."""
 
 
 @dataclass(frozen=True, slots=True)

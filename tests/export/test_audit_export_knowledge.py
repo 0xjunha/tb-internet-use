@@ -175,15 +175,15 @@ def test_every_equation_holds_on_the_rows_of_made_up_trials(
         "treat_request_without_host_name_as_sent_to_default_registry_host",
         "treat_single_label_host_name_as_not_internet_use",
         "treat_templated_host_name_as_unknown_internet_use",
-        "treat_local_host_name_of_web_tool_as_unknown_internet_use",
+        "treat_local_or_single_label_host_name_of_web_tool_as_unknown_internet_use",
         "treat_url_query_value_and_fragment_as_credential",
         "treat_dotted_host_name_as_public",
-        "treat_success_line_shared_by_confirmed_requests_as_received_by_one_of_them",
+        "treat_trial_with_success_line_shared_by_confirmed_requests_as_received",
     ):
         assert sides[f"{rule_name}_uses_equal_its_situations"][0] > 0, rule_name
     assert (
         sides[
-            "measure_rows_above_their_request_rows_equal_categories_and_senders_lifted_by_line_owners"
+            "measure_rows_above_their_request_rows_equal_categories_and_senders_with_success_line_owners"
         ][0]
         > 0
     )
@@ -238,7 +238,7 @@ BROKEN_FILE_CASES = [
         "t1,package,task_environment,lower_and_upper",
         "t1,package,task_environment,upper_only",
     ),
-    # The rows of t6 lose their mark, so the lifted main measure line of t6 rests on no request row.
+    # The rows of t6 lose their mark, so the main measure line of t6, counted in the lower bound of received by its shared line, rests on no request row.
     (
         "measure_rows_differing_from_their_strongest_request_rows",
         "network_request_rows.csv",
@@ -246,13 +246,13 @@ BROKEN_FILE_CASES = [
         "upper_only,false",
     ),
     (
-        "measure_rows_above_their_request_rows_equal_categories_and_senders_lifted_by_line_owners",
+        "measure_rows_above_their_request_rows_equal_categories_and_senders_with_success_line_owners",
         "network_request_rows.csv",
         "upper_only,true",
         "upper_only,false",
     ),
     (
-        "measure_rows_above_their_request_rows_equal_categories_and_senders_lifted_by_line_owners",
+        "measure_rows_above_their_request_rows_equal_categories_and_senders_with_success_line_owners",
         "trial_category_measure_rows.csv",
         "t6,fetched_file,task_environment,lower_and_upper,lower_and_upper",
         "t6,fetched_file,task_environment,lower_and_upper,upper_only",
@@ -311,8 +311,8 @@ BROKEN_COUNT_CASES = [
         ["treat_dotted_host_name_as_public"],
     ),
     (
-        "treat_success_line_shared_by_confirmed_requests_as_received_by_one_of_them_uses_equal_its_situations",
-        ["treat_success_line_shared_by_confirmed_requests_as_received_by_one_of_them"],
+        "treat_trial_with_success_line_shared_by_confirmed_requests_as_received_uses_equal_its_situations",
+        ["treat_trial_with_success_line_shared_by_confirmed_requests_as_received"],
     ),
     ("judgment_rule_names_are_of_this_step", ["treat_x_as_y"]),
 ]

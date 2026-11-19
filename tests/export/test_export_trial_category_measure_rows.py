@@ -264,7 +264,7 @@ def test_a_row_received_by_one_of_its_line_owners_puts_its_own_category_and_send
         sender,
         LOWER_AND_UPPER,
         UPPER_ONLY,
-        is_received_by_one_of_its_line_owners=True,
+        is_among_success_line_owners_one_of_which_received=True,
     )
     unmarked_row = build_network_request_row(
         FETCHED_FILE, sender, LOWER_AND_UPPER, UPPER_ONLY
