@@ -92,7 +92,13 @@ A provisional rule keeps the choice of the earlier code, or where there was none
 
 ## Running
 
-`scripts/run_pipeline.py` runs `run_steps_of_trial` on the trial folders of a raw data folder, in at most 4 processes, and writes under `out/pipeline/`, which git ignores, since the rows hold targets and host names from the trajectories.
+`scripts/download_trials.py` downloads every trial of Harbor Hub leaderboards, e.g. `4-1-0` for Terminal-Bench 4.1, into `<collection_dir>/raw/<trial id>/`. The collection folder belongs outside the repo. A run again on the same folder only fills in missing files, so newer leaderboard rows need a new folder.
+
+```bash
+uv run python -I scripts/download_trials.py <collection_dir> --leaderboard 4-1-0 [--skip-archives] [--limit N]
+```
+
+`scripts/run_pipeline.py` runs `run_steps_of_trial` on the trial folders of a raw data folder, e.g. `<collection_dir>/raw`, in at most 4 processes, and writes under `out/pipeline/`, which git ignores, since the rows hold targets and host names from the trajectories.
 
 ```bash
 nice -n 10 uv run python -I scripts/run_pipeline.py <raw_trials_dir> [--limit N | --trial-ids FILE] [--out-dir DIR] [--resume | --export-only]
