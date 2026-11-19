@@ -35,10 +35,10 @@ from tb_internet_use.tool_call.model import (
     strings_from_values,
 )
 from tb_internet_use.tool_call.parse_codex_exec_script import (
-    actions_from_patch,
     actions_from_web_run_argument,
     parse_codex_exec_script,
 )
+from tb_internet_use.tool_call.parse_patch import parse_patch
 
 if TYPE_CHECKING:
     # The door and the declaration types are named in annotations only, so that `convert_tool_calls` never loads `knowledge/` itself.
@@ -176,7 +176,7 @@ class CodexConverter(HarnessToolCallConverter):
         """
         actions: list[ToolCallAction]
         if name == "apply_patch":
-            actions = actions_from_patch(argument) if isinstance(argument, str) else []
+            actions = parse_patch(argument) if isinstance(argument, str) else []
         elif name == "web__run":
             actions = (
                 actions_from_web_run_argument(argument)
