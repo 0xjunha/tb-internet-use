@@ -16,6 +16,7 @@ Known limits, rare in the trajectories
 - `set -e` is off inside `$(...)` as in bash, also when the shell is sh.
 - A `set` in a function body is taken to hold in the body only.
 - tree-sitter misreads `$"..."`, an escaped line break inside a word, `! { a; b; }` and backticks in heredocs.
+- tree-sitter splits a word with two expansions when a `.` follows the second, e.g. `$a/$b.c`. The walk joins the parts that touch only among the words of a command. A redirect target or an assignment of that shape stays split, e.g. `b.c` becomes a word of the command in `echo x > $a/$b.c` and a command of its own in `X=$a/$b.c`.
 - tree-sitter misreads what `time` times when it starts with a reserved word, `((` or an assignment, or when a redirect leaves words beside a timed subshell, e.g. `time { a; }`, `time ! a`, `time A=1 b` or `time (a) > f b`.
   The words keep `time` there, and the commands of the text are marked as maybe wrong.
 - `time` alone and `time -p` alone stay a command, although bash runs nothing for them.
@@ -878,14 +879,16 @@ class _ShellTextWalker:
         self, command_words: Sequence[_CommandWord], scope: _Scope
     ) -> int:
         """Add one command and return its id."""
+        word_parts = _word_parts_of_command_words(command_words)
         command = ShellCommand(
             id=self._parse_state.next_command_id,
-            words=tuple(map(_command_word_value_of, command_words)),
+            words=tuple(
+                "".join(map(_command_word_value_of, parts)) for parts in word_parts
+            ),
             expansion_word_indexes=tuple(
                 index
-                for index, command_word in enumerate(command_words)
-                if not isinstance(command_word, _LostDash)
-                and _has_expansion(command_word)
+                for index, parts in enumerate(word_parts)
+                if _has_expansion_in_word_parts(parts)
             ),
             **scope.command_fields_from_scope(),
         )
@@ -1805,6 +1808,36 @@ def _written_command_word_of(command_word: _CommandWord) -> str:
     if isinstance(command_word, _LostDash):
         return command_word.value
     return _node_text_of(command_word)
+
+
+def _word_parts_of_command_words(
+    command_words: Sequence[_CommandWord],
+) -> list[tuple[_CommandWord, ...]]:
+    """Group the command words that bash reads as one word, i.e. nodes with no blank between them, in text order.
+
+    tree-sitter-bash 0.25.1 splits a word with two expansions when a `.` follows the second, e.g. `$a/$` and `b.c` for `$a/$b.c`, or `doc$id-$` and `p.png` for `doc$id-$p.png`. Bash reads one word there, since only a blank or an operator ends a word.
+    """
+    word_parts: list[list[_CommandWord]] = []
+    previous_end_byte: int | None = None
+    for command_word in command_words:
+        if isinstance(command_word, _LostDash):
+            word_parts.append([command_word])
+            previous_end_byte = None
+            continue
+        if previous_end_byte == command_word.start_byte:
+            word_parts[-1].append(command_word)
+        else:
+            word_parts.append([command_word])
+        previous_end_byte = command_word.end_byte
+    return [tuple(parts) for parts in word_parts]
+
+
+def _has_expansion_in_word_parts(word_parts: Sequence[_CommandWord]) -> bool:
+    """Check whether a word that `_word_parts_of_command_words` grouped holds an expansion in any of its parts, e.g. `$a` of `$a/$` and `b.c`."""
+    return any(
+        not isinstance(word_part, _LostDash) and _has_expansion(word_part)
+        for word_part in word_parts
+    )
 
 
 def _command_word_value_of(command_word: _CommandWord) -> str:

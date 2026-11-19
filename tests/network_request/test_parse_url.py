@@ -39,6 +39,9 @@ def test_host_name_is_read_without_user_port_and_brackets(url: str, host_name: s
         "x=https://a.org",
         # An IPv6 address whose bracket does not close.
         "http://[::1/x",
+        # A backslash of an escaped quote in a code string, or of a regular expression.
+        "https://example.com\\",
+        "https://data\\.arcrail\\.eu/x",
     ],
 )
 def test_a_text_without_a_scheme_or_a_readable_host_gives_none(text: str):

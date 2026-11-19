@@ -10,6 +10,8 @@ from tb_internet_use.network_request.parse_host_name import TEMPLATE_CHARACTER
 
 # A scheme as RFC 3986 writes it, with the `//` that opens an authority, e.g. `https://` or `git+ssh://`.
 SCHEME_AND_SLASHES = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*://")
+# A character that RFC 3986 allows nowhere in a URL, and so in no host.
+_BACKSLASH = "\\"
 
 
 def parse_url(url: str) -> str | None:
@@ -17,6 +19,7 @@ def parse_url(url: str) -> str | None:
 
     It returns None when the text does not start with a scheme and `//`, e.g. `pypi.org/simple`, or names no host, e.g. `file:///tmp/x`.
     It also returns None for an IPv6 address whose bracket does not close, e.g. `http://[::1/x`, since its host cannot be read.
+    It returns None for a host with a backslash too, which no host name or address holds, e.g. `example.com\\` of `href=\\"https://example.com\\"` in a code string or `data\\.arcrail\\.eu` of a regular expression, since the text around the URL is escaped and the host it stands for is not read here.
     The last colon and what follows it are the port, also when the port is a template, so `http://localhost:$PORT/x` gives `localhost`.
     A colon stays in the host when the text before it holds a template character, so `${HOST:-a.org}` is kept whole.
     """
@@ -31,6 +34,8 @@ def parse_url(url: str) -> str | None:
         host_name = host_and_port[1:].split("]", 1)[0]
     else:
         host_name = _host_name_without_port(host_and_port)
+    if _BACKSLASH in host_name:
+        return None
     return host_name or None
 
 

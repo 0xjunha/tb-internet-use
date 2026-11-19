@@ -2663,6 +2663,48 @@ def test_use_of_the_saved_content_that_may_not_have_happened_rests_on_a_rule(
     assert decided.judgment_rule_use_counts == Counter({RULE_14: 1, RULE_11: 1})
 
 
+# (case id, the line in the result of the using call 2, the place of that result, whether the use gives evidence)
+MISSING_PROGRAM_OF_USE_CASES = [
+    ("program of the use missing", "bash: unzip: command not found", True, False),
+    ("another program missing", "bash: rg: command not found", True, True),
+    (
+        "place that the using call does not reach",
+        "bash: unzip: command not found",
+        False,
+        True,
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    ("line", "is_reached_by_using_call", "gives_evidence"),
+    [case[1:] for case in MISSING_PROGRAM_OF_USE_CASES],
+    ids=[case[0] for case in MISSING_PROGRAM_OF_USE_CASES],
+)
+def test_use_by_a_command_whose_program_is_missing_gives_no_evidence(
+    line: str, is_reached_by_using_call: bool, gives_evidence: bool
+):
+    network_request, network_requests, expanded_tool_calls, file_use = saved_file_trial(
+        command(0, "unzip -o -q a.tgz", program("unzip")), using_exit_code=127
+    )
+    decided = decide(
+        network_request,
+        expanded_tool_calls,
+        network_requests=network_requests,
+        places=(
+            place(K2, (K2, (0,)))
+            if is_reached_by_using_call
+            else place(K2, (K1, (0,))),
+        ),
+        output_line_owners=(owned(K2, line),),
+    )
+    assert decided.evidence_with_levels == (
+        (file_use_evidence(file_use, rests_on_judgment_rule=True),)
+        if gives_evidence
+        else ()
+    )
+
+
 def test_use_of_the_saved_content_in_a_file_the_script_runs_rests_on_a_rule():
     network_request, network_requests, expanded_tool_calls, file_use = saved_file_trial(
         command(0, "tar xzf a.tgz", TAR)

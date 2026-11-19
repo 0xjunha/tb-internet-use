@@ -811,6 +811,8 @@ def _received_content_evidence_of(
     received_content_evidence += _file_use_evidence_of(
         network_request,
         network_requests,
+        output_line_owners,
+        output_place_sources,
         expanded_tool_call_by_key,
         judgment_rule_use_counts=judgment_rule_use_counts,
     )
@@ -865,12 +867,15 @@ def _received_content_evidence_of(
 def _file_use_evidence_of(
     network_request: NetworkRequest,
     network_requests: Sequence[NetworkRequest],
+    output_line_owners: Sequence[OutputLineOwners],
+    output_place_sources: Sequence[OutputPlaceSources],
     expanded_tool_call_by_key: Mapping[ToolCallKey, ExpandedToolCall],
     *,
     judgment_rule_use_counts: Counter[str],
 ) -> list[EvidenceWithLevel]:
     """Find the evidence of each later use of the file where the request saved what it received, e.g. `tar xzf a.tgz` after `curl -s -o a.tgz u`.
 
+    A use by a command whose program a line says is missing did not happen and gives nothing, e.g. `unzip -o -q a.zip` under `unzip: command not found`.
     A use of the content that surely happened shows RECEIVED as a fact. One that may not have happened asks `treat_file_use_that_may_not_have_happened_as_assumed_evidence`.
     A use that shows the content asks `treat_shown_content_of_saved_file_as_assumed_content`, and one that shows only its size or kind asks `treat_size_or_type_of_saved_file_as_no_evidence_of_content`. A use of unknown kind gives nothing.
     The evidence may belong to another request when another request of the call wrote the same file, e.g. `curl -o a u1; curl -o a u2`.
@@ -884,6 +889,10 @@ def _file_use_evidence_of(
     ):
         return []
     expanded_tool_call = expanded_tool_call_by_key[network_request.tool_call_key]
+    output_place_sources_by_key = {
+        output_place_sources_of_call.showing_tool_call_key: output_place_sources_of_call
+        for output_place_sources_of_call in output_place_sources
+    }
     file_use_evidence: list[EvidenceWithLevel] = []
     for written_file in expanded_tool_call.written_files:
         writer_command_ids = {writer.command_id for writer in written_file.writers}
@@ -896,6 +905,13 @@ def _file_use_evidence_of(
             written_file, network_request, network_requests
         )
         for file_use in written_file.file_uses:
+            if _is_program_of_using_command_missing(
+                file_use,
+                output_line_owners,
+                output_place_sources_by_key,
+                expanded_tool_call_by_key,
+            ):
+                continue
             evidence_with_level = _file_use_evidence_with_level_of(
                 file_use,
                 expanded_tool_call_by_key,
@@ -905,6 +921,53 @@ def _file_use_evidence_of(
             if evidence_with_level is not None:
                 file_use_evidence.append(evidence_with_level)
     return file_use_evidence
+
+
+def _is_program_of_using_command_missing(
+    file_use: FileUse,
+    output_line_owners: Sequence[OutputLineOwners],
+    output_place_sources_by_key: Mapping[ToolCallKey, OutputPlaceSources],
+    expanded_tool_call_by_key: Mapping[ToolCallKey, ExpandedToolCall],
+) -> bool:
+    """Tell whether a line of a missing program in a place that the using call reaches names a program word of the command that uses a saved file, e.g. `unzip: command not found` under `unzip -o -q a.zip`.
+
+    A program that is not installed ends every command that runs it before it reads anything, so such a command used no file, wherever its own output went.
+    """
+    if file_use.command_id is None:
+        return False
+    using_tool_call_key = file_use.using_tool_call_key
+    using_ran_command = next(
+        (
+            ran_command
+            for ran_command in ran_commands_of(
+                expanded_tool_call_by_key[using_tool_call_key]
+            )
+            if ran_command.shell_command.id == file_use.command_id
+        ),
+        None,
+    )
+    if using_ran_command is None:
+        return False
+    for output_line_owners_of_line in output_line_owners:
+        output_line_with_meaning = output_line_owners_of_line.output_line_with_meaning
+        output_line_meaning = output_line_with_meaning.output_line_meaning
+        place = output_place_sources_by_key.get(
+            output_line_with_meaning.showing_tool_call_key
+        )
+        if (
+            output_line_meaning.kind == OutputLineKind.PROGRAM_MISSING
+            and output_line_meaning.missing_program_word is not None
+            and place is not None
+            and any(
+                output_place_source_commands.tool_call_key == using_tool_call_key
+                for output_place_source_commands in place.source_commands
+            )
+            and is_missing_program_of_command(
+                output_line_meaning.missing_program_word, using_ran_command
+            )
+        ):
+            return True
+    return False
 
 
 def _file_use_evidence_with_level_of(

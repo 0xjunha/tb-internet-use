@@ -1151,6 +1151,22 @@ def test_word_value_and_expansion(word: str, value: str, has_expansion: bool):
     assert command.expansion_word_indexes == ((1,) if has_expansion else ())
 
 
+# tree-sitter-bash 0.25.1 splits these words in two after the `$` of the second expansion.
+@pytest.mark.parametrize(
+    ("text", "words", "expansion_word_indexes"),
+    [
+        ("curl -o doc$id-$p.png u", ("curl", "-o", "doc$id-$p.png", "u"), (2,)),
+        ("curl -s $S/rates/$d.xml", ("curl", "-s", "$S/rates/$d.xml"), (2,)),
+    ],
+)
+def test_a_word_that_tree_sitter_splits_after_its_second_expansion_is_one_word(
+    text: str, words: tuple[str, ...], expansion_word_indexes: tuple[int, ...]
+):
+    (command,) = _parsed_shell_text_of(text).commands
+    assert command.words == words
+    assert command.expansion_word_indexes == expansion_word_indexes
+
+
 def test_expansion_word_indexes_name_each_word_that_holds_an_expansion():
     command = _command_from_first_word(
         _parsed_shell_text_of('pip install x "$(cat reqs)" y $PKG'), "pip"

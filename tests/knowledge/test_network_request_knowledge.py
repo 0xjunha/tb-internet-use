@@ -365,6 +365,19 @@ _FETCHING_PROGRAM_LABELS_OF_NAMED_ROWS = [
             content_route=ProgramContentRoute.STDOUT,
         ),
     ),
+    # Only the first argument of npm create names the initializer, since npm-init(1) passes every word after it to the initializer, e.g. my-app, --template and react of `npm create vite@5 my-app -- --template react`.
+    (
+        "npm",
+        ("create",),
+        FetchingProgramLabel(
+            fetches_only_what_is_missing=False,
+            target_arguments=TargetArguments.FIRST,
+            target_kind=NetworkRequestTargetKind.PACKAGE_NAME,
+            target_notation=TargetNotation.NAME,
+            target_without_target_arguments=TargetWithoutTargetArguments.NO_TARGET,
+            content_route=UnknownProgramContentRoute(),
+        ),
+    ),
     (
         "pip",
         ("install",),
