@@ -1143,8 +1143,8 @@ def unknown_printer_case(
     if which == "option without a row":
         ran_command = command(
             0,
-            "curl --compressed https://a.org/x",
-            program("curl", options=(option("--compressed"),)),
+            "curl --bar https://a.org/x",
+            program("curl", options=(option("--bar"),)),
         )
         network_request = request(K1, from_command(ran_command), "https://a.org/x")
         return (
@@ -1789,11 +1789,11 @@ def test_other_exit_code_gives_no_level_and_asks_the_door_only_when_it_is_the_co
         runs_if=after_success_of(0) if not exit_code_is_the_commands else (),
     )
     network_request = request(K1, from_command(curl), "https://a.org/x")
-    decided = decide(network_request, [call(K1, *commands_before, curl, exit_code=22)])
+    decided = decide(network_request, [call(K1, *commands_before, curl, exit_code=6)])
     assert decided.evidence_with_levels == ()
     assert decided.judgment_rule_use_counts == Counter({RULE_11: 1})
     assert exit_code_unknown_inputs(decided.knowledge) == (
-        Counter({(PROGRAM_EXIT_CODES_CSV, ("curl", "", "", "22")): 1})
+        Counter({(PROGRAM_EXIT_CODES_CSV, ("curl", "", "", "6")): 1})
         if exit_code_is_the_commands
         else Counter()
     )
@@ -1805,19 +1805,19 @@ def test_other_exit_code_with_a_catalog_row_uses_the_row_and_gives_no_level(
     shutil.copytree(NETWORK_REQUEST_RESULT_CATALOGS_DIR, tmp_path, dirs_exist_ok=True)
     with (tmp_path / PROGRAM_EXIT_CODES_CSV).open("a", newline="") as csv_file:
         csv.writer(csv_file).writerow(
-            ["curl", "", "", "22", "server_answered", "made up", "", ""]
+            ["curl", "", "", "6", "nothing", "made up", "", ""]
         )
     curl = command(0, "curl -s https://a.org/x -o x", CURL)
     network_request = request(K1, from_command(curl), "https://a.org/x")
     decided = decide(
         network_request,
-        [call(K1, curl, exit_code=22)],
+        [call(K1, curl, exit_code=6)],
         knowledge=NetworkRequestResultKnowledge(catalogs_dir=tmp_path),
     )
     assert decided.evidence_with_levels == ()
     assert decided.judgment_rule_use_counts == Counter({RULE_11: 1})
     assert decided.knowledge.uses.row_use_counts == Counter(
-        {(PROGRAM_EXIT_CODES_CSV, ("curl", "", "", "22")): 1}
+        {(PROGRAM_EXIT_CODES_CSV, ("curl", "", "", "6")): 1}
     )
 
 

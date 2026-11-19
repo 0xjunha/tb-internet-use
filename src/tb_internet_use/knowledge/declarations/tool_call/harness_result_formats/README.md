@@ -32,7 +32,7 @@ To review a format:
 
 1. Read its row in the table under `out/`, or its line in `<harness>.py`.
 2. Check it against tool results of that tool in the trajectories, e.g. results that `audit_results.py` lists as its example calls.
-3. Write in `checked_against` what it was checked against, e.g. `8 sampled tool results in the trajectories (terminal-bench 2026-10-08)`, and write `yes` in `reviewed`.
+3. Write in `checked_against` what it was checked against, e.g. `8 sampled tool results in the trajectories (terminal-bench 4.1, 2026-11-19)`, and write `yes` in `reviewed`.
 
 A review covers the declaration it saw. When a declared format changes, e.g. its template or its status, clear `reviewed` of its row by hand in the same change, since no script or test notices it.
 

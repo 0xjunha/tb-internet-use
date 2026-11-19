@@ -6,7 +6,7 @@ This project finds how agents on the Terminal-Bench leaderboard use the internet
 
 A trial is one run of an agent on one task. Its trajectory is the record of the agent's tool calls and their results, and the harness is the agent program that made them, e.g. Claude Code.
 
-The source is 15,813 readable trajectories in ATIF format, out of 15,990 trials of Terminal-Bench 3.0/4.0 leaderboard runs.
+The source is 20,839 readable trajectories in ATIF format, out of the 21,450 trials of the Terminal-Bench 4.1 leaderboard, downloaded from Harbor Hub on 2026-11-19. Of the other 611 trials, 583 have no trajectory there and 28 have one that is not JSON.
 
 ## What it answers
 
@@ -139,8 +139,9 @@ Each step also has an audit script. Those of `expand_tool_calls`, `extract_netwo
 ## Limits
 
 - Only ATIF trajectories are read. ATIF lacks some calls of several harnesses, so what is counted for them is less than what happened:
-  - Devin, Grok Build: subagent and pre-compaction calls missing.
-  - Cursor CLI: subagents' inner calls missing.
+  - Devin, Grok Build: subagent and pre-compaction calls missing. Devin is on the Terminal-Bench 3.0/4.0 leaderboards only.
+  - Cursor CLI: subagents' inner calls missing. It is on the Terminal-Bench 3.0/4.0 leaderboards only.
+  - Copilot CLI: some earlier calls missing, e.g. a `read_bash` that reads the output of a shell that no call of the trajectory started.
   - Antigravity CLI: subagents' calls missing.
 - Claude Code and Grok Build sometimes write the end of a background task inside the result of a later call instead of a step of its own, and the end they report there is not read.
 - Requests made outside the trajectory, such as those of the image build or the verifier, are out of scope.

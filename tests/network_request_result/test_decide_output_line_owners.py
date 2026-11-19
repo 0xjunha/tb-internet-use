@@ -457,9 +457,9 @@ def test_a_line_that_contradicts_some_requests_is_shared_by_all_unless_a_kept_on
 
 
 def test_a_line_is_compared_on_package_names_only_with_a_request_for_a_package():
-    # `ping pypi.org` under `Downloading B-1.0.whl`, which any program can print, whose target is a host and not a package.
+    # `mytool pypi.org`, a program without a row, under `Downloading B-1.0.whl`, which any program can print, whose target is a host and not a package.
     # `apt-get install http://archive.ubuntu.com/x.deb http://mirror.example.org/x.deb` under a `Get:` line that names both a package and a host.
-    ping = command(0, "ping pypi.org", program("ping"))
+    mytool = command(0, "mytool pypi.org", program("mytool"))
     apt_get = command(
         0,
         "apt-get install http://archive.ubuntu.com/x.deb http://mirror.example.org/x.deb",
@@ -472,11 +472,11 @@ def test_a_line_is_compared_on_package_names_only_with_a_request_for_a_package()
             K2,
             "Get:1 http://archive.ubuntu.com/ubuntu jammy/main amd64 x amd64 1.0 [10 kB]",
         ),
-        [call(K1, ping), call(K2, apt_get)],
+        [call(K1, mytool), call(K2, apt_get)],
         [
             request(
                 K1,
-                from_command(ping),
+                from_command(mytool),
                 "pypi.org",
                 target_kind=NetworkRequestTargetKind.HOST,
                 host_names=("pypi.org",),

@@ -651,7 +651,7 @@ def _running_result(output_path: str) -> ToolCallResult:
     )
 
 
-# (equation, made-up calls of a shape that the full data of 2026-10-08 showed, with the expansion right and the recount once wrong). The comments name the shape.
+# (equation, made-up calls of a shape that the full Terminal-Bench 3.0/4.0 data of 2026-10-08 showed, with the expansion right and the recount once wrong). The comments name the shape.
 SHAPES_THAT_HOLD: list[tuple[str, tuple[ToolCall, ...]]] = [
     # `python - 2>&1 | tail <<'EOF'` gives the heredoc to tail, so python reads no text.
     (

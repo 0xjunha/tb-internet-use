@@ -1,9 +1,14 @@
 program_name,subcommand,option_name,option_value,fetches,target_arguments,target_kind,target_notation,target_without_target_arguments,content_route,option_effect,checked_against,reviewed,note
+:,,,,no,,,,,,,"bash(1) SHELL BUILTIN COMMANDS : (No effect; the command does nothing beyond expanding arguments and performing any specified redirections), GNU Bash 5.3 (2025 April 7), man7.org",,
 agent-browser,install,,,yes,none,url,url,no_target,,,"agent-browser README (github.com/vercel-labs/agent-browser, read 2026-11-18), Install (agent-browser install, download Chrome for Testing, agent-browser install --with-deps), the page shows no version, for target_arguments; the other cells not checked, from the old table",,"The page shows install without arguments and names no URL in it, so target_arguments is none. Target_kind stays url, since the request is the download of Chrome for Testing, which no other NetworkRequestTargetKind value names. content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
+agent-browser,open,,,yes,first,url,url_or_schemeless_url,no_request,,,"agent-browser commands page (agent-browser.dev/commands, read 2026-11-19), open (Launch browser (no nav); stays on about:blank) and open <url> (Launch + navigate (aliases: goto, navigate)), the page shows no version, for every cell but target_notation; target_notation from the example agent-browser open example.com of the agent-browser README (github.com/vercel-labs/agent-browser, read 2026-11-19)",,"content_route is blank, since the page says only that the browser navigates to the URL and not where the page content goes"
+agent-browser,,--session,,,,,,,,none,"agent-browser commands page (agent-browser.dev/commands, read 2026-11-19), the page shows no version, global options (--session <name>, Isolated browser session)",,It picks the browser session that the command runs in
+agent-browser,,--json,,,,,,,,none,"agent-browser commands page (agent-browser.dev/commands, read 2026-11-19), the page shows no version, global options (--json, JSON output (for scripts))",,"It changes how the command reports, and the page content goes where it would go without it"
 apply_patch,,,,no,,,,,,,"codex-rs/apply-patch/src/standalone_executable.rs of openai/codex (main, github.com, read 2026-11-19), which applies the patch to the files the patch names",,
 apt,install,,,yes,all,package_name,name,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
 apt,update,,,yes,none,package_name,name,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
 apt,list,,,no,,,,,,,"apt(8), apt 2.6.1 (Debian bookworm, manpages.debian.org), list (list is somewhat similar to dpkg-query --list in that it can display a list of packages satisfying certain criteria) and update (update is used to download package information from all configured sources. Other commands operate on this data)",,It lists packages from the package information that apt update downloaded
+apt-cache,,,,no,,,,,,,"apt-cache(8) NAME (query the APT cache) and DESCRIPTION (apt-cache performs a variety of operations on APT's package cache, does not manipulate the state of the system, and works independently of whether the configured sources are available), apt 2.6.1 (Debian bookworm, manpages.debian.org)",,The package lists it reads are those that apt-get update downloaded
 apt-get,download,,,yes,all,package_name,name,no_target,own_file,,"content_route from apt-get(8) download, apt 2.6.1 (Debian bookworm, manpages.debian.org). The rest not checked, from the old table",,
 apt-get,install,,,yes,all,package_name,name,no_target,own_file,,"content_route from apt-get(8) install, apt 2.6.1 (Debian bookworm, manpages.debian.org). The rest not checked, from the old table",,
 apt-get,source,,,yes,all,package_name,name,no_target,own_file,,"content_route from apt-get(8) source, apt 2.6.1 (Debian bookworm, manpages.debian.org). The rest not checked, from the old table",,
@@ -12,13 +17,23 @@ apt-get,,--help,,,,,,,,sends_no_request,"not checked, from the old table",,
 apt-get,,-q,,,,,,,,none,"apt-get(8) OPTIONS -q, --quiet, apt 2.6.1 (Debian bookworm, manpages.debian.org)",,
 apt-get,,-y,,,,,,,,none,"apt-get(8) OPTIONS -y, --yes, --assume-yes, apt 2.6.1 (Debian bookworm, manpages.debian.org)",,
 apt-get,,--no-install-recommends,,,,,,,,none,"apt-get(8) OPTIONS --no-install-recommends (Do not consider recommended packages as a dependency for installing), apt 2.6.1 (Debian bookworm, manpages.debian.org)",,Recommended packages are requests that the words do not show
+apt-get,install,-f,,,,,,,,none,"apt-get(8) OPTIONS -f, --fix-broken (attempt to correct a system with broken dependencies in place), apt 2.6.1 (Debian bookworm, manpages.debian.org)",,The packages that fix the dependencies are requests that the words do not show
+apt-get,install,--download-only,,,,,,,,none,"apt-get(8) OPTIONS -d, --download-only (package files are only retrieved, not unpacked or installed), apt 2.6.1 (Debian bookworm, manpages.debian.org)",,
 awk,,,,no,,,,,,,"not checked, from the old table",,
+basename,,,,no,,,,,,,"basename(1) NAME (strip directory and suffix from filenames), GNU coreutils 9.11 (man7.org)",,
+break,,,,no,,,,,,,"bash(1) SHELL BUILTIN COMMANDS break (Exit from within a for, while, until, or select loop), GNU Bash 5.3 (2025 April 7), man7.org",,
 bun,add,,,yes,all,package_name,name,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for. The old table reads the targets from the arguments and notes that no target means the project's packages, which no page of bun.sh says for add"
 bun,x,,,only_what_is_missing,next_program,package_name,name,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
 bun,add,-d,,,,,,,,none,"bun add, CLI Usage (--dev, Add dependency to devDependencies, Alias: -d), Bun v1.4.4 (bun.com/docs/cli/add)",,
 bunx,,,,only_what_is_missing,next_program,package_name,name,no_request,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
 cat,,,,no,,,,,,,"not checked, from the old table",,
+cd,,,,no,,,,,,,"bash(1) SHELL BUILTIN COMMANDS cd (Change the current directory to dir), GNU Bash 5.3 (2025 April 7), man7.org",,
+chmod,,,,no,,,,,,,"chmod(1) NAME (change file mode bits), GNU coreutils 9.11 (man7.org)",,
+cmp,,,,no,,,,,,,"cmp(1) NAME (compare two files byte by byte), diffutils 3.12.26-bbc1 (man7.org)",,
+compileall,,,,no,,,,,,,"compileall, Command-line use (This module can work as a script (using python -m compileall) to compile Python sources), Python 3.15.2 documentation (docs.python.org)",,
 conda,install,,,yes,all,package_name,name,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
+continue,,,,no,,,,,,,"bash(1) SHELL BUILTIN COMMANDS continue (continue resumes the next iteration of the enclosing for, while, until, or select loop), GNU Bash 5.3 (2025 April 7), man7.org",,
+cp,,,,no,,,,,,,"cp(1) NAME (copy files and directories), GNU coreutils 9.11 (man7.org)",,
 curl,,,,yes,all,url,url_or_schemeless_url,no_request,stdout,,"not checked, from the old table",,
 curl,,--connect-timeout,,,,,,,,none,"curl(1) --connect-timeout (Maximum time in seconds that you allow curl's connection to take), curl.se/docs/manpage.html, curl 8.23.1",,
 curl,,--data-binary,,,,,,,,none,"curl(1) --data-binary, curl.se/docs/manpage.html, curl 8.23.1",,It sends its value as the body of the request
@@ -56,13 +71,59 @@ curl,,-s,,,,,,,,none,"curl(1) -s, --silent, curl.se/docs/manpage.html, curl 8.23
 curl,,-u,,,,,,,,none,"curl(1) -u, --user, curl.se/docs/manpage.html, curl 8.23.1",,
 curl,,-v,,,,,,,,none,"curl(1) -v, --verbose, curl.se/docs/manpage.html, curl 8.23.1",,
 curl,,-w,,,,,,,,none,"curl(1) -w, --write-out, curl.se/docs/manpage.html, curl 8.23.1",,"It writes information about the transfer to stdout after it, beside the body"
+curl,,-X,GET,,,,,,,none,"curl(1) -X, --request (Change the method to use when starting the transfer), curl.se/docs/manpage.html, curl 8.23.1",,Only the method changes
+curl,,-X,PROPFIND,,,,,,,none,"curl(1) -X, --request (Change the method to use when starting the transfer), curl.se/docs/manpage.html, curl 8.23.1",,Only the method changes
+curl,,-X,MOVE,,,,,,,none,"curl(1) -X, --request (Change the method to use when starting the transfer), curl.se/docs/manpage.html, curl 8.23.1",,Only the method changes
+curl,,--request,POST,,,,,,,none,"curl(1) -X, --request (Change the method to use when starting the transfer), curl.se/docs/manpage.html, curl 8.23.1",,Only the method changes
+curl,,--request,PATCH,,,,,,,none,"curl(1) -X, --request (Change the method to use when starting the transfer), curl.se/docs/manpage.html, curl 8.23.1",,Only the method changes
+curl,,--data,,,,,,,,none,"curl(1) -d, --data (Send the specified data to a server), curl.se/docs/manpage.html, curl 8.23.1",,It sends its value as the body of the request
+curl,,--data-urlencode,,,,,,,,none,"curl(1) --data-urlencode (Post data, similar to the other --data options with the exception that this performs URL-encoding), curl.se/docs/manpage.html, curl 8.23.1",,It sends its value as the body of the request
+curl,,--data-raw,,,,,,,,none,"curl(1) --data-raw (Post data similarly to --data but without the special interpretation of the @ character), curl.se/docs/manpage.html, curl 8.23.1",,It sends its value as the body of the request
+curl,,-F,,,,,,,,none,"curl(1) -F, --form (emulate a filled-in form in which a user has pressed the submit button), curl.se/docs/manpage.html, curl 8.23.1",,It sends its value as a part of the body of the request
+curl,,--form,,,,,,,,none,"curl(1) -F, --form (emulate a filled-in form in which a user has pressed the submit button), curl.se/docs/manpage.html, curl 8.23.1",,It sends its value as a part of the body of the request
+curl,,-G,,,,,,,,none,"curl(1) -G, --get (the data of --data, --data-binary and --data-urlencode is sent as a query string on a GET request), curl.se/docs/manpage.html, curl 8.23.1",,"The data goes into the URL as its query, and the host stays that of the URL"
+curl,,--get,,,,,,,,none,"curl(1) -G, --get (the data of --data, --data-binary and --data-urlencode is sent as a query string on a GET request), curl.se/docs/manpage.html, curl 8.23.1",,"The data goes into the URL as its query, and the host stays that of the URL"
+curl,,-A,,,,,,,,none,"curl(1) -A, --user-agent (Specify the User-Agent string to send to the HTTP server), curl.se/docs/manpage.html, curl 8.23.1",,
+curl,,--header,,,,,,,,none,"curl(1) -H, --header (Extra header to include in information sent), curl.se/docs/manpage.html, curl 8.23.1",,
+curl,,--user,,,,,,,,none,"curl(1) -u, --user (Specify the username and password to use for server authentication), curl.se/docs/manpage.html, curl 8.23.1",,
+curl,,--retry,,,,,,,,none,"curl(1) --retry (If a transient error is returned when curl tries to perform a transfer, it retries this number of times before giving up), curl.se/docs/manpage.html, curl 8.23.1",,A retry asks the same target again
+curl,,--retry-delay,,,,,,,,none,"curl(1) --retry-delay (Make curl sleep this amount of time before each retry when a transfer has failed with a transient error), curl.se/docs/manpage.html, curl 8.23.1",,
+curl,,--retry-all-errors,,,,,,,,none,"curl(1) --retry-all-errors (Retry on any error), curl.se/docs/manpage.html, curl 8.23.1",,A retry asks the same target again
+curl,,-N,,,,,,,,none,"curl(1) -N, --no-buffer (Disable the buffering of the output stream), curl.se/docs/manpage.html, curl 8.23.1",,
+curl,,--no-buffer,,,,,,,,none,"curl(1) -N, --no-buffer (Disable the buffering of the output stream), curl.se/docs/manpage.html, curl 8.23.1",,
+curl,,-k,,,,,,,,none,"curl(1) -k, --insecure (By default, every secure connection curl makes is verified to be secure before the transfer takes place), curl.se/docs/manpage.html, curl 8.23.1",,
+curl,,--compressed,,,,,,,,none,"curl(1) --compressed (Request a compressed response using one of the algorithms curl supports, and automatically decompress the content), curl.se/docs/manpage.html, curl 8.23.1",,
+curl,,--location,,,,,,,,none,"curl(1) -L, --location (follows HTTP redirects), curl.se/docs/manpage.html, curl 8.23.1",,A redirect to another host is a request that the words do not show
+curl,,-C,,,,,,,,none,"curl(1) -C, --continue-at (Resume a previous transfer from the given byte offset), curl.se/docs/manpage.html, curl 8.23.1",,
+curl,,-r,,,,,,,,none,"curl(1) -r, --range (Retrieve a byte range (i.e. a partial document) from an HTTP/1.1, FTP or SFTP server or a local FILE), curl.se/docs/manpage.html, curl 8.23.1",,"Only a part of the content comes back, which goes where the content would go"
+curl,,--range,,,,,,,,none,"curl(1) -r, --range (Retrieve a byte range (i.e. a partial document) from an HTTP/1.1, FTP or SFTP server or a local FILE), curl.se/docs/manpage.html, curl 8.23.1",,"Only a part of the content comes back, which goes where the content would go"
+curl,,-T,,,,,,,,none,"curl(1) -T, --upload-file (Upload the specified local file to the remote URL), curl.se/docs/manpage.html, curl 8.23.1",,"It sends the file to the URL, and the response goes where the content would go"
+curl,,--upload-file,,,,,,,,none,"curl(1) -T, --upload-file (Upload the specified local file to the remote URL), curl.se/docs/manpage.html, curl 8.23.1",,"It sends the file to the URL, and the response goes where the content would go"
+curl,,--write-out,,,,,,,,none,"curl(1) -w, --write-out (Make curl display information on stdout after a completed transfer), curl.se/docs/manpage.html, curl 8.23.1",,"It writes information about the transfer to stdout after it, beside the body"
+curl,,-b,,,,,,,,none,"curl(1) -b, --cookie (This option has two slightly separate cookie sending functions), curl.se/docs/manpage.html, curl 8.23.1",,
+curl,,-c,,,,,,,,none,"curl(1) -c, --cookie-jar (Specify to which file you want curl to write all cookies after a completed operation), curl.se/docs/manpage.html, curl 8.23.1",,The file it names holds cookies and not the content
+curl,,-4,,,,,,,,none,"curl(1) -4, --ipv4 (Request only IPv4 addresses when resolving hostnames), curl.se/docs/manpage.html, curl 8.23.1",,
+curl,,-6,,,,,,,,none,"curl(1) -6, --ipv6 (Request only IPv6 addresses when resolving hostnames), curl.se/docs/manpage.html, curl 8.23.1",,
+curl,,--output-dir,,,,,,,,none,"curl(1) --output-dir (Specify the directory in which files should be stored, when --remote-name or --output are used), curl.se/docs/manpage.html, curl 8.23.1",,"It names the folder of the file that -o or -O writes, and the content goes where those options send it"
 cut,,,,no,,,,,,,"not checked, from the old table",,
+date,,,,no,,,,,,,"date(1) NAME (print or set the system date and time), GNU coreutils 9.11 (man7.org)",,
+df,,,,no,,,,,,,"df(1) NAME (report file system space usage), GNU coreutils 9.11 (man7.org)",,
 diff,,,,no,,,,,,,"not checked, from the old table",,
+dirname,,,,no,,,,,,,"dirname(1) NAME (strip last component from file name), GNU coreutils 9.11 (man7.org)",,
 dnf,install,,,yes,all,package_name,name,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
 dnf,makecache,,,yes,none,package_name,name,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
 dnf,install,-y,,,,,,,,none,"dnf(8) OPTIONS (-y, --assumeyes, Automatically answer yes for all questions), dnf 4.14.0-3+deb12u1 (Debian bookworm, manpages.debian.org)",,
+dpkg,,,,no,,,,,,,"dpkg(1) NAME (package manager for Debian), DESCRIPTION (dpkg is a medium-level tool to install, build, remove and manage Debian packages) and EXAMPLES (you will need some other application to actually download and install the requested packages), dpkg 1.23.7-216-gff7e9 (man7.org)",,
+du,,,,no,,,,,,,"du(1) NAME (estimate file space usage), GNU coreutils 9.11 (man7.org)",,
 echo,,,,no,,,,,,,"echo(1) DESCRIPTION, GNU coreutils 9.11 (man7.org)",,
 egrep,,,,no,,,,,,,"not checked, from the old table",,
+ensurepip,,,,no,,,,,,,"ensurepip (This module does not access the internet. All of the components needed to bootstrap pip are included as internal parts of the package), Python 3.15.2 documentation (docs.python.org)",,
+exit,,,,no,,,,,,,"bash(1) SHELL BUILTIN COMMANDS exit (Cause the shell to exit with a status of n), GNU Bash 5.3 (2025 April 7), man7.org",,
+file,,,,no,,,,,,,"file(1) NAME (determine file type), file 5.46 (man7.org)",,
+find,,,,no,,,,,,,"find(1) NAME (search for files in a directory hierarchy) and DESCRIPTION (GNU find searches the directory tree rooted at each given starting-point by evaluating the given expression), GNU findutils, man7.org, read 2026-11-19, the part read shows no version",,A program that -exec or -execdir runs is asked on its own
+free,,,,no,,,,,,,"free(1) NAME (Display amount of free and used memory in the system), procps-ng (2023-05-02), man7.org",,
+g++,,,,no,,,,,,,"gcc(1) NAME (GNU project C and C++ compiler) and DESCRIPTION (When you invoke GCC, it normally does preprocessing, compilation, assembly and linking), man7.org, read 2026-11-19, the part read shows no version",,
+gcc,,,,no,,,,,,,"gcc(1) NAME (GNU project C and C++ compiler) and DESCRIPTION (When you invoke GCC, it normally does preprocessing, compilation, assembly and linking), man7.org, read 2026-11-19, the part read shows no version",,
 getent,hosts,,,yes,all,host,host_name,no_request,,,"target_without_target_arguments from getent(1) DESCRIPTION and hosts, Linux man-pages 6.19 (man7.org), which enumerate the hosts database when no key is given instead of looking a name up. content_route left blank, since that page says only that the result is displayed. The rest not checked, from the old table",,The old table said the response goes to stdout. Whether the address that a lookup prints is content the request asks for is not said by getent(1)
 gh,api,,,yes,all,repository_url,url_or_scp_like_address,no_target,stdout,,"not checked, from the old table",,
 git,clone,,,yes,first,repository_url,url_or_scp_like_address,no_target,own_file,,"target_arguments, content_route from git-clone(1) SYNOPSIS and DESCRIPTION, Git 2.56 (git-scm.com). The rest not checked, from the old table",,
@@ -74,6 +135,11 @@ git,,-C,,,,,,,,none,"git(1) OPTIONS -C <path> (Run as if git was started in <pat
 git,clone,--depth,,,,,,,,none,"git-clone(1) OPTIONS --depth, Git 2.54.0 (git-scm.com/docs/git-clone)",,
 git,clone,-q,,,,,,,,none,"git-clone(1) OPTIONS -q, --quiet, Git 2.54.0 (git-scm.com/docs/git-clone)",,
 git,status,,,no,,,,,,,"git-status(1) DESCRIPTION (Displays paths that have differences between the index file and the current HEAD commit, paths that have differences between the working tree and the index file, and paths in the working tree that are not tracked by Git), Git 2.55.0 (2026-06-29, Homebrew)",,Everything it compares is in the local repository and the working tree
+git,clone,--branch,,,,,,,,none,"git-clone(1) OPTIONS -b <name>, --branch=<name>, Git 2.54.0 (git-scm.com/docs/git-clone)",,"It picks the branch that is checked out, from the same repository"
+git,clone,--filter,,,,,,,,none,"git-clone(1) OPTIONS --filter=<filter-spec> (request that the server sends a subset of reachable objects according to a given object filter), Git 2.54.0 (git-scm.com/docs/git-clone)",,
+git,fetch,--depth,,,,,,,,none,"git-fetch(1) OPTIONS --depth=<depth> (Limit fetching to the specified number of commits from the tip of each remote branch history), Git 2.56.0 (git-scm.com/docs/git-fetch)",,
+git,fetch,--unshallow,,,,,,,,none,"git-fetch(1) OPTIONS --unshallow (convert a shallow repository to a complete one), Git 2.56.0 (git-scm.com/docs/git-fetch)",,
+git,ls-remote,--tags,,,,,,,,none,"git-ls-remote(1) OPTIONS --tags (Limit to only local branches and local tags, respectively), Git 2.48.0, unchanged up to 2.56.1 (git-scm.com/docs/git-ls-remote)",,It limits which references of the repository are listed
 go,build,,,only_what_is_missing,none,package_name,name,named_in_file,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
 go,mod tidy,,,yes,none,package_name,name,named_in_file,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
 go,run,,,only_what_is_missing,none,package_name,name,named_in_file,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
@@ -83,10 +149,26 @@ head,,,,no,,,,,,,"not checked, from the old table",,
 host,,,,yes,first,host,host_name,no_request,stdout,,"not checked, from the old table",,
 host,,-t,,,,,,,,none,"host(1) OPTIONS (-t type, The type argument can be any recognized query type), bind9-host 1:9.18.33-1~deb12u2 (Debian bookworm, manpages.debian.org)",,"The query type changes what is asked of the name, not the name or the server"
 huggingface-cli,download,,,yes,all,url,url,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
+id,,,,no,,,,,,,"id(1) NAME (print real and effective user and group IDs), GNU coreutils 9.11 (man7.org)",,
 jq,,,,no,,,,,,,"not checked, from the old table",,
+json.tool,,,,no,,,,,,,"json, Command-line interface (The json module can be invoked as a script via python -m json to validate and pretty-print JSON objects), Python 3.15.2 documentation (docs.python.org)",,
+kill,,,,no,,,,,,,"kill(1) NAME (terminate a process) and DESCRIPTION (The command kill sends the specified signal to the specified processes or process groups), util-linux 2.43.devel-739-eee2e, man7.org, and bash(1) SHELL BUILTIN COMMANDS kill (Send the signal specified by sigspec or signum to the processes named by each id), GNU Bash 5.3 (2025 April 7), man7.org",,
 lake,build,,,only_what_is_missing,none,package_name,name,named_in_file,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
+ldd,,,,no,,,,,,,"ldd(1) NAME (print shared object dependencies), Linux man-pages 6.19 (man7.org)",,
+ln,,,,no,,,,,,,"ln(1) NAME (make links between files), GNU coreutils 9.11 (man7.org)",,
+ls,,,,no,,,,,,,"ls(1) NAME (list directory contents), GNU coreutils 9.11 (man7.org)",,
+lscpu,,,,no,,,,,,,"lscpu(1) NAME (display information about the CPU architecture) and DESCRIPTION (lscpu gathers CPU architecture information from sysfs, /proc/cpuinfo and any applicable architecture-specific libraries), util-linux 2.43.devel-739-eee2e, man7.org",,
+md5sum,,,,no,,,,,,,"md5sum(1) NAME (compute and check MD5 message digest), GNU coreutils 9.11 (man7.org)",,
+mkdir,,,,no,,,,,,,"mkdir(1) NAME (make directories), GNU coreutils 9.11 (man7.org)",,
+mktemp,,,,no,,,,,,,"mktemp(1) NAME (create a temporary file or directory), GNU coreutils 9.11 (man7.org)",,
+mv,,,,no,,,,,,,"mv(1) NAME (move (rename) files), GNU coreutils 9.11 (man7.org)",,
 nc,,,,yes,first,host,host_name,no_request,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
+nc,,-q,,,,,,,,none,"nc(1) OPTIONS -q seconds (after EOF on stdin, wait the specified number of seconds and then quit), netcat-openbsd 1.219-1 (Debian bookworm, manpages.debian.org)",,
+nc,,-w,,,,,,,,none,"nc(1) OPTIONS -w timeout (Connections which cannot be established or are idle timeout after timeout seconds), netcat-openbsd 1.219-1 (Debian bookworm, manpages.debian.org)",,
+nc,,-v,,,,,,,,none,"nc(1) OPTIONS -v (Produce more verbose output), netcat-openbsd 1.219-1 (Debian bookworm, manpages.debian.org)",,
+nc,,-z,,,,,,,,asks_for_no_content,"nc(1) OPTIONS -z (Only scan for listening daemons, without sending any data to them), netcat-openbsd 1.219-1 (Debian bookworm, manpages.debian.org)",,It opens a connection to the port and receives nothing
 nl,,,,no,,,,,,,"not checked, from the old table",,
+nm,,,,no,,,,,,,"nm(1) NAME (list symbols from object files), binutils 2.46.1 (man7.org)",,"Unlike objdump(1) and readelf(1) of the same binutils, whose pages say they may contact debuginfod servers, the page of nm says nothing of a server"
 npm,audit,,,yes,none,package_name,name,named_in_file,stdout,,"not checked, from the old table",,
 npm,ci,,,yes,none,package_name,name,named_in_file,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
 npm,create,,,yes,first,package_name,name,no_target,,,"not checked, from the old table, apart from target_arguments, checked against npm init Synopsis (npm init <package-spec> (same as `npx create-<package-spec>`)) and Description (Any additional options will be passed directly to the command, npm init foo -- --hello will map to npm exec -- create-foo --hello, and the example npm init react-app ./my-react-app), npm 10 (docs.npmjs.com/cli/v10/commands/npm-init, read 2026-11-19)",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for. Only the first argument names the initializer, and the words after it go to the initializer, e.g. my-app, --template and react of npm create vite@5 my-app -- --template react"
@@ -105,15 +187,31 @@ npm,,--package-lock,,,,,,,,none,"npm config package-lock, npm 10.9.10 (docs.npmj
 npm,,--prefer-offline,,,,,,,,fetches_only_what_is_missing,"not checked, from the old table",,
 npm,,--prefix,,,,,,,,none,"npm config prefix, npm 10.9.10 (docs.npmjs.com/cli/v10/using-npm/config)",,"It names the folder that a command runs in, e.g. the project whose package.json names the packages"
 npm,,-y,,,,,,,,none,"npm config, npm 10.9.10 (docs.npmjs.com/cli/v10/using-npm/config), Shorthands and Other CLI Niceties (-y: --yes) and yes (Automatically answer ""yes"" to any prompts that npm might print on the command line)",,
+npm,exec,--yes,,,,,,,,none,"npx Description (Suppress this prompt with the -y or --yes option), npm 10.9.11 (docs.npmjs.com/cli/v10/commands/npx)",,
+npm,exec,--package,,,,,,,,names_target_in_value,"npx Description (--package may be specified multiple times), npm 10.9.11 (docs.npmjs.com/cli/v10/commands/npx)",,Its value is a package to fetch when it is not installed
+npm,,-g,,,,,,,,none,"npm install Configuration global (-g, --global, packages are installed into the prefix folder instead of the current working directory), npm 10.9.11 (docs.npmjs.com/cli/v10/commands/npm-install)",,It names where the packages go and not which
+npm,,--silent,,,,,,,,none,"npm config, Shorthands and Other CLI Niceties (--silent: --loglevel silent), npm 10.9.11 (docs.npmjs.com/cli/v10/using-npm/config)",,
+npm,,--save-dev,,,,,,,,none,"npm install Configuration save-dev (Package will appear in your devDependencies), npm 10.9.11 (docs.npmjs.com/cli/v10/commands/npm-install)",,
+npm,,-D,,,,,,,,none,"npm config, Shorthands and Other CLI Niceties (-D: --save-dev), npm 10.9.11 (docs.npmjs.com/cli/v10/using-npm/config)",,
+npm,,--json,,,,,,,,none,"npm config json (Whether or not to output JSON data, rather than the normal output), npm 10.9.11 (docs.npmjs.com/cli/v10/using-npm/config)",,
+nproc,,,,no,,,,,,,"nproc(1) NAME (print the number of processing units available), GNU coreutils 9.11 (man7.org)",,
 npx,,,,only_what_is_missing,next_program,package_name,name,no_request,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
 npx,,--no-install,,,,,,,,sends_no_request,"not checked, from the old table",,
 npx,,--version,,,,,,,,sends_no_request,"not checked, from the old table",,
 npx,,--yes,,,,,,,,none,"npx Description (A prompt is printed (which can be suppressed by providing either --yes or --no)), npm 10.9.10 (docs.npmjs.com/cli/v10/commands/npx)",,
+npx,,--prefix,,,,,,,,none,"npm config prefix, npm 10.9.10 (docs.npmjs.com/cli/v10/using-npm/config)",,"It names the folder that a command runs in, e.g. the project whose node_modules may hold the program"
+npx,,-y,,,,,,,,none,"npx Description (Suppress this prompt with the -y or --yes option), npm 10.9.11 (docs.npmjs.com/cli/v10/commands/npx)",,
+npx,,-p,,,,,,,,names_target_in_value,"npx Description (--package may be specified multiple times, -p is shorthand for --package in npx), npm 10.9.11 (docs.npmjs.com/cli/v10/commands/npx)",,Its value is a package to fetch when it is not installed
+npx,,--package,,,,,,,,names_target_in_value,"npx Description (--package may be specified multiple times), npm 10.9.11 (docs.npmjs.com/cli/v10/commands/npx)",,Its value is a package to fetch when it is not installed
 nslookup,,,,yes,first,host,host_name,no_request,stdout,,"not checked, from the old table",,
 od,,,,no,,,,,,,"not checked, from the old table",,
+paste,,,,no,,,,,,,"paste(1) NAME (merge lines of files), GNU coreutils 9.11 (man7.org)",,
+pdftotext,,,,no,,,,,,,"pdftotext(1) NAME (Portable Document Format (PDF) to text converter) and DESCRIPTION (Pdftotext converts Portable Document Format (PDF) files to plain text), poppler-utils 22.12.0-2+deb12u1 (Debian bookworm, manpages.debian.org)",,
+pgrep,,,,no,,,,,,,"pgrep(1) NAME (look up, signal, or wait for processes based on name and other attributes), procps-ng (2025-12-29), man7.org",,
 ping,,,,yes,first,host,host_name,no_request,no_content,,"content_route from ping(8) DESCRIPTION, iputils-ping 20221126 (Debian bookworm, manpages.debian.org). The rest not checked, from the old table",,
 ping,,-W,,,,,,,,none,"ping(8) OPTIONS -W, iputils-ping 20221126 (Debian bookworm, manpages.debian.org)",,
 ping,,-c,,,,,,,,none,"ping(8) OPTIONS -c, iputils-ping 20221126 (Debian bookworm, manpages.debian.org)",,
+ping,,-i,,,,,,,,none,"ping(8) OPTIONS -i interval (Wait interval seconds between sending each packet), iputils-ping 20221126 (Debian bookworm, manpages.debian.org)",,
 pip,download,,,yes,all,package_name,pip_requirement,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
 pip,index versions,,,yes,all,package_name,pip_requirement,no_target,stdout,,"not checked, from the old table",,
 pip,install,,,yes,all,package_name,pip_requirement,no_target,own_file,,"content_route from pip install Usage and Description, pip documentation v26.3 (pip.pypa.io). The rest not checked, from the old table",,
@@ -144,6 +242,25 @@ pip,install,--no-deps,,,,,,,,none,"pip install Options --no-deps (Don't install 
 pip,,--disable-pip-version-check,,,,,,,,none,"pip General Options --disable-pip-version-check (Don't periodically check PyPI to determine whether a new version of pip is available for download), pip documentation v26.3 (pip.pypa.io)",,"It stops the check for a new version of pip, a request that the words do not show"
 pip,,--no-input,,,,,,,,none,"pip General Options --no-input (Disable prompting for input), pip documentation v26.3 (pip.pypa.io)",,
 pip,download,--no-binary,,,,,,,,none,"pip download Options --no-binary <format_control> (Do not download binary packages. Cached binary packages may still be used), pip documentation v26.3 (pip.pypa.io)",,It changes which file of a package is fetched and not which package
+pip,,--timeout,,,,,,,,none,"pip General Options --timeout (Set the socket timeout (default 15 seconds)), pip documentation v26.3 (pip.pypa.io/en/stable/cli/pip/)",,
+pip,,--retries,,,,,,,,none,"pip General Options --retries (Maximum attempts to establish a new HTTP connection. (default: 5)), pip documentation v26.3 (pip.pypa.io/en/stable/cli/pip/)",,
+pip,,-v,,,,,,,,none,"pip General Options -v, --verbose (Give more output), pip documentation v26.3 (pip.pypa.io/en/stable/cli/pip/)",,
+pip,,--trusted-host,,,,,,,,none,"pip General Options --trusted-host (Mark this host or host:port pair as trusted, even though it does not have valid or any HTTPS), pip documentation v26.3 (pip.pypa.io/en/stable/cli/pip/)",,"Its value is a host that may also be asked, but the host of a request comes from the index or the target"
+pip,install,--force-reinstall,,,,,,,,none,"pip install Options --force-reinstall (Reinstall all packages even if they are already up-to-date), pip documentation v26.3 (pip.pypa.io/en/stable/cli/pip_install/)",,
+pip,install,--ignore-installed,,,,,,,,none,"pip install Options -I, --ignore-installed (Ignore the installed packages, overwriting them), pip documentation v26.3 (pip.pypa.io/en/stable/cli/pip_install/)",,
+pip,install,--no-build-isolation,,,,,,,,none,"pip install Options --no-build-isolation (Disable isolation when building a modern source distribution), pip documentation v26.3 (pip.pypa.io/en/stable/cli/pip_install/)",,"Without isolation the build dependencies are not installed, which are requests that the words do not show"
+pip,install,--no-compile,,,,,,,,none,"pip install Options --no-compile (Do not compile Python source files to bytecode), pip documentation v26.3 (pip.pypa.io/en/stable/cli/pip_install/)",,
+pip,install,-U,,,,,,,,none,"pip install Options -U, --upgrade (Upgrade all specified packages to the newest available version), pip documentation v26.3 (pip.pypa.io/en/stable/cli/pip_install/)",,
+pip,install,-t,,,,,,,,none,"pip install Options -t, --target, pip documentation v26.3 (pip.pypa.io/en/stable/cli/pip_install/)",,It names the folder that the packages are installed into
+pip,install,--find-links,,,,,,,,names_host_in_value,"pip install Options -f, --find-links (If a URL or path to an html file, then parse for links to archives such as sdist (.tar.gz) or wheel (.whl) files), pip documentation v26.3 (pip.pypa.io/en/stable/cli/pip_install/)",,"Its value may also be a local folder, which names no host"
+pip,install,-f,,,,,,,,names_host_in_value,"pip install Options -f, --find-links (If a URL or path to an html file, then parse for links to archives such as sdist (.tar.gz) or wheel (.whl) files), pip documentation v26.3 (pip.pypa.io/en/stable/cli/pip_install/)",,"Its value may also be a local folder, which names no host"
+pip,download,--dest,,,,,,,,none,"pip download Options -d, --dest (Download packages into <dir>), pip documentation v26.3 (pip.pypa.io/en/stable/cli/pip_download/)",,It names the folder that the downloaded files go to
+pip,download,--only-binary,,,,,,,,none,"pip download Options --only-binary (Do not use source packages), pip documentation v26.3 (pip.pypa.io/en/stable/cli/pip_download/)",,It changes which file of a package is fetched and not which package
+pip,download,--platform,,,,,,,,none,"pip download Options --platform (Only use wheels compatible with <platform>), pip documentation v26.3 (pip.pypa.io/en/stable/cli/pip_download/)",,It changes which file of a package is fetched and not which package
+pip,download,--python-version,,,,,,,,none,"pip download Options --python-version (The Python interpreter version to use for wheel and Requires-Python compatibility checks), pip documentation v26.3 (pip.pypa.io/en/stable/cli/pip_download/)",,It changes which file of a package is fetched and not which package
+pip,download,--implementation,,,,,,,,none,"pip download Options --implementation (Only use wheels compatible with Python implementation <implementation>), pip documentation v26.3 (pip.pypa.io/en/stable/cli/pip_download/)",,It changes which file of a package is fetched and not which package
+pip,download,--no-build-isolation,,,,,,,,none,"pip download Options --no-build-isolation (Disable isolation when building a modern source distribution), pip documentation v26.3 (pip.pypa.io/en/stable/cli/pip_download/)",,"Without isolation the build dependencies are not installed, which are requests that the words do not show"
+pkill,,,,no,,,,,,,"pgrep(1) NAME (pgrep, pkill, pidwait - look up, signal, or wait for processes based on name and other attributes), procps-ng (2025-12-29), man7.org",,
 playwright,install,,,yes,none,url,url,no_target,,,"Browsers, Install browsers (Running the command without arguments will install the default browsers, You can also install specific browsers by providing an argument, npx playwright install webkit), playwright.dev/docs/browsers, read 2026-11-18, the page shows no version, for target_arguments; the other cells not checked, from the old table",,"The arguments are browser names, not targets, so target_arguments is none. Target_kind stays url, since the request is the download of the browser builds, which no other NetworkRequestTargetKind value names. content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
 playwright,install-deps,,,yes,none,package_name,name,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
 pnpm,add,,,yes,all,package_name,name,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for. The old table reads the targets from the arguments and notes that no target means the project's packages, which no page of pnpm.io says for add"
@@ -151,15 +268,38 @@ pnpm,exec,,,only_what_is_missing,next_program,package_name,name,no_target,,,"not
 pnpm,install,,,yes,all,package_name,name,named_in_file,,,"target_without_target_arguments from pnpm install, pnpm docs 12.x (pnpm.io/cli/install), which installs all dependencies for a project. The rest not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
 pnpm,,--offline,,,,,,,,sends_no_request,"pnpm install Options --offline, pnpm docs 12.x (pnpm.io/cli/install)",,"The old table called it an offline option, which covered both sends_no_request and fetches_only_what_is_missing"
 printf,,,,no,,,,,,,"printf(1) DESCRIPTION, GNU coreutils 9.11 (man7.org)",,
+ps,,,,no,,,,,,,"ps(1) NAME (report a snapshot of the current processes) and DESCRIPTION (ps displays information about a selection of the active processes), procps-ng (2025-04-23), man7.org",,
+pwd,,,,no,,,,,,,"pwd(1) NAME (print name of current/working directory), GNU coreutils 9.11 (man7.org)",,
+py_compile,,,,no,,,,,,,"py_compile (provides a function to generate a byte-code file from a source file) and Command-Line Interface (This module can be invoked as a script to compile several source files), Python 3.15.2 documentation (docs.python.org)",,
+read,,,,no,,,,,,,"bash(1) SHELL BUILTIN COMMANDS read (Read one line from the standard input, or from the file descriptor fd supplied as an argument to the -u option), GNU Bash 5.3 (2025 April 7), man7.org",,
+readlink,,,,no,,,,,,,"readlink(1) NAME (print resolved symbolic links or canonical file names), GNU coreutils 9.11 (man7.org)",,
 rg,,,,no,,,,,,,"not checked, from the old table",,
+rm,,,,no,,,,,,,"rm(1) NAME (remove files or directories), GNU coreutils 9.11 (man7.org)",,
+rmdir,,,,no,,,,,,,"rmdir(1) NAME (remove empty directories), GNU coreutils 9.11 (man7.org)",,
 rsync,,,,yes,all,host,rsync_address,no_request,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
 sbt,,,,only_what_is_missing,none,package_name,name,named_in_file,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
 sbt,,-batch,,,,,,,,none,"sbt launcher script (raw.githubusercontent.com/sbt/sbt/develop/sbt, builtin_sbt_version 1.12.0, read 2026-11-18), usage (--batch disable interactive mode)",,It only closes stdin
 sed,,,,no,,,,,,,"not checked, from the old table",,
+seq,,,,no,,,,,,,"seq(1) NAME (print a sequence of numbers), GNU coreutils 9.11 (man7.org)",,
+set,,,,no,,,,,,,"bash(1) SHELL BUILTIN COMMANDS set (Without options, display the name and value of each shell variable), GNU Bash 5.3 (2025 April 7), man7.org",,
+sha256sum,,,,no,,,,,,,"sha256sum(1) NAME (compute and check SHA256 message digest), GNU coreutils 9.11 (man7.org)",,
+shift,,,,no,,,,,,,"bash(1) SHELL BUILTIN COMMANDS shift (Rename positional parameters from n+1 ... to $1 ....), GNU Bash 5.3 (2025 April 7), man7.org",,
+sleep,,,,no,,,,,,,"sleep(1) NAME (delay for a specified amount of time), GNU coreutils 9.11 (man7.org)",,
 sort,,,,no,,,,,,,"not checked, from the old table",,
+stat,,,,no,,,,,,,"stat(1) NAME (display file or file system status), GNU coreutils 9.11 (man7.org)",,
 strings,,,,no,,,,,,,"not checked, from the old table",,
 tac,,,,no,,,,,,,"not checked, from the old table",,
 tail,,,,no,,,,,,,"not checked, from the old table",,
+tee,,,,no,,,,,,,"tee(1) NAME (read from standard input and write to standard output and files), GNU coreutils 9.11 (man7.org)",,
+test,,,,no,,,,,,,"test(1) NAME (check file types and compare values), GNU coreutils 9.11 (man7.org)",,
+touch,,,,no,,,,,,,"touch(1) NAME (create file, or change file timestamps), GNU coreutils 9.11 (man7.org)",,
+tr,,,,no,,,,,,,"tr(1) NAME (translate or delete characters), GNU coreutils 9.11 (man7.org)",,
+true,,,,no,,,,,,,"true(1) NAME (do nothing, successfully), GNU coreutils 9.11 (man7.org)",,
+type,,,,no,,,,,,,"bash(1) SHELL BUILTIN COMMANDS type (Indicate how each name would be interpreted if used as a command name), GNU Bash 5.3 (2025 April 7), man7.org",,
+uname,,,,no,,,,,,,"uname(1) NAME (print system information), GNU coreutils 9.11 (man7.org)",,
+uniq,,,,no,,,,,,,"uniq(1) NAME (report or omit repeated lines), GNU coreutils 9.11 (man7.org)",,
+unzip,,,,no,,,,,,,"unzip(1) NAME (list, test and extract compressed files in a ZIP archive), unzip 6.0-28 (Debian bookworm, manpages.debian.org)",,
+uptime,,,,no,,,,,,,"uptime(1) NAME (Tell how long the system has been running), procps-ng (2024-02-08), man7.org",,
 uv,pip install,,,yes,all,package_name,pip_requirement,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
 uv,run,,,only_what_is_missing,none,package_name,name,named_in_file,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
 uv,venv,,,only_what_is_missing,none,package_name,name,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
@@ -169,10 +309,16 @@ uv,,--help,,,,,,,,sends_no_request,"not checked, from the old table",,
 uv,,--index-url,,,,,,,,names_host_in_value,"not checked, from the old table",,
 uv,,-e,,,,,,,,names_target_in_value,"not checked, from the old table",,The old table said it names packages in a file or a local project. Its value is the target itself
 uv,pip install,--python,,,,,,,,none,"uv CLI reference, docs.astral.sh/uv/reference/cli/ (read 2026-11-18), uv pip install Options --python, -p python (The Python interpreter to use during resolution)",,It picks the interpreter whose environment the packages go to
+uv,run,--with,,,,,,,,names_target_in_value,"uv CLI reference, uv run --with <WITH> (Run with the given packages installed), docs.astral.sh/uv/reference/cli/ (read 2026-11-19), no version shown",,Its value is a package to install for the run
+wait,,,,no,,,,,,,"bash(1) SHELL BUILTIN COMMANDS wait (Wait for each specified child process id and return the termination status of the last id), GNU Bash 5.3 (2025 April 7), man7.org",,
+wc,,,,no,,,,,,,"wc(1) NAME (print newline, word, and byte counts for each file), GNU coreutils 9.11 (man7.org)",,
 wget,,,,yes,all,url,url,no_request,own_file,,"content_route from wget(1) DESCRIPTION, -P and -O, GNU Wget 1.21.3 (Debian bookworm, manpages.debian.org). The rest not checked, from the old table",,
 wget,,--output-document,,,,,,,,sends_content_to_file,"wget(1) -O file, --output-document=file (The documents will not be written to the appropriate files, but all will be concatenated together and written to file), GNU Wget 1.21.3 (Debian bookworm, manpages.debian.org)",,The file it names is a written file of the command
 wget,,--output-document,-,,,,,,,sends_content_to_stdout,"not checked, from the old table",,
 wget,,--spider,,,,,,,,asks_for_no_content,"not checked, from the old table",,
 wget,,-O,,,,,,,,sends_content_to_file,"wget(1) -O file, --output-document=file (The documents will not be written to the appropriate files, but all will be concatenated together and written to file), GNU Wget 1.21.3 (Debian bookworm, manpages.debian.org)",,The file it names is a written file of the command
 wget,,-O,-,,,,,,,sends_content_to_stdout,"not checked, from the old table",,
+wget,,-q,,,,,,,,none,"wget(1) -q, --quiet (Turn off Wget's output), GNU Wget 1.21.3 (Debian bookworm, manpages.debian.org)",,
+wget,,--server-response,,,,,,,,none,"wget(1) -S, --server-response (Print the headers sent by HTTP servers and responses sent by FTP servers), GNU Wget 1.21.3 (Debian bookworm, manpages.debian.org)",,"The headers go to the log output, and the content goes where it would go without it"
+which,,,,no,,,,,,,"which(1) NAME (locate a command) and DESCRIPTION (which returns the pathnames of the files (or links) which would be executed in the current environment), debianutils 5.7-0.5~deb12u1 (Debian bookworm, manpages.debian.org, the page was served in its Portuguese translation)",,
 xxd,,,,no,,,,,,,"not checked, from the old table",,

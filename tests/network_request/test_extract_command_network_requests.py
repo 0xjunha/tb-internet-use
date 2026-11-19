@@ -342,10 +342,10 @@ def test_commands_without_a_request_count_their_reason(
             id="npm install --prefer-offline x",
         ),
         pytest.param(
-            (_program("curl", options=(("--compressed", None),), arguments=(U,)),),
+            (_program("curl", options=(("--tlsv1.2", None),), arguments=(U,)),),
             [U],
             [(UNCERTAIN, UNKNOWN_OPTION_EFFECT)],
-            id="curl --compressed u without a row of --compressed",
+            id="curl --tlsv1.2 u without a row of --tlsv1.2",
         ),
         pytest.param(
             (_program("sbt", options=(("--version", None),)),),
@@ -615,15 +615,15 @@ def test_a_program_without_a_row_finds_urls_in_its_option_values_and_unread_word
 
 
 def test_the_door_is_asked_once_for_each_program_of_a_command():
-    # `python -m ensurepip` as `expand_tool_calls` reads it, a python that runs the module ensurepip, neither with a row of the request catalog.
+    # `python -m venv` as `expand_tool_calls` reads it, a python that runs the module venv, neither with a row of the request catalog.
     python = _program("python", runs_next_program=True)
-    ensurepip = _program("ensurepip")
-    extraction = _extract(_command(python, ensurepip))
+    venv = _program("venv")
+    extraction = _extract(_command(python, venv))
     assert extraction.network_requests == ()
     assert extraction.knowledge.uses.unknown_input_counts == Counter(
         {
             (PROGRAM_NETWORK_REQUESTS_CSV, ("python", "", "", "")): 1,
-            (PROGRAM_NETWORK_REQUESTS_CSV, ("ensurepip", "", "", "")): 1,
+            (PROGRAM_NETWORK_REQUESTS_CSV, ("venv", "", "", "")): 1,
         }
     )
     assert extraction.no_network_request_counts == Counter(

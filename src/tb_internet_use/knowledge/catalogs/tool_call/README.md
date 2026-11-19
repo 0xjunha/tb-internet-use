@@ -23,7 +23,7 @@ A text without a row leaves the exit code of the result unknown and is counted a
 
 All three files end with the same three columns.
 
-- **`checked_against`:** What the row was checked against, e.g. `8 sampled tool calls in the trajectories (terminal-bench 2026-10-08)` for a label that rests on calls read beside their trajectory.
+- **`checked_against`:** What the row was checked against, e.g. `8 sampled tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)` for a label that rests on calls read beside their trajectory.
 - **`reviewed`:** `yes` once a person has reviewed the row, empty until then.
 - **`note`:** Free text, e.g. what the handles of an argument name, why a tool stays `OtherAction` although some of its calls touch the task environment, or which programs a return code interpretation is written for.
 

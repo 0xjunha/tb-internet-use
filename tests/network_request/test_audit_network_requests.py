@@ -544,7 +544,7 @@ def test_a_broken_input_makes_its_equation_differ(equation, broken_input_of):
     assert equation in _differing_equations(trial_audit)
 
 
-# (equation, made-up Claude Code calls of a shape that the full data of 2026-10-08 showed, with the requests right and the recount once wrong). The comments name the shape.
+# (equation, made-up Claude Code calls of a shape that the full Terminal-Bench 3.0/4.0 data of 2026-10-08 showed, with the requests right and the recount once wrong). The comments name the shape.
 SHAPES_THAT_HOLD: list[tuple[str, tuple[HarnessToolCall, ...]]] = [
     # A variable of one value fills the host of a URL with localhost.
     (

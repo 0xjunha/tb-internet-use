@@ -89,7 +89,7 @@ WORKER_PROCESS_DIED = "worker_process_died"
 SAVED_RESULTS_OF_OTHER_CODE = "saved_results_of_other_code"
 # The characters of a key word that `cut_key_word` keeps at most.
 KEY_WORD_LENGTH_LIMIT = 64
-# Progress goes to stderr after this many trials, often enough to follow a run of 15,990 trials and seldom enough to stay short.
+# Progress goes to stderr after this many trials, often enough to follow a run of 21,450 trials and seldom enough to stay short.
 _PROGRESS_INTERVAL = 200
 # The step packages that have a door and judgment rules, in pipeline order, with the module of their rules.
 JUDGMENT_RULES_BY_STEP_PACKAGE: dict[str, ModuleType] = {
@@ -103,7 +103,7 @@ JUDGMENT_RULES_BY_STEP_PACKAGE: dict[str, ModuleType] = {
 # The comment above each name gives its left side beside its right side.
 EQUATIONS = (
     # Lines of the written `trial_rows.csv` beside trial folders chosen, after a repeated trial id is dropped.
-    # A run over the whole data folder must give 15,990.
+    # A run over the whole raw folder of Terminal-Bench 4.1, downloaded on 2026-11-19, must give 21,450.
     "trial_rows_equal_trial_folders_chosen",
     # Lines of the written `trial_rows.csv` beside chosen trial ids that the written `raised_trials.csv` does not name.
     "written_trial_rows_equal_chosen_trials_without_written_raised_trials",

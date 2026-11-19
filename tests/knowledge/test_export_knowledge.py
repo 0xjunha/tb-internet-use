@@ -313,7 +313,7 @@ def test_real_catalogs_load_and_answer_for_the_rows_they_hold():
     assert real_knowledge.package_registry(
         _program_invocation("go", "build")
     ) == PackageRegistry("go_module_proxy", ("proxy.golang.org",))
-    assert real_knowledge.public_host("files.pythonhosted.org") == UnknownPublicHost()
+    assert real_knowledge.public_host("api.github.com") == UnknownPublicHost()
     assert real_knowledge.public_host("repo1.maven.org") == PublicHost(
         HostService.PACKAGE_REGISTRY, "maven_central"
     )
