@@ -119,6 +119,12 @@ PROGRAM_BEHAVIOR_ROWS: list[dict[str, str]] = [
     {"program_name": "echo", **_READING_NOT_KNOWN},
     {"program_name": "printf", **_READING_NOT_KNOWN},
     {"program_name": "plusprog", **_READING_NOT_KNOWN},
+    # shout reads its words as echo of bash does, with the one option -n.
+    {
+        "program_name": "shout",
+        "options_end_at_first_argument": "yes",
+        "takes_non_option_dash_words_as_arguments": "yes",
+    },
     {
         "program_name": "node",
         "first_argument_role": "run_file",
@@ -263,6 +269,7 @@ PROGRAM_OPTION_BEHAVIOR_ROWS: list[dict[str, str]] = [
     {"program_name": "tail", "option_name": "-n", **_TAKES_OTHER_VALUE},
     {"program_name": "git", "option_name": "-C", **_TAKES_OTHER_VALUE},
     {"program_name": "echo", "option_name": "-n"},
+    {"program_name": "shout", "option_name": "-n"},
     {"program_name": "echo", "option_name": "-e"},
     {"program_name": "plusprog", "option_name": "+o"},
     {
@@ -866,6 +873,29 @@ INVOCATION_CASES = [
         ("plusprog", "+o", "b"),
         (),
         (_program_invocation("plusprog", options=(_option("+o"),), arguments=("b",)),),
+    ),
+    # A word that starts with - and is no option of shout is its argument, `--` and a cluster with a letter that is no option included, and after it no word is an option.
+    (
+        "shout --- a",
+        ("shout", "---", "a"),
+        (),
+        (_program_invocation("shout", arguments=("---", "a")),),
+    ),
+    (
+        "shout -- -n",
+        ("shout", "--", "-n"),
+        (),
+        (_program_invocation("shout", arguments=("--", "-n")),),
+    ),
+    (
+        "shout -n -nx -n",
+        ("shout", "-n", "-nx", "-n"),
+        (),
+        (
+            _program_invocation(
+                "shout", options=(_option("-n"),), arguments=("-nx", "-n")
+            ),
+        ),
     ),
     # -n and -e have rows, but whether -ne holds both is not known.
     (
@@ -1611,9 +1641,9 @@ def test_wrapper_chain_shell_option_with_a_plus_and_echo_are_read_on_the_real_ca
         knowledge=knowledge,
         judgment_rule_use_counts=Counter(),
     )
-    # The row of echo leaves blank whether options end at its first argument.
+    # The row of echo says that options end at its first argument and that a word that starts with - and is none of -n, -e and -E is an argument.
     echo = expand_program_invocations(
-        ShellCommand(2, ("echo", "-n", "hello", "-n")),
+        ShellCommand(2, ("echo", "-ne", "---", "-n")),
         knowledge=knowledge,
         judgment_rule_use_counts=Counter(),
     )
@@ -1651,10 +1681,9 @@ def test_wrapper_chain_shell_option_with_a_plus_and_echo_are_read_on_the_real_ca
         (
             _program_invocation(
                 "echo",
-                options=(_option("-n"),),
-                arguments=("hello",),
-                unread_words=("-n",),
+                options=(_option("-n"), _option("-e")),
+                arguments=("---", "-n"),
             ),
         ),
-        (None, None, ProgramWordRole.OTHER, UNKNOWN_ROLE),
+        (None, None, ProgramWordRole.OTHER, ProgramWordRole.OTHER),
     )

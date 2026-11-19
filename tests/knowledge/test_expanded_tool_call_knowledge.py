@@ -28,6 +28,7 @@ from tb_internet_use.expanded_tool_call.model import (
     UnknownProgramOptionWord,
     UnknownProgramWordRole,
     UnknownRanTextLanguage,
+    UnknownTakesNonOptionDashWordsAsArguments,
     UnknownTakesOneLetterOptionsJoined,
 )
 from tb_internet_use.knowledge.catalog import KnowledgeUses
@@ -53,6 +54,7 @@ _PROGRAM_ROW_CELLS = {
     "skips_assignment_words": "yes",
     "options_end_at_first_argument": "yes",
     "takes_one_letter_options_joined": "no",
+    "takes_non_option_dash_words_as_arguments": "no",
     "runs_text_in_calling_shell": "yes",
     "exits_with_exit_code_of_next_program": "yes",
     "name_may_end_with_version": "no",
@@ -73,6 +75,7 @@ _PROGRAM_BEHAVIOR = ProgramBehavior(
     skips_assignment_words=True,
     options_end_at_first_argument=True,
     takes_one_letter_options_joined=False,
+    takes_non_option_dash_words_as_arguments=False,
     runs_text_in_calling_shell=True,
     exits_with_exit_code_of_next_program=True,
     default_run_file="Makefile",
@@ -176,6 +179,10 @@ _BLANK_PROGRAM_CELLS_THAT_ARE_UNKNOWN = [
     ),
     ("options_end_at_first_argument", UnknownOptionsEndAtFirstArgument()),
     ("takes_one_letter_options_joined", UnknownTakesOneLetterOptionsJoined()),
+    (
+        "takes_non_option_dash_words_as_arguments",
+        UnknownTakesNonOptionDashWordsAsArguments(),
+    ),
     ("default_run_file", UnknownDefaultRunFile()),
 ]
 # Columns of a program row in which a blank fails the load.
@@ -1008,6 +1015,26 @@ def test_option_without_a_row_is_unknown_and_counted_with_the_subcommand_asked(
                 (PROGRAM_OPTION_BEHAVIORS_CSV, ("other", "", "-x")): 1,
             }
         )
+    )
+
+
+def test_word_without_a_row_of_a_program_that_takes_non_option_dash_words_as_arguments_is_an_argument(
+    tmp_path,
+):
+    knowledge = _knowledge(tmp_path, option_rows=[_OPTION_ROW_CELLS])
+    program_behavior = replace(
+        _PROGRAM_BEHAVIOR, takes_non_option_dash_words_as_arguments=True
+    )
+
+    answers = [
+        knowledge.program_option_word(program_behavior, word)
+        for word in ("---", "--", "-xy")
+    ]
+
+    assert answers == [ProgramArgumentWord()] * 3
+    assert knowledge.uses == KnowledgeUses()
+    assert isinstance(
+        knowledge.program_option_word(program_behavior, "-x"), ProgramOptionWord
     )
 
 

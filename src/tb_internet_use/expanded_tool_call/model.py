@@ -446,6 +446,10 @@ class ProgramBehavior:
     options_end_at_first_argument: bool | UnknownOptionsEndAtFirstArgument
     # `-fsSL` is four options. False for find and java. An `UnknownTakesOneLetterOptionsJoined` when the cell is blank.
     takes_one_letter_options_joined: bool | UnknownTakesOneLetterOptionsJoined
+    # A word that starts with `-` and is none of the options of its rows is an argument, `--` included, e.g. `---` of `echo ---`. An `UnknownTakesNonOptionDashWordsAsArguments` when the cell is blank.
+    takes_non_option_dash_words_as_arguments: (
+        bool | UnknownTakesNonOptionDashWordsAsArguments
+    )
     # The text it runs runs inside the calling shell and sees its assignments, e.g. eval, source and `.`. False for bash and sh.
     runs_text_in_calling_shell: bool
     # False when the cell is `no`. An `UnknownExitsWithExitCodeOfNextProgram` when it is blank.
@@ -477,13 +481,27 @@ class UnknownExitsWithExitCodeOfNextProgram:
 class UnknownOptionsEndAtFirstArgument:
     """Answer of `ExpandedToolCallKnowledge`, standing where True or False would, to whether the words after the first argument of a program can be its options, when its row of `program_behaviors.csv` leaves that cell blank.
 
-    A word that starts with `-` after the first argument, e.g. `-n` of `echo hello -n`, is then neither an option nor an argument, so `expand_tool_calls` leaves it unread.
+    A word that starts with `-` after the first argument, e.g. `-v` of `printf %s -v`, is then neither an option nor an argument, so `expand_tool_calls` leaves it unread.
     """
 
     def __bool__(self) -> bool:
         """Refuse to be read as True or False, so that `if` never takes a blank cell for a yes or a no."""
         raise TypeError(
             "whether the options of the program end at its first argument is not known"
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class UnknownTakesNonOptionDashWordsAsArguments:
+    """Answer of `ExpandedToolCallKnowledge`, standing where True or False would, to whether a word that starts with `-` and that no option row of a program covers is an argument of the program, when its row of `program_behaviors.csv` leaves that cell blank.
+
+    Such a word, e.g. `-q` of a program without a row of `-q`, is then an option that the catalog lacks, so the door answers `UnknownProgramOptionWord` for it.
+    """
+
+    def __bool__(self) -> bool:
+        """Refuse to be read as True or False, so that `if` never takes a blank cell for a yes or a no."""
+        raise TypeError(
+            "whether the program takes words that start with - and are no options as arguments is not known"
         )
 
 
@@ -571,7 +589,7 @@ class ProgramOptionWordOption:
 
 @dataclass(frozen=True, slots=True)
 class ProgramArgumentWord:
-    """Answer of `ExpandedToolCallKnowledge` for a word that starts with `+` and is no option of its program, since no row of the program names an option that starts with `+`, e.g. `+x` of chmod."""
+    """Answer of `ExpandedToolCallKnowledge` for a word that looks like an option and is an argument of its program, e.g. `+x` of chmod, which has no option that starts with `+`, or `---` of echo, whose row says that a word that starts with `-` and is none of its options is an argument."""
 
 
 @dataclass(frozen=True, slots=True)

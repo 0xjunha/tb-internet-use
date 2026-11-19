@@ -289,10 +289,14 @@ class _ProgramWordsState:
                 and self.may_be_option_word(word)
             ):
                 if word.startswith("-") and self.is_option_place_unknown():
-                    # The word may be an option or an argument, e.g. `-n` of `echo hello -n`, so it is read as neither, as a word without an option row is not.
+                    # The word may be an option or an argument, e.g. `-v` of `printf %s -v`, so it is read as neither, as a word without an option row is not.
                     self.first_unread_word_index = word_index
                     return
-                if word == _END_OF_OPTIONS_WORD:
+                if (
+                    word == _END_OF_OPTIONS_WORD
+                    and self.program_behavior.takes_non_option_dash_words_as_arguments
+                    is not True
+                ):
                     after_end_of_options = True
                     word_index += 1
                     continue

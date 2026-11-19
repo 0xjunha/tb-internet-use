@@ -24,6 +24,7 @@ _PROGRAM_ROW_DEFAULTS = {
     "skips_assignment_words": "no",
     "options_end_at_first_argument": "no",
     "takes_one_letter_options_joined": "yes",
+    "takes_non_option_dash_words_as_arguments": "",
     "runs_text_in_calling_shell": "no",
     "exits_with_exit_code_of_next_program": "no",
     "name_may_end_with_version": "no",

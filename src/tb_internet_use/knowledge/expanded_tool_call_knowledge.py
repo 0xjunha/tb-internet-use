@@ -1,6 +1,6 @@
 """Answer the questions of `expand_tool_calls` about programs and the languages they run from the program catalogs, counting every use of a row and every input without one.
 
-A blank cell is unknown only in the role columns, `visibility_of_piped_input`, the exit code columns, `options_end_at_first_argument`, `takes_one_letter_options_joined` and `default_run_file`. Every other fact column says what it means in a word, e.g. `no` or `none`, and a blank there fails the load, so that the door never reads a missing fact as a default. A blank `subcommand` names the row of the program without a subcommand.
+A blank cell is unknown only in the role columns, `visibility_of_piped_input`, the exit code columns, `options_end_at_first_argument`, `takes_one_letter_options_joined`, `takes_non_option_dash_words_as_arguments` and `default_run_file`. Every other fact column says what it means in a word, e.g. `no` or `none`, and a blank there fails the load, so that the door never reads a missing fact as a default. A blank `subcommand` names the row of the program without a subcommand.
 """
 
 import functools
@@ -28,6 +28,7 @@ from tb_internet_use.expanded_tool_call.model import (
     UnknownProgramOptionWord,
     UnknownProgramWordRole,
     UnknownRanTextLanguage,
+    UnknownTakesNonOptionDashWordsAsArguments,
     UnknownTakesOneLetterOptionsJoined,
 )
 from tb_internet_use.knowledge.catalog import (
@@ -133,11 +134,12 @@ class ExpandedToolCallKnowledge:
         3. A `-` or `+` and several letters, when the program row says `yes` in `takes_one_letter_options_joined`, holds the row of each letter, e.g. `-f` and `-s` for `-fs`. The rest of the word after a letter that takes a value is that value, e.g. `out` of `-oout`.
         4. A word whose role is `OPTION_CLUSTER`, with `is_option_cluster`, holds the row of each letter named with a `-`, with no attached values, e.g. `-x`, `-z` and `-f` for `xzf` of tar.
 
-        When `takes_one_letter_options_joined` is `no` or blank, a word of several letters without a row of its own is `UnknownProgramOptionWord`, e.g. `-ne` of echo, since the letters are not read one by one.
+        When `takes_one_letter_options_joined` is `no` or blank, a word of several letters without a row of its own is `UnknownProgramOptionWord`, e.g. `-af` of pgrep, since the letters are not read one by one.
         A word that starts with `+` is `ProgramArgumentWord` when no row of the program or its subcommand names an option that starts with `+`, e.g. `+x` of chmod.
+        A word that starts with `-` and that the rows do not cover is `ProgramArgumentWord` when the program row says `yes` in `takes_non_option_dash_words_as_arguments`, e.g. `---` or `-nx` of echo, and the door then counts no unknown input, since the rows name every option of such a program.
         A row of the subcommand comes before a row of the program without a subcommand, e.g. `(git, clone, --depth)` before `(git, "", --depth)`.
         With `is_before_subcommand`, for a word between the program word and the subcommand, e.g. `-C` of `git -C /app log`, only the rows without a subcommand answer, read as the row of the program without a subcommand reads joined letters, since such a word is an option of the program and not of the subcommand.
-        The door counts one use of a row per option it gives, and when the rows do not cover the word one unknown input under the word as written with the subcommand as asked, e.g. `(echo, "", -ne)`, so that the list of unknown inputs holds only words without rows. For `--name=value` that input is `--name`, since a row is named without a value.
+        The door counts one use of a row per option it gives, and when the rows do not cover the word one unknown input under the word as written with the subcommand as asked, e.g. `(pgrep, "", -af)`, so that the list of unknown inputs holds only words without rows. For `--name=value` that input is `--name`, since a row is named without a value.
         """
         catalogs = self._catalogs
         program_name = program_behavior.program_name
@@ -168,6 +170,11 @@ class ExpandedToolCallKnowledge:
             is_option_cluster=is_option_cluster,
         )
         if option_parts is None:
+            if (
+                not is_option_cluster
+                and program_behavior.takes_non_option_dash_words_as_arguments is True
+            ):
+                return ProgramArgumentWord()
             catalogs.program_option_behaviors.lookup(
                 (program_name, subcommand, asked_option_name), self.uses
             )
@@ -182,7 +189,7 @@ class ExpandedToolCallKnowledge:
     def options_end_at_first_argument(
         self, program_behavior: ProgramBehavior
     ) -> bool | UnknownOptionsEndAtFirstArgument:
-        """Answer whether the options of a program end at its first argument, from the row that `program_behavior` holds, for a word after the first argument that may be an option, e.g. `-n` of `echo hello -n`.
+        """Answer whether the options of a program end at its first argument, from the row that `program_behavior` holds, for a word after the first argument that may be an option, e.g. `-v` of `printf %s -v`.
 
         A known answer counts nothing, since `program_behavior` counted the row when it answered.
         A blank cell counts one unknown input `(program_name, subcommand, "options_end_at_first_argument")` under `BLANK_PROGRAM_BEHAVIOR_CELLS`, so that each word left unread for want of it shows in the list of unknown inputs.
@@ -507,6 +514,11 @@ def _program_behavior_row_from_columns(
             columns,
             "takes_one_letter_options_joined",
             unknown=UnknownTakesOneLetterOptionsJoined(),
+        ),
+        takes_non_option_dash_words_as_arguments=_yes_no_or_unknown_from_cell(
+            columns,
+            "takes_non_option_dash_words_as_arguments",
+            unknown=UnknownTakesNonOptionDashWordsAsArguments(),
         ),
         runs_text_in_calling_shell=_yes_or_no_from_cell(
             columns, "runs_text_in_calling_shell"
