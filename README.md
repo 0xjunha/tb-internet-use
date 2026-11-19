@@ -2,154 +2,103 @@
 
 > **Work in progress.**
 
-This project finds how agents on the Terminal-Bench leaderboard use the internet, reading their trajectories alone. It shows which tasks depend on the internet and for what.
+A pipeline to measure how agents on the Terminal-Bench leaderboard use the internet, based on ATIF trajectories.
+It shows how often agents use the internet in each task and what for, e.g. to install a package or to search the web.
 
-A trial is one run of an agent on one task. Its trajectory is the record of the agent's tool calls and their results, and the harness is the agent program that made them, e.g. Claude Code.
-
-The source is 20,839 readable trajectories in ATIF format, out of the 21,450 trials of the Terminal-Bench 4.1 leaderboard, downloaded from Harbor Hub on 2026-11-19. Of the other 611 trials, 583 have no trajectory there and 28 have one that is not JSON.
+- Data: Terminal-Bench 4.1 leaderboard on Harbor Hub, downloaded on 2026-11-19 (20,839/21,450 trials are readable)
 
 ## What it answers
 
-For each task and each category of request (e.g. packages, fetched files, web search, page reads), it gives two shares of the task's trials:
+For each task and each category of request (e.g. package or web search) it gives two shares of the task's trials: 1) trials with an internet request 2) trials that received what a request asked for.
 
-- the share of trials with at least one such request
-- the share of trials that received what such a request asked for
+Each share is reported as a lower bound and an upper bound, since a trajectory does not always show whether a command ran or what it printed.
 
-Each share comes as a lower bound, which counts only what the trajectory confirms, and an upper bound, which also counts what it cannot rule out.
-The unit is the trial, so a trial counts as one that received when the trajectory confirms that one of its requests did, even when it does not show which, e.g. one `Fetched 10 kB in 1s` under `apt-get install -y a b` that either request may have printed.
-Every request is kept as a row with its place in the trajectory and its evidence, so other questions can be answered from the same rows.
-
-## What counts
-
-| Term | Meaning |
-|---|---|
-| Internet use | A request that the agent's own call causes and that turning the internet off would block. So a request to localhost, or to a name without a dot such as `db` that resolves only inside the task environment, is a network request but not internet use, and a failed request still counts |
-| One request | One target that one command, code text or web tool call tries to get, e.g. two for `pip install A B` |
-| How far it got | The furthest level below that the trajectory shows, with why it stopped there: it failed, nothing further is visible, or nothing needed sending (e.g. pip prints `Requirement already satisfied`) |
+Internet request is reported in four levels:
 
 | Level | Meaning |
 |---|---|
-| Attempted | The agent sent a call containing a request, even if the harness rejected it |
-| Executed | The command or tool actually ran |
-| Reached | The request got to the remote server. An HTTP 403 counts, since the server responded |
-| Received | The agent got the requested content, such as a finished download or search results |
+| Attempted | The agent sent a call containing a request |
+| Executed | The command or tool ran |
+| Reached | The request got to the remote server, e.g. an HTTP 403 |
+| Received | The agent got the content, e.g. a finished download or search results |
 
-## How it reads a trajectory
+## Lower and upper bounds
 
-From a trajectory the pipeline reads only the text of tool calls and their results, and of the messages in which a harness reports the end of a background task in a step of its own, e.g. an Antigravity CLI `SYSTEM_MESSAGE`, a Claude Code `task-notification` or a Grok Build `system-reminder`. It runs nothing from a trajectory, and it has no network logs to check against.
-The hard part is that a request, or its output, is often not in the call that caused it.
+The lower bound counts the trials that the trajectory confirms.
 
-| | In the call itself | Elsewhere in the trajectory | Not in the trajectory |
-|---|---|---|---|
-| What ran | `curl https://example.org/x` | A script that an earlier call wrote | A task script or a binary |
-| Where its output shows | The call's result | A later poll, a later step in which the harness reports the end, or a later read of a log file | Discarded, or never read |
-| What the pipeline does | Reads it | Follows it | Records it as unknown |
+- Request: a call holds a request, e.g. `pip install requests`.
+- Received: the output shows it, e.g. `Successfully installed requests-2.32.3`.
 
-Two rules follow from this.
+The upper bound adds the trials that the trajectory cannot rule out.
 
-- What the trajectory does not show is recorded as unknown, which is why the results come as bounds. It gets a value only from a named judgment rule, e.g. `treat_bash_output_without_exit_code_line_as_finished` reads a Claude Code result without an `Exit code` line as finished.
-- Facts that no trajectory holds are outside knowledge, e.g. that `curl -o` takes a file name, or how a harness words a timeout. They are kept apart from the steps, in catalogs and declarations whose rows say what each fact was checked against and whether a person reviewed it. When a fact is missing, the answer is unknown. Each run lists its unknowns by how many trials they touch, which is the list of facts to add next.
+- Request
+  - The program downloads only what is missing, e.g. `npx tool`.
+  - The program is not in the catalogs but has a URL among its words, e.g. `mytool https://a.org/x`.
+  - The target does not show whether it is on the internet, e.g. `git fetch origin` or `curl "$URL"`.
+- Received
+  - The output is discarded or never read, e.g. `pip install -q x > /dev/null`, or a background command that no later call polls.
+  - Nothing shows that the command ran, e.g. a command in a loop or in a script.
+  - One error line fits several requests, so each of them may still have received, e.g. one `curl: (28) Connection timed out` after two `curl` commands.
 
 ## Pipeline
 
-The [pipeline example](docs/pipeline-example.md) follows six made-up tool calls through these steps.
+| # | Step | Description | Package | Output | Judgment rules |
+|---|---|---|---|---|---|
+| 0 | Collect trials | Lists the trials with their task, harness, model and reward | `trial/` | `Trial` | 0 |
+| 1 | Convert tool calls | Normalizes the tool calls of each harness into common types | `tool_call/` | `ToolCall` | 19 |
+| 2 | Expand tool calls | Links each call to the scripts it runs and to the later calls that show its output | `expanded_tool_call/` | `ExpandedToolCall` | 23 |
+| 3 | Extract network requests | Looks up each program and code call in the catalogs and reads its targets | `network_request/` | `NetworkRequest` | 6 |
+| 4 | Decide request results | Matches each request's output lines and exit code to known patterns | `network_request_result/` | `NetworkRequestResult` | 19 |
+| 5 | Export rows | Flattens the results into table rows per request and per trial, with category and bounds | `export/` | `NetworkRequestRow`, `TrialRow`, `TrialCategoryMeasureRow` | 19 |
 
-| # | Step | Question it answers | Entry function | Output | Judgment rules | Status |
-|---|---|---|---|---|---|---|
-| 0 | Collect trials | Which trials are there, and what is known about each (e.g. task, reward)? | `collect_trials` in `trial/` | `Trial` | 0 | Built |
-| 1 | Convert tool calls | What did the trajectory record, in types that hide the harness? | `convert_tool_calls` in `tool_call/` | `ToolCall` | 19 | Built, with each shell text split into commands by shell grammar |
-| 2 | Expand tool calls | What did each call actually run, and where does that output show up? | `expand_tool_calls` in `expanded_tool_call/` | `ExpandedToolCall` | 23 | Built and run on the full data, where programs and options without a catalog row still come out as unknown inputs |
-| 3 | Extract network requests | Which of what ran is a request, and for which target? | `extract_network_requests` in `network_request/` | `NetworkRequest` | 6 | Built and run on the full data, where programs, options and code calls without a catalog row still come out as unknown inputs or uncertain requests |
-| 4 | Decide request results | How far did each request get, and on what evidence? | `decide_network_request_results` in `network_request_result/` | `NetworkRequestResult` | 19 | Built and run on the full data, where most results stay at `ATTEMPTED`, e.g. a command in a loop, before a pipe or in a file, whose run the exit code of its text does not show |
-| 5 | Export rows | Which category is each request, and what do the rows say for each task? | `export_rows` in `export/` | `NetworkRequestRow`, `TrialRow`, `TrialCategoryMeasureRow` | 19 | Built and run on the full data, where most public hosts and some web tools still have no catalog row and come out as unknown inputs |
+## Why tool calls are expanded
 
-Each step is a package of `src/tb_internet_use/` whose `__init__.py` exports only its entry function, and whose types are in its `model.py`.
-`run_steps_of_trial` in `pipeline.py` reads the files of one trial folder and calls the six entry functions in order. Each of them from `convert_tool_calls` on gets its door of outside knowledge from the `KnowledgeDoors` that the caller passes. The steps themselves take text and types, never a path.
+A request and its output are often not in the call that caused them, so reading each call alone would miss them. The step "Expand tool calls" links the calls before requests are looked for.
 
-Steps 1 and 2 are built to know nothing about the internet, so they can serve other analyses of tool calls. Steps 3 to 5 are the internet analysis.
+- What ran can be elsewhere. `bash fetch.sh` runs the `curl` of a script that an earlier call wrote.
+- Its output can be elsewhere. A background command prints into a later poll, or into a log file that a later call reads, e.g. `tail fetch.log`.
+- What the trajectory does not hold stays unknown, e.g. a script of the task image. This is why the results come as bounds.
 
-## Outside knowledge
+The steps also rely on two things that no trajectory gives.
 
-Each step from step 1 on asks for outside knowledge only through its door, one class in `knowledge/` named after its package, which its entry function takes as `knowledge`.
-An answer of a door is a value or an `Unknown…` type, never a default. The door counts each fact it used and each input it had no fact for, except an output line that no pattern fits, which has no name to count it under, and an argument of a tool call without a row of `harness_tool_arguments.csv`, which the door never looks up, so it fills no field without a count, e.g. a Claude Code `Bash` call whose command came as `cmd` would get no command text.
+- Outside knowledge: a fact about a program or a harness, e.g. that `curl -o` takes a file name. Facts are hand-filled [catalogs](src/tb_internet_use/knowledge/README.md), each with its source.
+- Judgment rule: a choice that facts do not settle, e.g. whether a silent `curl` with exit code 0 received its file. Each is one named function in the `judgment_rules.py` of its step.
 
-| Door | Step | Where its facts live |
-|---|---|---|
-| `ToolCallKnowledge` | `convert_tool_calls` | `catalogs/tool_call/`, and the result formats of each harness tool under `declarations/tool_call/` |
-| `ExpandedToolCallKnowledge` | `expand_tool_calls` | `catalogs/expanded_tool_call/` |
-| `NetworkRequestKnowledge` | `extract_network_requests` | `catalogs/network_request/` |
-| `NetworkRequestResultKnowledge` | `decide_network_request_results` | `catalogs/network_request_result/`, and the output line patterns under `declarations/network_request_result/` |
-| `ExportKnowledge` | `export_rows` | `catalogs/export/` |
-
-A catalog is a hand-filled CSV, one row per fact, e.g. one program of `program_behaviors.csv`. A declaration is Python, for facts whose order matters or that share parts, e.g. the output line patterns, of which the first that fits a line gives its meaning. Every row of a catalog says what it was checked against and whether a person reviewed it. A declaration has a review file with the same two columns, which are still blank for the harness result formats.
-The [knowledge README](src/tb_internet_use/knowledge/README.md) lists every file with the question it answers, and the README in each catalog folder describes its columns.
-
-## Judgment rules
-
-A judgment rule is a choice that facts alone do not settle, e.g. whether a negative exit code means the command was killed.
-Judgment rules are kept apart from outside knowledge, one function each in the `judgment_rules.py` of the step, which counts each of its uses. Each is marked provisional or decided. Two are decided today, both of `export/`. `treat_single_label_host_name_as_not_internet_use` counts a request to a host name without a dot, e.g. `db`, as no internet use, since such a name resolves only inside the task environment. `treat_trial_with_success_line_shared_by_confirmed_requests_as_received` counts a trial as one that received when one output line of success shows that one of several confirmed requests of one category and sender received, without showing which. It applies only when each of those requests is assumed for no reason other than output lines that other requests share, this line among them. A run that is not read beside them breaks it only for a line that other programs print too, so `./setup.sh` beside `apt-get install -y a b` does not break it for `Fetched 10 kB in 1s`, which only apt prints.
-A provisional rule keeps the choice of the earlier code, or where there was none the choice that claims least, e.g. that a command with no evidence of its own that it ran is not known to have run, so that the lower bounds stay true.
-
-## Running
-
-`scripts/download_trials.py` downloads every trial of Harbor Hub leaderboards, e.g. `4-1-0` for Terminal-Bench 4.1, into `<collection_dir>/raw/<trial id>/`. The collection folder belongs outside the repo. A run again on the same folder only fills in missing files, so newer leaderboard rows need a new folder.
+## How to run
 
 ```bash
-uv run python -I scripts/download_trials.py <collection_dir> --leaderboard 4-1-0 [--skip-archives] [--limit N]
+# Download trajectories
+uv run python -I scripts/download_trials.py <collection_dir> --leaderboard 4-1-0 --skip-archives
+# Run the pipeline
+uv run python -I scripts/run_pipeline.py <collection_dir>/raw
 ```
-
-`scripts/run_pipeline.py` runs `run_steps_of_trial` on the trial folders of a raw data folder, e.g. `<collection_dir>/raw`, in at most 4 processes, and writes under `out/pipeline/`, which git ignores, since the rows hold targets and host names from the trajectories.
-
-```bash
-nice -n 10 uv run python -I scripts/run_pipeline.py <raw_trials_dir> [--limit N | --trial-ids FILE] [--out-dir DIR] [--resume | --export-only]
-```
-
-| It writes | One row |
-|---|---|
-| `network_request_rows.csv`, `trial_rows.csv`, `trial_category_measure_rows.csv` | One row of each row type of `export_rows` |
-| `task_category_measures.csv` | A task, a category and a sender, with the trials in each bound of the main measure |
-| `<step package>/unknown_inputs.csv` | An input that the door of the step had no row for, most trials first |
-| `<step package>/row_uses.csv`, `<step package>/judgment_rule_uses.csv` | A row of the door, or a judgment rule, with its uses, trials and tasks |
-| `equations.csv` | An equation between steps, e.g. that every network request result gives one request row |
-| `raised_trials.csv`, `summary.csv` | A trial that raised or ran too long, and the counts of the run |
-
-The script exits with 1 when a trial raised or an equation differs. `--resume` goes on with a run that stopped, and `--export-only` runs only `export_rows` again on the saved output of the steps before it. Its docstring names every file it writes. The rows of each file are described above the statement that writes it, and each equation above its name in `EQUATIONS`.
-
-Each step also has an audit script. Those of `expand_tool_calls`, `extract_network_requests` and `decide_network_request_results` each run the steps up to their own step, count its output per harness and check equations that the output must meet. The table says what the others do. They write under `out/` by default and print counts, except `audit_results.py`, which also prints the first and last line of each result of an unknown format with paths, ids, long tokens and numbers masked, and the keys of such a JSON result unmasked.
-
-| Script | Step |
-|---|---|
-| `audit_trials.py` | `collect_trials`, with its counts held against an expectation file |
-| `audit_tool_call_knowledge.py`, `audit_results.py`, `audit_parsed_shell_texts.py` | `convert_tool_calls`: the uses of its door, the result formats each result matched, and the split shell texts |
-| `audit_expanded_tool_calls.py` | `expand_tool_calls` |
-| `audit_network_requests.py` | `extract_network_requests` |
-| `audit_network_request_results.py` | `decide_network_request_results` |
-| `audit_export_knowledge.py` | `export_rows`, run again on the saved output of `run_pipeline.py` |
-
-`build_harness_result_format_table.py` writes the declared result formats as one table for a person to read. Each script's docstring says how to run it.
-
-## Filling outside knowledge
-
-1. Run `scripts/run_pipeline.py` on the trials.
-2. Read `out/pipeline/<step package>/unknown_inputs.csv` from the top, where the inputs that the most trials asked for come first.
-3. Add a row for the input by hand to the catalog that the README of its folder names. Write in `checked_against` what the fact was checked against, e.g. a section of a manual, and leave `reviewed` empty until a person has reviewed the row.
-4. Run `./scripts/check.sh`. A row that the step cannot use raises when the catalog is loaded.
-5. Run the pipeline again. The input is gone from `unknown_inputs.csv`, and `row_uses.csv` shows how often the new row was used.
 
 ## Limits
 
-- Only ATIF trajectories are read. ATIF lacks some calls of several harnesses, so what is counted for them is less than what happened:
-  - Devin, Grok Build: subagent and pre-compaction calls missing. Devin is on the Terminal-Bench 3.0/4.0 leaderboards only.
-  - Cursor CLI: subagents' inner calls missing. It is on the Terminal-Bench 3.0/4.0 leaderboards only.
-  - Copilot CLI: some earlier calls missing, e.g. a `read_bash` that reads the output of a shell that no call of the trajectory started.
-  - Antigravity CLI: subagents' calls missing.
-- Claude Code and Grok Build sometimes write the end of a background task inside the result of a later call instead of a step of its own, and the end they report there is not read.
-- Requests made outside the trajectory, such as those of the image build or the verifier, are out of scope.
+- Most requests stop at an unknown result. A command in a loop, before a pipe or in a script often shows no output of its own, so the lower end of "received" is far below the upper end.
+- Catalogs are filled from the most asked facts down. Programs, options and hosts without a row in the catalogs come out as unknown.
+- ATIF leaves out some calls of several harnesses, so their counts are lower bounds.
+
+  | Harness | Calls missing |
+  |---|---|
+  | Grok Build, Devin | Calls of subagents, and calls before a compaction |
+  | Antigravity CLI, Cursor CLI | Calls of subagents |
+  | Copilot CLI | Some earlier calls, e.g. the start of a shell that a later `read_bash` reads |
+
+  Devin and Cursor CLI are on the Terminal-Bench 3.0/4.0 leaderboards only.
+
+- Claude Code and Grok Build sometimes report the end of a background task inside the result of a later call. That report is not read.
 
 ## Development
-
-Run `ruff`, `pyright` and `pytest`:
 
 ```bash
 ./scripts/check.sh
 ```
+
+It runs `ruff`, `pyright` and `pytest`.
+
+Read more:
+
+- [Pipeline example](docs/pipeline-example.md)
+- [Outside knowledge](src/tb_internet_use/knowledge/README.md)
+- [Tool call conversion](src/tb_internet_use/tool_call/README.md)
