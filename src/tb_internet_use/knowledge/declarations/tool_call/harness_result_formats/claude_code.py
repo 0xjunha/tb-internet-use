@@ -365,6 +365,106 @@ _WEB_SEARCH = HarnessResultFormatList[str](
     )
 )
 
+# A `Monitor` runs its command in the background, and Claude Code later writes each line the command prints and its end in task notifications.
+# Its own result holds none of that output, so its tool output text is None, since "" would say that the command printed nothing.
+_MONITOR = HarnessResultFormatList[str](
+    (
+        _TOOL_USE_ERROR,
+        Text(
+            "started",
+            "Monitor started (task {handle:id}, expires in {expiry:line_without_brackets} unless the source ends first;{rest:text}",
+            S.RUNNING,
+            fixed_handle_kind=ExecutionHandleKind.COMMAND,
+            no_tool_output_text=True,
+        ),
+    )
+)
+
+# Claude Code writes the end of a task that a `Bash` call with `run_in_background` or a `Monitor` started, and each line a `Monitor` command prints, as a block of this tag in a step of its own.
+# The output file is the one that the result of the starting call named as its output path, so it fills no field here.
+# A block without `<event>` holds the end but none of the output, so its tool output text is None, since "" would say that the command printed nothing.
+_TASK_HEAD = (
+    "<task-notification>\n<task-id>{handle:id}</task-id>\n<tool-use-id>{tool_use_id:line}</tool-use-id>\n"
+    "<output-file>{output_file:line}</output-file>\n"
+)
+_TASK_TAIL = "</summary>\n</task-notification>"
+_TASK_COMPLETED = _TASK_HEAD + "<status>completed</status>\n<summary>"
+_TASK_FAILED = _TASK_HEAD + "<status>failed</status>\n<summary>"
+_COMMAND_SUMMARY = 'Background command "{command:text}" '
+# The `<event>` of a `Monitor` holds the lines its command printed since the last event.
+_MONITOR_SUMMARY = 'Monitor "{description:text}" '
+_EVENT_TAIL = "</summary>\n<event>{tool_output:text}</event>\n</task-notification>"
+_TASK_NOTIFICATION = HarnessResultFormatList[str](
+    (
+        Text(
+            "exited",
+            _TASK_COMPLETED
+            + _COMMAND_SUMMARY
+            + "completed (exit code {exit_code:int})"
+            + _TASK_TAIL,
+            S.FINISHED,
+            fixed_handle_kind=ExecutionHandleKind.COMMAND,
+            no_tool_output_text=True,
+        ),
+        # The words after the exit code are the `returnCodeInterpretation` of the command, e.g. `No matches found`.
+        Text(
+            "exited_interpreted",
+            _TASK_COMPLETED
+            + _COMMAND_SUMMARY
+            + "completed (exit code {exit_code:int}: {interpretation:line_without_brackets})"
+            + _TASK_TAIL,
+            S.FINISHED,
+            fixed_handle_kind=ExecutionHandleKind.COMMAND,
+            no_tool_output_text=True,
+        ),
+        Text(
+            "failed",
+            _TASK_FAILED
+            + _COMMAND_SUMMARY
+            + "failed with exit code {exit_code:int}"
+            + _TASK_TAIL,
+            S.FINISHED,
+            fixed_handle_kind=ExecutionHandleKind.COMMAND,
+            no_tool_output_text=True,
+        ),
+        Text(
+            "timed_out",
+            _TASK_HEAD
+            + "<status>killed</status>\n<summary>"
+            + _COMMAND_SUMMARY
+            + "was stopped after reaching its background time limit</summary>\n"
+            + "<note>{note:text}</note>\n</task-notification>",
+            S.TIMED_OUT,
+            fixed_handle_kind=ExecutionHandleKind.COMMAND,
+            no_tool_output_text=True,
+        ),
+        # An event holds lines that the command printed but does not say whether the command still runs, so its status is unknown.
+        Text(
+            "monitor_event",
+            "<task-notification>\n<task-id>{handle:id}</task-id>\n"
+            + '<summary>Monitor event: "{description:text}"</summary>\n'
+            + "<event>{tool_output:text}</event>\n</task-notification>",
+            S.UNKNOWN,
+            fixed_handle_kind=ExecutionHandleKind.COMMAND,
+        ),
+        Text(
+            "monitor_ended",
+            _TASK_COMPLETED + _MONITOR_SUMMARY + "stream ended" + _EVENT_TAIL,
+            S.FINISHED,
+            fixed_handle_kind=ExecutionHandleKind.COMMAND,
+        ),
+        Text(
+            "monitor_failed",
+            _TASK_FAILED
+            + _MONITOR_SUMMARY
+            + "script failed (exit {exit_code:int})"
+            + _EVENT_TAIL,
+            S.FINISHED,
+            fixed_handle_kind=ExecutionHandleKind.COMMAND,
+        ),
+    )
+)
+
 _HANDLE_KIND_BY_TASK_TYPE = {
     "local_bash": ExecutionHandleKind.COMMAND,
     "local_agent": ExecutionHandleKind.SUBAGENT,
@@ -434,7 +534,10 @@ RESULT_FORMATS_BY_TOOL: Mapping[str, HarnessToolResultDeclaration] = {
     "Edit": HarnessToolResultDeclaration(text_formats=_EDIT),
     "WebFetch": HarnessToolResultDeclaration(text_formats=_WEB_FETCH),
     "WebSearch": HarnessToolResultDeclaration(text_formats=_WEB_SEARCH),
+    "Monitor": HarnessToolResultDeclaration(text_formats=_MONITOR),
     "TaskOutput": HarnessToolResultDeclaration(json_formats=_TASK_OUTPUT),
+    # Not a tool but a block that Claude Code writes to the agent in a step of its own, which `parse_trajectory` reads as a call.
+    "task-notification": HarnessToolResultDeclaration(text_formats=_TASK_NOTIFICATION),
     "TaskStop": HarnessToolResultDeclaration(
         text_formats=_TASK_STOP_TEXT, json_formats=_TASK_STOP
     ),

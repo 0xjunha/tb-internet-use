@@ -111,11 +111,31 @@ def test_a_background_command_takes_the_status_and_exit_code_of_the_first_poll_t
     start = _tool_call(1, START, "h1")
     still_running = _tool_call(2, _poll("h1"))
     finished = _tool_call(3, _poll("h1"), status=FINISHED, exit_code=0)
-    finished_again = _tool_call(4, _poll("h1"), status=FINISHED, exit_code=2)
+    finished_again = _tool_call(4, _poll("h1"), status=FINISHED, exit_code=0)
     assert _expand(start, start, still_running, finished, finished_again) == (
         CommandTextStatus(FINISHED, 0, _key(finished)),
         Counter({FIRST_POLL_RULE_NAME: 1}),
     )
+
+
+def test_a_later_poll_gives_the_exit_code_that_the_first_poll_that_saw_the_end_left_out():
+    """An Antigravity CLI `manage_task` result `Status: DONE` states no exit code, and the `SYSTEM_MESSAGE` after it says `Command exited with code 7`."""
+    start = _tool_call(1, START, "h1")
+    done = _tool_call(2, _poll("h1"), status=FINISHED)
+    end_message = _tool_call(3, _poll("h1"), status=FINISHED, exit_code=7)
+    assert _expand(start, start, done, end_message) == (
+        CommandTextStatus(FINISHED, 7, _key(end_message)),
+        Counter({FIRST_POLL_RULE_NAME: 1}),
+    )
+
+
+def test_polls_that_saw_the_end_with_different_exit_codes_leave_the_exit_code_unknown():
+    start = _tool_call(1, START, "h1")
+    done = _tool_call(2, _poll("h1"), status=FINISHED)
+    finished = _tool_call(3, _poll("h1"), status=FINISHED, exit_code=0)
+    finished_again = _tool_call(4, _poll("h1"), status=FINISHED, exit_code=2)
+    command_text_status, _ = _expand(start, start, done, finished, finished_again)
+    assert command_text_status == CommandTextStatus(FINISHED, None, _key(done))
 
 
 @pytest.mark.parametrize("ended_status", [TIMED_OUT, KILLED])

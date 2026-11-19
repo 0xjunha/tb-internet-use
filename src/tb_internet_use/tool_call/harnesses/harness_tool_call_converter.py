@@ -14,6 +14,7 @@ from tb_internet_use.tool_call.model import (
     PollAction,
     ToolCallAction,
     ToolCallResult,
+    UnknownAction,
 )
 
 if TYPE_CHECKING:
@@ -62,6 +63,7 @@ class HarnessToolCallConverter:
             tool_result_raw_text,
             tool_result_json,
             is_marked_as_error=self.is_marked_as_error(harness_tool_call, tool_result),
+            is_harness_message=harness_tool_call.is_harness_message,
         )
         return result_from_matched_or_unmatched_format(
             tool_result_raw_text,
@@ -136,6 +138,19 @@ class HarnessToolCallConverter:
         It gets `knowledge` since a call can hold calls of other tools, e.g. the steps of a Codex `exec` script, whose labels it must ask for.
         """
         raise NotImplementedError(f"no Deferred handling for {harness_tool_call.tool}")
+
+
+def action_from_harness_message_result(
+    tool_call_result: ToolCallResult | None,
+) -> ToolCallAction:
+    """Build the action of a message that the harness wrote to the agent, a poll of the work whose end its result names, or `UnknownAction` when the result names none.
+
+    The message shows the end of work that an earlier call started, as a later poll of it would, so later steps link it to that call.
+    A message in no declared format names nothing, e.g. the prompt of a timer that the agent set with Antigravity CLI `schedule`, and stays unknown.
+    """
+    if tool_call_result is None or not tool_call_result.handles:
+        return UnknownAction()
+    return PollAction(tool_call_result.handles)
 
 
 def _decode_json(raw_text: str | None) -> dict[str, Any] | None:

@@ -354,6 +354,71 @@ _SEARCH_REPLACE = HarnessResultFormatList[str](
 )
 
 
+# Grok Build writes the end of a task that a `run_terminal_command` in the background or a `monitor` started as a block of this tag in a step of its own, with the command or its description but not its output.
+# Its tool output text is therefore None, since "" would say that the command printed nothing.
+_TASK_END_TAIL = (
+    "\n{command_or_description:text} | Duration: {duration:line}\n"
+    + 'Use get_command_or_subagent_output("{handle2:id}") '
+)
+# Grok Build adds a note when a signal stopped a task much sooner than expected, e.g. after 0.1s, which may have stopped it before its command ran.
+_TASK_SHORT_NOTE_TAIL = (
+    "\n{command_or_description:text} | Duration: {duration:line}\n"
+    + "Note: this is much shorter than expected for a backgrounded command.{note:text}\n"
+    + 'Use get_command_or_subagent_output("{handle2:id}") '
+)
+_SYSTEM_REMINDER = HarnessResultFormatList[str](
+    (
+        Text(
+            "exited",
+            '<system-reminder>\nBackground task "{handle:id}" completed (exit code: {exit_code:int}).'
+            + _TASK_END_TAIL
+            + "to see the full output.\n</system-reminder>",
+            S.FINISHED,
+            fixed_handle_kind=ExecutionHandleKind.COMMAND,
+            no_tool_output_text=True,
+        ),
+        # Grok Build writes `timeout` in place of the signal when the time limit of the task stopped it, as its polls say `Status: timed_out`.
+        Text(
+            "timed_out",
+            '<system-reminder>\nBackground task "{handle:id}" completed (terminated by signal timeout).'
+            + _TASK_END_TAIL
+            + "to see the full output.\n</system-reminder>",
+            S.TIMED_OUT,
+            fixed_handle_kind=ExecutionHandleKind.COMMAND,
+            no_tool_output_text=True,
+        ),
+        # The signal is a number, e.g. `signal 15`, or the word `killed`.
+        Text(
+            "terminated",
+            '<system-reminder>\nBackground task "{handle:id}" completed (terminated by signal {signal:line_without_brackets}).'
+            + _TASK_END_TAIL
+            + "to see the full output.\n</system-reminder>",
+            S.KILLED,
+            fixed_handle_kind=ExecutionHandleKind.COMMAND,
+            no_tool_output_text=True,
+        ),
+        Text(
+            "terminated_short",
+            '<system-reminder>\nBackground task "{handle:id}" completed (terminated by signal {signal:line_without_brackets}).'
+            + _TASK_SHORT_NOTE_TAIL
+            + "to see the full output.\n</system-reminder>",
+            S.KILLED,
+            fixed_handle_kind=ExecutionHandleKind.COMMAND,
+            no_tool_output_text=True,
+        ),
+        Text(
+            "monitor_exited",
+            '<system-reminder>\nMonitor "{handle:id}" ended: [monitor ended: exited (code {exit_code:int})].'
+            + _TASK_END_TAIL
+            + "for full output.\n\n</system-reminder>",
+            S.FINISHED,
+            fixed_handle_kind=ExecutionHandleKind.COMMAND,
+            no_tool_output_text=True,
+        ),
+    )
+)
+
+
 RESULT_FORMATS_BY_TOOL: Mapping[str, HarnessToolResultDeclaration] = {
     "run_terminal_command": HarnessToolResultDeclaration(
         text_formats=_RUN_TERMINAL_COMMAND
@@ -366,4 +431,6 @@ RESULT_FORMATS_BY_TOOL: Mapping[str, HarnessToolResultDeclaration] = {
     "read_file": HarnessToolResultDeclaration(text_formats=_READ_FILE),
     "write": HarnessToolResultDeclaration(text_formats=_WRITE),
     "search_replace": HarnessToolResultDeclaration(text_formats=_SEARCH_REPLACE),
+    # Not a tool but a block that Grok Build writes to the agent in a step of its own, which `parse_trajectory` reads as a call.
+    "system-reminder": HarnessToolResultDeclaration(text_formats=_SYSTEM_REMINDER),
 }

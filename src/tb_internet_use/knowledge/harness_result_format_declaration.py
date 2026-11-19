@@ -195,6 +195,7 @@ class HarnessTextResultFormat:
     - The fixed text must appear exactly as in the trajectory.
     - The placeholder named `tool_output` takes the tool output. Every other placeholder takes an annotation value. The value names at the top of this module fill `ToolCallResult` fields, e.g. `handle` fills `handles`. Other names, such as `rest`, fill none.
     - The type says which characters the placeholder may take, see `PLACEHOLDER_TYPE_PATTERNS`. A lazy type stops at the next fixed text.
+    - A placeholder may appear twice, and then both places hold the same text.
     - The template is matched against the whole annotated output, from its first character to its last.
 
     For example, Devin `exec`, format `exited` in declarations/tool_call/harness_result_formats/devin.py, with made-up values.
@@ -553,15 +554,21 @@ def _notice_at_edge_of(notice: HarnessNotice, text: str) -> re.Match[str] | None
 def template_regex_of(template: str) -> re.Pattern[str]:
     """Build the regex of a template or a part of one, with a named group per placeholder.
 
+    A placeholder whose name came earlier in the template takes the same text again, e.g. the task id in both `sender={handle:word}` and `Task id "{handle:word}"` of an Antigravity CLI `SYSTEM_MESSAGE`.
     It is not anchored, so a caller picks fullmatch, match or search.
     """
     parts: list[str] = []
     pos = 0
+    group_names: set[str] = set()
     for placeholder in PLACEHOLDER_REGEX.finditer(template):
         parts.append(re.escape(template[pos : placeholder.start()]))
-        parts.append(
-            f"(?P<{placeholder[1]}>{PLACEHOLDER_TYPE_PATTERNS[placeholder[2]]})"
-        )
+        if placeholder[1] in group_names:
+            parts.append(f"(?P={placeholder[1]})")
+        else:
+            parts.append(
+                f"(?P<{placeholder[1]}>{PLACEHOLDER_TYPE_PATTERNS[placeholder[2]]})"
+            )
+            group_names.add(placeholder[1])
         pos = placeholder.end()
     parts.append(re.escape(template[pos:]))
     return re.compile("".join(parts))

@@ -99,15 +99,16 @@ def treat_script_poll_step_naming_no_handle_as_polling_none(
 def treat_first_poll_that_saw_end_as_command_text_status(
     *, use_counts: Counter[str]
 ) -> bool:
-    """Take the end state of a call's command text from the first later poll that saw it end, when the call's own result is running or unknown, e.g. a call whose result says running and whose handle three later polls read.
+    """Take the end state of a call's command text from the later polls that saw it end, when the call's own result is running or unknown, e.g. a call whose result says running and whose handle three later polls read.
 
     A handle can be polled again after its command ended, and a later poll can report another state, e.g. one poll reports a timeout and a later one exit code 0, so the trajectory does not say which report is the end state.
     Only a poll that is the call's action and reads one handle counts, since a poll of several handles or a poll step of a tool script has one result for more than that command.
     `expand_command_text_status` asks it for each call that has such a poll whose result is finished, timed out or killed.
-    On `True` the status and exit code are those of the first such poll, and on `False` they stay those of the call's own result, e.g. running without an exit code.
+    On `True` the status is that of the first such poll, and the exit code that of the first such poll with the same status that states one, e.g. 7 from an Antigravity CLI `SYSTEM_MESSAGE` `Command exited with code 7` after a `manage_task` result `Status: DONE` that states none. When two such polls state different exit codes, the exit code is unknown.
+    On `False` the status and exit code stay those of the call's own result, e.g. running without an exit code.
     A use is such a call.
 
-    Provisional. It keeps the choice of the earlier code, which took the first poll of one handle that saw the command end.
+    Provisional. It keeps the choice of the earlier code, which took the first poll of one handle that saw the command end, and takes the exit code from a later poll only where the first states none, since a poll such as `Status: DONE` says that the command ended but not how.
     """
     use_counts[treat_first_poll_that_saw_end_as_command_text_status.__name__] += 1
     return True
@@ -200,7 +201,7 @@ def treat_tool_call_not_marked_not_run_as_maybe_run(
     """Read a tool call without a result, or whose result has the status `UNKNOWN`, as one that may have run, e.g. `curl u > log` cut off at the end of a trajectory.
 
     The trajectory does not say whether the tool ran such a call.
-    `expand_ran_texts` asks it for each such call.
+    `expand_ran_texts` asks it for each such call, but not for a message that the harness wrote, which no tool ran.
     On `True` the call's writes change the files that later calls run and read, and its uses are recorded. On `False` it would be read as a call that did not run.
     A use is such a call.
 

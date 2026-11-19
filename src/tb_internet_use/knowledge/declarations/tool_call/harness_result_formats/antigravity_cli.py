@@ -257,6 +257,53 @@ _MANAGE_TASK = HarnessResultFormatList[str](
     notices=_NOTICES,
 )
 
+# Antigravity CLI wraps every message it writes to the agent as a step in this text, with the task id of a task's end as the sender.
+# The sender must be the task id that the content names, so that the prompt of a `schedule` timer, whose sender is the timer's task and whose content the agent wrote, never passes for the end of another task.
+_MESSAGE_HEAD = (
+    "The following is a <SYSTEM_MESSAGE> not actually sent by the user. It is provided by the system as important information to pay attention to.\n\n"
+    "<SYSTEM_MESSAGE>\n[Message] timestamp={timestamp:word} sender={handle:word} priority={priority:word} content="
+)
+# A task's end names the log of the task, which the result of the `run_command` that started it named as its output path.
+_MESSAGE_TAIL = "\nLog: file://{log_path:line}\n</SYSTEM_MESSAGE>"
+_TASK_FINISHED = _MESSAGE_HEAD + 'Task id "{handle:word}" finished with result:\n'
+# The text after `finished with result:` is the one that `run_command` gives a command that ends before it is sent to the background.
+_SYSTEM_MESSAGE = HarnessResultFormatList[str](
+    (
+        Text(
+            "exited",
+            _TASK_FINISHED + _EXITED + _MESSAGE_TAIL,
+            S.FINISHED,
+            fixed_handle_kind=ExecutionHandleKind.COMMAND,
+        ),
+        Text(
+            "exited_silent",
+            _TASK_FINISHED
+            + "Command exited with code {exit_code:int}.\n\nNo output from the command."
+            + _MESSAGE_TAIL,
+            S.FINISHED,
+            fixed_handle_kind=ExecutionHandleKind.COMMAND,
+        ),
+        Text(
+            "exited_truncated",
+            _TASK_FINISHED + _TRUNCATED_HEAD + _EXITED + _MESSAGE_TAIL,
+            S.FINISHED,
+            is_truncated=True,
+            fixed_handle_kind=ExecutionHandleKind.COMMAND,
+        ),
+        # Antigravity CLI writes this after a `manage_task` kill of the task, and a few times without one.
+        # It holds none of the output of the task, so its tool output text is None, since "" would say that the command printed nothing.
+        Text(
+            "cancelled",
+            _MESSAGE_HEAD
+            + 'Task id "{handle:word}" was canceled with result:\nTool execution was canceled'
+            + _MESSAGE_TAIL,
+            S.KILLED,
+            fixed_handle_kind=ExecutionHandleKind.COMMAND,
+            no_tool_output_text=True,
+        ),
+    )
+)
+
 
 RESULT_FORMATS_BY_TOOL: Mapping[str, HarnessToolResultDeclaration] = {
     "run_command": HarnessToolResultDeclaration(text_formats=_RUN_COMMAND),
@@ -265,4 +312,6 @@ RESULT_FORMATS_BY_TOOL: Mapping[str, HarnessToolResultDeclaration] = {
     "write_file": HarnessToolResultDeclaration(text_formats=_WRITE_FILE),
     "edit_file": HarnessToolResultDeclaration(text_formats=_EDIT_FILE),
     "search_web": HarnessToolResultDeclaration(text_formats=_SEARCH_WEB),
+    # Not a tool but a step that Antigravity CLI writes to the agent, which `parse_trajectory` reads as a call.
+    "SYSTEM_MESSAGE": HarnessToolResultDeclaration(text_formats=_SYSTEM_MESSAGE),
 }

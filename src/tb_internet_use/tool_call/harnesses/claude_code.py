@@ -1,4 +1,4 @@
-"""Convert the tool calls of Claude Code, reading the result text and the structured result that Harbor keeps in the trajectory."""
+"""Convert the tool calls of Claude Code, reading the result text and the structured result that Harbor keeps in the trajectory, and the task notifications that report the end of a background task."""
 
 import json
 from collections import Counter
@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 
 from tb_internet_use.tool_call.harnesses.harness_tool_call_converter import (
     HarnessToolCallConverter,
+    action_from_harness_message_result,
 )
 from tb_internet_use.tool_call.judgment_rules import (
     treat_bash_output_without_exit_code_line_as_exit_code_0,
@@ -17,6 +18,7 @@ from tb_internet_use.tool_call.model import (
     ExecutionStatus,
     HarnessTool,
     HarnessToolCall,
+    ToolCallAction,
     ToolCallResult,
     UnknownHarnessReturnCodeInterpretation,
     UnmatchedFormat,
@@ -107,6 +109,16 @@ class ClaudeCodeConverter(HarnessToolCallConverter):
                 tool_call_result, structured_result
             )
         return tool_call_result
+
+    def action_of_deferred_tool(
+        self,
+        harness_tool_call: HarnessToolCall,
+        tool_call_result: ToolCallResult | None,
+        *,
+        knowledge: ToolCallKnowledge,
+    ) -> ToolCallAction:
+        """Build the action of a `task-notification` block, the only Deferred tool of Claude Code, a poll of the task it names."""
+        return action_from_harness_message_result(tool_call_result)
 
 
 def _only_content_item_of_result_without_text(

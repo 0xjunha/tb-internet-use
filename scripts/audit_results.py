@@ -3,7 +3,7 @@
 The CSV goes to `out/tool_call_knowledge/` by default, which `.gitignore` keeps out of the repo, since its counts come from the trajectories.
 
 It counts the calls, trials and example call keys of each (harness, tool, format).
-It also counts coverage (results of an unknown or skipped format and of an unknown status per tool), the status of each format, the masked shapes of results of an unknown format, harness text of the templates left in the tool output, results that match more than one format of their list, results of a text format whose matched values do not render back to the exact annotated output, notices cut out and cross-source checks.
+It also counts coverage (results of an unknown or skipped format, of an unknown status and of messages that the harness wrote per tool), the status of each format, the masked shapes of results of an unknown format, the masked first lines of the results that a format matching any text took, e.g. Copilot CLI `task` format `finished`, harness text of the templates left in the tool output, results that match more than one format of their list, results of a text format whose matched values do not render back to the exact annotated output, notices cut out and cross-source checks.
 Prints counts and shapes only. The shape of a text result of an unknown format keeps the plain words of its first and last line, at most 70 characters of each, with paths, ids, long tokens and numbers replaced, and the shape of a JSON result of an unknown format is its sorted keys, at most 70 characters, unmasked.
 
 Run it as `uv run python -I scripts/audit_results.py <raw_trials_dir> [output_csv] [--harness NAME] [--report PATH] [--limit N]`. Give `--harness` once for each harness, and `--report` writes the printed report to that file too.
@@ -28,6 +28,8 @@ from tb_internet_use.knowledge.harness_result_format_audit import (
     render_text_format,
 )
 from tb_internet_use.knowledge.harness_result_format_declaration import (
+    MULTILINE_PLACEHOLDER_TYPES,
+    PLACEHOLDER_REGEX,
     HarnessResultFormat,
     HarnessTextResultFormat,
     MatchedValues,
@@ -157,6 +159,8 @@ def audit_result(tally: Tally, tool_call: ToolCall, trial_seen: TrialSeen) -> No
     name = str(tool_call_result.harness_result_format)
     key = (harness, tool, name)
     tally.call_counts[key] += 1
+    if harness_tool_call.is_harness_message:
+        tally.harness_message_call_counts[(harness, tool)] += 1
     trial_seen.format_keys.add(key)
     example_call_keys = tally.example_call_keys.setdefault(key, [])
     if len(example_call_keys) < MAX_EXAMPLES:
@@ -221,6 +225,17 @@ def audit_result(tally: Tally, tool_call: ToolCall, trial_seen: TrialSeen) -> No
         ] += 1
     if matches:
         harness_result_format, matched_values = matches[0]
+        if is_catch_all_format(harness_result_format) and isinstance(
+            annotated_output, str
+        ):
+            tally.catch_all_first_line_counts[
+                (
+                    harness,
+                    tool,
+                    harness_result_format.name,
+                    mask(annotated_output.split("\n")[0]),
+                )
+            ] += 1
         if (
             isinstance(harness_result_format, HarnessTextResultFormat)
             and render_text_format(harness_result_format, matched_values)
@@ -251,6 +266,14 @@ class TrialSeen:
 def call_key(harness_tool_call: HarnessToolCall) -> str:
     key = harness_tool_call.key
     return f"{key.trial_id}/{key.trajectory_id}#{key.step_id}.{key.call_index}"
+
+
+def is_catch_all_format(harness_result_format: HarnessResultFormat[Any]) -> bool:
+    """Tell whether a format is a text format whose template is one multiline placeholder, which matches any text, e.g. Copilot CLI `task` format `finished`."""
+    if not isinstance(harness_result_format, HarnessTextResultFormat):
+        return False
+    placeholder = PLACEHOLDER_REGEX.fullmatch(harness_result_format.template)
+    return placeholder is not None and placeholder[2] in MULTILINE_PLACEHOLDER_TYPES
 
 
 def edges(text: str) -> str:
@@ -346,7 +369,7 @@ def report(tally: Tally) -> str:
     for (harness, tool, name), count in tally.call_counts.items():
         by_tool[(harness, tool)][name] += count
     lines.append(
-        "== coverage (harness, tool): total | unknown_format | skipped_format | unknown status"
+        "== coverage (harness, tool): total | unknown_format | skipped_format | unknown status | messages that the harness wrote (`is_harness_message`)"
     )
     for (harness, tool), counts in sorted(by_tool.items()):
         unknown = sum(
@@ -357,6 +380,7 @@ def report(tally: Tally) -> str:
         lines.append(
             f"{sum(counts.values()):>8}  {harness} {tool}: unknown_format={counts.get(UNKNOWN, 0)}"
             f" skipped_format={counts.get(SKIPPED, 0)} unknown_status={unknown}"
+            f" is_harness_message={tally.harness_message_call_counts.get((harness, tool), 0)}"
         )
     lines += _section(
         "formats (calls, trials)",
@@ -376,6 +400,11 @@ def report(tally: Tally) -> str:
             for k, v in tally.unknown_format_call_counts.items()
         ),
         80,
+    )
+    lines += _section(
+        "catch-all format matches by masked first line (calls), the most common 40 of each format",
+        _most_common_per_format(tally.catch_all_first_line_counts, 40),
+        10_000,
     )
     lines += _section(
         "multi-match (first > also)",
@@ -398,6 +427,22 @@ def report(tally: Tally) -> str:
         200,
     )
     return "\n".join(lines) + "\n"
+
+
+def _most_common_per_format(
+    counts: Counter[tuple[str, str, str, str]], limit: int
+) -> list[tuple[int, str]]:
+    """Keep the `limit` largest counts of each (harness, tool, format), as rows of a section."""
+    rows_by_format: dict[tuple[str, str, str], list[tuple[int, str]]] = defaultdict(
+        list
+    )
+    for key, count in counts.items():
+        rows_by_format[key[:3]].append((count, str(key)))
+    return [
+        row
+        for rows in rows_by_format.values()
+        for row in sorted(rows, reverse=True)[:limit]
+    ]
 
 
 def _section(title: str, rows: Iterable[tuple[int, str]], limit: int = 40) -> list[str]:
@@ -462,9 +507,17 @@ class Tally:
     trial_counts: Counter[Key] = field(default_factory=Counter)
     example_call_keys: dict[Key, list[str]] = field(default_factory=dict)
     status_counts: Counter[tuple[str, str, str, str]] = field(default_factory=Counter)
+    # Results of messages that the harness wrote, by harness and tool name, so that the coverage tells their unknown formats from those of tools.
+    harness_message_call_counts: Counter[tuple[str, str]] = field(
+        default_factory=Counter
+    )
     unknown_format_call_counts: Counter[Shape] = field(default_factory=Counter)
     unknown_format_trial_counts: Counter[Shape] = field(default_factory=Counter)
     multi_match_counts: Counter[tuple[str, str, str]] = field(default_factory=Counter)
+    # Results that a format matching any text took, by harness, tool, format and masked first line, so that a reader sees what such a format holds.
+    catch_all_first_line_counts: Counter[tuple[str, str, str, str]] = field(
+        default_factory=Counter
+    )
     harness_text_hit_counts: Counter[tuple[str, str, str, str]] = field(
         default_factory=Counter
     )

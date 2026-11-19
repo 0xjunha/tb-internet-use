@@ -9,6 +9,7 @@ antigravity-cli,run_command,RunCommandAction,,"tool calls in the trajectories (t
 antigravity-cli,schedule,OtherAction,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,a timer that wakes the agent after a time or when a task ends
 antigravity-cli,search_web,WebSearchAction,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,
 antigravity-cli,send_message,PollAction,no,"all 16 tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,the message text fills no field since no later step reads what is said to a subagent
+antigravity-cli,SYSTEM_MESSAGE,Deferred,,"all 10,171 SYSTEM_MESSAGE steps in the trajectories (terminal-bench 4.1, 2026-11-19)",,"not a tool but a step that the harness writes to the agent, e.g. the end of a background task, read as a call by parse_trajectory"
 antigravity-cli,write_file,Deferred,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,
 claude-code,,UnknownAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 claude-code,"""",UnknownAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
@@ -21,6 +22,7 @@ claude-code,BcriptBash,UnknownAction,,tool calls in the trajectories (terminal-b
 claude-code,Bun_placeholder,UnknownAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 claude-code,Edit,EditFileAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 claude-code,ListAgents,OtherAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
+claude-code,Monitor,RunCommandAction,,"all 4,745 tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,"runs a shell command in the background, each line it prints coming back as an event in a task-notification"
 claude-code,Read,ReadFileAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 claude-code,ReportFindings,OtherAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 claude-code,ScheduleWakeup,OtherAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
@@ -46,6 +48,7 @@ claude-code,bash_tool_placeholder,UnknownAction,,tool calls in the trajectories 
 claude-code,mcp__playwright__browser_click,OtherAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,acts on a browser page
 claude-code,mcp__playwright__browser_navigate,WebFetchAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 claude-code,mcp__playwright__browser_take_screenshot,OtherAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,acts on a browser page
+claude-code,task-notification,Deferred,,"all 4,206 task-notification blocks of user steps in the trajectories (terminal-bench 4.1, 2026-11-19)",,"not a tool but a block that the harness writes to the agent, e.g. the end of a background task, read as a call by parse_trajectory"
 claude-code,"{""name"":...}",UnknownAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 claude-code,"{\""name\"":\""foo\"",\""arguments\"":{\""x\"":1}}",UnknownAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 codex,clock__curr_time,OtherAction,,exec scripts in the trajectories (terminal-bench 2026-10-08),yes,
@@ -127,6 +130,7 @@ grok-build,read_file,ReadFileAction,,tool calls in the trajectories (terminal-be
 grok-build,run_terminal_command,RunCommandAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 grok-build,search_replace,EditFileAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 grok-build,search_tool,OtherAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
+grok-build,system-reminder,Deferred,,"all 743 system-reminder blocks of user steps in the trajectories (terminal-bench 4.1, 2026-11-19)",,"not a tool but a block that the harness writes to the agent, e.g. the end of a background task, read as a call by parse_trajectory"
 grok-build,todo_write,OtherAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 grok-build,write,WriteFileAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 mini-swe-agent,bash,RunCommandAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,

@@ -11,6 +11,7 @@ claude-code,Bash,command,command_str,,tool calls in the trajectories (terminal-b
 claude-code,Edit,file_path,path,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 claude-code,Edit,new_string,new,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 claude-code,Edit,old_string,old,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
+claude-code,Monitor,command,command_str,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,
 claude-code,Read,file_path,path,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 claude-code,Read,limit,limit,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 claude-code,Read,offset,offset,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,

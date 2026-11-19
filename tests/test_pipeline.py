@@ -12,9 +12,11 @@ from tb_internet_use.expanded_tool_call import (
 )
 from tb_internet_use.expanded_tool_call.model import (
     CallCommandText,
+    CommandTextStatus,
     FileText,
     FileUse,
     FileUseKind,
+    OutputPlace,
     RanShellText,
 )
 from tb_internet_use.export import judgment_rules as export_judgment_rules
@@ -50,12 +52,17 @@ from tb_internet_use.pipeline import (
 )
 from tb_internet_use.tool_call import judgment_rules as tool_call_judgment_rules
 from tb_internet_use.tool_call.model import (
+    ExecutionHandle,
+    ExecutionHandleKind,
+    ExecutionStatus,
     HarnessTool,
     HarnessToolCall,
+    PollAction,
     RunCommandAction,
     ToolCallKey,
     WriteFileAction,
 )
+from tb_internet_use.tool_call.parse_trajectory import parse_trajectory
 from tb_internet_use.trial.model import (
     TrialFileTexts,
     UnreadableTrajectory,
@@ -508,6 +515,306 @@ def test_runs_the_decision_of_request_results_after_the_extraction_with_its_own_
     assert tool_call_judgment_rule_use_counts == Counter(
         {"treat_bash_output_without_exit_code_line_as_finished": 3}
     )
+
+
+def _antigravity_cli_trajectory_text_of_background_install(
+    *, has_end_message: bool
+) -> str:
+    """Make the text of a made-up Antigravity CLI trajectory whose `run_command` call sends `pip install x` to the background, with or without the step in which the harness reports the end of that task."""
+    task_id = "c1/task-3"
+    log_path = (
+        "/root/.gemini/antigravity-cli/brain/c1/.system_generated/tasks/task-3.log"
+    )
+    run_command_step = {
+        "step_id": 1,
+        "source": "agent",
+        "tool_calls": [
+            {
+                "tool_call_id": "a",
+                "function_name": "run_command",
+                "arguments": {"CommandLine": "pip install x"},
+            }
+        ],
+        "observation": {
+            "results": [
+                {
+                    "source_call_id": "a",
+                    "content": "Created At: 2026-11-13T02:21:08Z\n"
+                    + f"Tool is running as a background task with task id: {task_id}\n"
+                    + "Task Description: pip install x\n"
+                    + f"Task logs are available at: file://{log_path}",
+                }
+            ]
+        },
+    }
+    end_message_step = {
+        "step_id": 2,
+        "source": "system",
+        "message": "The following is a <SYSTEM_MESSAGE> not actually sent by the user. It is provided by the system as important information to pay attention to.\n\n"
+        + f"<SYSTEM_MESSAGE>\n[Message] timestamp=2026-11-13T02:22:08Z sender={task_id} priority=MESSAGE_PRIORITY_HIGH "
+        + f'content=Task id "{task_id}" finished with result:\n'
+        + "Command exited with code 0.\n\nCommand output:\nSuccessfully installed x-1.0\n"
+        + f"\nLog: file://{log_path}\n</SYSTEM_MESSAGE>",
+        "extra": {"antigravity_type": "SYSTEM_MESSAGE", "status": "DONE"},
+    }
+    steps = (
+        [run_command_step, end_message_step] if has_end_message else [run_command_step]
+    )
+    return json.dumps(
+        {
+            "schema_version": "ATIF-v1.6",
+            "agent": {"name": "antigravity-cli"},
+            "steps": steps,
+        }
+    )
+
+
+@pytest.mark.parametrize(
+    ("has_end_message", "expected_level"),
+    [
+        pytest.param(True, NetworkRequestResultLevel.EXECUTED, id="with the end"),
+        pytest.param(False, NetworkRequestResultLevel.ATTEMPTED, id="without it"),
+    ],
+)
+def test_the_end_of_an_antigravity_cli_background_task_that_the_harness_reports_in_a_step_decides_the_result_of_its_request(
+    has_end_message, expected_level
+):
+    # Without that step, nothing in the trajectory says that pip ended or what it printed.
+    harness_tool_calls = parse_trajectory(
+        _antigravity_cli_trajectory_text_of_background_install(
+            has_end_message=has_end_message
+        ),
+        "t1",
+    )
+    assert not isinstance(harness_tool_calls, UnreadableTrajectory)
+
+    _, (network_request_result,) = run_steps_to_network_request_results(
+        harness_tool_calls,
+        knowledge_doors=KnowledgeDoors(),
+        tool_call_judgment_rule_use_counts=Counter(),
+        expanded_tool_call_judgment_rule_use_counts=Counter(),
+        network_request_judgment_rule_use_counts=Counter(),
+        no_network_request_counts=Counter(),
+        network_request_result_judgment_rule_use_counts=Counter(),
+        unused_output_line_counts=Counter(),
+        program_counts_of_unowned_output_lines=Counter(),
+    )
+
+    assert network_request_result.network_request.target == "x"
+    assert network_request_result.level == expected_level
+
+
+def test_the_step_that_reports_the_end_of_an_antigravity_cli_background_task_is_a_poll_linked_to_the_call_that_started_it():
+    harness_tool_calls = parse_trajectory(
+        _antigravity_cli_trajectory_text_of_background_install(has_end_message=True),
+        "t1",
+    )
+    assert not isinstance(harness_tool_calls, UnreadableTrajectory)
+
+    run_command_call, end_message_call = run_steps_to_expanded_tool_calls(
+        harness_tool_calls,
+        knowledge_doors=KnowledgeDoors(),
+        tool_call_judgment_rule_use_counts=Counter(),
+        expanded_tool_call_judgment_rule_use_counts=Counter(),
+    )
+
+    end_message_tool_call_key = ToolCallKey("t1", "main", 2, 0)
+    assert end_message_call.tool_call.action == PollAction(
+        (ExecutionHandle(ExecutionHandleKind.COMMAND, "c1/task-3"),)
+    )
+    # The end and the output of pip come from the step, not from the result of the call, which says only that the task runs.
+    assert run_command_call.command_text_status == CommandTextStatus(
+        ExecutionStatus.FINISHED, 0, end_message_tool_call_key
+    )
+    assert OutputPlace(end_message_tool_call_key, (0,)) in (
+        run_command_call.output_places
+    )
+
+
+# The first step of a made-up trajectory, the task, which comes before any message that the harness writes.
+_TASK_STEP = {"step_id": 1, "source": "user", "message": "Install x."}
+
+
+def _claude_code_trajectory_text_of_background_install(
+    *, has_task_notification: bool
+) -> str:
+    """Make the text of a made-up Claude Code trajectory whose `Bash` call sends `pip install x` to the background, with or without the step in which the harness reports the end of that task."""
+    output_path = "/tmp/claude-0/-app/tasks/b1.output"
+    bash_step = {
+        "step_id": 2,
+        "source": "agent",
+        "tool_calls": [
+            {
+                "tool_call_id": "toolu_01",
+                "function_name": "Bash",
+                "arguments": {"command": "pip install x", "run_in_background": True},
+            }
+        ],
+        "observation": {
+            "results": [
+                {
+                    "source_call_id": "toolu_01",
+                    "content": f"Command running in background with ID: b1. Output is being written to: {output_path}. "
+                    + "You will be notified when it completes. To check interim output, use Read on that file path.",
+                }
+            ]
+        },
+    }
+    task_notification_step = {
+        "step_id": 3,
+        "source": "user",
+        "message": "<task-notification>\n<task-id>b1</task-id>\n<tool-use-id>toolu_01</tool-use-id>\n"
+        + f"<output-file>{output_path}</output-file>\n<status>completed</status>\n"
+        + '<summary>Background command "pip install x" completed (exit code 0)</summary>\n</task-notification>',
+        "extra": {"is_sidechain": False},
+    }
+    steps = (
+        [_TASK_STEP, bash_step, task_notification_step]
+        if has_task_notification
+        else [_TASK_STEP, bash_step]
+    )
+    return json.dumps(
+        {
+            "schema_version": "ATIF-v1.6",
+            "agent": {"name": "claude-code"},
+            "steps": steps,
+        }
+    )
+
+
+@pytest.mark.parametrize(
+    ("has_task_notification", "expected_level"),
+    [
+        pytest.param(True, NetworkRequestResultLevel.EXECUTED, id="with the end"),
+        pytest.param(False, NetworkRequestResultLevel.ATTEMPTED, id="without it"),
+    ],
+)
+def test_the_end_of_a_claude_code_background_task_that_the_harness_reports_in_a_task_notification_decides_the_result_of_its_request(
+    has_task_notification, expected_level
+):
+    # Without that step, nothing in the trajectory says that pip ended.
+    harness_tool_calls = parse_trajectory(
+        _claude_code_trajectory_text_of_background_install(
+            has_task_notification=has_task_notification
+        ),
+        "t1",
+    )
+    assert not isinstance(harness_tool_calls, UnreadableTrajectory)
+
+    _, (network_request_result,) = run_steps_to_network_request_results(
+        harness_tool_calls,
+        knowledge_doors=KnowledgeDoors(),
+        tool_call_judgment_rule_use_counts=Counter(),
+        expanded_tool_call_judgment_rule_use_counts=Counter(),
+        network_request_judgment_rule_use_counts=Counter(),
+        no_network_request_counts=Counter(),
+        network_request_result_judgment_rule_use_counts=Counter(),
+        unused_output_line_counts=Counter(),
+        program_counts_of_unowned_output_lines=Counter(),
+    )
+
+    assert network_request_result.network_request.target == "x"
+    assert network_request_result.level == expected_level
+
+
+def test_the_task_notification_of_a_claude_code_background_task_is_a_poll_linked_to_the_call_that_started_it():
+    harness_tool_calls = parse_trajectory(
+        _claude_code_trajectory_text_of_background_install(has_task_notification=True),
+        "t1",
+    )
+    assert not isinstance(harness_tool_calls, UnreadableTrajectory)
+
+    bash_call, task_notification_call = run_steps_to_expanded_tool_calls(
+        harness_tool_calls,
+        knowledge_doors=KnowledgeDoors(),
+        tool_call_judgment_rule_use_counts=Counter(),
+        expanded_tool_call_judgment_rule_use_counts=Counter(),
+    )
+
+    task_notification_tool_call_key = ToolCallKey("t1", "main", 3, 0)
+    assert task_notification_call.tool_call.action == PollAction(
+        (ExecutionHandle(ExecutionHandleKind.COMMAND, "b1"),)
+    )
+    # The end and the exit code of pip come from the step, which names the output file but holds no output.
+    assert bash_call.command_text_status == CommandTextStatus(
+        ExecutionStatus.FINISHED, 0, task_notification_tool_call_key
+    )
+
+
+def _grok_build_trajectory_text_of_background_install(
+    *, has_system_reminder: bool
+) -> str:
+    """Make the text of a made-up Grok Build trajectory whose `run_terminal_command` call sends `pip install x` to the background, with or without the step in which the harness reports the end of that task."""
+    run_terminal_command_step = {
+        "step_id": 2,
+        "source": "agent",
+        "tool_calls": [
+            {
+                "tool_call_id": "call-1",
+                "function_name": "run_terminal_command",
+                "arguments": {"command": "pip install x", "background": True},
+            }
+        ],
+        "observation": {
+            "results": [
+                {
+                    "source_call_id": "call-1",
+                    "content": "<task-id>call-1</task-id>\n<task-type>bash</task-type>\n<output-file>/tmp/call-1.log</output-file>\n"
+                    + '<status>running</status>\n<summary>Command "pip install x" is running in the background.</summary>\n'
+                    + 'Use get_command_or_subagent_output with task_ids=["call-1"] when you need the output.',
+                }
+            ]
+        },
+    }
+    system_reminder_step = {
+        "step_id": 3,
+        "source": "user",
+        "message": '<system-reminder>\nBackground task "call-1" completed (exit code: 0).\nCommand: pip install x | Duration: 3.0s\n'
+        + 'Use get_command_or_subagent_output("call-1") to see the full output.\n</system-reminder>',
+    }
+    steps = (
+        [_TASK_STEP, run_terminal_command_step, system_reminder_step]
+        if has_system_reminder
+        else [_TASK_STEP, run_terminal_command_step]
+    )
+    return json.dumps(
+        {"schema_version": "ATIF-v1.6", "agent": {"name": "grok-build"}, "steps": steps}
+    )
+
+
+@pytest.mark.parametrize(
+    ("has_system_reminder", "expected_level"),
+    [
+        pytest.param(True, NetworkRequestResultLevel.EXECUTED, id="with the end"),
+        pytest.param(False, NetworkRequestResultLevel.ATTEMPTED, id="without it"),
+    ],
+)
+def test_the_end_of_a_grok_build_background_task_that_the_harness_reports_in_a_system_reminder_decides_the_result_of_its_request(
+    has_system_reminder, expected_level
+):
+    # Without that step, nothing in the trajectory says that pip ended.
+    harness_tool_calls = parse_trajectory(
+        _grok_build_trajectory_text_of_background_install(
+            has_system_reminder=has_system_reminder
+        ),
+        "t1",
+    )
+    assert not isinstance(harness_tool_calls, UnreadableTrajectory)
+
+    _, (network_request_result,) = run_steps_to_network_request_results(
+        harness_tool_calls,
+        knowledge_doors=KnowledgeDoors(),
+        tool_call_judgment_rule_use_counts=Counter(),
+        expanded_tool_call_judgment_rule_use_counts=Counter(),
+        network_request_judgment_rule_use_counts=Counter(),
+        no_network_request_counts=Counter(),
+        network_request_result_judgment_rule_use_counts=Counter(),
+        unused_output_line_counts=Counter(),
+        program_counts_of_unowned_output_lines=Counter(),
+    )
+
+    assert network_request_result.network_request.target == "x"
+    assert network_request_result.level == expected_level
 
 
 # The keyword arguments of `run_steps_of_trial` that hold a counter, which a test fills with empty counters.

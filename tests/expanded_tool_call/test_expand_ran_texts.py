@@ -56,6 +56,7 @@ from tb_internet_use.tool_call.model import (
     ToolCallAction,
     ToolCallKey,
     ToolCallResult,
+    UnknownAction,
     WriteFileAction,
 )
 from tb_internet_use.tool_call.parse_shell_text import parse_shell_text
@@ -1534,6 +1535,28 @@ def test_a_call_may_have_run_unless_its_result_says_not_run(
 
     assert bool(results[-1].file_touches[0].written_file_keys) == may_have_run
     assert use_counts["treat_tool_call_not_marked_not_run_as_maybe_run"] == rule_uses
+
+
+def test_a_message_that_the_harness_wrote_in_no_known_format_is_not_asked_whether_it_ran(
+    knowledge: ExpandedToolCallKnowledge,
+):
+    """The prompt of an Antigravity CLI `schedule` timer is such a message, an `UnknownAction` whose result has the status `UNKNOWN`."""
+    message = ToolCall(
+        HarnessToolCall(
+            _key(1),
+            HarnessTool("harness", "message"),
+            "",
+            {},
+            {"content": "Check the build."},
+            is_harness_message=True,
+        ),
+        UnknownAction(),
+        ToolCallResult(),
+    )
+    use_counts: Counter[str] = Counter()
+    _expand(knowledge, message, judgment_rule_use_counts=use_counts)
+
+    assert use_counts["treat_tool_call_not_marked_not_run_as_maybe_run"] == 0
 
 
 def test_rules_counted_by_their_situation(knowledge: ExpandedToolCallKnowledge):

@@ -385,28 +385,37 @@ class ToolCall:
 
 @dataclass(frozen=True, slots=True)
 class HarnessToolCall:
-    """One tool call from the trajectory, paired with its result."""
+    """One tool call from the trajectory, paired with its result, or one message that the harness wrote to the agent outside the results of calls, e.g. about the end of earlier work.
+
+    Antigravity CLI writes the end of a background task as such a message, e.g. a `SYSTEM_MESSAGE` step that says the task exited with code 0 and shows its output. Its tool name is the name the harness gives the message, it has no `tool_call_id` and no arguments, and `is_harness_message` tells it apart from a call of the agent.
+    """
 
     key: ToolCallKey
     tool: HarnessTool
-    # From the trajectory. It can be empty or repeated, so it is not a key.
+    # From the trajectory, "" for a message that the harness wrote. It can be empty or repeated, so it is not a key.
     tool_call_id: str
-    # The arguments in the trajectory.
+    # The arguments in the trajectory, {} for a message that the harness wrote.
     args: dict[str, Any]
-    # The result object in the trajectory, or None when the call has none.
+    # The result object in the trajectory, an object whose `content` is the message as the step holds it for a message that the harness wrote, or None when the call has none.
     result: dict[str, Any] | None
     # True for a call of a subagent trajectory, or of a step whose `extra.is_sidechain` is true or whose `extra.parentToolCallId` is set in the trajectory.
     is_subagent: bool = False
+    # True for a message that the harness wrote to the agent outside the results of calls, which audits and judgment rule counts keep apart from the calls of the agent.
+    is_harness_message: bool = False
 
 
 @dataclass(frozen=True, slots=True)
 class ToolCallKey:
     """Unique position of a tool call in the trajectories."""
 
-    trial_id: str  # the name of the trial folder, as in Trial.trial_id
-    trajectory_id: str  # "main", or "main/sub0" for the first subagent (0-based)
-    step_id: int  # the step's step_id in the trajectory, 1-based
-    call_index: int  # 0-based position in the step's tool_calls
+    # The name of the trial folder, as in Trial.trial_id.
+    trial_id: str
+    # "main", or "main/sub0" for the first subagent (0-based).
+    trajectory_id: str
+    # The step's step_id in the trajectory, 1-based.
+    step_id: int
+    # The 0-based position in the step's tool_calls, or for a message that the harness wrote in the step, the number of tool_calls plus the 0-based position of the message among the messages of the step, so that the messages follow the calls and keys stay unique.
+    call_index: int
 
 
 @dataclass(frozen=True, slots=True)

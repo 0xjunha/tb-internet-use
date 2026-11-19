@@ -38,6 +38,8 @@ HARNESS_RETURN_CODE_INTERPRETATIONS_CSV = "harness_return_code_interpretations.c
 # The name of the folder of the harness result format declarations, which the counts of their uses carry.
 HARNESS_RESULT_FORMATS_DECLARATIONS = "harness_result_formats"
 _HANDLES_FIELD = "handles"
+# The last word of the key of an unmatched result of a message that the harness wrote, the name of the field `HarnessToolCall.is_harness_message`.
+_HARNESS_MESSAGE_KEY_WORD = "is_harness_message"
 # The answer for a tool without declared result formats.
 _NO_RESULT_FORMATS = HarnessToolResultDeclaration()
 
@@ -126,10 +128,12 @@ class ToolCallKnowledge:
         tool_result_json: JsonObject | None,
         *,
         is_marked_as_error: bool,
+        is_harness_message: bool,
     ) -> MatchedHarnessResultFormat | UnmatchedFormat:
         """Answer which declared format a result of a harness tool has, or the `UnmatchedFormat` of a result that matches no format or has none to try.
 
         A matched format counts as a use of the row `(harness, tool, format name)` and an unmatched result as an unknown input `(harness, tool, "unknown_format")` or `(harness, tool, "skipped_format")`, both under `HARNESS_RESULT_FORMATS_DECLARATIONS`.
+        The key of an unmatched message that the harness wrote ends with `"is_harness_message"`, e.g. `(harness, "SYSTEM_MESSAGE", "unknown_format", "is_harness_message")`, since such a message is often no end of a task at all, e.g. the prompt of an Antigravity CLI `schedule` timer, and lists of unknown inputs should not rank it as a tool result to declare.
         """
         harness_tool_result_declaration = harness_tool_result_declaration_of(
             tool, result_formats_by_harness=self._result_formats_by_harness
@@ -143,6 +147,8 @@ class ToolCallKnowledge:
         )
         if isinstance(matched_or_unmatched_format, UnmatchedFormat):
             row_key = (tool.harness, tool.name, str(matched_or_unmatched_format))
+            if is_harness_message:
+                row_key = (*row_key, _HARNESS_MESSAGE_KEY_WORD)
             self.uses.unknown_input_counts[
                 HARNESS_RESULT_FORMATS_DECLARATIONS, row_key
             ] += 1

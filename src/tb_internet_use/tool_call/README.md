@@ -21,7 +21,7 @@ trajectory.json -> HarnessToolCall -> ToolCall(harness_tool_call, action, result
 
 | Type | Content |
 |---|---|
-| `HarnessToolCall` | One call in the trajectory and its result, as is |
+| `HarnessToolCall` | One call in the trajectory and its result, as is, or a message in which the harness reports the end of earlier work, e.g. an Antigravity CLI `SYSTEM_MESSAGE` |
 | `ToolCall.action` | Request: what the call tried to do, with one type for each kind of act on the task environment |
 | `ToolCall.result` | Result: tool output text, status, exit code, HTTP status, handles |
 
@@ -42,7 +42,7 @@ A tool that touches the task environment gets the type for what it does, the sam
 | `ListFilesAction` | Finds files by name or lists a folder | Cursor CLI `globToolCall`, Grok Build `list_dir` |
 | `WebSearchAction`, `WebFetchAction`, `WebFindAction` | Searches the web, opens a page, finds text in a page | Claude Code `WebSearch`, `WebFetch` |
 | `StartSubagentAction` | Starts a subagent, whose own calls may or may not be in the trajectory | Claude Code `Agent`, Devin `run_subagent` |
-| `PollAction` | Reads from, writes to or stops a command, script or subagent started earlier | Codex `write_stdin`, Claude Code `TaskStop`, `SendMessage` |
+| `PollAction` | Reads from, writes to or stops a command, script or subagent started earlier | Codex `write_stdin`, Claude Code `TaskStop`, `SendMessage`, an Antigravity CLI `SYSTEM_MESSAGE`, Claude Code `task-notification` or Grok Build `system-reminder` that reports the end of a task |
 | `OtherAction` | Only handles the harness's own state, e.g. a plan, a to-do list, a wait or a question to the user | Codex `update_plan`, Devin `todo_write` |
 | `UnknownAction` | A tool without a row in the catalog, e.g. a broken or disabled name, or a call that could not be converted | |
 
@@ -60,6 +60,21 @@ Text that a command runs, e.g. `curl u` in `bash -c 'curl u'`, stays one word of
 [`convert_parsed_shell_texts`](_convert_parsed_shell_texts.py) calls `parse_shell_text` on each command string of the action that `convert_tool_call_action` builds and puts the result in `RunCommandAction.parsed_shell_text`, which stays None when the trajectory has no command string.
 A Codex `exec` script can run several command strings, one per `RunCommandAction` step, and the command ids go on across its steps, e.g. 0 and 1 for `a; b` in the first step and 2 for `c` in the next, so that they are unique within the call.
 [`audit_parsed_shell_texts.py`](../../../scripts/audit_parsed_shell_texts.py) checks on raw trials that every parsed shell text holds together, e.g. that the ids of a call go 0, 1, 2 and that a pipe reader is a command of the same shell text, and counts the shell texts, commands and `UnreadableShellText`s of each harness under `out/parsed_shell_texts/`.
+
+### Messages that the harness writes
+
+A harness sends a long command to the background, and its result then only names the task, e.g. Antigravity CLI `Tool is running as a background task with task id: c1/task-23` Claude Code `Command running in background with ID: b1` or Grok Build `<task-id>call-...</task-id>`. When the task ends, the harness writes the end to the agent in a step of its own, outside the results of calls, and the agent may never poll the task.
+`parse_trajectory` reads each such message as a `HarnessToolCall` after the calls of its step, with `is_harness_message` true, no `tool_call_id`, no arguments and the message as the `content` of its result. Its tool name is the name the harness gives the message, and its result formats are declared like those of a tool. The converter makes it a `PollAction` of the task it names, so that `expand_tool_calls` links it to the call that started the task as it links a poll.
+
+| Harness | Tool name | Message | Example |
+|---|---|---|---|
+| Antigravity CLI | `SYSTEM_MESSAGE` | A step with `source` `system` and `extra.antigravity_type` `SYSTEM_MESSAGE`. Steps of the type `ERROR_MESSAGE`, which report errors of the model's responses, are not read | `Task id "c1/task-23" finished with result:` followed by the exit code and the output. Only a message whose `sender` is the task id it names is an end, since the prompt of a `schedule` timer comes from the timer's task and holds text the agent wrote |
+| Claude Code | `task-notification` | A `user` step that starts with `<task-notification>`, whole, since it holds one block, whose `<event>` can hold any text a command printed. Or each block of a `user` step that starts with `[SYSTEM NOTIFICATION - NOT USER INPUT]`, split only where a line that closes a block, an empty line and a line that opens one meet, so one step can give several. A block that a summary of the conversation quotes is not read | `<status>completed</status>` and `Background command "..." completed (exit code 0)`, with the output file but no output, or a `Monitor` event with the lines its command printed |
+| Grok Build | `system-reminder` | A `user` step that starts with `<system-reminder>`, whole, since it holds one block. Grok Build adds such blocks to the results of calls too, where the result formats cut them as notices and they are not read | `Background task "call-..." completed (exit code: 0).` with the command but no output, or a reminder of something else, e.g. the workflows it offers |
+
+Audits and judgment rule counts read `is_harness_message` to keep messages apart from the calls of the agent, e.g. the unknown input of an unmatched message ends with `is_harness_message`, and `expand_tool_calls` never asks a judgment rule whether a message ran.
+The first `user` step of an agent is never read as such a message, since it is the task or the prompt that the parent agent wrote for a subagent, e.g. the first step of a Claude Code subagent that the main trajectory keeps with `extra.is_sidechain` true.
+A message in no declared format is an `UnknownAction` with an unknown status, e.g. the prompt of a timer that the agent set with Antigravity CLI `schedule`, the end of a Claude Code subagent, whose `Agent` call names no task, or a Grok Build reminder that the local date changed.
 
 ## Tool call labeling
 
@@ -80,7 +95,7 @@ Tools whose `ToolCallAction` varies by call are labeled [`Deferred`](../knowledg
 
 | Step | Code | Produces |
 |---|---|---|
-| Read the text of a trajectory file, pair calls with results | [`parse_trajectory.py`](parse_trajectory.py) | `HarnessToolCall`, or `UnreadableTrajectory` of [`trial/model.py`](../trial/model.py) when the text is not JSON. For a missing file, `read_trajectory` in [pipeline.py](../pipeline.py) gives the `UnreadableTrajectory` itself |
+| Read the text of a trajectory file, pair calls with results, and read each message that the harness writes outside the results of calls as a call | [`parse_trajectory.py`](parse_trajectory.py) | `HarnessToolCall`, or `UnreadableTrajectory` of [`trial/model.py`](../trial/model.py) when the text is not JSON. For a missing file, `read_trajectory` in [pipeline.py](../pipeline.py) gives the `UnreadableTrajectory` itself |
 | Match the result against the harness's declared result formats | [`_convert_tool_call_result.py`](_convert_tool_call_result.py), one [`HarnessToolCallConverter`](harnesses/harness_tool_call_converter.py) per harness in [harnesses/](harnesses/), with the formats from [`tool_call_knowledge.py`](../knowledge/tool_call_knowledge.py) | `ToolCallResult` |
 | Build the action from the label of the tool and the arguments, with the result at hand | [`_convert_tool_call_action.py`](_convert_tool_call_action.py), with the label from [`tool_call_knowledge.py`](../knowledge/tool_call_knowledge.py) | `ToolCallAction`, `UnknownAction` for a tool without a row or for a call whose two arguments give a field of one value different values |
 | Fill what the action type and argument fields of a label cannot express, e.g. the handles a result names, the terminate of a stop tool, Deferred tools | `HarnessToolCallConverter.refine_action`, `action_of_deferred_tool` | `ToolCallAction` |
@@ -186,7 +201,7 @@ Both give `tool_output_text="hello"`, `exit_code=0`, status `finished`.
 | The tool has formats, none matched | The raw text as is | `unknown`, never `finished` by default | `UnmatchedFormat.UNKNOWN` |
 | The tool has no formats | The raw text as is | `unknown` | `UnmatchedFormat.SKIPPED` |
 
-`tool_output_text` is `""` when the tool showed no output, and `None` only when the trajectory holds no text of what it returned, e.g. an image, a PDF or a Cursor CLI blob id.
+`tool_output_text` is `""` when the tool showed no output, and `None` only when the trajectory holds no text of what it returned, e.g. an image, a PDF, a Cursor CLI blob id, or a message that the harness wrote about the end of a task without its output, e.g. a Claude Code `task-notification` that says `completed (exit code 0)`.
 `handles` name what a later call can poll. A result can name them whatever its status, e.g. a `finished` Devin `exec` result names the shell the command ran in, and a `finished` Codex `exec` or `wait` result names the sessions of commands its script left running, read from step results it printed as JSON.
 [`harness_result_format`](model.py) names the format, as in the table of declared result formats and the audit, for audits and evidence only. Later steps must not branch on it.
 

@@ -1,4 +1,4 @@
-"""Convert the tool calls of Antigravity CLI, deciding the action of a write that may append and of a task tool whose `Action` argument picks what it does."""
+"""Convert the tool calls of Antigravity CLI, deciding the action of a write that may append, of a task tool whose `Action` argument picks what it does and of a message step that reports the end of a task."""
 
 from typing import TYPE_CHECKING, Any
 
@@ -7,6 +7,7 @@ from tb_internet_use.tool_call._convert_tool_call_action import (
 )
 from tb_internet_use.tool_call.harnesses.harness_tool_call_converter import (
     HarnessToolCallConverter,
+    action_from_harness_message_result,
 )
 from tb_internet_use.tool_call.model import (
     EditFileAction,
@@ -37,6 +38,8 @@ class AntigravityCliConverter(HarnessToolCallConverter):
         args = harness_tool_call.args
         if harness_tool_call.tool.name == "write_file":
             return _write_action_from_arguments(args)
+        if harness_tool_call.is_harness_message:
+            return action_from_harness_message_result(tool_call_result)
         return _manage_task_action_from_arguments(args)
 
 

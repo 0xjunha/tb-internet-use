@@ -19,6 +19,7 @@ from tb_internet_use.tool_call.model import (
     RunCommandAction,
     ToolCall,
     ToolCallAction,
+    ToolCallKey,
     ToolCallResult,
 )
 
@@ -34,13 +35,14 @@ def expand_command_text_status(
     *,
     judgment_rule_use_counts: Counter[str],
 ) -> CommandTextStatus | None:
-    """Expand the end state of the command text of a call, from the first later poll that saw it end or else from the call's own result.
+    """Expand the end state of the command text of a call, from the later polls that saw it end or else from the call's own result.
 
     `poll_tool_calls` are the later calls that poll a handle the call started, in call order, as `PollLinks.poll_tool_call_keys_of_starter` lists them.
     The value is None for a call whose action is not a `RunCommandAction` with a command text, e.g. a poll, a read tool or a tool script, whose one result covers the texts of several steps.
     A call without a result gets `UNKNOWN` with itself as the reporter, since the trajectory does not say how its text ended.
     The polls are read only while the call's own result is running or unknown, since a result that ended or did not run already gives the end state.
     `treat_first_poll_that_saw_end_as_command_text_status` is asked once for a call that has a poll that saw the end, and each use adds one to `judgment_rule_use_counts`.
+    On `True` the status is that of the first such poll and the exit code that of the first such poll with that status that states one, e.g. 7 from an Antigravity CLI `SYSTEM_MESSAGE` after a `manage_task` status `DONE` that states none.
     """
     if (
         not isinstance(tool_call.action, RunCommandAction)
@@ -59,22 +61,40 @@ def expand_command_text_status(
         ExecutionStatus.UNKNOWN,
     ):
         return own_command_text_status
-    for poll_tool_call in poll_tool_calls:
-        poll_result = poll_tool_call.result
-        if poll_result is None or not _has_seen_end_of_one_handle(
-            poll_tool_call.action, poll_result
-        ):
-            continue
-        if not treat_first_poll_that_saw_end_as_command_text_status(
-            use_counts=judgment_rule_use_counts
-        ):
-            return own_command_text_status
-        return CommandTextStatus(
-            poll_result.execution_status,
-            poll_result.exit_code,
-            poll_tool_call.harness_tool_call.key,
-        )
-    return own_command_text_status
+    end_reports = [
+        (poll_tool_call.harness_tool_call.key, poll_tool_call.result)
+        for poll_tool_call in poll_tool_calls
+        if poll_tool_call.result is not None
+        and _has_seen_end_of_one_handle(poll_tool_call.action, poll_tool_call.result)
+    ]
+    if not end_reports:
+        return own_command_text_status
+    if not treat_first_poll_that_saw_end_as_command_text_status(
+        use_counts=judgment_rule_use_counts
+    ):
+        return own_command_text_status
+    return _command_text_status_from_end_reports(end_reports)
+
+
+def _command_text_status_from_end_reports(
+    end_reports: Sequence[tuple[ToolCallKey, ToolCallResult]],
+) -> CommandTextStatus:
+    """Build the end state of a command text from the results of the polls that saw it end, in call order, the status of the first and the exit code of the first with that status that states one.
+
+    The poll that gave the exit code is the reporter, since readers cite it for the exit code, e.g. an Antigravity CLI `SYSTEM_MESSAGE` with `Command exited with code 7` after a `manage_task` status `DONE` without one.
+    When two such polls state different exit codes, the exit code is unknown and the first poll is the reporter.
+    """
+    first_key, first_result = end_reports[0]
+    status = first_result.execution_status
+    exit_code_reports = [
+        (key, result.exit_code)
+        for key, result in end_reports
+        if result.execution_status is status and result.exit_code is not None
+    ]
+    if len({exit_code for _, exit_code in exit_code_reports}) != 1:
+        return CommandTextStatus(status, None, first_key)
+    exit_code_key, exit_code = exit_code_reports[0]
+    return CommandTextStatus(status, exit_code, exit_code_key)
 
 
 def _has_seen_end_of_one_handle(

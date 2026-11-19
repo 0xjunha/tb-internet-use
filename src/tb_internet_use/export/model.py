@@ -34,7 +34,7 @@ class NetworkRequestRow:
     trajectory_id: str
     # The step_id of the step in the trajectory, 1-based.
     step_id: int
-    # The 0-based position in the step's tool calls.
+    # The 0-based position in the step's tool calls, or past them for a message that the harness wrote in the step, as in `ToolCallKey.call_index`.
     call_index: int
     # The 0-based index among the requests of the call.
     request_index: int

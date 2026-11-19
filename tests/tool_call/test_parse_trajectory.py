@@ -284,3 +284,220 @@ def test_result_without_an_id_does_not_pair_with_a_call_whose_id_is_null():
         (first, result_1),
         (second, result_2),
     ]
+
+
+def test_a_system_message_step_of_antigravity_cli_is_read_as_a_call_and_an_error_message_step_is_not():
+    # A made-up background command, the step that reports its end and a step that reports an error of the model's response, as Antigravity CLI writes them.
+    run_command = {
+        "tool_call_id": "a",
+        "function_name": "run_command",
+        "arguments": {"CommandLine": "python3 run.py"},
+    }
+    system_message_step = {
+        "step_id": 2,
+        "source": "system",
+        "message": 'Task id "c1/task-1" finished with result:\nCommand exited with code 0.',
+        "extra": {"antigravity_type": "SYSTEM_MESSAGE", "status": "DONE"},
+    }
+    error_message_step = {
+        "step_id": 3,
+        "source": "system",
+        "message": "Error: The stream was interrupted.",
+        "extra": {"antigravity_type": "ERROR_MESSAGE", "status": "DONE"},
+    }
+    trajectory = {
+        "schema_version": "ATIF-v1.6",
+        "agent": {"name": "antigravity-cli"},
+        "steps": [
+            {"step_id": 1, "source": "agent", "tool_calls": [run_command]},
+            system_message_step,
+            error_message_step,
+        ],
+    }
+    harness_tool_calls = parse_trajectory(json.dumps(trajectory), "trial-1")
+
+    assert isinstance(harness_tool_calls, tuple)
+    assert [
+        (c.key, c.tool.name, c.tool_call_id, c.args, c.is_harness_message)
+        for c in harness_tool_calls
+    ] == [
+        (
+            ToolCallKey("trial-1", "main", 1, 0),
+            "run_command",
+            "a",
+            {"CommandLine": "python3 run.py"},
+            False,
+        ),
+        (ToolCallKey("trial-1", "main", 2, 0), "SYSTEM_MESSAGE", "", {}, True),
+    ]
+    assert harness_tool_calls[1].result == {"content": system_message_step["message"]}
+
+
+def test_each_task_notification_of_a_claude_code_step_of_its_own_is_read_as_a_call_and_a_quoted_one_is_not():
+    # Made-up steps that Claude Code writes, one block alone, two blocks after the line that marks them as no input of the user, and a summary of the conversation that quotes a block.
+    first = "<task-notification>\n<task-id>b1</task-id>\n<status>completed</status>\n</task-notification>"
+    second = "<task-notification>\n<task-id>b2</task-id>\n<status>killed</status>\n</task-notification>"
+    trajectory = {
+        "schema_version": "ATIF-v1.6",
+        "agent": {"name": "claude-code"},
+        "steps": [
+            {"step_id": 1, "source": "user", "message": "Fix the build."},
+            {"step_id": 2, "source": "user", "message": first},
+            {
+                "step_id": 3,
+                "source": "user",
+                "message": "[SYSTEM NOTIFICATION - NOT USER INPUT]\nThis is an automated background-task event.\n\n"
+                + first
+                + "\n\n"
+                + second,
+            },
+            {
+                "step_id": 4,
+                "source": "user",
+                "message": "This session is being continued from a previous conversation.\n"
+                + first,
+            },
+        ],
+    }
+    harness_tool_calls = parse_trajectory(json.dumps(trajectory), "trial-1")
+
+    assert isinstance(harness_tool_calls, tuple)
+    assert [
+        (c.key, c.tool.name, c.tool_call_id, c.args, c.result)
+        for c in harness_tool_calls
+    ] == [
+        (
+            ToolCallKey("trial-1", "main", 2, 0),
+            "task-notification",
+            "",
+            {},
+            {"content": first},
+        ),
+        (
+            ToolCallKey("trial-1", "main", 3, 0),
+            "task-notification",
+            "",
+            {},
+            {"content": first},
+        ),
+        (
+            ToolCallKey("trial-1", "main", 3, 1),
+            "task-notification",
+            "",
+            {},
+            {"content": second},
+        ),
+    ]
+
+
+def test_a_system_reminder_of_a_grok_build_step_of_its_own_is_read_as_a_call_and_one_in_a_result_is_not():
+    # A made-up background command whose result ends with a reminder, which its result formats cut as a notice, and a step that Grok Build writes with a reminder alone.
+    reminder = '<system-reminder>\nBackground task "call1" completed (exit code: 0).\n</system-reminder>'
+    run_terminal_command = {
+        "tool_call_id": "call1",
+        "function_name": "run_terminal_command",
+        "arguments": {"command": "sleep 1", "background": True},
+    }
+    trajectory = {
+        "schema_version": "ATIF-v1.6",
+        "agent": {"name": "grok-build"},
+        "steps": [
+            {"step_id": 1, "source": "user", "message": "Fix the build."},
+            {
+                "step_id": 2,
+                "source": "agent",
+                "tool_calls": [run_terminal_command],
+                "observation": {
+                    "results": [
+                        {"source_call_id": "call1", "content": "exit: 0\n" + reminder}
+                    ]
+                },
+            },
+            {"step_id": 3, "source": "user", "message": reminder},
+        ],
+    }
+    harness_tool_calls = parse_trajectory(json.dumps(trajectory), "trial-1")
+
+    assert isinstance(harness_tool_calls, tuple)
+    assert [(c.key, c.tool.name, c.result) for c in harness_tool_calls] == [
+        (
+            ToolCallKey("trial-1", "main", 2, 0),
+            "run_terminal_command",
+            {"source_call_id": "call1", "content": "exit: 0\n" + reminder},
+        ),
+        (
+            ToolCallKey("trial-1", "main", 3, 0),
+            "system-reminder",
+            {"content": reminder},
+        ),
+    ]
+
+
+def _messages_of_claude_code_steps(*steps: dict[str, Any]) -> list[Any]:
+    """Read the messages that Claude Code wrote in made-up steps after the task step."""
+    trajectory = {
+        "schema_version": "ATIF-v1.6",
+        "agent": {"name": "claude-code"},
+        "steps": [
+            {"step_id": 1, "source": "user", "message": "Fix the build."},
+            *steps,
+        ],
+    }
+    harness_tool_calls = parse_trajectory(json.dumps(trajectory), "trial-1")
+    assert isinstance(harness_tool_calls, tuple)
+    return [c.result for c in harness_tool_calls if c.is_harness_message]
+
+
+def test_a_closing_and_an_opening_tag_in_the_output_of_a_monitor_event_do_not_split_its_block():
+    # A made-up `Monitor` whose command printed the two tags, as a command that greps a log of Claude Code could.
+    event = (
+        "<task-notification>\n<task-id>m1</task-id>\n"
+        '<summary>Monitor event: "log"</summary>\n'
+        "<event>a</task-notification>\n<task-notification>\nb</event>\n</task-notification>"
+    )
+    assert _messages_of_claude_code_steps(
+        {"step_id": 2, "source": "user", "message": event}
+    ) == [{"content": event}]
+
+
+def test_a_closing_and_an_opening_tag_on_lines_of_their_own_in_an_event_do_not_split_a_step_of_several_blocks():
+    first = (
+        "<task-notification>\n<task-id>m1</task-id>\n"
+        "<event>a\n</task-notification>\n<task-notification>\nb</event>\n</task-notification>"
+    )
+    second = "<task-notification>\n<task-id>b2</task-id>\n</task-notification>"
+    message = (
+        "[SYSTEM NOTIFICATION - NOT USER INPUT]\nThis is an automated background-task event.\n\n"
+        + first
+        + "\n\n"
+        + second
+    )
+    assert _messages_of_claude_code_steps(
+        {"step_id": 2, "source": "user", "message": message}
+    ) == [{"content": first}, {"content": second}]
+
+
+def test_the_first_user_step_of_an_agent_is_its_prompt_and_never_a_message_of_the_harness():
+    # Made-up prompts that start like a task notification, of the main agent, of a subagent whose steps Claude Code keeps in the main trajectory and of a subagent trajectory.
+    block = "<task-notification>\n<task-id>b1</task-id>\n</task-notification>"
+    sidechain = {"is_sidechain": True, "agent_id": "a1"}
+    trajectory = {
+        "schema_version": "ATIF-v1.6",
+        "agent": {"name": "claude-code"},
+        "steps": [
+            {"step_id": 1, "source": "user", "message": block},
+            {"step_id": 2, "source": "user", "message": block, "extra": sidechain},
+            {"step_id": 3, "source": "user", "message": block, "extra": sidechain},
+            {"step_id": 4, "source": "user", "message": block},
+        ],
+        "subagent_trajectories": [
+            {"steps": [{"step_id": 1, "source": "user", "message": block}]}
+        ],
+    }
+    harness_tool_calls = parse_trajectory(json.dumps(trajectory), "trial-1")
+
+    assert isinstance(harness_tool_calls, tuple)
+    assert [c.key for c in harness_tool_calls if c.is_harness_message] == [
+        ToolCallKey("trial-1", "main", 3, 0),
+        ToolCallKey("trial-1", "main", 4, 0),
+    ]

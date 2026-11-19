@@ -25,6 +25,7 @@ from tb_internet_use.tool_call.model import (
     ToolCallAction,
     ToolCallKey,
     ToolCallResult,
+    UnknownAction,
     UnmatchedFormat,
     WriteFileAction,
 )
@@ -419,6 +420,64 @@ RESULT_FORMAT_CASES: list[tuple[str, str, ToolCallResult]] = [
         "Failed to parse arguments for tool `search_replace`: missing field",
         _not_run_result("rejected_arguments"),
     ),
+    (
+        "system-reminder",
+        '<system-reminder>\nBackground task "call1" completed (exit code: 0).\nCommand: curl -s u | Duration: 2.0s\n'
+        + 'Use get_command_or_subagent_output("call1") to see the full output.\n</system-reminder>',
+        ToolCallResult(
+            None,
+            S.FINISHED,
+            exit_code=0,
+            handles=_CALL_1,
+            harness_result_format=_format("exited"),
+        ),
+    ),
+    # A task that its time limit stopped, which Grok Build writes as the signal `timeout`.
+    (
+        "system-reminder",
+        '<system-reminder>\nBackground task "call1" completed (terminated by signal timeout).\nCommand: sleep 999 | Duration: 180.1s\n'
+        + 'Use get_command_or_subagent_output("call1") to see the full output.\n</system-reminder>',
+        ToolCallResult(
+            None,
+            S.TIMED_OUT,
+            handles=_CALL_1,
+            harness_result_format=_format("timed_out"),
+        ),
+    ),
+    # A task that a signal stopped, with the description of the command in place of the command.
+    (
+        "system-reminder",
+        '<system-reminder>\nBackground task "call1" completed (terminated by signal signal 15).\nDescription: Start the server | Duration: 9.0s\n'
+        + 'Use get_command_or_subagent_output("call1") to see the full output.\n</system-reminder>',
+        ToolCallResult(
+            None, S.KILLED, handles=_CALL_1, harness_result_format=_format("terminated")
+        ),
+    ),
+    # A note follows when the signal stopped the task much sooner than expected.
+    (
+        "system-reminder",
+        '<system-reminder>\nBackground task "call1" completed (terminated by signal signal 15).\nCommand: python3 run.py | Duration: 0.1s\n'
+        + "Note: this is much shorter than expected for a backgrounded command. The wrapper bash may have been killed.\n"
+        + 'Use get_command_or_subagent_output("call1") to see the full output.\n</system-reminder>',
+        ToolCallResult(
+            None,
+            S.KILLED,
+            handles=_CALL_1,
+            harness_result_format=_format("terminated_short"),
+        ),
+    ),
+    (
+        "system-reminder",
+        '<system-reminder>\nMonitor "call1" ended: [monitor ended: exited (code 0)].\nDescription: Watch the log | Duration: 30.0s\n'
+        + 'Use get_command_or_subagent_output("call1") for full output.\n\n</system-reminder>',
+        ToolCallResult(
+            None,
+            S.FINISHED,
+            exit_code=0,
+            handles=_CALL_1,
+            harness_result_format=_format("monitor_exited"),
+        ),
+    ),
 ]
 
 
@@ -609,3 +668,32 @@ def test_notification_at_the_very_end_is_cut_whatever_its_spacing():
             "ok",
             MatchedFormat("exited"),
         )
+
+
+def test_a_system_reminder_about_the_end_of_a_task_polls_the_task_it_names():
+    tool_call = _converted(
+        _harness_tool_call(
+            "system-reminder",
+            {},
+            '<system-reminder>\nBackground task "call1" completed (exit code: 0).\nCommand: curl -s u | Duration: 2.0s\n'
+            + 'Use get_command_or_subagent_output("call1") to see the full output.\n</system-reminder>',
+        )
+    )
+    assert tool_call.action == PollAction(_CALL_1, None, False)
+
+
+def test_a_system_reminder_in_no_declared_format_is_an_unknown_action_with_an_unknown_status():
+    # Grok Build also reminds the agent of other things in such blocks, e.g. that the local date changed.
+    tool_call = _converted(
+        _harness_tool_call(
+            "system-reminder",
+            {},
+            "<system-reminder>\nThe local date has changed since this session started.\n</system-reminder>",
+        )
+    )
+    assert tool_call.action == UnknownAction()
+    assert tool_call.result is not None
+    assert (
+        tool_call.result.harness_result_format,
+        tool_call.result.execution_status,
+    ) == (UnmatchedFormat.UNKNOWN, S.UNKNOWN)

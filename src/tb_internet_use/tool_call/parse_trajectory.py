@@ -1,6 +1,7 @@
 """Read the text of one trial's ATIF trajectory file into harness tool calls paired with their results.
 
 Harness converters turn these into common types.
+A message that the harness writes to the agent outside the results of calls is read like a call too, since the end of a command can show up only there, e.g. the end of an Antigravity CLI background task with its exit code and output.
 """
 
 import json
@@ -22,6 +23,25 @@ _AGENT_LOOP_MESSAGE_PREFIXES = (
     "Your previous response reached the output token limit",
 )
 _MINI_SWE_AGENT = "mini-swe-agent"
+# The `extra.antigravity_type` of a step that Antigravity CLI writes to tell the agent something, e.g. that a background task ended, and the tool name its `HarnessToolCall` gets.
+# Steps of the other type that Antigravity CLI writes, `ERROR_MESSAGE`, report errors of the model's responses and are not read.
+_ANTIGRAVITY_SYSTEM_MESSAGE = "SYSTEM_MESSAGE"
+# The tag of the block in which Claude Code writes the end of a background task, a line of a `Monitor` and the like to the agent, and the tool name its `HarnessToolCall` gets.
+_CLAUDE_CODE_TASK_NOTIFICATION = "task-notification"
+# The start of a `user` step in which Claude Code writes several task notifications, a line that marks the step as no input of the user, before the blocks.
+# A step that only quotes a task notification starts otherwise, e.g. the summary of the conversation that Claude Code writes when it compacts it, and is not read.
+_CLAUDE_CODE_SYSTEM_NOTIFICATION_STEP_START = "[SYSTEM NOTIFICATION - NOT USER INPUT]"
+# The tag of the block in which Grok Build writes the end of a background task and other notes to the agent, e.g. the workflows it offers, and the tool name its `HarnessToolCall` gets.
+# Grok Build adds such blocks to tool results too, which the result formats of the tool cut as notices.
+_GROK_BUILD_SYSTEM_REMINDER = "system-reminder"
+# The agent id of the steps of a trajectory that belong to no subagent.
+_MAIN_AGENT = "main"
+# The tool name of the `HarnessToolCall` of a message that a harness writes to the agent, by harness, which is the name the harness gives the message in the trajectory.
+_HARNESS_MESSAGE_TOOL_NAMES = {
+    "antigravity-cli": _ANTIGRAVITY_SYSTEM_MESSAGE,
+    "claude-code": _CLAUDE_CODE_TASK_NOTIFICATION,
+    "grok-build": _GROK_BUILD_SYSTEM_REMINDER,
+}
 
 
 def parse_trajectory(
@@ -30,6 +50,7 @@ def parse_trajectory(
     """Read the text of one trial's trajectory file into its tool calls, or into an `UnreadableTrajectory` when the text is not JSON.
 
     The text can be the bytes of the file, so that broken UTF-8 is reported like broken JSON.
+    A message that the harness writes to the agent, e.g. an Antigravity CLI `SYSTEM_MESSAGE` that reports the end of a background task, is read as a call too.
     A trajectory of an unsupported schema version raises ValueError, with the trial id as a note.
     """
     try:
@@ -63,7 +84,12 @@ def _walk_trajectory(
     trajectory_id: str,
     is_subagent: bool,
 ) -> Iterator[HarnessToolCall]:
-    """Yield the tool calls of a trajectory, then those of its subagents."""
+    """Yield the tool calls of a trajectory, then those of its subagents.
+
+    The first `user` step of an agent is the prompt that the user or the parent agent wrote, so it is never read as messages of the harness.
+    Each message that the harness wrote to the agent in a step gives one `HarnessToolCall` after the calls of the step, in the order of the messages, with the tool name of `_HARNESS_MESSAGE_TOOL_NAMES`, `is_harness_message` true, no `tool_call_id`, no arguments and the text of the message as the `content` of its result, since the message holds no call and stands where a result would.
+    """
+    agent_ids_with_prompt: set[str] = set()
     for step in trajectory["steps"]:
         calls = step.get("tool_calls") or []
         results = (step.get("observation") or {}).get("results") or []
@@ -80,11 +106,116 @@ def _walk_trajectory(
                 result=result,
                 is_subagent=is_subagent or is_subagent_step,
             )
+        if _is_prompt_step(step, agent_ids_with_prompt):
+            continue
+        for message_index, message in enumerate(_harness_messages_of(harness, step)):
+            yield HarnessToolCall(
+                key=ToolCallKey(
+                    trial_id,
+                    trajectory_id,
+                    step["step_id"],
+                    len(pairs) + message_index,
+                ),
+                tool=HarnessTool(harness, _HARNESS_MESSAGE_TOOL_NAMES[harness]),
+                tool_call_id="",
+                args={},
+                result={"content": message},
+                is_subagent=is_subagent or is_subagent_step,
+                is_harness_message=True,
+            )
 
     for index, subagent in enumerate(trajectory.get("subagent_trajectories") or []):
         yield from _walk_trajectory(
             subagent, trial_id, harness, f"{trajectory_id}/sub{index}", True
         )
+
+
+def _is_prompt_step(step: dict[str, Any], agent_ids_with_prompt: set[str]) -> bool:
+    """Tell whether a step is the first `user` step of its agent, i.e. the task for the main agent or the prompt that the parent agent wrote for a subagent, and record its agent in `agent_ids_with_prompt`.
+
+    The steps of a trajectory belong to one agent, except that Claude Code keeps the steps of its subagents in the main trajectory with `extra.is_sidechain` true and `extra.agent_id` naming the subagent.
+    A sidechain step without `extra.agent_id` names no agent, so it is never taken for a prompt.
+    """
+    if step.get("source") != "user":
+        return False
+    step_extra = step.get("extra") or {}
+    agent_id = (
+        step_extra.get("agent_id") if step_extra.get("is_sidechain") else _MAIN_AGENT
+    )
+    if not isinstance(agent_id, str) or agent_id in agent_ids_with_prompt:
+        return False
+    agent_ids_with_prompt.add(agent_id)
+    return True
+
+
+def _harness_messages_of(harness: str, step: dict[str, Any]) -> tuple[Any, ...]:
+    """List the messages that the harness wrote to the agent in a step of a trajectory, each as the step holds it, or none for a harness without such messages."""
+    match harness:
+        case "antigravity-cli":
+            return _antigravity_system_messages_of(step)
+        case "claude-code":
+            return _claude_code_task_notifications_of(step)
+        case "grok-build":
+            return _whole_user_step_with_tag_of(step, _GROK_BUILD_SYSTEM_REMINDER)
+        case _:
+            return ()
+
+
+def _antigravity_system_messages_of(step: dict[str, Any]) -> tuple[Any, ...]:
+    """List the message of a step that Antigravity CLI marks with `SYSTEM_MESSAGE` in `extra.antigravity_type`, or none for any other step."""
+    step_extra = step.get("extra") or {}
+    if step_extra.get("antigravity_type") != _ANTIGRAVITY_SYSTEM_MESSAGE:
+        return ()
+    return (step.get("message"),)
+
+
+def _claude_code_task_notifications_of(step: dict[str, Any]) -> tuple[str, ...]:
+    """List the `<task-notification>` blocks of a `user` step that starts with one or with the line that marks the step as no input of the user, or none for any other step.
+
+    A step that starts with a block holds that one block and nothing else, so the whole message is the block, and a closing tag that the command output in its `<event>` holds cannot end it early.
+    A step that starts with the marking line holds one or more blocks after some lines of text, each block on lines of its own and the blocks apart by an empty line, so it is split only where a line that ends a block, an empty line and a line that starts a block meet.
+    """
+    whole_block = _whole_user_step_with_tag_of(step, _CLAUDE_CODE_TASK_NOTIFICATION)
+    if whole_block:
+        return whole_block
+    message = _message_of_user_step(step)
+    if message is None or not message.startswith(
+        _CLAUDE_CODE_SYSTEM_NOTIFICATION_STEP_START
+    ):
+        return ()
+    opening, closing = (
+        f"<{_CLAUDE_CODE_TASK_NOTIFICATION}>",
+        f"</{_CLAUDE_CODE_TASK_NOTIFICATION}>",
+    )
+    first_block_start = message.find("\n" + opening + "\n")
+    if first_block_start < 0:
+        return ()
+    blocks = message[first_block_start + 1 :].split(f"{closing}\n\n{opening}\n")
+    return tuple(
+        (opening + "\n" if index else "")
+        + block
+        + (closing if index < len(blocks) - 1 else "")
+        for index, block in enumerate(blocks)
+    )
+
+
+def _whole_user_step_with_tag_of(step: dict[str, Any], tag: str) -> tuple[str, ...]:
+    """List the message of a `user` step that starts with the opening tag, e.g. `<system-reminder>`, as one block, or none for any other step.
+
+    The harness writes such a step itself to tell the agent about earlier work, one block to a step. A block can hold text that the agent's commands printed, e.g. the `<event>` of a Claude Code `Monitor`, so its end is the end of the step and not the first closing tag in it.
+    """
+    message = _message_of_user_step(step)
+    if message is None or not message.startswith(f"<{tag}>"):
+        return ()
+    return (message,)
+
+
+def _message_of_user_step(step: dict[str, Any]) -> str | None:
+    """Read the message of a `user` step of a trajectory, or None for another step or a message that is no text."""
+    message = step.get("message")
+    if step.get("source") != "user" or not isinstance(message, str):
+        return None
+    return message
 
 
 def _is_subagent_step(step: dict[str, Any]) -> bool:

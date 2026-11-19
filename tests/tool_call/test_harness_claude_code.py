@@ -39,6 +39,7 @@ from tb_internet_use.tool_call.model import (
     ToolCallAction,
     ToolCallKey,
     ToolCallResult,
+    UnknownAction,
     UnmatchedFormat,
     WebFetchAction,
     WebSearchAction,
@@ -206,6 +207,33 @@ def _task_output(status: str, task_type: str, **task: Any) -> dict[str, Any]:
 # One made-up result per declared result format of Claude Code, built from the format, and the `ToolCallResult` it converts to.
 # A `Bash` result marked as an error is held against the formats for such results.
 # (tool, result in the trajectory, expected result)
+# The head of a made-up task notification about the task `b1`, as Claude Code writes it in a step of its own, and its end.
+TASK_HEAD = "<task-notification>\n<task-id>b1</task-id>\n<tool-use-id>toolu_01</tool-use-id>\n<output-file>/tmp/b1.output</output-file>\n"
+TASK_TAIL = "</summary>\n</task-notification>"
+TIME_LIMIT_NOTE = "<note>If the work in progress still needs it, start it again with `run_in_background` and a longer `timeout`.</note>\n"
+
+
+def _task_notification(block: str) -> dict[str, Any]:
+    """Give a task notification as `parse_trajectory` gives the result of its call, the block as `content`."""
+    return {"content": block}
+
+
+def _task_end(
+    format_name: str,
+    status: ExecutionStatus,
+    exit_code: int | None,
+    text: str | None = None,
+) -> ToolCallResult:
+    """Give the result of a task notification about the end of the task `b1`, with no tool output text when the notification holds no output."""
+    return ToolCallResult(
+        text,
+        status,
+        exit_code=exit_code,
+        handles=_B1,
+        harness_result_format=_format(format_name),
+    )
+
+
 RESULT_FORMAT_CASES: list[tuple[str, dict[str, Any], ToolCallResult]] = [
     (
         "Bash",
@@ -581,6 +609,85 @@ RESULT_FORMAT_CASES: list[tuple[str, dict[str, Any], ToolCallResult]] = [
             harness_result_format=_format("task_failed"),
         ),
     ),
+    (
+        "Monitor",
+        _result(
+            "<tool_use_error>InputValidationError: Monitor failed due to the following issue:\nThe required parameter `command` is missing</tool_use_error>"
+        ),
+        _not_run_result("tool_use_error"),
+    ),
+    (
+        "Monitor",
+        _result(
+            "Monitor started (task b1, expires in 5m unless the source ends first; you get one notice at expiry — re-arm if you still need the watch). You will be notified on each event."
+        ),
+        ToolCallResult(
+            None, S.RUNNING, handles=_B1, harness_result_format=_format("started")
+        ),
+    ),
+    (
+        "task-notification",
+        _task_notification(
+            TASK_HEAD
+            + '<status>completed</status>\n<summary>Background command "curl -s u" completed (exit code 0)'
+            + TASK_TAIL
+        ),
+        _task_end("exited", S.FINISHED, 0),
+    ),
+    (
+        "task-notification",
+        _task_notification(
+            TASK_HEAD
+            + '<status>completed</status>\n<summary>Background command "grep x a" completed (exit code 1: No matches found)'
+            + TASK_TAIL
+        ),
+        _task_end("exited_interpreted", S.FINISHED, 1),
+    ),
+    (
+        "task-notification",
+        _task_notification(
+            TASK_HEAD
+            + '<status>failed</status>\n<summary>Background command "make" failed with exit code 2'
+            + TASK_TAIL
+        ),
+        _task_end("failed", S.FINISHED, 2),
+    ),
+    # Claude Code says `killed`, and the summary says the background time limit stopped it.
+    (
+        "task-notification",
+        _task_notification(
+            TASK_HEAD
+            + '<status>killed</status>\n<summary>Background command "sleep 999" was stopped after reaching its background time limit</summary>\n'
+            + TIME_LIMIT_NOTE
+            + "</task-notification>"
+        ),
+        _task_end("timed_out", S.TIMED_OUT, None),
+    ),
+    # An event of a `Monitor` names no call and no status, and holds the lines its command printed, so the status is unknown.
+    (
+        "task-notification",
+        _task_notification(
+            '<task-notification>\n<task-id>b1</task-id>\n<summary>Monitor event: "server log"</summary>\n<event>HTTP 200\nready</event>\n</task-notification>'
+        ),
+        _task_end("monitor_event", S.UNKNOWN, None, "HTTP 200\nready"),
+    ),
+    # The end of a `Monitor` gives no exit code, only its last lines.
+    (
+        "task-notification",
+        _task_notification(
+            TASK_HEAD
+            + '<status>completed</status>\n<summary>Monitor "server log" stream ended</summary>\n<event>done</event>\n</task-notification>'
+        ),
+        _task_end("monitor_ended", S.FINISHED, None, "done"),
+    ),
+    (
+        "task-notification",
+        _task_notification(
+            TASK_HEAD
+            + '<status>failed</status>\n<summary>Monitor "server log" script failed (exit 1)</summary>\n<event>no such file</event>\n</task-notification>'
+        ),
+        _task_end("monitor_failed", S.FINISHED, 1, "no such file"),
+    ),
     ("TaskStop", _result(_TOOL_USE_ERROR), _not_run_result("tool_use_error")),
     (
         "TaskStop",
@@ -648,6 +755,14 @@ ACTION_CASES: list[tuple[str, dict[str, Any], ToolCallAction]] = [
         "Write",
         {"path": "/app/b.txt", "file_text": "yo"},
         WriteFileAction("/app/b.txt", "yo"),
+    ),
+    (
+        "Monitor",
+        {"command": "tail -f /app/log", "description": "errors", "timeout_ms": 60000},
+        RunCommandAction(
+            "tail -f /app/log",
+            parse_shell_text("tail -f /app/log", judgment_rule_use_counts=Counter()),
+        ),
     ),
     (
         "WebFetch",
@@ -1264,3 +1379,37 @@ def test_web_fetch_code_that_is_no_whole_number_is_no_http_status():
         result = _result("No response from model", {"code": code})
         tool_call_result = _converted_result("WebFetch", {"url": "u"}, result)
         assert tool_call_result.http_status is None, code
+
+
+def test_a_task_notification_about_the_end_of_a_task_polls_the_task_it_names():
+    tool_call = _converted(
+        _harness_tool_call(
+            "task-notification",
+            {},
+            _task_notification(
+                TASK_HEAD
+                + '<status>completed</status>\n<summary>Background command "curl -s u" completed (exit code 0)'
+                + TASK_TAIL
+            ),
+        )
+    )
+    assert tool_call.action == PollAction(_B1, None, False)
+
+
+def test_a_task_notification_in_no_declared_format_is_an_unknown_action_with_an_unknown_status():
+    # The end of a subagent that an `Agent` call started, whose result names no task, so no format is declared for it.
+    tool_call = _converted(
+        _harness_tool_call(
+            "task-notification",
+            {},
+            _task_notification(
+                '<task-notification>\n<task-id>a1</task-id>\n<status>completed</status>\n<summary>Agent "review" finished</summary>\n<result>ok</result>\n</task-notification>'
+            ),
+        )
+    )
+    assert tool_call.action == UnknownAction()
+    assert tool_call.result is not None
+    assert (
+        tool_call.result.harness_result_format,
+        tool_call.result.execution_status,
+    ) == (UnmatchedFormat.UNKNOWN, S.UNKNOWN)

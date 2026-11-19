@@ -61,12 +61,15 @@ CATALOG_TOOLS = [
 # The action of each Deferred tool for a call without arguments.
 DEFERRED_ACTION_WITHOUT_ARGUMENTS = {
     HarnessTool("antigravity-cli", "manage_task"): UnknownAction(),
+    HarnessTool("antigravity-cli", "SYSTEM_MESSAGE"): UnknownAction(),
     HarnessTool("antigravity-cli", "write_file"): WriteFileAction(),
+    HarnessTool("claude-code", "task-notification"): UnknownAction(),
     HarnessTool("codex", "exec"): RunToolScriptAction(),
     HarnessTool("codex", "web_search_call"): UnknownAction(),
     HarnessTool("copilot-cli", "apply_patch"): UnknownAction(),
     HarnessTool("copilot-cli", "view"): ReadFileAction(),
     HarnessTool("cursor-cli", "mcpToolCall"): UnknownAction(),
+    HarnessTool("grok-build", "system-reminder"): UnknownAction(),
 }
 # Muse Code ends a truncated shell output with this reminder.
 MUSE_REMINDER = (

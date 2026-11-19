@@ -299,6 +299,7 @@ def test_result_format_is_answered_and_counted_as_a_row_use_or_an_unknown_input(
         raw_text,
         tool_result_json,
         is_marked_as_error=is_marked_as_error,
+        is_harness_message=False,
     )
 
     if isinstance(found, UnmatchedFormat):
@@ -318,11 +319,39 @@ def test_result_format_is_answered_and_counted_as_a_row_use_or_an_unknown_input(
         )
 
 
+def test_an_unmatched_message_that_the_harness_wrote_is_an_unknown_input_whose_key_says_so():
+    knowledge = ToolCallKnowledge(result_formats_by_harness=RESULT_FORMATS_BY_HARNESS)
+
+    matched_or_unmatched_format = knowledge.harness_result_format(
+        HarnessTool("h", "shell"),
+        "Timer fired.",
+        None,
+        is_marked_as_error=False,
+        is_harness_message=True,
+    )
+
+    assert matched_or_unmatched_format is UnmatchedFormat.UNKNOWN
+    assert knowledge.uses == KnowledgeUses(
+        unknown_input_counts=Counter(
+            {
+                (
+                    HARNESS_RESULT_FORMATS_DECLARATIONS,
+                    ("h", "shell", "unknown_format", "is_harness_message"),
+                ): 1
+            }
+        )
+    )
+
+
 def test_matched_result_format_carries_its_matched_values():
     knowledge = ToolCallKnowledge(result_formats_by_harness=RESULT_FORMATS_BY_HARNESS)
 
     matched_or_unmatched_format = knowledge.harness_result_format(
-        HarnessTool("h", "shell"), "exit 3\nhi", None, is_marked_as_error=False
+        HarnessTool("h", "shell"),
+        "exit 3\nhi",
+        None,
+        is_marked_as_error=False,
+        is_harness_message=False,
     )
 
     assert matched_or_unmatched_format == MatchedHarnessResultFormat(

@@ -322,11 +322,11 @@ class OutputVisibility(StrEnum):
 
 @dataclass(frozen=True, slots=True)
 class CommandTextStatus:
-    """End state of a call's command text, taken from the first later poll that saw it end or else from the call's own result, so that later steps know whether the text ran and how it exited."""
+    """End state of a call's command text, taken from the later polls that saw it end or else from the call's own result, so that later steps know whether the text ran and how it exited."""
 
     execution_status: ExecutionStatus
     exit_code: int | None
-    # The call itself, or the poll whose result gave this status and exit code.
+    # The call itself, or the poll whose result gave this exit code, else the first poll that saw the end.
     reporter_tool_call_key: ToolCallKey
 
 

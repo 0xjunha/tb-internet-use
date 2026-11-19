@@ -36,13 +36,13 @@ Every request is kept as a row with its place in the trajectory and its evidence
 
 ## How it reads a trajectory
 
-From a trajectory the pipeline reads only the text of tool calls and their results. It runs nothing from a trajectory, and it has no network logs to check against.
+From a trajectory the pipeline reads only the text of tool calls and their results, and of the messages in which a harness reports the end of a background task in a step of its own, e.g. an Antigravity CLI `SYSTEM_MESSAGE`, a Claude Code `task-notification` or a Grok Build `system-reminder`. It runs nothing from a trajectory, and it has no network logs to check against.
 The hard part is that a request, or its output, is often not in the call that caused it.
 
 | | In the call itself | Elsewhere in the trajectory | Not in the trajectory |
 |---|---|---|---|
 | What ran | `curl https://example.org/x` | A script that an earlier call wrote | A task script or a binary |
-| Where its output shows | The call's result | A later poll, or a later read of a log file | Discarded, or never read |
+| Where its output shows | The call's result | A later poll, a later step in which the harness reports the end, or a later read of a log file | Discarded, or never read |
 | What the pipeline does | Reads it | Follows it | Records it as unknown |
 
 Two rules follow from this.
@@ -141,7 +141,8 @@ Each step also has an audit script. Those of `expand_tool_calls`, `extract_netwo
 - Only ATIF trajectories are read. ATIF lacks some calls of several harnesses, so what is counted for them is less than what happened:
   - Devin, Grok Build: subagent and pre-compaction calls missing.
   - Cursor CLI: subagents' inner calls missing.
-  - Antigravity CLI: subagents' calls missing, and the end of a command that ran on in the background is missing when it came only in a system step of the trajectory, which holds no tool result.
+  - Antigravity CLI: subagents' calls missing.
+- Claude Code and Grok Build sometimes write the end of a background task inside the result of a later call instead of a step of its own, and the end they report there is not read.
 - Requests made outside the trajectory, such as those of the image build or the verifier, are out of scope.
 
 ## Development

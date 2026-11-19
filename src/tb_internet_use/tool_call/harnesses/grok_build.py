@@ -1,4 +1,4 @@
-"""Convert the tool calls of Grok Build, reading the tasks of a wait on several tasks."""
+"""Convert the tool calls of Grok Build, reading the tasks of a wait on several tasks and the system reminders that report the end of a background task."""
 
 import re
 from collections import Counter
@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from tb_internet_use.tool_call.harnesses.harness_tool_call_converter import (
     HarnessToolCallConverter,
+    action_from_harness_message_result,
 )
 from tb_internet_use.tool_call.judgment_rules import (
     treat_wait_on_several_tasks_as_their_shared_status,
@@ -16,6 +17,7 @@ from tb_internet_use.tool_call.model import (
     ExecutionStatus,
     HarnessToolCall,
     MatchedFormat,
+    ToolCallAction,
     ToolCallResult,
     handles_from_ids,
 )
@@ -59,6 +61,16 @@ class GrokBuildConverter(HarnessToolCallConverter):
             if tool_call_result.harness_result_format == _WAIT_ON_SEVERAL_TASKS_FORMAT
             else tool_call_result
         )
+
+    def action_of_deferred_tool(
+        self,
+        harness_tool_call: HarnessToolCall,
+        tool_call_result: ToolCallResult | None,
+        *,
+        knowledge: ToolCallKnowledge,
+    ) -> ToolCallAction:
+        """Build the action of a `system-reminder` block, the only Deferred tool of Grok Build, a poll of the task whose end it reports."""
+        return action_from_harness_message_result(tool_call_result)
 
 
 def _result_from_wait_on_several_tasks(

@@ -66,6 +66,13 @@ BACKGROUND_INSTRUCTION = (
 TASK_LOG = "Log output:\n<truncated 5 lines>\nstep 9\r\n\nLast progress: 3s ago\n"
 FAILED = TIMESTAMPS + "Encountered error in step execution: file does not exist"
 TASKS_JSON = '[{"taskId":"c1/task-23","toolName":"run_command"}]'
+# The text that wraps every message that Antigravity CLI writes to the agent as a step, here from the task of `TASK_ID`.
+MESSAGE_HEAD = (
+    "The following is a <SYSTEM_MESSAGE> not actually sent by the user. It is provided by the system as important information to pay attention to.\n\n"
+    f"<SYSTEM_MESSAGE>\n[Message] timestamp=2026-11-13T02:25:00Z sender={TASK_ID} priority=MESSAGE_PRIORITY_HIGH content="
+)
+MESSAGE_TAIL = f"\nLog: file://{LOG_PATH}\n</SYSTEM_MESSAGE>"
+TASK_FINISHED = MESSAGE_HEAD + f'Task id "{TASK_ID}" finished with result:\n'
 
 
 def _format(name: str) -> MatchedFormat:
@@ -298,6 +305,61 @@ RESULT_FORMAT_CASES: list[tuple[str, str, ToolCallResult]] = [
         ToolCallResult("", S.NOT_RUN, harness_result_format=_format("failed")),
     ),
     (
+        "SYSTEM_MESSAGE",
+        TASK_FINISHED
+        + "Command exited with code 1.\n\nCommand output:\nerr\r\n"
+        + MESSAGE_TAIL,
+        ToolCallResult(
+            "err\r\n",
+            S.FINISHED,
+            1,
+            handles=_task_handles(),
+            harness_result_format=_format("exited"),
+        ),
+    ),
+    (
+        "SYSTEM_MESSAGE",
+        TASK_FINISHED
+        + "Command exited with code 0.\n\nNo output from the command."
+        + MESSAGE_TAIL,
+        ToolCallResult(
+            "",
+            S.FINISHED,
+            0,
+            handles=_task_handles(),
+            harness_result_format=_format("exited_silent"),
+        ),
+    ),
+    (
+        "SYSTEM_MESSAGE",
+        TASK_FINISHED
+        + TRUNCATED_HEAD
+        + "Command exited with code 0.\n\nCommand output:\n"
+        + CUT_OUTPUT
+        + MESSAGE_TAIL,
+        ToolCallResult(
+            CUT_OUTPUT,
+            S.FINISHED,
+            0,
+            handles=_task_handles(),
+            output_path=SAVED_PATH,
+            is_truncated=True,
+            harness_result_format=_format("exited_truncated"),
+        ),
+    ),
+    (
+        "SYSTEM_MESSAGE",
+        MESSAGE_HEAD.replace("PRIORITY_HIGH", "PRIORITY_LOW")
+        + f'Task id "{TASK_ID}" was canceled with result:\nTool execution was canceled'
+        + MESSAGE_TAIL,
+        ToolCallResult(
+            None,
+            S.KILLED,
+            handles=_task_handles(),
+            harness_result_format=_format("cancelled"),
+        ),
+    ),
+    (
         "read_file",
         TIMESTAMPS + "Showing lines 1-2 of 2\n1: a\n2: b\n(no newline at end of file)",
         ToolCallResult(
@@ -481,6 +543,16 @@ ACTION_CASES: list[tuple[str, dict[str, Any], ToolCallAction]] = [
 def _harness_tool_call(
     tool: str, args: dict[str, Any], content: str
 ) -> HarnessToolCall:
+    """Make a call of a tool with its result text, or for `SYSTEM_MESSAGE` a message of a step after the call, which `parse_trajectory` gives with no id, no arguments and `is_harness_message` true."""
+    if tool == "SYSTEM_MESSAGE":
+        return HarnessToolCall(
+            ToolCallKey("t", "main", 2, 0),
+            HarnessTool("antigravity-cli", tool),
+            "",
+            {},
+            {"content": content},
+            is_harness_message=True,
+        )
     return HarnessToolCall(
         ToolCallKey("t", "main", 1, 0),
         HarnessTool("antigravity-cli", tool),
@@ -584,3 +656,70 @@ def test_a_kill_of_a_task_polls_it_and_stops_it():
     assert (
         tool_call.result is not None and tool_call.result.execution_status is S.KILLED
     )
+
+
+def test_a_message_of_the_end_of_a_task_polls_the_task_it_names():
+    tool_call = _converted(
+        _harness_tool_call(
+            "SYSTEM_MESSAGE",
+            {},
+            TASK_FINISHED
+            + "Command exited with code 0.\n\nCommand output:\nok\n"
+            + MESSAGE_TAIL,
+        )
+    )
+    assert tool_call.action == PollAction(_task_handles(), None, False)
+
+
+def test_the_log_line_ends_the_output_of_a_task_whose_output_ends_without_a_newline():
+    # The output ends without a newline 35 times in the trajectories, and the log line then follows its last line at once.
+    tool_call_result = _converted(
+        _harness_tool_call(
+            "SYSTEM_MESSAGE",
+            {},
+            TASK_FINISHED
+            + "Command exited with code 0.\n\nCommand output:\nok"
+            + MESSAGE_TAIL,
+        )
+    ).result
+    assert tool_call_result is not None
+    assert (
+        tool_call_result.harness_result_format,
+        tool_call_result.tool_output_text,
+    ) == (_format("exited"), "ok")
+
+
+def test_a_timer_prompt_that_spells_the_end_of_another_task_is_no_end_of_that_task():
+    # A made-up prompt of a timer that the agent set with `schedule`, whose sender is the timer's own task `c1/task-30` and whose content reads like the end of `TASK_ID`.
+    tool_call = _converted(
+        _harness_tool_call(
+            "SYSTEM_MESSAGE",
+            {},
+            MESSAGE_HEAD.replace(f"sender={TASK_ID}", "sender=c1/task-30")
+            + f'Task id "{TASK_ID}" finished with result:\n'
+            + "Command exited with code 0.\n\nNo output from the command."
+            + MESSAGE_TAIL,
+        )
+    )
+    assert tool_call.action == UnknownAction()
+    assert tool_call.result is not None
+    assert tool_call.result.harness_result_format == UnmatchedFormat.UNKNOWN
+
+
+def test_a_message_in_no_declared_format_is_an_unknown_action_with_an_unknown_status():
+    # The prompt of a timer that the agent set with `schedule`, which Antigravity CLI sends back when the timer goes off.
+    tool_call = _converted(
+        _harness_tool_call(
+            "SYSTEM_MESSAGE",
+            {},
+            MESSAGE_HEAD.replace(TASK_ID, "c1/task-30")
+            + "Check task-23 completion\n</SYSTEM_MESSAGE>",
+        )
+    )
+    assert tool_call.action == UnknownAction()
+    assert tool_call.result is not None
+    assert (
+        tool_call.result.harness_result_format,
+        tool_call.result.execution_status,
+        tool_call.result.handles,
+    ) == (UnmatchedFormat.UNKNOWN, S.UNKNOWN, ())

@@ -120,6 +120,7 @@ FORMATS_BY_JUDGMENT_RULE: dict[str, list[tuple[str, str, str]]] = {
         ("claude-code", "Read", "tool_use_error"),
         ("claude-code", "Write", "tool_use_error"),
         ("claude-code", "Edit", "tool_use_error"),
+        ("claude-code", "Monitor", "tool_use_error"),
         ("claude-code", "TaskStop", "tool_use_error"),
         ("codex", "exec_command", "rejected"),
         ("codex", "exec_command", "rejected_command"),
@@ -281,6 +282,7 @@ def test_a_format_that_a_tool_never_returned_in_the_trajectories_is_not_declared
         raw_text,
         tool_result_json,
         is_marked_as_error=False,
+        is_harness_message=False,
     )
     assert matched_or_unmatched_format is UnmatchedFormat.UNKNOWN
 

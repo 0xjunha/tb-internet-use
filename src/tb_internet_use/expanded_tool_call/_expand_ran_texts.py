@@ -460,7 +460,12 @@ def _expand_ran_texts_of_tool_call(
 def _may_have_run(
     tool_call: ToolCall, *, judgment_rule_use_counts: Counter[str]
 ) -> bool:
-    """Tell whether the tool may have run a call, i.e. whether its result is anything but `NOT_RUN`, asking a rule when there is no result or its status is `UNKNOWN`."""
+    """Tell whether the tool may have run a call, i.e. whether its result is anything but `NOT_RUN`, asking a rule when there is no result or its status is `UNKNOWN`.
+
+    A message that the harness wrote to the agent is no call that a tool ran, so it gets False without asking the rule, e.g. the prompt of an Antigravity CLI `schedule` timer, whose status is `UNKNOWN`. It has no text to run and no file to touch either way.
+    """
+    if tool_call.harness_tool_call.is_harness_message:
+        return False
     if tool_call.result is None or (
         tool_call.result.execution_status == ExecutionStatus.UNKNOWN
     ):
