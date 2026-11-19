@@ -437,6 +437,36 @@ def _pipe_reader_of_another_text(steps: _Steps) -> _Steps:
     )
 
 
+def _pipe_reader_that_reads_no_stdout_of_the_command(steps: _Steps) -> _Steps:
+    """Pipe the content of `mytool https://a.org/x` to command 1 of the same text, `cat f`, which reads no stdout route of it, as in `mytool https://a.org/x; cat f`."""
+    mytool = _ran_command("mytool", "https://a.org/x")
+    cat = RanCommand(
+        ShellCommand(1, ("cat", "f")),
+        (ProgramInvocation("cat", (), (), ("f",), False, (), False),),
+        (),
+        (),
+        (),
+    )
+    return _with_call(
+        steps,
+        9,
+        (RanShellText(CallCommandText(), (mytool, cat)),),
+        (
+            NetworkRequest(
+                _key(9),
+                0,
+                FromCommand(0, CallCommandText(), mytool.program_invocations[0]),
+                "https://a.org/x",
+                NetworkRequestTargetKind.URL,
+                ("a.org",),
+                ContentPipedToCommand(1, OutputVisibility.WHOLE),
+                NetworkRequestCertainty.UNCERTAIN,
+                NetworkRequestUncertaintyReason.UNKNOWN_PROGRAM,
+            ),
+        ),
+    )
+
+
 def _pip_install_of_a_local_path_and_a_name_with_one_request(steps: _Steps) -> _Steps:
     pip_install = _ran_command("pip", "install", "./x.whl", "A")
     return _with_call(
@@ -487,6 +517,7 @@ MORE_BROKEN_INPUT_CASES: list[tuple[str, Callable[[_Steps], _Steps]]] = [
     ),
     ("request_fields_agree", _url_host_missing_from_host_names),
     ("request_fields_agree", _pipe_reader_of_another_text),
+    ("request_fields_agree", _pipe_reader_that_reads_no_stdout_of_the_command),
     (
         "pip_install_requests_equal_targets",
         _pip_install_of_a_local_path_and_a_name_with_one_request,

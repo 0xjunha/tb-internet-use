@@ -1123,6 +1123,52 @@ def test_a_write_of_one_call_that_fits_several_of_its_files_leaves_them_unknown(
     )
 
 
+@pytest.mark.parametrize(
+    ("fourth_path", "written_file_keys", "fits_several_written_files"),
+    [
+        ("run.sh", (WrittenFileKey(K1, "run.sh"),), False),
+        (
+            "./run.sh",
+            (WrittenFileKey(K1, "run.sh"), WrittenFileKey(K1, "./run.sh")),
+            True,
+        ),
+    ],
+    ids=["same text as the first write", "other text"],
+)
+def test_a_write_of_one_call_that_fits_several_of_its_files_joins_only_the_file_of_the_same_path_text(
+    knowledge: ExpandedToolCallKnowledge,
+    fourth_path: str,
+    written_file_keys: tuple[WrittenFileKey, ...],
+    fits_several_written_files: bool,
+):
+    """A fourth write after writes to `run.sh`, `/a/run.sh` and `/b/run.sh` in one call joins the file of `run.sh` when its path text is `run.sh`, since a key holds the call and the path text, and starts a file of its own otherwise, which a later read of `/a/run.sh` also fits."""
+    _, reader = _expand(
+        knowledge,
+        _call(
+            1,
+            "\n".join(
+                [
+                    _heredoc_write("run.sh", "curl x"),
+                    _heredoc_write("/a/run.sh", "curl a"),
+                    _heredoc_write("/b/run.sh", "curl b"),
+                    _heredoc_write(fourth_path, "curl y"),
+                ]
+            ),
+        ),
+        _call(2, "cat /a/run.sh"),
+    )
+
+    assert reader.file_touches == (
+        _touch(
+            0,
+            "/a/run.sh",
+            Kind.SHOWS_CONTENT,
+            *written_file_keys,
+            fits_several_written_files=fits_several_written_files,
+        ),
+    )
+
+
 def test_a_write_of_one_call_joins_its_file_only_if_it_fits_the_paths_of_earlier_calls(
     knowledge: ExpandedToolCallKnowledge,
 ):
