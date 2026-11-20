@@ -73,6 +73,10 @@ uv run python -I scripts/download_trials.py <collection_dir> --leaderboard 4-1-0
 uv run python -I scripts/run_pipeline.py <collection_dir>/raw
 ```
 
+## Spreadsheet
+
+The [spreadsheet guide](docs/spreadsheet.md) says how to build the Google Sheets spreadsheet from a run and publish it.
+
 ## Limits
 
 - Most requests stop at an unknown result. A command in a loop, before a pipe or in a script often shows no output of its own, so the lower end of "received" is far below the upper end.
@@ -82,8 +86,9 @@ uv run python -I scripts/run_pipeline.py <collection_dir>/raw
   | Harness | Calls missing |
   |---|---|
   | Grok Build, Devin | Calls of subagents, and calls before a compaction |
-  | Antigravity CLI, Cursor CLI | Calls of subagents |
-  | Copilot CLI | Some earlier calls, e.g. the start of a shell that a later `read_bash` reads |
+  | Antigravity CLI | Calls of subagents, which run as a separate conversation |
+  | Cursor CLI | Inner calls of subagents |
+  | Copilot CLI | The start of some shells that a later call reads, e.g. with `read_bash` |
 
   Devin and Cursor CLI are on the Terminal-Bench 3.0/4.0 leaderboards only.
 
