@@ -1,5 +1,6 @@
 program_name,subcommand,option_name,option_value_part,printing_programs,prints_status_code,checked_against,reviewed,note
 agent-browser,install,,,playwright apt,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
+agent-browser,install,--with-deps,,changes_nothing,changes_nothing,"agent-browser README (github.com/vercel-labs/agent-browser, read 2026-11-18), Install (agent-browser install --with-deps also installs the browser's system libraries), the page shows no version",,The program row already holds the lines of apt that the installed system libraries add
 apt,install,,,apt,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
 apt,update,,,apt,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
 apt-get,download,,,apt,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
@@ -90,9 +91,13 @@ npm,install,--prefix,,changes_nothing,changes_nothing,"npm config prefix (The lo
 npm,install,-g,,changes_nothing,changes_nothing,"npm config global (Operates in global mode, so that packages are installed into the prefix folder instead of the current working directory), shorthand -g, npm 10.9.10 (docs.npmjs.com/cli/v10/using-npm/config)",,
 npm,ping,,,npm,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
 npm,view,,,npm,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
+npm,install,--save-dev,,changes_nothing,changes_nothing,"npm config save-dev (Save installed packages to a package.json file as devDependencies), npm 10.9.11 (docs.npmjs.com/cli/v10/using-npm/config)",,
+npm,install,-D,,changes_nothing,changes_nothing,"npm config save-dev (Save installed packages to a package.json file as devDependencies) and Shorthands (-D: --save-dev), npm 10.9.11 (docs.npmjs.com/cli/v10/using-npm/config)",,
 npx,,,,npm,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
 npx,,--yes,,changes_nothing,changes_nothing,"npm config yes (Automatically answer yes to any prompts that npm might print on the command line), npm 10.9.10 (docs.npmjs.com/cli/v10/using-npm/config)",,
 ping,,,,none,no,"ping(8) DESCRIPTION (ping uses the ICMP protocol's mandatory ECHO_REQUEST datagram to elicit an ICMP ECHO_RESPONSE from a host or gateway), iputils 20221126 (Debian bookworm, manpages.debian.org)",,"It sends ICMP echo requests and prints their replies, so no status line, download line or failure line of a pattern"
+ping,,-W,,changes_nothing,changes_nothing,"ping(8) -W timeout (Time to wait for a response, in seconds), iputils 3:20221126-1+deb12u1 (Debian bookworm, manpages.debian.org)",,
+ping,,-c,,changes_nothing,changes_nothing,"ping(8) -c count (Stop after sending count ECHO_REQUEST packets), iputils 3:20221126-1+deb12u1 (Debian bookworm, manpages.debian.org)",,
 pip,download,,,pip,no,"not checked, from the old table. The printing programs are names that the output line patterns give to what prints their lines",,
 pip,download,--dest,,changes_nothing,changes_nothing,"-d, --dest, pip download Options (Download packages into <dir>), pip documentation v26.3 (pip.pypa.io/en/stable/cli/pip_download/)",,
 pip,download,--disable-pip-version-check,,changes_nothing,changes_nothing,"--disable-pip-version-check, pip General Options (Don't periodically check PyPI to determine whether a new version of pip is available for download), pip documentation v26.3 (pip.pypa.io/en/stable/cli/pip/)",,
