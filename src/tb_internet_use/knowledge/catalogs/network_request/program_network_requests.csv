@@ -1,5 +1,6 @@
 program_name,subcommand,option_name,option_value,fetches,target_arguments,target_kind,target_notation,target_without_target_arguments,content_route,option_effect,checked_against,reviewed,note
 :,,,,no,,,,,,,"bash(1) SHELL BUILTIN COMMANDS : (No effect; the command does nothing beyond expanding arguments and performing any specified redirections), GNU Bash 5.3 (2025 April 7), man7.org",,
+UEFIExtract,,,,no,,,,,,,"UEFITool README (github.com/LongSoft/UEFITool, read 2026-11-20), UEFIExtract (uses ffsParser to parse supplied firmware image into a tree structure and dumps the parsed structure recursively on the FS), the page shows no version",,
 agent-browser,install,,,yes,none,url,url,no_target,,,"agent-browser README (github.com/vercel-labs/agent-browser, read 2026-11-18), Install (agent-browser install, download Chrome for Testing, agent-browser install --with-deps), the page shows no version, for target_arguments; the other cells not checked, from the old table",,"The page shows install without arguments and names no URL in it, so target_arguments is none. Target_kind stays url, since the request is the download of Chrome for Testing, which no other NetworkRequestTargetKind value names. content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
 agent-browser,open,,,yes,first,url,url_or_schemeless_url,no_request,,,"agent-browser commands page (agent-browser.dev/commands, read 2026-11-19), open (Launch browser (no nav); stays on about:blank) and open <url> (Launch + navigate (aliases: goto, navigate)), the page shows no version, for every cell but target_notation; target_notation from the example agent-browser open example.com of the agent-browser README (github.com/vercel-labs/agent-browser, read 2026-11-19)",,"content_route is blank, since the page says only that the browser navigates to the URL and not where the page content goes"
 agent-browser,,--session,,,,,,,,none,"agent-browser commands page (agent-browser.dev/commands, read 2026-11-19), the page shows no version, global options (--session <name>, Isolated browser session)",,It picks the browser session that the command runs in
@@ -19,8 +20,14 @@ apt-get,,-y,,,,,,,,none,"apt-get(8) OPTIONS -y, --yes, --assume-yes, apt 2.6.1 (
 apt-get,,--no-install-recommends,,,,,,,,none,"apt-get(8) OPTIONS --no-install-recommends (Do not consider recommended packages as a dependency for installing), apt 2.6.1 (Debian bookworm, manpages.debian.org)",,Recommended packages are requests that the words do not show
 apt-get,install,-f,,,,,,,,none,"apt-get(8) OPTIONS -f, --fix-broken (attempt to correct a system with broken dependencies in place), apt 2.6.1 (Debian bookworm, manpages.debian.org)",,The packages that fix the dependencies are requests that the words do not show
 apt-get,install,--download-only,,,,,,,,none,"apt-get(8) OPTIONS -d, --download-only (package files are only retrieved, not unpacked or installed), apt 2.6.1 (Debian bookworm, manpages.debian.org)",,
+as,,,,no,,,,,,,"as(1) NAME (the portable GNU assembler), binutils-common 2.40-2 (Debian bookworm, manpages.debian.org)",,
 awk,,,,no,,,,,,,"not checked, from the old table",,
+base64,,,,no,,,,,,,"base64(1) NAME (base64 encode/decode data and print to standard output), GNU coreutils 9.1 (Debian bookworm 9.1-1, manpages.debian.org)",,
 basename,,,,no,,,,,,,"basename(1) NAME (strip directory and suffix from filenames), GNU coreutils 9.11 (man7.org)",,
+bc,,,,no,,,,,,,"bc(1) NAME (An arbitrary precision calculator language) and DESCRIPTION (bc is a language that supports arbitrary precision numbers with interactive execution of statements), bc 1.07.1-3+b1 (Debian bookworm, manpages.debian.org)",,
+bgzip,,,,no,,,,,,,"bgzip(1) NAME (Block compression/decompression utility), tabix 1.16+ds-3, htslib-1.16 (Debian bookworm, manpages.debian.org)",,The page names only a file or stdin as its input
+black,,,,no,,,,,,,"black(1) NAME (uncompromising Python code formatter) and SUMMARY, black 23.1.0-1 (Debian bookworm, manpages.debian.org)",,
+blkid,,,,no,,,,,,,"blkid(8) NAME (locate/print block device attributes), util-linux 2.38.1-5+deb12u3 (Debian bookworm, manpages.debian.org)",,
 break,,,,no,,,,,,,"bash(1) SHELL BUILTIN COMMANDS break (Exit from within a for, while, until, or select loop), GNU Bash 5.3 (2025 April 7), man7.org",,
 bun,add,,,yes,all,package_name,name,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for. The old table reads the targets from the arguments and notes that no target means the project's packages, which no page of bun.sh says for add"
 bun,x,,,only_what_is_missing,next_program,package_name,name,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
@@ -29,11 +36,19 @@ bunx,,,,only_what_is_missing,next_program,package_name,name,no_request,,,"not ch
 cat,,,,no,,,,,,,"not checked, from the old table",,
 cd,,,,no,,,,,,,"bash(1) SHELL BUILTIN COMMANDS cd (Change the current directory to dir), GNU Bash 5.3 (2025 April 7), man7.org",,
 chmod,,,,no,,,,,,,"chmod(1) NAME (change file mode bits), GNU coreutils 9.11 (man7.org)",,
+chown,,,,no,,,,,,,"chown(1) NAME (change file owner and group), GNU coreutils 9.1 (Debian bookworm 9.1-1, manpages.debian.org)",,
 cmp,,,,no,,,,,,,"cmp(1) NAME (compare two files byte by byte), diffutils 3.12.26-bbc1 (man7.org)",,
+codespell,,,,no,,,,,,,"codespell(1) NAME (detect spelling mistakes in source code), codespell 2.2.2-1 (Debian bookworm, manpages.debian.org)",,
+column,,,,no,,,,,,,"column(1) NAME (columnate lists) and DESCRIPTION (The column utility formats its input into multiple columns), bsdextrautils 2.38.1-5+deb12u3 (Debian bookworm, manpages.debian.org)",,
+comm,,,,no,,,,,,,"comm(1) NAME (compare two sorted files line by line), GNU coreutils 9.1 (Debian bookworm 9.1-1, manpages.debian.org)",,
 compileall,,,,no,,,,,,,"compileall, Command-line use (This module can work as a script (using python -m compileall) to compile Python sources), Python 3.15.2 documentation (docs.python.org)",,
 conda,install,,,yes,all,package_name,name,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
 continue,,,,no,,,,,,,"bash(1) SHELL BUILTIN COMMANDS continue (continue resumes the next iteration of the enclosing for, while, until, or select loop), GNU Bash 5.3 (2025 April 7), man7.org",,
+coqc,,,,no,,,,,,,"coqc(1) NAME (The Coq Proof Assistant compiler), coq 8.16.1+dfsg-1+b2 (Debian bookworm, manpages.debian.org)",,
+coqchk,,,,no,,,,,,,"coqchk(1) NAME (The Coq Proof Checker compiled libraries verifier), coq 8.16.1+dfsg-1+b2 (Debian bookworm, manpages.debian.org)",,
+coqtop,,,,no,,,,,,,"coqtop(1) NAME (The Coq Proof Assistant toplevel system), coq 8.16.1+dfsg-1+b2 (Debian bookworm, manpages.debian.org)",,
 cp,,,,no,,,,,,,"cp(1) NAME (copy files and directories), GNU coreutils 9.11 (man7.org)",,
+cuobjdump,,,,no,,,,,,,"CUDA Binary Utilities 13.5 (docs.nvidia.com/cuda/cuda-binary-utilities), cuobjdump (cuobjdump extracts information from CUDA binary files)",,
 curl,,,,yes,all,url,url_or_schemeless_url,no_request,stdout,,"not checked, from the old table",,
 curl,,--connect-timeout,,,,,,,,none,"curl(1) --connect-timeout (Maximum time in seconds that you allow curl's connection to take), curl.se/docs/manpage.html, curl 8.23.1",,
 curl,,--data-binary,,,,,,,,none,"curl(1) --data-binary, curl.se/docs/manpage.html, curl 8.23.1",,It sends its value as the body of the request
@@ -107,24 +122,35 @@ curl,,-6,,,,,,,,none,"curl(1) -6, --ipv6 (Request only IPv6 addresses when resol
 curl,,--output-dir,,,,,,,,none,"curl(1) --output-dir (Specify the directory in which files should be stored, when --remote-name or --output are used), curl.se/docs/manpage.html, curl 8.23.1",,"It names the folder of the file that -o or -O writes, and the content goes where those options send it"
 cut,,,,no,,,,,,,"not checked, from the old table",,
 date,,,,no,,,,,,,"date(1) NAME (print or set the system date and time), GNU coreutils 9.11 (man7.org)",,
+dd,,,,no,,,,,,,"dd(1) NAME (convert and copy a file) and DESCRIPTION (Copy a file, converting and formatting according to the operands), GNU coreutils 9.1 (Debian bookworm 9.1-1, manpages.debian.org)",,
+debugfs,,,,no,,,,,,,"debugfs(8) NAME (ext2/ext3/ext4 file system debugger), e2fsprogs 1.47.0-2 (Debian bookworm, manpages.debian.org)",,
 df,,,,no,,,,,,,"df(1) NAME (report file system space usage), GNU coreutils 9.11 (man7.org)",,
 diff,,,,no,,,,,,,"not checked, from the old table",,
 dirname,,,,no,,,,,,,"dirname(1) NAME (strip last component from file name), GNU coreutils 9.11 (man7.org)",,
+disown,,,,no,,,,,,,"bash(1) SHELL BUILTIN COMMANDS disown (Without options, remove each id from the table of active jobs), GNU Bash 5.3 (2025 April 7), man7.org",,
+dmesg,,,,no,,,,,,,"dmesg(1) NAME (print or control the kernel ring buffer), util-linux 2.38.1-5+deb12u3 (Debian bookworm, manpages.debian.org)",,
 dnf,install,,,yes,all,package_name,name,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
 dnf,makecache,,,yes,none,package_name,name,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
 dnf,install,-y,,,,,,,,none,"dnf(8) OPTIONS (-y, --assumeyes, Automatically answer yes for all questions), dnf 4.14.0-3+deb12u1 (Debian bookworm, manpages.debian.org)",,
 dpkg,,,,no,,,,,,,"dpkg(1) NAME (package manager for Debian), DESCRIPTION (dpkg is a medium-level tool to install, build, remove and manage Debian packages) and EXAMPLES (you will need some other application to actually download and install the requested packages), dpkg 1.23.7-216-gff7e9 (man7.org)",,
+dpkg-deb,,,,no,,,,,,,"dpkg-deb(1) NAME (Debian package archive (.deb) manipulation tool), dpkg 1.21.22 (Debian bookworm, manpages.debian.org)",,
 du,,,,no,,,,,,,"du(1) NAME (estimate file space usage), GNU coreutils 9.11 (man7.org)",,
 echo,,,,no,,,,,,,"echo(1) DESCRIPTION, GNU coreutils 9.11 (man7.org)",,
 egrep,,,,no,,,,,,,"not checked, from the old table",,
 ensurepip,,,,no,,,,,,,"ensurepip (This module does not access the internet. All of the components needed to bootstrap pip are included as internal parts of the package), Python 3.15.2 documentation (docs.python.org)",,
 exit,,,,no,,,,,,,"bash(1) SHELL BUILTIN COMMANDS exit (Cause the shell to exit with a status of n), GNU Bash 5.3 (2025 April 7), man7.org",,
+fc-list,,,,no,,,,,,,"fc-list(1) NAME (list available fonts), fontconfig 2.14.1-4 (Debian bookworm, manpages.debian.org)",,
+fdisk,,,,no,,,,,,,"fdisk(8) NAME (manipulate disk partition table), util-linux 2.38.1-5+deb12u3 (Debian bookworm, manpages.debian.org)",,
 file,,,,no,,,,,,,"file(1) NAME (determine file type), file 5.46 (man7.org)",,
 find,,,,no,,,,,,,"find(1) NAME (search for files in a directory hierarchy) and DESCRIPTION (GNU find searches the directory tree rooted at each given starting-point by evaluating the given expression), GNU findutils, man7.org, read 2026-11-19, the part read shows no version",,A program that -exec or -execdir runs is asked on its own
+findmnt,,,,no,,,,,,,"findmnt(8) NAME (find a filesystem), util-linux 2.43.devel-1062 (2026-08-03, the version string is cut on the page), man7.org",,
+flake8,,,,no,,,,,,,"flake8(1) NAME (code checker using pycodestyle and pyflakes), flake8 5.0.4-4 (Debian bookworm, manpages.debian.org)",,
+fold,,,,no,,,,,,,"fold(1) NAME (wrap each input line to fit in specified width) and DESCRIPTION (Wrap input lines in each FILE, writing to standard output), GNU coreutils 9.1 (Debian bookworm 9.1-1, manpages.debian.org)",,
 free,,,,no,,,,,,,"free(1) NAME (Display amount of free and used memory in the system), procps-ng (2023-05-02), man7.org",,
 g++,,,,no,,,,,,,"gcc(1) NAME (GNU project C and C++ compiler) and DESCRIPTION (When you invoke GCC, it normally does preprocessing, compilation, assembly and linking), man7.org, read 2026-11-19, the part read shows no version",,
 gcc,,,,no,,,,,,,"gcc(1) NAME (GNU project C and C++ compiler) and DESCRIPTION (When you invoke GCC, it normally does preprocessing, compilation, assembly and linking), man7.org, read 2026-11-19, the part read shows no version",,
 getent,hosts,,,yes,all,host,host_name,no_request,,,"target_without_target_arguments from getent(1) DESCRIPTION and hosts, Linux man-pages 6.19 (man7.org), which enumerate the hosts database when no key is given instead of looking a name up. content_route left blank, since that page says only that the result is displayed. The rest not checked, from the old table",,The old table said the response goes to stdout. Whether the address that a lookup prints is content the request asks for is not said by getent(1)
+getfattr,,,,no,,,,,,,"getfattr(1) NAME (get extended attributes of filesystem objects), attr 1:2.5.1-4 (Debian bookworm, manpages.debian.org)",,
 gh,api,,,yes,all,repository_url,url_or_scp_like_address,no_target,stdout,,"not checked, from the old table",,
 git,clone,,,yes,first,repository_url,url_or_scp_like_address,no_target,own_file,,"target_arguments, content_route from git-clone(1) SYNOPSIS and DESCRIPTION, Git 2.56 (git-scm.com). The rest not checked, from the old table",,
 git,fetch,,,yes,first,repository_url,url_or_scp_like_address,no_target,own_file,,"target_arguments, content_route from git-fetch(1) SYNOPSIS and DESCRIPTION, Git 2.56 (git-scm.com). The rest not checked, from the old table",,
@@ -145,21 +171,39 @@ go,mod tidy,,,yes,none,package_name,name,named_in_file,,,"not checked, from the 
 go,run,,,only_what_is_missing,none,package_name,name,named_in_file,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
 go,build,-o,,,,,,,,none,"cmd/go documentation, go1.27.4, pkg.go.dev, Compile packages and dependencies (The -o flag forces build to write the resulting executable or object to the named output file or directory)",,The file it names holds the build output and not fetched content
 grep,,,,no,,,,,,,"not checked, from the old table",,
+gunzip,,,,no,,,,,,,"gzip(1) NAME (gzip, gunzip, zcat - compress or expand files), gzip 1.12-1 (Debian bookworm, manpages.debian.org)",,
+gzip,,,,no,,,,,,,"gzip(1) NAME (gzip, gunzip, zcat - compress or expand files) and DESCRIPTION (The gzip command reduces the size of the named files using Lempel-Ziv coding (LZ77)), gzip 1.12-1 (Debian bookworm, manpages.debian.org)",,
 head,,,,no,,,,,,,"not checked, from the old table",,
+hexdump,,,,no,,,,,,,"hexdump(1) NAME (display file contents in hexadecimal, decimal, octal, or ascii), bsdextrautils 2.38.1-5+deb12u3 (Debian bookworm, manpages.debian.org)",,
+history,,,,no,,,,,,,"bash(1) SHELL BUILTIN COMMANDS history (With no options, display the command history list with numbers), GNU Bash 5.3 (2025 April 7), man7.org",,
 host,,,,yes,first,host,host_name,no_request,stdout,,"not checked, from the old table",,
 host,,-t,,,,,,,,none,"host(1) OPTIONS (-t type, The type argument can be any recognized query type), bind9-host 1:9.18.33-1~deb12u2 (Debian bookworm, manpages.debian.org)",,"The query type changes what is asked of the name, not the name or the server"
 huggingface-cli,download,,,yes,all,url,url,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
 id,,,,no,,,,,,,"id(1) NAME (print real and effective user and group IDs), GNU coreutils 9.11 (man7.org)",,
+isort,,,,no,,,,,,,"isort(1) NAME (program for sorting Python import definitions), isort 5.6.4-1 (Debian bookworm, manpages.debian.org)",,
+jar,,,,no,,,,,,,"jar(1) NAME (create an archive for classes and resources, and manipulate or restore individual classes or resources from an archive) and DESCRIPTION (a general-purpose archiving and compression tool, based on the ZIP and ZLIB compression formats), openjdk-17-jdk-headless 17.0.14+7-1~deb12u1 (Debian bookworm, manpages.debian.org)",,
 jq,,,,no,,,,,,,"not checked, from the old table",,
 json.tool,,,,no,,,,,,,"json, Command-line interface (The json module can be invoked as a script via python -m json to validate and pretty-print JSON objects), Python 3.15.2 documentation (docs.python.org)",,
+jstack,,,,no,,,,,,,"jstack(1) NAME (print Java stack traces of Java threads for a specified Java process), openjdk-17-jdk-headless 17.0.14+7-1~deb12u1 (Debian bookworm, manpages.debian.org)",,The page names only the id of a local process
 kill,,,,no,,,,,,,"kill(1) NAME (terminate a process) and DESCRIPTION (The command kill sends the specified signal to the specified processes or process groups), util-linux 2.43.devel-739-eee2e, man7.org, and bash(1) SHELL BUILTIN COMMANDS kill (Send the signal specified by sigspec or signum to the processes named by each id), GNU Bash 5.3 (2025 April 7), man7.org",,
+killall,,,,no,,,,,,,"killall(1) NAME (kill processes by name), psmisc 23.6-1 (Debian bookworm, manpages.debian.org)",,
 lake,build,,,only_what_is_missing,none,package_name,name,named_in_file,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
+ld,,,,no,,,,,,,"ld(1) NAME (The GNU linker), binutils-common 2.40-2 (Debian bookworm, manpages.debian.org)",,
+ldconfig,,,,no,,,,,,,"ldconfig(8) NAME (configure dynamic linker run-time bindings), Linux man-pages 6.19 (2026-08-03), man7.org",,It reads only local directories and /etc/ld.so.conf and writes the cache file
 ldd,,,,no,,,,,,,"ldd(1) NAME (print shared object dependencies), Linux man-pages 6.19 (man7.org)",,
 ln,,,,no,,,,,,,"ln(1) NAME (make links between files), GNU coreutils 9.11 (man7.org)",,
+locale,,,,no,,,,,,,"locale(1) NAME (get locale-specific information), Linux man-pages 6.19 (2026-02-08), man7.org",,
+losetup,,,,no,,,,,,,"losetup(8) NAME (set up and control loop devices), util-linux 2.38.1-5+deb12u3 (Debian bookworm, manpages.debian.org)",,
 ls,,,,no,,,,,,,"ls(1) NAME (list directory contents), GNU coreutils 9.11 (man7.org)",,
+lsattr,,,,no,,,,,,,"lsattr(1) NAME (list file attributes on a Linux second extended file system), e2fsprogs 1.47.0-2 (Debian bookworm, manpages.debian.org)",,
+lsblk,,,,no,,,,,,,"lsblk(8) NAME (list block devices), util-linux 2.38.1-5+deb12u3 (Debian bookworm, manpages.debian.org)",,
 lscpu,,,,no,,,,,,,"lscpu(1) NAME (display information about the CPU architecture) and DESCRIPTION (lscpu gathers CPU architecture information from sysfs, /proc/cpuinfo and any applicable architecture-specific libraries), util-linux 2.43.devel-739-eee2e, man7.org",,
+lsmod,,,,no,,,,,,,"lsmod(8) NAME (Show the status of modules in the Linux Kernel), kmod 30+20221128-1 (Debian bookworm, manpages.debian.org)",,
+mcopy,,,,no,,,,,,,"mcopy(1) NAME (copy MSDOS files to/from Unix), mtools 4.0.33-1+really4.0.32-1 (Debian bookworm, manpages.debian.org)",,
 md5sum,,,,no,,,,,,,"md5sum(1) NAME (compute and check MD5 message digest), GNU coreutils 9.11 (man7.org)",,
+mdir,,,,no,,,,,,,"mdir(1) NAME (display an MSDOS directory), mtools 4.0.33-1+really4.0.32-1 (Debian bookworm, manpages.debian.org)",,
 mkdir,,,,no,,,,,,,"mkdir(1) NAME (make directories), GNU coreutils 9.11 (man7.org)",,
+mkfifo,,,,no,,,,,,,"mkfifo(1) NAME (make FIFOs (named pipes)), GNU coreutils 9.1 (Debian bookworm 9.1-1, manpages.debian.org)",,
 mktemp,,,,no,,,,,,,"mktemp(1) NAME (create a temporary file or directory), GNU coreutils 9.11 (man7.org)",,
 mv,,,,no,,,,,,,"mv(1) NAME (move (rename) files), GNU coreutils 9.11 (man7.org)",,
 nc,,,,yes,first,host,host_name,no_request,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
@@ -169,6 +213,7 @@ nc,,-v,,,,,,,,none,"nc(1) OPTIONS -v (Produce more verbose output), netcat-openb
 nc,,-z,,,,,,,,asks_for_no_content,"nc(1) OPTIONS -z (Only scan for listening daemons, without sending any data to them), netcat-openbsd 1.219-1 (Debian bookworm, manpages.debian.org)",,It opens a connection to the port and receives nothing
 nl,,,,no,,,,,,,"not checked, from the old table",,
 nm,,,,no,,,,,,,"nm(1) NAME (list symbols from object files), binutils 2.46.1 (man7.org)",,"Unlike objdump(1) and readelf(1) of the same binutils, whose pages say they may contact debuginfod servers, the page of nm says nothing of a server"
+nmap,,,,yes,all,host,host_name,no_request,no_content,,"nmap(1) SYNOPSIS (nmap [Scan Type...] [Options] {target specification}) and TARGET SPECIFICATION (Everything on the Nmap command-line that isn't an option (or option argument) is treated as a target host specification. The simplest case is to specify a target IP address or hostname for scanning), nmap 7.93+dfsg1-1 (Debian bookworm, manpages.debian.org)",,"The cells follow the row of ping, which sends probes to the hosts its arguments name and receives no content. A target can also be a network, e.g. 10.0.0.0/24, and nmap alone prints its usage"
 npm,audit,,,yes,none,package_name,name,named_in_file,stdout,,"not checked, from the old table",,
 npm,ci,,,yes,none,package_name,name,named_in_file,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
 npm,create,,,yes,first,package_name,name,no_target,,,"not checked, from the old table, apart from target_arguments, checked against npm init Synopsis (npm init <package-spec> (same as `npx create-<package-spec>`)) and Description (Any additional options will be passed directly to the command, npm init foo -- --hello will map to npm exec -- create-foo --hello, and the example npm init react-app ./my-react-app), npm 10 (docs.npmjs.com/cli/v10/commands/npm-init, read 2026-11-19)",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for. Only the first argument names the initializer, and the words after it go to the initializer, e.g. my-app, --template and react of npm create vite@5 my-app -- --template react"
@@ -204,8 +249,13 @@ npx,,-y,,,,,,,,none,"npx Description (Suppress this prompt with the -y or --yes 
 npx,,-p,,,,,,,,names_target_in_value,"npx Description (--package may be specified multiple times, -p is shorthand for --package in npx), npm 10.9.11 (docs.npmjs.com/cli/v10/commands/npx)",,Its value is a package to fetch when it is not installed
 npx,,--package,,,,,,,,names_target_in_value,"npx Description (--package may be specified multiple times), npm 10.9.11 (docs.npmjs.com/cli/v10/commands/npx)",,Its value is a package to fetch when it is not installed
 nslookup,,,,yes,first,host,host_name,no_request,stdout,,"not checked, from the old table",,
+nvdisasm,,,,no,,,,,,,"CUDA Binary Utilities 13.5 (docs.nvidia.com/cuda/cuda-binary-utilities), nvdisasm (nvdisasm extracts information from standalone cubin files and presents them in human readable format)",,
+objcopy,,,,no,,,,,,,"objcopy(1) NAME (copy and translate object files) and DESCRIPTION (The GNU objcopy utility copies the contents of an object file to another), binutils-common 2.40-2 (Debian bookworm, manpages.debian.org)",,"Unlike objdump(1) and readelf(1) of the same binutils, whose pages say they may contact debuginfod servers, the page of objcopy says nothing of a server"
 od,,,,no,,,,,,,"not checked, from the old table",,
+partx,,,,no,,,,,,,"partx(8) NAME (tell the kernel about the presence and numbering of on-disk partitions), util-linux 2.38.1-5+deb12u3 (Debian bookworm, manpages.debian.org)",,
 paste,,,,no,,,,,,,"paste(1) NAME (merge lines of files), GNU coreutils 9.11 (man7.org)",,
+pdfinfo,,,,no,,,,,,,"pdfinfo(1) NAME (Portable Document Format (PDF) document information extractor) and DESCRIPTION (If PDF-file is '-', it reads the PDF file from stdin), poppler-utils 22.12.0-2+deb12u1 (Debian bookworm, manpages.debian.org)",,Its -url option lists the URLs that the annotations of the file hold
+pdftoppm,,,,no,,,,,,,"pdftoppm(1) NAME (Portable Document Format (PDF) to Portable Pixmap (PPM) converter), poppler-utils 22.12.0-2+deb12u1 (Debian bookworm, manpages.debian.org)",,The page names only a PDF file or stdin as its input
 pdftotext,,,,no,,,,,,,"pdftotext(1) NAME (Portable Document Format (PDF) to text converter) and DESCRIPTION (Pdftotext converts Portable Document Format (PDF) files to plain text), poppler-utils 22.12.0-2+deb12u1 (Debian bookworm, manpages.debian.org)",,
 pgrep,,,,no,,,,,,,"pgrep(1) NAME (look up, signal, or wait for processes based on name and other attributes), procps-ng (2025-12-29), man7.org",,
 ping,,,,yes,first,host,host_name,no_request,no_content,,"content_route from ping(8) DESCRIPTION, iputils-ping 20221126 (Debian bookworm, manpages.debian.org). The rest not checked, from the old table",,
@@ -267,16 +317,21 @@ pnpm,add,,,yes,all,package_name,name,no_target,,,"not checked, from the old tabl
 pnpm,exec,,,only_what_is_missing,next_program,package_name,name,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
 pnpm,install,,,yes,all,package_name,name,named_in_file,,,"target_without_target_arguments from pnpm install, pnpm docs 12.x (pnpm.io/cli/install), which installs all dependencies for a project. The rest not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
 pnpm,,--offline,,,,,,,,sends_no_request,"pnpm install Options --offline, pnpm docs 12.x (pnpm.io/cli/install)",,"The old table called it an offline option, which covered both sends_no_request and fetches_only_what_is_missing"
+printenv,,,,no,,,,,,,"printenv(1) NAME (print all or part of environment), GNU coreutils 9.1 (Debian bookworm 9.1-1, manpages.debian.org)",,
 printf,,,,no,,,,,,,"printf(1) DESCRIPTION, GNU coreutils 9.11 (man7.org)",,
 ps,,,,no,,,,,,,"ps(1) NAME (report a snapshot of the current processes) and DESCRIPTION (ps displays information about a selection of the active processes), procps-ng (2025-04-23), man7.org",,
+ptxas,,,,no,,,,,,,"NVIDIA CUDA Compiler Driver 13.5 (docs.nvidia.com/cuda/cuda-compiler-driver-nvcc), --ptxas-options (Specify options directly to ptxas, the PTX optimizing assembler)",,
 pwd,,,,no,,,,,,,"pwd(1) NAME (print name of current/working directory), GNU coreutils 9.11 (man7.org)",,
 py_compile,,,,no,,,,,,,"py_compile (provides a function to generate a byte-code file from a source file) and Command-Line Interface (This module can be invoked as a script to compile several source files), Python 3.15.2 documentation (docs.python.org)",,
+pyflakes,,,,no,,,,,,,"pyflakes3(1) NAME (simple Python 3 source checker) and DESCRIPTION (checks Python source files for errors ... does not execute the modules to check them), pyflakes 2.5.0-1 (Debian bookworm, manpages.debian.org)",,
+python3-config,,,,no,,,,,,,"python-config(1) NAME (output build options for python C/C++ extensions or embedding), python3-dev 3.11.2-1+b1 (Debian bookworm, manpages.debian.org)",,
 read,,,,no,,,,,,,"bash(1) SHELL BUILTIN COMMANDS read (Read one line from the standard input, or from the file descriptor fd supplied as an argument to the -u option), GNU Bash 5.3 (2025 April 7), man7.org",,
 readlink,,,,no,,,,,,,"readlink(1) NAME (print resolved symbolic links or canonical file names), GNU coreutils 9.11 (man7.org)",,
 rg,,,,no,,,,,,,"not checked, from the old table",,
 rm,,,,no,,,,,,,"rm(1) NAME (remove files or directories), GNU coreutils 9.11 (man7.org)",,
 rmdir,,,,no,,,,,,,"rmdir(1) NAME (remove empty directories), GNU coreutils 9.11 (man7.org)",,
 rsync,,,,yes,all,host,rsync_address,no_request,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
+ruff,,,,no,,,,,,,"Ruff linter page (docs.astral.sh/ruff/linter, read 2026-11-20), ruff check (It accepts a list of files or directories, and lints all discovered Python files, optionally fixing any fixable errors), the page shows no version",,
 sbt,,,,only_what_is_missing,none,package_name,name,named_in_file,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
 sbt,,-batch,,,,,,,,none,"sbt launcher script (raw.githubusercontent.com/sbt/sbt/develop/sbt, builtin_sbt_version 1.12.0, read 2026-11-18), usage (--batch disable interactive mode)",,It only closes stdin
 sed,,,,no,,,,,,,"not checked, from the old table",,
@@ -284,6 +339,7 @@ seq,,,,no,,,,,,,"seq(1) NAME (print a sequence of numbers), GNU coreutils 9.11 (
 set,,,,no,,,,,,,"bash(1) SHELL BUILTIN COMMANDS set (Without options, display the name and value of each shell variable), GNU Bash 5.3 (2025 April 7), man7.org",,
 sha256sum,,,,no,,,,,,,"sha256sum(1) NAME (compute and check SHA256 message digest), GNU coreutils 9.11 (man7.org)",,
 shift,,,,no,,,,,,,"bash(1) SHELL BUILTIN COMMANDS shift (Rename positional parameters from n+1 ... to $1 ....), GNU Bash 5.3 (2025 April 7), man7.org",,
+shuf,,,,no,,,,,,,"shuf(1) NAME (generate random permutations), GNU coreutils 9.1 (Debian bookworm 9.1-1, manpages.debian.org)",,
 sleep,,,,no,,,,,,,"sleep(1) NAME (delay for a specified amount of time), GNU coreutils 9.11 (man7.org)",,
 sort,,,,no,,,,,,,"not checked, from the old table",,
 stat,,,,no,,,,,,,"stat(1) NAME (display file or file system status), GNU coreutils 9.11 (man7.org)",,
@@ -292,12 +348,19 @@ tac,,,,no,,,,,,,"not checked, from the old table",,
 tail,,,,no,,,,,,,"not checked, from the old table",,
 tee,,,,no,,,,,,,"tee(1) NAME (read from standard input and write to standard output and files), GNU coreutils 9.11 (man7.org)",,
 test,,,,no,,,,,,,"test(1) NAME (check file types and compare values), GNU coreutils 9.11 (man7.org)",,
+top,,,,no,,,,,,,"top(1) NAME (display Linux processes), procps 2:4.0.2-3 (Debian bookworm, manpages.debian.org)",,
 touch,,,,no,,,,,,,"touch(1) NAME (create file, or change file timestamps), GNU coreutils 9.11 (man7.org)",,
 tr,,,,no,,,,,,,"tr(1) NAME (translate or delete characters), GNU coreutils 9.11 (man7.org)",,
 true,,,,no,,,,,,,"true(1) NAME (do nothing, successfully), GNU coreutils 9.11 (man7.org)",,
+truncate,,,,no,,,,,,,"truncate(1) NAME (shrink or extend the size of a file to the specified size), GNU coreutils 9.1 (Debian bookworm 9.1-1, manpages.debian.org)",,
+tsc,,,,no,,,,,,,"TypeScript Compiler Options (typescriptlang.org/docs/handbook/compiler-options.html, last updated 2026-11-17), Using the CLI (Running tsc locally will compile the closest project defined by a tsconfig.json, or you can compile a set of TypeScript files by passing in a glob of files you want), the page shows no version",,
 type,,,,no,,,,,,,"bash(1) SHELL BUILTIN COMMANDS type (Indicate how each name would be interpreted if used as a command name), GNU Bash 5.3 (2025 April 7), man7.org",,
+uefi-firmware-parser,,,,no,,,,,,,"uefi-firmware-parser README (github.com/theopolis/uefi-firmware-parser, read 2026-11-20) (a Python module and command-line tool for parsing, extracting, and recreating UEFI firmware), the page shows no version",,
+ulimit,,,,no,,,,,,,"bash(1) SHELL BUILTIN COMMANDS ulimit (Provides control over the resources available to the shell and to processes it starts), GNU Bash 5.3 (2025 April 7), man7.org",,
+umask,,,,no,,,,,,,"bash(1) SHELL BUILTIN COMMANDS umask (Set the user file-creation mask to mode), GNU Bash 5.3 (2025 April 7), man7.org",,
 uname,,,,no,,,,,,,"uname(1) NAME (print system information), GNU coreutils 9.11 (man7.org)",,
 uniq,,,,no,,,,,,,"uniq(1) NAME (report or omit repeated lines), GNU coreutils 9.11 (man7.org)",,
+unlink,,,,no,,,,,,,"unlink(1) NAME (call the unlink function to remove the specified file), GNU coreutils 9.1 (Debian bookworm 9.1-1, manpages.debian.org)",,
 unzip,,,,no,,,,,,,"unzip(1) NAME (list, test and extract compressed files in a ZIP archive), unzip 6.0-28 (Debian bookworm, manpages.debian.org)",,
 uptime,,,,no,,,,,,,"uptime(1) NAME (Tell how long the system has been running), procps-ng (2024-02-08), man7.org",,
 uv,pip install,,,yes,all,package_name,pip_requirement,no_target,,,"not checked, from the old table",,"content_route is blank, since the old table says neither that the content goes to stdout nor that none is asked for"
@@ -321,4 +384,8 @@ wget,,-O,-,,,,,,,sends_content_to_stdout,"not checked, from the old table",,
 wget,,-q,,,,,,,,none,"wget(1) -q, --quiet (Turn off Wget's output), GNU Wget 1.21.3 (Debian bookworm, manpages.debian.org)",,
 wget,,--server-response,,,,,,,,none,"wget(1) -S, --server-response (Print the headers sent by HTTP servers and responses sent by FTP servers), GNU Wget 1.21.3 (Debian bookworm, manpages.debian.org)",,"The headers go to the log output, and the content goes where it would go without it"
 which,,,,no,,,,,,,"which(1) NAME (locate a command) and DESCRIPTION (which returns the pathnames of the files (or links) which would be executed in the current environment), debianutils 5.7-0.5~deb12u1 (Debian bookworm, manpages.debian.org, the page was served in its Portuguese translation)",,
+whoami,,,,no,,,,,,,"whoami(1) NAME (print effective user name) and DESCRIPTION (Print the user name associated with the current effective user ID), GNU coreutils 9.1 (Debian bookworm 9.1-1, manpages.debian.org)",,
 xxd,,,,no,,,,,,,"not checked, from the old table",,
+xz,,,,no,,,,,,,"xz(1) NAME (Compress or decompress .xz and .lzma files), xz-utils 5.4.1-0.2 (Debian bookworm, manpages.debian.org)",,
+zcat,,,,no,,,,,,,"gzip(1) NAME (gzip, gunzip, zcat - compress or expand files), gzip 1.12-1 (Debian bookworm, manpages.debian.org)",,
+zipfile,,,,no,,,,,,,"zipfile, Python 3.15.2 documentation (docs.python.org/3/library/zipfile.html), Command-line interface (The zipfile module provides a simple command-line interface to interact with ZIP archives, with -l, -c, -e and -t)",,
