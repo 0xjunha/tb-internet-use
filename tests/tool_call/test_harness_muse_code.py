@@ -34,6 +34,7 @@ from tb_internet_use.tool_call.model import (
     ToolCallKey,
     ToolCallResult,
     UnmatchedFormat,
+    WebFetchAction,
     WebSearchAction,
     WriteFileAction,
 )
@@ -266,6 +267,25 @@ RESULT_FORMAT_CASES: list[tuple[str, str | dict[str, Any], ToolCallResult]] = [
         ),
     ),
     (
+        "web_fetch",
+        "tool failed: web_fetch failed: HTTP 404 Not Found",
+        ToolCallResult(
+            "", S.FINISHED, http_status=404, harness_result_format=_format("http_error")
+        ),
+    ),
+    (
+        "web_fetch",
+        "tool failed: web_fetch failed: request failed: error sending request for url (https://a.org/): operation timed out",
+        ToolCallResult("", S.FINISHED, harness_result_format=_format("request_failed")),
+    ),
+    (
+        "web_fetch",
+        "# A page\n\ntext",
+        ToolCallResult(
+            "# A page\n\ntext", S.FINISHED, harness_result_format=_format("page")
+        ),
+    ),
+    (
         "monitor",
         {"work_id": "w2", "status": "started"},
         ToolCallResult(
@@ -323,6 +343,11 @@ ACTION_CASES: list[tuple[str, dict[str, Any], ToolCallAction]] = [
         "web_search",
         {"query": "pytest fixtures"},
         WebSearchAction(("pytest fixtures",)),
+    ),
+    (
+        "web_fetch",
+        {"url": "https://a.org/docs"},
+        WebFetchAction(("https://a.org/docs",)),
     ),
     ("subagent_spawn", {"objective": "find the bug"}, StartSubagentAction()),
     ("workflow", {"script": "run two agents"}, StartSubagentAction()),

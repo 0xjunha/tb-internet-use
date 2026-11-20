@@ -147,6 +147,7 @@ muse-code,subagent_spawn,StartSubagentAction,,the only tool call in the trajecto
 muse-code,subagent_status,PollAction,no,the only tool call in the trajectories (terminal-bench 2026-10-08),,
 muse-code,submit_reminder_decision,OtherAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 muse-code,submit_result,OtherAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
+muse-code,web_fetch,WebFetchAction,,"all 55 tool calls in the trajectories (terminal-bench 4.1, 2026-11-20)",,"Each call has the one argument url, and its result is the page text or a message that starts with `tool failed: web_fetch failed:`"
 muse-code,web_search,WebSearchAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 muse-code,work_list,OtherAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 muse-code,work_stop,PollAction,yes,tool calls in the trajectories (terminal-bench 2026-10-08),yes,

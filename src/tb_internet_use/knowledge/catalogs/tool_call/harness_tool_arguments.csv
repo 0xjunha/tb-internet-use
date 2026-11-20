@@ -103,6 +103,7 @@ muse-code,read_file,offset,offset,,tool calls in the trajectories (terminal-benc
 muse-code,read_file,path,path,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 muse-code,search,paths,paths,,8 sampled tool calls in the trajectories (terminal-bench 2026-10-08),,
 muse-code,subagent_status,subagent_id,handles,subagent,the only tool call in the trajectories (terminal-bench 2026-10-08),,
+muse-code,web_fetch,url,urls,,"all 55 tool calls in the trajectories (terminal-bench 4.1, 2026-11-20)",,
 muse-code,web_search,query,queries,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 muse-code,work_stop,work_id,handles,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 muse-code,write_file,content,content,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,

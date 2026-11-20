@@ -147,7 +147,10 @@ FORMATS_BY_JUDGMENT_RULE: dict[str, list[tuple[str, str, str]]] = {
         ("muse-code", "read_file", "rejected"),
         ("muse-code", "edit_file", "rejected"),
     ],
-    "treat_web_fetch_text_as_finished": [("claude-code", "WebFetch", "page")],
+    "treat_web_fetch_text_as_finished": [
+        ("claude-code", "WebFetch", "page"),
+        ("muse-code", "web_fetch", "page"),
+    ],
     "treat_cut_off_web_search_as_finished": [("claude-code", "WebSearch", "cut_off")],
     "treat_script_syntax_error_as_not_run": [("codex", "exec", "failed_syntax")],
     "treat_web_search_call_without_content_as_finished": [

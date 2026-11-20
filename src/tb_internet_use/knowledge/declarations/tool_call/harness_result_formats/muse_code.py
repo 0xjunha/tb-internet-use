@@ -135,6 +135,27 @@ _WEB_SEARCH = HarnessResultFormatList[JsonObject](
         ),
     )
 )
+# Muse Code writes a failed fetch as a tool failure that says how far the request got.
+_WEB_FETCH_FAILED = "tool failed: web_fetch failed: "
+_WEB_FETCH = HarnessResultFormatList[str](
+    (
+        Text(
+            "http_error",
+            _WEB_FETCH_FAILED + "HTTP {http_status:int} {reason:rest_of_line}",
+            S.FINISHED,
+        ),
+        Text(
+            "request_failed",
+            _WEB_FETCH_FAILED + "request failed: {detail:text}",
+            S.FINISHED,
+        ),
+        Text(
+            "page",
+            "{tool_output:text}",
+            judgment_rule="treat_web_fetch_text_as_finished",
+        ),
+    )
+)
 _MONITOR = HarnessResultFormatList[JsonObject](
     (
         Json(
@@ -207,6 +228,7 @@ RESULT_FORMATS_BY_TOOL: Mapping[str, HarnessToolResultDeclaration] = {
     ),
     "work_stop": HarnessToolResultDeclaration(json_formats=_WORK_STOP),
     "web_search": HarnessToolResultDeclaration(json_formats=_WEB_SEARCH),
+    "web_fetch": HarnessToolResultDeclaration(text_formats=_WEB_FETCH),
     "monitor": HarnessToolResultDeclaration(json_formats=_MONITOR),
     "read_file": HarnessToolResultDeclaration(text_formats=_READ_FILE),
     "write_file": HarnessToolResultDeclaration(text_formats=_WRITE_FILE),

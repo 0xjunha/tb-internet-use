@@ -170,7 +170,7 @@ def treat_web_fetch_text_as_finished(
 ) -> ToolCallResult:
     """Read a web fetch result that is only page text as a finished fetch.
 
-    It rests on Claude Code `WebFetch`, whose result is any text when no other format of the tool fits, e.g. the page as the model summed it up.
+    It rests on Claude Code `WebFetch`, whose result is any text when no other format of the tool fits, e.g. the page as the model summed it up, and on Muse Code `web_fetch`, whose result is the page text without a header of the harness.
     A use is a result of the format `page`.
 
     Provisional. It keeps the choice of the earlier code.

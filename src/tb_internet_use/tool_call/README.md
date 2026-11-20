@@ -219,7 +219,7 @@ Each use of a rule is counted in the `judgment_rule_use_counts` of `convert_tool
 | `treat_web_search_call_without_content_as_finished` | Codex `web_search_call` format `no_content` | A `web_search_call` result without content is a finished search |
 | `treat_failed_file_tool_call_as_not_run` | The failure formats of Claude Code `Read`, Grok Build `read_file` and `search_replace`, Cursor CLI `readToolCall` and `editToolCall` and Copilot CLI `view`, `create` and `edit` | A file tool call that gives a reason it failed did no work |
 | `treat_get_output_without_exit_code_as_running` | Devin `get_output` formats `running` and `running_incremental` | Output without an `Exit code` line is from a command still running |
-| `treat_web_fetch_text_as_finished` | Claude Code `WebFetch` format `page` | Page text is a finished fetch |
+| `treat_web_fetch_text_as_finished` | Claude Code `WebFetch` and Muse Code `web_fetch` format `page` | Page text is a finished fetch |
 | `treat_negative_exit_code_as_killed` | Devin `exec` format `killed` and `get_output` format `killed_silent_twice` | A negative exit code, which only Devin writes as -1 for a command it stopped, means the command was killed |
 | `treat_written_input_as_running_target` | Devin `write_to_process` format `written`, Antigravity CLI `manage_task` format `input_sent` | A process that got input is still running |
 | `treat_idle_subagent_as_unknown_status` | Copilot CLI `read_agent` format `idle` | A subagent that is idle and waits for a message has an unknown status, since a message can set it to work again |
