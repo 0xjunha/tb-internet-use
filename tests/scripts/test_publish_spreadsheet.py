@@ -18,11 +18,11 @@ class _FakeDriveFiles:
     def __init__(self) -> None:
         self.requests: list[tuple[str, dict[str, Any]]] = []
 
-    def update(self, **arguments: Any) -> "_FakeDriveFiles":
+    def update(self, **arguments: Any) -> _FakeDriveFiles:
         self.requests.append(("update", arguments))
         return self
 
-    def create(self, **arguments: Any) -> "_FakeDriveFiles":
+    def create(self, **arguments: Any) -> _FakeDriveFiles:
         self.requests.append(("create", arguments))
         return self
 
