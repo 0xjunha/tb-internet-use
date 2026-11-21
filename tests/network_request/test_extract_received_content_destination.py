@@ -361,13 +361,9 @@ def _destination(
             id="wget -O - u, whose row says own_file",
         ),
         pytest.param(
-            {
-                "program_invocation": _invocation(
-                    "getent", ("hosts",), arguments=("a.org",)
-                )
-            },
+            {"program_invocation": _invocation("nc", (), arguments=("a.org", "80"))},
             UnknownReceivedContentDestination(),
-            id="getent hosts a.org, whose row leaves the route blank",
+            id="nc a.org 80, whose row leaves the route blank",
         ),
         pytest.param(
             {
