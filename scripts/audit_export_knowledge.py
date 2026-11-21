@@ -39,7 +39,7 @@ from tb_internet_use.export.judgment_rules import (
     treat_request_of_unknown_sender_as_possibly_from_task_environment,
     treat_request_without_host_name_as_sent_to_default_registry_host,
     treat_reserved_host_name_as_unknown_internet_use,
-    treat_saved_content_from_package_registry_host_as_file_fetch,
+    treat_saved_content_from_package_registry_host_as_content_fetch,
     treat_shown_content_from_registry_or_model_hub_host_as_other_web,
     treat_shown_content_from_search_engine_host_as_other_web,
     treat_single_label_host_name_as_not_internet_use,
@@ -124,8 +124,6 @@ EQUATIONS = (
     "remote_api_call_rows",
     # `connectivity_check` rows whose `received_content_destination` is not `not_requested` beside 0.
     "connectivity_check_rows_whose_content_is_requested",
-    # `page_read` rows that are not `shown`, or that come from no web tool and have no `code_hosting` host, beside 0.
-    "page_read_rows_neither_from_web_tool_nor_code_hosting",
     # Lines of the run's `network_request_rows.csv` that differ from the rows exported again, in the order of the file, plus the lines one side has more, beside 0.
     "written_request_rows_differing_from_rows_exported_again",
     # `TrialCategoryMeasureRow` lines of read trials whose bounds are not the strongest of the request rows of their trial, category and sender, where a request row with `is_among_success_line_owners_one_of_which_received` counts as `lower_and_upper` received, plus such groups without a line and lines without a group, beside 0.
@@ -370,7 +368,7 @@ def situation_counts_of(
         treat_host_target_that_may_receive_content_as_other_web: row.target_kind
         == NetworkRequestTargetKind.HOST
         and row.received_content_destination not in ("not_requested", "discarded"),
-        treat_saved_content_from_package_registry_host_as_file_fetch: row.received_content_destination
+        treat_saved_content_from_package_registry_host_as_content_fetch: row.received_content_destination
         == "saved"
         and row.target_kind in _URL_OR_REPOSITORY
         and "package_registry" in host_services,
@@ -436,13 +434,6 @@ def situation_counts_of(
     counts["connectivity_check_rows_whose_content_is_requested"] = int(
         row.category == NetworkRequestCategory.CONNECTIVITY_CHECK
         and row.received_content_destination != "not_requested"
-    )
-    counts["page_read_rows_neither_from_web_tool_nor_code_hosting"] = int(
-        row.category == NetworkRequestCategory.PAGE_READ
-        and (
-            row.received_content_destination != "shown"
-            or not (is_web_tool or "code_hosting" in host_services)
-        )
     )
     counts["lower_bound_rows_that_are_not_confirmed_internet_use"] = int(
         row.request_measure_bound == MeasureBound.LOWER_AND_UPPER
@@ -617,7 +608,6 @@ class TrialAuditTotal:
             "rows_sent_from_outside_the_task_environment_by_no_web_tool",
             "remote_api_call_rows",
             "connectivity_check_rows_whose_content_is_requested",
-            "page_read_rows_neither_from_web_tool_nor_code_hosting",
             "lower_bound_rows_that_are_not_confirmed_internet_use",
             "needed_confirmed_internet_use_rows_outside_the_lower_bound",
         ):

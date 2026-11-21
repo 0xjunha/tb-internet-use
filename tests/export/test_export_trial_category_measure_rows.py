@@ -26,9 +26,9 @@ LOWER_AND_UPPER = MeasureBound.LOWER_AND_UPPER
 UPPER_ONLY = MeasureBound.UPPER_ONLY
 NEITHER = MeasureBound.NEITHER
 PACKAGE = NetworkRequestCategory.PACKAGE
-FILE_FETCH = NetworkRequestCategory.FILE_FETCH
+CONTENT_FETCH = NetworkRequestCategory.CONTENT_FETCH
 SEARCH = NetworkRequestCategory.SEARCH
-PAGE_READ = NetworkRequestCategory.PAGE_READ
+REMOTE_API_CALL = NetworkRequestCategory.REMOTE_API_CALL
 TASK_ENVIRONMENT = NetworkRequestSender.TASK_ENVIRONMENT
 HARNESS_PROCESS = NetworkRequestSender.HARNESS_PROCESS
 PROVIDER_SERVER = NetworkRequestSender.PROVIDER_SERVER
@@ -75,8 +75,8 @@ def measure_row(
 
 
 # Request rows that stand for made-up results by their category, sender and bounds alone, e.g. a confirmed receipt of a file, a received package whose internet use is not known, and a `pip install` whose `pip: command not found` confirms that it did not receive.
-FILE_FETCH_ROW_RECEIVED = build_network_request_row(
-    FILE_FETCH, TASK_ENVIRONMENT, LOWER_AND_UPPER, LOWER_AND_UPPER
+CONTENT_FETCH_ROW_RECEIVED = build_network_request_row(
+    CONTENT_FETCH, TASK_ENVIRONMENT, LOWER_AND_UPPER, LOWER_AND_UPPER
 )
 PACKAGE_ROW_WITH_UNKNOWN_INTERNET_USE = build_network_request_row(
     PACKAGE, TASK_ENVIRONMENT, UPPER_ONLY, UPPER_ONLY
@@ -107,7 +107,7 @@ def test_an_unreadable_trial_gets_an_upper_only_row_for_every_category_and_every
         READ_TRIAL, unreadable_trajectory=UnreadableTrajectory(reason)
     )
 
-    # 24 rows, by category first and then by sender.
+    # 21 rows, by category first and then by sender.
     assert export_trial_category_measure_rows(trial, ()) == tuple(
         measure_row(category, sender, UPPER_ONLY, UPPER_ONLY)
         for category in NetworkRequestCategory
@@ -116,24 +116,24 @@ def test_an_unreadable_trial_gets_an_upper_only_row_for_every_category_and_every
 
 
 def test_rows_come_one_per_category_and_sender_in_the_order_of_the_enums():
-    # A page read by the task environment comes after the search of the provider server, since rows go by category first.
-    page_read_row = build_network_request_row(
-        PAGE_READ, TASK_ENVIRONMENT, UPPER_ONLY, NEITHER
+    # A remote API call by the task environment comes after the search of the provider server, since rows go by category first.
+    remote_api_call_row = build_network_request_row(
+        REMOTE_API_CALL, TASK_ENVIRONMENT, UPPER_ONLY, NEITHER
     )
 
     assert export_trial_category_measure_rows(
         READ_TRIAL,
         (
-            FILE_FETCH_ROW_RECEIVED,
-            page_read_row,
+            CONTENT_FETCH_ROW_RECEIVED,
+            remote_api_call_row,
             PACKAGE_ROW_WITH_UNKNOWN_INTERNET_USE,
             SEARCH_ROW_FROM_PROVIDER_SERVER,
         ),
     ) == (
         measure_row(PACKAGE, TASK_ENVIRONMENT, UPPER_ONLY, UPPER_ONLY),
-        measure_row(FILE_FETCH, TASK_ENVIRONMENT, LOWER_AND_UPPER, LOWER_AND_UPPER),
+        measure_row(CONTENT_FETCH, TASK_ENVIRONMENT, LOWER_AND_UPPER, LOWER_AND_UPPER),
         measure_row(SEARCH, PROVIDER_SERVER, LOWER_AND_UPPER, LOWER_AND_UPPER),
-        measure_row(PAGE_READ, TASK_ENVIRONMENT, UPPER_ONLY, NEITHER),
+        measure_row(REMOTE_API_CALL, TASK_ENVIRONMENT, UPPER_ONLY, NEITHER),
     )
 
 
@@ -184,13 +184,15 @@ def test_a_sender_that_is_not_known_gets_its_own_row_with_the_bounds_of_its_requ
         READ_TRIAL,
         (
             build_network_request_row(
-                PAGE_READ, UNKNOWN_SENDER, LOWER_AND_UPPER, LOWER_AND_UPPER
+                CONTENT_FETCH, UNKNOWN_SENDER, LOWER_AND_UPPER, LOWER_AND_UPPER
             ),
-            build_network_request_row(PAGE_READ, TASK_ENVIRONMENT, NEITHER, NEITHER),
+            build_network_request_row(
+                CONTENT_FETCH, TASK_ENVIRONMENT, NEITHER, NEITHER
+            ),
         ),
     ) == (
-        measure_row(PAGE_READ, TASK_ENVIRONMENT, NEITHER, NEITHER),
-        measure_row(PAGE_READ, UNKNOWN_SENDER, LOWER_AND_UPPER, LOWER_AND_UPPER),
+        measure_row(CONTENT_FETCH, TASK_ENVIRONMENT, NEITHER, NEITHER),
+        measure_row(CONTENT_FETCH, UNKNOWN_SENDER, LOWER_AND_UPPER, LOWER_AND_UPPER),
     )
 
 
@@ -241,11 +243,11 @@ def test_bounds_follow_the_rows_and_received_never_passes_the_request(
         (
             READ_TRIAL,
             (
-                FILE_FETCH_ROW_RECEIVED,
-                dataclasses.replace(FILE_FETCH_ROW_RECEIVED, trial_id="t2"),
+                CONTENT_FETCH_ROW_RECEIVED,
+                dataclasses.replace(CONTENT_FETCH_ROW_RECEIVED, trial_id="t2"),
             ),
         ),
-        (UNREADABLE_TRIAL, (FILE_FETCH_ROW_RECEIVED,)),
+        (UNREADABLE_TRIAL, (CONTENT_FETCH_ROW_RECEIVED,)),
     ],
 )
 def test_request_rows_of_another_trial_or_of_an_unreadable_trial_raise(
@@ -267,12 +269,12 @@ def test_a_row_received_by_one_of_its_line_owners_puts_its_own_category_and_send
         is_among_success_line_owners_one_of_which_received=True,
     )
     unmarked_row = build_network_request_row(
-        FILE_FETCH, sender, LOWER_AND_UPPER, UPPER_ONLY
+        CONTENT_FETCH, sender, LOWER_AND_UPPER, UPPER_ONLY
     )
 
     assert export_trial_category_measure_rows(
         READ_TRIAL, [marked_row, unmarked_row]
     ) == (
         measure_row(PACKAGE, sender, LOWER_AND_UPPER, LOWER_AND_UPPER),
-        measure_row(FILE_FETCH, sender, LOWER_AND_UPPER, UPPER_ONLY),
+        measure_row(CONTENT_FETCH, sender, LOWER_AND_UPPER, UPPER_ONLY),
     )

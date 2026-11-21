@@ -21,7 +21,7 @@ from tb_internet_use.export.judgment_rules import (
     treat_discarded_content_as_other_web,
     treat_host_target_that_may_receive_content_as_other_web,
     treat_repository_request_for_no_content_as_other_web,
-    treat_saved_content_from_package_registry_host_as_file_fetch,
+    treat_saved_content_from_package_registry_host_as_content_fetch,
     treat_shown_content_from_registry_or_model_hub_host_as_other_web,
     treat_shown_content_from_search_engine_host_as_other_web,
 )
@@ -54,9 +54,8 @@ from tb_internet_use.network_request.model import (
 from tb_internet_use.tool_call.model import HarnessTool, ToolCallKey
 
 PACKAGE = NetworkRequestCategory.PACKAGE
-FILE_FETCH = NetworkRequestCategory.FILE_FETCH
+CONTENT_FETCH = NetworkRequestCategory.CONTENT_FETCH
 SEARCH = NetworkRequestCategory.SEARCH
-PAGE_READ = NetworkRequestCategory.PAGE_READ
 CONNECTIVITY_CHECK = NetworkRequestCategory.CONNECTIVITY_CHECK
 OTHER_WEB = NetworkRequestCategory.OTHER_WEB
 UNKNOWN = NetworkRequestCategory.UNKNOWN
@@ -80,7 +79,7 @@ REPOSITORY_REQUEST_FOR_NO_CONTENT_RULE = (
 DISCARDED_CONTENT_RULE = treat_discarded_content_as_other_web.__name__
 HOST_TARGET_RULE = treat_host_target_that_may_receive_content_as_other_web.__name__
 SAVED_FROM_PACKAGE_REGISTRY_RULE = (
-    treat_saved_content_from_package_registry_host_as_file_fetch.__name__
+    treat_saved_content_from_package_registry_host_as_content_fetch.__name__
 )
 PIPED_TO_CONSUMING_COMMAND_RULE = (
     treat_content_piped_to_consuming_command_as_other_web.__name__
@@ -328,7 +327,7 @@ CASES: list[
         "`wget https://pypi.org/packages/x.whl`",
         WGET_WHEEL,
         [PYPI],
-        FILE_FETCH,
+        CONTENT_FETCH,
         [SAVED_FROM_PACKAGE_REGISTRY_RULE],
     ),
     # Saved content from a repository on code hosting, from a host without a row and from a model hub. A later read of the file does not change it.
@@ -342,7 +341,7 @@ CASES: list[
             "github.com",
         ),
         [GITHUB],
-        FILE_FETCH,
+        CONTENT_FETCH,
         [],
     ),
     (
@@ -355,7 +354,7 @@ CASES: list[
             "a.org",
         ),
         [NO_ROW],
-        FILE_FETCH,
+        CONTENT_FETCH,
         [],
     ),
     (
@@ -368,7 +367,7 @@ CASES: list[
             "huggingface.co",
         ),
         [HUGGINGFACE],
-        FILE_FETCH,
+        CONTENT_FETCH,
         [],
     ),
     # Content piped to a command that shows none of it.
@@ -401,9 +400,15 @@ CASES: list[
         [PIPED_TO_SHOWING_COMMAND_RULE],
     ),
     # Shown content from a web tool, here a tool without a row of the web tool catalog.
-    ("`Fetch` of `https://a.org/p`", FETCH_PAGE, [NO_ROW], PAGE_READ, []),
+    ("`Fetch` of `https://a.org/p`", FETCH_PAGE, [NO_ROW], CONTENT_FETCH, []),
     # Shown content from a code hosting host.
-    ("`curl https://github.com/a/b/README.md`", CURL_README, [GITHUB], PAGE_READ, []),
+    (
+        "`curl https://github.com/a/b/README.md`",
+        CURL_README,
+        [GITHUB],
+        CONTENT_FETCH,
+        [],
+    ),
     # Shown content from a search engine host.
     (
         "`curl 'https://duckduckgo.com/html?q=x'`",
@@ -505,7 +510,7 @@ CASES: list[
             "pypi.org",
         ),
         [PYPI],
-        PAGE_READ,
+        CONTENT_FETCH,
         [],
     ),
     # Shown content from a code hosting host and a search engine host.
@@ -520,7 +525,7 @@ CASES: list[
             "duckduckgo.com",
         ),
         [GITHUB, DUCKDUCKGO],
-        PAGE_READ,
+        CONTENT_FETCH,
         [],
     ),
     # Discarded content for a host alone is decided by the rule about discarded content, not the one about a host alone.
@@ -558,7 +563,7 @@ CASES: list[
             "pypi.org",
         ),
         [GITHUB, PYPI],
-        PAGE_READ,
+        CONTENT_FETCH,
         [],
     ),
     # A web tool asks no rule, even for a search engine host.
@@ -572,7 +577,7 @@ CASES: list[
             "duckduckgo.com",
         ),
         [DUCKDUCKGO],
-        PAGE_READ,
+        CONTENT_FETCH,
         [],
     ),
 ]
@@ -592,18 +597,24 @@ OTHER_ANSWER_CASES: list[
     (HOST_TARGET_RULE, SOCKET_CONNECTION, [], CONNECTIVITY_CHECK, []),
     (SAVED_FROM_PACKAGE_REGISTRY_RULE, WGET_WHEEL, [PYPI], PACKAGE, []),
     # Content piped to a command that shows none of it gets the category of saved content, which asks the rule about saved content only when a host is a package registry.
-    (PIPED_TO_CONSUMING_COMMAND_RULE, CURL_TO_TAR, [NO_ROW], FILE_FETCH, []),
+    (PIPED_TO_CONSUMING_COMMAND_RULE, CURL_TO_TAR, [NO_ROW], CONTENT_FETCH, []),
     (
         PIPED_TO_CONSUMING_COMMAND_RULE,
         CURL_TO_TAR,
         [PYPI],
-        FILE_FETCH,
+        CONTENT_FETCH,
         [SAVED_FROM_PACKAGE_REGISTRY_RULE],
     ),
     # Content piped to a command that shows it gets the category of shown content.
-    (PIPED_TO_SHOWING_COMMAND_RULE, CURL_TO_HEAD, [GITHUB], PAGE_READ, []),
+    (PIPED_TO_SHOWING_COMMAND_RULE, CURL_TO_HEAD, [GITHUB], CONTENT_FETCH, []),
     (SHOWN_FROM_SEARCH_ENGINE_RULE, CURL_SEARCH_PAGE, [DUCKDUCKGO], SEARCH, []),
-    (SHOWN_FROM_REGISTRY_OR_MODEL_HUB_RULE, CURL_PROJECT_PAGE, [PYPI], PAGE_READ, []),
+    (
+        SHOWN_FROM_REGISTRY_OR_MODEL_HUB_RULE,
+        CURL_PROJECT_PAGE,
+        [PYPI],
+        CONTENT_FETCH,
+        [],
+    ),
 ]
 
 

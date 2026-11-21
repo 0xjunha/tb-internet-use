@@ -24,7 +24,7 @@ from tb_internet_use.export.judgment_rules import (
     treat_request_of_unknown_sender_as_possibly_from_task_environment,
     treat_request_without_host_name_as_sent_to_default_registry_host,
     treat_reserved_host_name_as_unknown_internet_use,
-    treat_saved_content_from_package_registry_host_as_file_fetch,
+    treat_saved_content_from_package_registry_host_as_content_fetch,
     treat_shown_content_from_registry_or_model_hub_host_as_other_web,
     treat_shown_content_from_search_engine_host_as_other_web,
     treat_single_label_host_name_as_not_internet_use,
@@ -139,7 +139,7 @@ def _assumed_result(
     )
 
 
-PAGE_READ_ROW_FROM_UNKNOWN_SENDER = NetworkRequestRow(
+CONTENT_FETCH_ROW_FROM_UNKNOWN_SENDER = NetworkRequestRow(
     trial_id="t1",
     trajectory_id="main",
     step_id=1,
@@ -159,7 +159,7 @@ PAGE_READ_ROW_FROM_UNKNOWN_SENDER = NetworkRequestRow(
     stop_reason=None,
     level_certainty=NetworkRequestResultCertainty.ASSUMED,
     evidence="content shown in call 1.0",
-    category=NetworkRequestCategory.PAGE_READ,
+    category=NetworkRequestCategory.CONTENT_FETCH,
     host_scope="public",
     host_service="unknown",
     package_registry="",
@@ -223,7 +223,7 @@ JUDGMENT_RULE_CASES: list[tuple[Callable[..., object], tuple[object, ...], objec
         True,
     ),
     (
-        treat_saved_content_from_package_registry_host_as_file_fetch,
+        treat_saved_content_from_package_registry_host_as_content_fetch,
         (
             _request(
                 ("wget", "https://pypi.org/packages/x.whl"),
@@ -374,7 +374,7 @@ JUDGMENT_RULE_CASES: list[tuple[Callable[..., object], tuple[object, ...], objec
     ),
     (
         treat_request_of_unknown_sender_as_possibly_from_task_environment,
-        (PAGE_READ_ROW_FROM_UNKNOWN_SENDER,),
+        (CONTENT_FETCH_ROW_FROM_UNKNOWN_SENDER,),
         True,
     ),
     (

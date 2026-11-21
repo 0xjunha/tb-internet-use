@@ -50,7 +50,7 @@ from tb_internet_use.trial.model import Trial
 LOWER_AND_UPPER = MeasureBound.LOWER_AND_UPPER
 UPPER_ONLY = MeasureBound.UPPER_ONLY
 PACKAGE = NetworkRequestCategory.PACKAGE
-PAGE_READ = NetworkRequestCategory.PAGE_READ
+CONTENT_FETCH = NetworkRequestCategory.CONTENT_FETCH
 TASK_ENVIRONMENT = NetworkRequestSender.TASK_ENVIRONMENT
 RECEIVED = NetworkRequestResultLevel.RECEIVED
 CONFIRMED = NetworkRequestResultCertainty.CONFIRMED
@@ -68,7 +68,7 @@ READ_TRIAL = Trial(
     1.0,
     None,
 )
-# Where `pip install` puts what it receives, a file whose name the words do not give. The curl of a file fetch below gets it too, and its row is the same as with `ContentSaved("x.tgz")`, which `curl -O` gives.
+# Where `pip install` puts what it receives, a file whose name the words do not give. The curl of a content fetch below gets it too, and its row is the same as with `ContentSaved("x.tgz")`, which `curl -O` gives.
 SAVED_TO_NO_NAMED_FILE = ContentSaved(None)
 # The call of `pip install A B` and a later call that runs `cat pip.log` on the log it wrote.
 INSTALL_CALL = ToolCallKey("t1", "main", 1, 0)
@@ -124,7 +124,7 @@ def _pip_install(
     )
 
 
-def _page_read_by_web_tool(
+def _content_fetch_by_web_tool(
     harness_tool: HarnessTool, index_in_tool_call: int
 ) -> NetworkRequest:
     return _request(
@@ -192,8 +192,8 @@ def _result(
 
 PIP_INSTALL_A = _result(_pip_install("A", 0))
 PIP_INSTALL_B = _result(_pip_install("B", 1))
-# `curl -O https://a.org/x.tgz` in the same call, a file fetch, assumed for the line of `cat pip.log` alone, whose text its run may have printed too.
-CURL_OF_FILE_FETCH = _result(
+# `curl -O https://a.org/x.tgz` in the same call, a content fetch, assumed for the line of `cat pip.log` alone, whose text its run may have printed too.
+CURL_OF_CONTENT_FETCH = _result(
     _request(
         FromCommand(
             1,
@@ -336,7 +336,7 @@ def test_owners_of_another_category_count_the_trial_for_neither_category(
     knowledge: ExportKnowledge,
 ):
     curl_sharing_the_line = dataclasses.replace(
-        CURL_OF_FILE_FETCH,
+        CURL_OF_CONTENT_FETCH,
         evidence=(INSTALLED_LINE,),
         assumption_reasons=(_reason_of(INSTALLED_LINE),),
     )
@@ -360,9 +360,9 @@ def test_owners_of_another_category_count_the_trial_for_neither_category(
 
 
 def test_owners_of_another_sender_do_not_count_the_trial(knowledge: ExportKnowledge):
-    # Two page reads share one line, one by Codex `web_search_call` from the provider server and one by Claude Code `Fetch`, whose sender is not known.
+    # Two content fetches share one line, one by Codex `web_search_call` from the provider server and one by Claude Code `Fetch`, whose sender is not known.
     network_request_results = tuple(
-        _result(_page_read_by_web_tool(harness_tool, index))
+        _result(_content_fetch_by_web_tool(harness_tool, index))
         for index, harness_tool in enumerate(
             (
                 HarnessTool("codex", "web_search_call"),
@@ -383,8 +383,8 @@ def test_owners_of_another_sender_do_not_count_the_trial(knowledge: ExportKnowle
         (row.category, row.sender, row.received_measure_bound)
         for row in trial_category_measure_rows
     ] == [
-        (PAGE_READ, NetworkRequestSender.PROVIDER_SERVER, UPPER_ONLY),
-        (PAGE_READ, NetworkRequestSender.UNKNOWN, UPPER_ONLY),
+        (CONTENT_FETCH, NetworkRequestSender.PROVIDER_SERVER, UPPER_ONLY),
+        (CONTENT_FETCH, NetworkRequestSender.UNKNOWN, UPPER_ONLY),
     ]
     assert judgment_rule_use_counts[RULE] == 0
 
@@ -392,7 +392,7 @@ def test_owners_of_another_sender_do_not_count_the_trial(knowledge: ExportKnowle
 def test_the_same_text_shown_by_two_calls_is_two_lines_that_each_count_the_trial_by_themselves(
     knowledge: ExportKnowledge,
 ):
-    # A and B own the line in the result of `pip install A B` and the same text in `cat pip.log`, which the curl of a file fetch owns too.
+    # A and B own the line in the result of `pip install A B` and the same text in `cat pip.log`, which the curl of a content fetch owns too.
     # The first line counts the trial for `package` by itself, while the second counts nothing and so does not mark the curl.
     pip_install_a, pip_install_b = (
         _result(network_request, (INSTALLED_LINE, INSTALLED_LINE_OF_LOG))
@@ -405,7 +405,7 @@ def test_the_same_text_shown_by_two_calls_is_two_lines_that_each_count_the_trial
 
     _, network_request_rows, trial_category_measure_rows = export_rows(
         READ_TRIAL,
-        (pip_install_a, pip_install_b, CURL_OF_FILE_FETCH),
+        (pip_install_a, pip_install_b, CURL_OF_CONTENT_FETCH),
         knowledge=knowledge,
         judgment_rule_use_counts=judgment_rule_use_counts,
     )
@@ -415,7 +415,7 @@ def test_the_same_text_shown_by_two_calls_is_two_lines_that_each_count_the_trial
         for row in trial_category_measure_rows
     ] == [
         (PACKAGE, LOWER_AND_UPPER),
-        (NetworkRequestCategory.FILE_FETCH, UPPER_ONLY),
+        (NetworkRequestCategory.CONTENT_FETCH, UPPER_ONLY),
     ]
     assert [
         row.is_among_success_line_owners_one_of_which_received
@@ -518,14 +518,14 @@ SECOND_LINE_OF_JSON_STRING = OutputLineEvidence(
 
 
 def _curl_owning(line: OutputLineEvidence) -> NetworkRequestResult:
-    """Make the curl of a file fetch in the same call, assumed for the given shared line alone."""
-    return _result(CURL_OF_FILE_FETCH.network_request, (line,))
+    """Make the curl of a content fetch in the same call, assumed for the given shared line alone."""
+    return _result(CURL_OF_CONTENT_FETCH.network_request, (line,))
 
 
 def test_an_owner_assumed_for_another_line_alone_keeps_the_line_from_counting_the_trial(
     knowledge: ExportKnowledge,
 ):
-    # A is received by line 0. X holds line 0 too, but is assumed only for line 1, which the curl of a file fetch shares, so X may have printed line 0 without receiving by it.
+    # A is received by line 0. X holds line 0 too, but is assumed only for line 1, which the curl of a content fetch shares, so X may have printed line 0 without receiving by it.
     pip_install_x = _result(
         _pip_install("X", 1), (INSTALLED_LINE, SECOND_LINE), (_reason_of(SECOND_LINE),)
     )
@@ -536,7 +536,7 @@ def test_an_owner_assumed_for_another_line_alone_keeps_the_line_from_counting_th
 
 
 def test_a_line_that_no_owner_is_assumed_for_counts_nothing(knowledge: ExportKnowledge):
-    # A and B hold lines 0 and 1, but are assumed only for line 1, which the curl of a file fetch shares too.
+    # A and B hold lines 0 and 1, but are assumed only for line 1, which the curl of a content fetch shares too.
     pip_install_a, pip_install_b = (
         _result(
             network_request, (INSTALLED_LINE, SECOND_LINE), (_reason_of(SECOND_LINE),)
@@ -570,7 +570,7 @@ def test_two_lines_of_one_call_are_told_apart_by_both_indexes(
     other_line: OutputLineEvidence,
     knowledge: ExportKnowledge,
 ):
-    # A and B are assumed for the line that counts the trial, and the curl of a file fetch for the other line alone.
+    # A and B are assumed for the line that counts the trial, and the curl of a content fetch for the other line alone.
     pip_install_a, pip_install_b = (
         _result(network_request, (line_counting_the_trial,))
         for network_request in (

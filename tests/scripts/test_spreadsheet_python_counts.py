@@ -51,17 +51,19 @@ def test_counts_registries_and_hosts_and_requested_items_from_lower_bound_rows_o
             {"t1", "t3", "t5"},
             {"requests", "(named_in_file)"},
         ),
-        line_key("file_fetch", "code_hosting"): ({"t5"}, {"github.com"}),
-        line_key("page_read", "code_hosting"): ({"t5"}, {"github.com"}),
+        line_key("content_fetch", "code_hosting"): ({"t5"}, {"github.com"}),
+        line_key("remote_api_call", "web_api"): ({"t5"}, {"api.github.com"}),
         line_key("other_web", "unknown"): ({"t5"}, {"b.org"}),
     }
     assert counts.requested_item_trial_ids == {
         item_key(TASK_A_4, line_key("package", "pypi"), "requests"): {"t1", "t3"},
         item_key(TASK_0_4, line_key("package", "pypi"), "(named_in_file)"): {"t5"},
-        item_key(TASK_0_4, line_key("file_fetch", "code_hosting"), "github.com"): {
+        item_key(TASK_0_4, line_key("content_fetch", "code_hosting"), "github.com"): {
             "t5"
         },
-        item_key(TASK_0_4, line_key("page_read", "code_hosting"), "github.com"): {"t5"},
+        item_key(TASK_0_4, line_key("remote_api_call", "web_api"), "api.github.com"): {
+            "t5"
+        },
         item_key(TASK_0_4, line_key("other_web", "unknown"), "b.org"): {"t5"},
     }
 
@@ -111,7 +113,7 @@ def test_gives_the_package_name_without_version_and_extras(
 
 
 def test_gives_the_host_of_a_request_that_is_no_package():
-    row = {"category": "file_fetch", "host_names": "github.com"}
+    row = {"category": "content_fetch", "host_names": "github.com"}
 
     assert spreadsheet_python_counts.requested_item_of(row) == "github.com"
     assert (
@@ -156,12 +158,12 @@ def test_keys_web_tool_requests_by_the_harness_of_their_trial_and_counts_the_upp
             {"t8"},
             {"t8"},
         ),
-        line_key("codex", "web_fetch", "harness_process", "page_read"): (
+        line_key("codex", "web_fetch", "harness_process", "content_fetch"): (
             set(),
             {"t6"},
         ),
         line_key("codex", "exec", "unknown", "search"): ({"t6"}, {"t6"}),
-        line_key("codex", "exec", "unknown", "page_read"): ({"t6"}, {"t6"}),
+        line_key("codex", "exec", "unknown", "content_fetch"): ({"t6"}, {"t6"}),
     }
 
 

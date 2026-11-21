@@ -33,16 +33,16 @@ The pipeline ends with one row per request, one row per trial and one row per ca
 
 | Request | Case | Asked for | Category | How far it got | Why it stopped | How sure |
 |---|---|---|---|---|---|---|
-| r1 | A | The file x.tgz from a.example.org | File fetch | Executed | Failed to connect | Assumed. The one error line may be r2's, and then r1 may have received its file |
-| r2 | A | The file y.tgz from b.example.org | File fetch | Executed | Failed to connect | Assumed, in the same way |
-| r3 | B | The file a.tgz from data.example.org | File fetch | Executed | The host name did not resolve | Confirmed by its own line in c5 |
+| r1 | A | The file x.tgz from a.example.org | Content fetch | Executed | Failed to connect | Assumed. The one error line may be r2's, and then r1 may have received its file |
+| r2 | A | The file y.tgz from b.example.org | Content fetch | Executed | Failed to connect | Assumed, in the same way |
+| r3 | B | The file a.tgz from data.example.org | Content fetch | Executed | The host name did not resolve | Confirmed by its own line in c5 |
 | r4 | B | The package requests | Package | Reached | Nothing further is visible | Confirmed by its own line in c4 that a download began |
 
 Case C makes no request, so it has no row. The trial's rows for each category answer the two questions of the README, as a lower and an upper bound.
 
 | Category | The trial has a request | The trial received one |
 |---|---|---|
-| File fetch | Yes in both bounds | No in the lower bound, yes in the upper |
+| Content fetch | Yes in both bounds | No in the lower bound, yes in the upper |
 | Package | Yes in both bounds | No in the lower bound, yes in the upper |
 
 ## The steps at a glance
@@ -53,7 +53,7 @@ Case C makes no request, so it has no row. The trial's rows for each category an
 | 2. Expand tool calls | What did each call actually run, and where does that output show up? | Nothing beyond its own text, and all output is in c1's result | c3 also ran the curl line of fetch.sh. curl's output shows up in c5, pip's in c4 | setup.sh ran, and what it ran is unknown |
 | 3. Extract network requests | Which of what ran is a request, and for which target? | r1 and r2 | r3 and r4 | None |
 | 4. Decide request results | How far did each request get, and on what evidence? | r1 and r2 share one line | r3 and r4 each have lines of their own | Lines that no request owns are counted, and no request is made |
-| 5. Export rows | Which category is each request, and what do the rows say? | Two file fetches, received only in the upper bound | A file fetch not received, and a package received only in the upper bound | No row |
+| 5. Export rows | Which category is each request, and what do the rows say? | Two content fetches, received only in the upper bound | A content fetch not received, and a package received only in the upper bound | No row |
 
 Steps 1 and 2 are built to know nothing about the internet.
 Outside knowledge is the facts that no trajectory holds. Each step from step 1 on asks for it through one class of its own, e.g. `ToolCallKnowledge`, and gets a value or unknown.
@@ -363,11 +363,11 @@ The category is computed from what the request's own text shows, so the same com
 
 | Column | What it gives here | Why |
 |---|---|---|
-| Category | File fetch for r1 to r3, which save what a URL gives. Package for r4 | The category rules of the step |
+| Category | Content fetch for r1 to r3, which save what a URL gives. Package for r4 | The category rules of the step |
 | Internet use | Yes for all four | r1 to r3 name their hosts, which are read as public in this example. r4 names no host, so `treat_request_without_host_name_as_sent_to_default_registry_host` gives it the host of the default registry of `pip install`, `pypi.org`, which is public |
 | Request bounds | Both bounds for r1 to r4 | Each is a confirmed request that is internet use. How far it got does not matter here |
 | Received bounds | Neither for r3, the upper bound only for r1, r2 and r4 | r3's own line confirms that it failed. r1 and r2 share one error line, so their failure is assumed and `treat_assumed_failure_as_possibly_received` keeps them in the upper bound. r4's lines show that a download began but not that the package arrived |
-| Among success line owners one of which received | No for all four | r1 and r2 share one line, but it shows a failure. Had it been a line of success, both rows would still say no, since `--connect-timeout` has no row of `program_output_lines.csv`, so a run of either `curl` may print any line. Without that option, whichever `curl` printed the line would have received, so both rows would say yes and the trial would count in the lower bound of file fetches received, while each row's own received bound stays in the upper bound only |
+| Among success line owners one of which received | No for all four | r1 and r2 share one line, but it shows a failure. Had it been a line of success, both rows would still say no, since `--connect-timeout` has no row of `program_output_lines.csv`, so a run of either `curl` may print any line. Without that option, whichever `curl` printed the line would have received, so both rows would say yes and the trial would count in the lower bound of content fetches received, while each row's own received bound stays in the upper bound only |
 
 Each category and sender of the trial then gets one row with the strongest bounds of its requests, where a row among success line owners one of which received counts in the lower bound of received. All four requests here have the sender `task_environment`, which gives the last table of [Where this ends](#where-this-ends). The trial row takes the strongest bounds of all requests that the task environment sent.
 The lines of case C give no request and no row. `decide_network_request_results` only counts them as unused lines.

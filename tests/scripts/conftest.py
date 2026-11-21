@@ -41,9 +41,9 @@ HARNESS_PROCESS = NetworkRequestSender.HARNESS_PROCESS
 PROVIDER_SERVER = NetworkRequestSender.PROVIDER_SERVER
 UNKNOWN_SENDER = NetworkRequestSender.UNKNOWN
 PACKAGE = NetworkRequestCategory.PACKAGE
-FILE_FETCH = NetworkRequestCategory.FILE_FETCH
-PAGE_READ = NetworkRequestCategory.PAGE_READ
+CONTENT_FETCH = NetworkRequestCategory.CONTENT_FETCH
 SEARCH = NetworkRequestCategory.SEARCH
+REMOTE_API_CALL = NetworkRequestCategory.REMOTE_API_CALL
 OTHER_WEB = NetworkRequestCategory.OTHER_WEB
 ATTEMPTED = NetworkRequestResultLevel.ATTEMPTED
 EXECUTED = NetworkRequestResultLevel.EXECUTED
@@ -258,7 +258,7 @@ NETWORK_REQUEST_ROWS = [
     _request_row(
         "t5",
         0,
-        FILE_FETCH,
+        CONTENT_FETCH,
         LOWER_AND_UPPER,
         NEITHER,
         made_by="git clone",
@@ -282,13 +282,13 @@ NETWORK_REQUEST_ROWS = [
     _request_row(
         "t5",
         2,
-        PAGE_READ,
+        REMOTE_API_CALL,
         LOWER_AND_UPPER,
         UPPER_ONLY,
         made_by="curl",
-        target="https://github.com/a/b/blob/main/README.md",
-        host_names="github.com",
-        host_service="code_hosting",
+        target="https://api.github.com/repos/a/b",
+        host_names="api.github.com",
+        host_service="web_api",
         level=REACHED,
     ),
     _request_row(
@@ -317,7 +317,7 @@ NETWORK_REQUEST_ROWS = [
     _request_row(
         "t6",
         1,
-        PAGE_READ,
+        CONTENT_FETCH,
         UPPER_ONLY,
         UPPER_ONLY,
         sender=HARNESS_PROCESS,
@@ -338,7 +338,7 @@ NETWORK_REQUEST_ROWS = [
     _request_row(
         "t6",
         3,
-        PAGE_READ,
+        CONTENT_FETCH,
         LOWER_AND_UPPER,
         UPPER_ONLY,
         sender=UNKNOWN_SENDER,

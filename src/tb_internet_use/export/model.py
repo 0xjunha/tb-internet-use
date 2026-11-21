@@ -266,9 +266,9 @@ class NetworkRequestCategory(StrEnum):
     """Category of a request by what it tried to get, where a different category needs a different replacement when the internet is off."""
 
     PACKAGE = "package"
-    FILE_FETCH = "file_fetch"  # a repository, data, a model or a binary
+    # A file or a page at a fixed address, e.g. a repository, data, a model or a document.
+    CONTENT_FETCH = "content_fetch"
     SEARCH = "search"
-    PAGE_READ = "page_read"
     REMOTE_API_CALL = "remote_api_call"
     CONNECTIVITY_CHECK = "connectivity_check"
     OTHER_WEB = "other_web"

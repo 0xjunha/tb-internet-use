@@ -47,7 +47,7 @@ def treat_repository_request_for_no_content_as_other_web(
 ) -> bool:
     """Put a request to a repository that asks for no content in the other web category, e.g. `git push origin main`.
 
-    Such a request sends to a repository and receives nothing, so it is neither a file fetch nor a plain check that a host answers.
+    Such a request sends to a repository and receives nothing, so it is neither a content fetch nor a plain check that a host answers.
     `export_network_request_category` asks it for a request whose target kind is `REPOSITORY_URL` and whose content destination is `NoContentRequested`.
     On `True` the category is `OTHER_WEB`. On `False` it is `CONNECTIVITY_CHECK`, as for any other request that asks for no content.
     A use is such a request.
@@ -90,21 +90,21 @@ def treat_host_target_that_may_receive_content_as_other_web(
     return True
 
 
-def treat_saved_content_from_package_registry_host_as_file_fetch(
+def treat_saved_content_from_package_registry_host_as_content_fetch(
     network_request: NetworkRequest, *, use_counts: Counter[str]
 ) -> bool:
-    """Put a request whose content from a package registry host is saved in the file fetch category, e.g. `wget https://pypi.org/.../x.whl`.
+    """Put a request whose content from a package registry host is saved in the content fetch category, e.g. `wget https://pypi.org/.../x.whl`.
 
     Saving a file from a registry may get a package without its installer, and the words do not say whether a mirror of the registry would replace it.
     `export_network_request_category` asks it for a request for a URL or a repository whose content is saved and one of whose public hosts the host catalog gives the service `PACKAGE_REGISTRY`.
     It is also asked for such a request whose content goes to a command that shows none of it, when `treat_content_piped_to_consuming_command_as_other_web` answers `False`.
-    On `True` the category is `FILE_FETCH`, as for any saved content. On `False` it is `PACKAGE`.
+    On `True` the category is `CONTENT_FETCH`, as for any saved content. On `False` it is `PACKAGE`.
     A use is such a request.
 
     Provisional. No earlier code chose. It follows the category of saved content, whose replacement is to put the file in the image.
     """
     use_counts[
-        treat_saved_content_from_package_registry_host_as_file_fetch.__name__
+        treat_saved_content_from_package_registry_host_as_content_fetch.__name__
     ] += 1
     return True
 
@@ -166,7 +166,7 @@ def treat_shown_content_from_registry_or_model_hub_host_as_other_web(
     Such a host serves both pages of documentation and data for programs, e.g. a JSON index, and the words do not say which was shown.
     `export_network_request_category` asks it for a request for a URL or a repository from a command or code whose content is shown, none of whose public hosts is code hosting or a search engine and one of which the host catalog gives the service `PACKAGE_REGISTRY` or `MODEL_HUB`.
     It is also asked for such a request whose content goes to a command that shows all or part of it, when `treat_content_piped_to_showing_command_as_other_web` answers `False`.
-    On `True` the category is `OTHER_WEB`. On `False` it is `PAGE_READ`.
+    On `True` the category is `OTHER_WEB`. On `False` it is `CONTENT_FETCH`.
     A use is such a request.
 
     Provisional. No earlier code chose, and other web claims no replacement.

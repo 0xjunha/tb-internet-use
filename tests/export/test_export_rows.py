@@ -75,7 +75,7 @@ LOWER_AND_UPPER = MeasureBound.LOWER_AND_UPPER
 UPPER_ONLY = MeasureBound.UPPER_ONLY
 NEITHER = MeasureBound.NEITHER
 PACKAGE = NetworkRequestCategory.PACKAGE
-FILE_FETCH = NetworkRequestCategory.FILE_FETCH
+CONTENT_FETCH = NetworkRequestCategory.CONTENT_FETCH
 SEARCH = NetworkRequestCategory.SEARCH
 TASK_ENVIRONMENT = NetworkRequestSender.TASK_ENVIRONMENT
 PROVIDER_SERVER = NetworkRequestSender.PROVIDER_SERVER
@@ -274,8 +274,8 @@ EXAMPLE_R4 = _result(
     index_in_tool_call=1,
 )
 
-# `curl -O https://a.org/x`, a file fetch received and confirmed.
-FILE_FETCH_RECEIVED = _received_by_curl("https://a.org/x", "a.org")
+# `curl -O https://a.org/x`, a content fetch received and confirmed.
+CONTENT_FETCH_RECEIVED = _received_by_curl("https://a.org/x", "a.org")
 # `conda install x`, a package received whose internet use is not known, since `conda install` has no row of the package registry catalog.
 PACKAGE_OF_UNKNOWN_INTERNET_USE = _received_by_pip(_program("conda", "install"))
 # A search of Codex `web_search_call`, which the provider server sends, received and confirmed.
@@ -352,7 +352,7 @@ ALL_RESULTS_OF_ONE_TRIAL = (
     EXAMPLE_R2,
     EXAMPLE_R3,
     EXAMPLE_R4,
-    FILE_FETCH_RECEIVED,
+    CONTENT_FETCH_RECEIVED,
     PACKAGE_OF_UNKNOWN_INTERNET_USE,
     SEARCH_RECEIVED,
     PACKAGE_WHOSE_PROGRAM_IS_MISSING,
@@ -416,7 +416,7 @@ def test_example_of_the_pipeline_example_reaches_its_last_table(
         judgment_rule_use_counts=judgment_rule_use_counts,
     )
 
-    file_fetch_row_of_r1 = NetworkRequestRow(
+    content_fetch_row_of_r1 = NetworkRequestRow(
         trial_id="t1",
         trajectory_id="main",
         step_id=1,
@@ -436,7 +436,7 @@ def test_example_of_the_pipeline_example_reaches_its_last_table(
         stop_reason=FAILED,
         level_certainty=ASSUMED,
         evidence="line 0 of call 1.0, connection_failed, shared",
-        category=FILE_FETCH,
+        category=CONTENT_FETCH,
         host_scope="public",
         host_service="unknown",
         package_registry="",
@@ -448,16 +448,16 @@ def test_example_of_the_pipeline_example_reaches_its_last_table(
         is_among_success_line_owners_one_of_which_received=False,
     )
     assert network_request_rows == (
-        file_fetch_row_of_r1,
+        content_fetch_row_of_r1,
         dataclasses.replace(
-            file_fetch_row_of_r1,
+            content_fetch_row_of_r1,
             request_index=1,
             source="command 1",
             target="https://b.files-mirror.org/y.tgz",
             host_names="b.files-mirror.org",
         ),
         dataclasses.replace(
-            file_fetch_row_of_r1,
+            content_fetch_row_of_r1,
             step_id=3,
             source="command 2 in fetch.sh written by call 2.0",
             target="https://data.files-mirror.org/a.tgz",
@@ -467,7 +467,7 @@ def test_example_of_the_pipeline_example_reaches_its_last_table(
             received_measure_bound=NEITHER,
         ),
         dataclasses.replace(
-            file_fetch_row_of_r1,
+            content_fetch_row_of_r1,
             step_id=3,
             request_index=1,
             source="command 1",
@@ -493,7 +493,7 @@ def test_example_of_the_pipeline_example_reaches_its_last_table(
             "t1", PACKAGE, TASK_ENVIRONMENT, LOWER_AND_UPPER, UPPER_ONLY
         ),
         TrialCategoryMeasureRow(
-            "t1", FILE_FETCH, TASK_ENVIRONMENT, LOWER_AND_UPPER, UPPER_ONLY
+            "t1", CONTENT_FETCH, TASK_ENVIRONMENT, LOWER_AND_UPPER, UPPER_ONLY
         ),
     )
     assert trial_row == _trial_row(READ_TRIAL, LOWER_AND_UPPER, UPPER_ONLY)
@@ -508,14 +508,14 @@ def test_example_of_the_pipeline_example_reaches_its_last_table(
     [
         # One row per category and sender, and the trial row reads only the rows that the task environment sent.
         (
-            (FILE_FETCH_RECEIVED, PACKAGE_OF_UNKNOWN_INTERNET_USE, SEARCH_RECEIVED),
+            (CONTENT_FETCH_RECEIVED, PACKAGE_OF_UNKNOWN_INTERNET_USE, SEARCH_RECEIVED),
             (
                 TrialCategoryMeasureRow(
                     "t1", PACKAGE, TASK_ENVIRONMENT, UPPER_ONLY, UPPER_ONLY
                 ),
                 TrialCategoryMeasureRow(
                     "t1",
-                    FILE_FETCH,
+                    CONTENT_FETCH,
                     TASK_ENVIRONMENT,
                     LOWER_AND_UPPER,
                     LOWER_AND_UPPER,
@@ -570,15 +570,15 @@ def test_request_rows_follow_the_order_of_the_results_and_keep_two_requests_of_o
 ):
     # `curl -O u1 -O u2` in one call makes two requests that differ only by their index in the call. They are given in reverse.
     second_request = dataclasses.replace(
-        FILE_FETCH_RECEIVED,
+        CONTENT_FETCH_RECEIVED,
         network_request=dataclasses.replace(
-            FILE_FETCH_RECEIVED.network_request, index_in_tool_call=1
+            CONTENT_FETCH_RECEIVED.network_request, index_in_tool_call=1
         ),
     )
 
     _, network_request_rows, _ = export_rows(
         READ_TRIAL,
-        (second_request, FILE_FETCH_RECEIVED, SEARCH_RECEIVED),
+        (second_request, CONTENT_FETCH_RECEIVED, SEARCH_RECEIVED),
         knowledge=knowledge,
         judgment_rule_use_counts=Counter(),
     )
@@ -656,7 +656,7 @@ def test_unreadable_trial_counts_in_the_upper_bounds_of_every_category_and_known
 
     assert trial_row == _trial_row(UNREADABLE_TRIAL, UPPER_ONLY, UPPER_ONLY)
     assert network_request_rows == ()
-    assert len(trial_category_measure_rows) == 24
+    assert len(trial_category_measure_rows) == 21
     assert {
         (
             row.category,
@@ -693,9 +693,9 @@ def _of_trial(
     ("trial", "network_request_results"),
     [
         # An unreadable trajectory has no results.
-        (UNREADABLE_TRIAL, (FILE_FETCH_RECEIVED,)),
+        (UNREADABLE_TRIAL, (CONTENT_FETCH_RECEIVED,)),
         # A result of `t2` given with the `Trial` of `t1`, alone and after a result of `t1`.
-        (READ_TRIAL, (_of_trial(FILE_FETCH_RECEIVED, "t2"),)),
+        (READ_TRIAL, (_of_trial(CONTENT_FETCH_RECEIVED, "t2"),)),
         (READ_TRIAL, (PAGE_OF_UNKNOWN_SENDER, _of_trial(DISCARDED_CONTENT, "t2"))),
     ],
 )

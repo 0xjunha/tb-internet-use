@@ -57,9 +57,9 @@ TRIAL_ROW_OF_READ_TRIAL_WITHOUT_REQUESTS = TrialRow(
 )
 
 
-# Request rows of one trial that stand for made-up results by their category, sender and bounds alone, i.e. a confirmed receipt of a file, a receipt whose internet use is not known, a search sent from the provider server, a page read by a fetch tool of the harness and a page read by a web tool whose sender is not known.
-FILE_FETCH_ROW = build_network_request_row(
-    NetworkRequestCategory.FILE_FETCH,
+# Request rows of one trial that stand for made-up results by their category, sender and bounds alone, i.e. a confirmed receipt of a file, a receipt whose internet use is not known, a search sent from the provider server, a content fetch by a fetch tool of the harness and a content fetch by a web tool whose sender is not known.
+CONTENT_FETCH_ROW = build_network_request_row(
+    NetworkRequestCategory.CONTENT_FETCH,
     TASK_ENVIRONMENT,
     LOWER_AND_UPPER,
     LOWER_AND_UPPER,
@@ -70,11 +70,17 @@ PACKAGE_ROW_WITH_UNKNOWN_INTERNET_USE = build_network_request_row(
 SEARCH_ROW_FROM_PROVIDER_SERVER = build_network_request_row(
     NetworkRequestCategory.SEARCH, PROVIDER_SERVER, LOWER_AND_UPPER, LOWER_AND_UPPER
 )
-PAGE_READ_ROW_FROM_HARNESS_PROCESS = build_network_request_row(
-    NetworkRequestCategory.PAGE_READ, HARNESS_PROCESS, LOWER_AND_UPPER, LOWER_AND_UPPER
+CONTENT_FETCH_ROW_FROM_HARNESS_PROCESS = build_network_request_row(
+    NetworkRequestCategory.CONTENT_FETCH,
+    HARNESS_PROCESS,
+    LOWER_AND_UPPER,
+    LOWER_AND_UPPER,
 )
-PAGE_READ_ROW_FROM_UNKNOWN_SENDER = build_network_request_row(
-    NetworkRequestCategory.PAGE_READ, UNKNOWN_SENDER, LOWER_AND_UPPER, LOWER_AND_UPPER
+CONTENT_FETCH_ROW_FROM_UNKNOWN_SENDER = build_network_request_row(
+    NetworkRequestCategory.CONTENT_FETCH,
+    UNKNOWN_SENDER,
+    LOWER_AND_UPPER,
+    LOWER_AND_UPPER,
 )
 
 
@@ -118,7 +124,7 @@ def test_trial_row_of_an_unreadable_trajectory_keeps_the_reason_and_counts_only_
         (
             (
                 PACKAGE_ROW_WITH_UNKNOWN_INTERNET_USE,
-                FILE_FETCH_ROW,
+                CONTENT_FETCH_ROW,
                 SEARCH_ROW_FROM_PROVIDER_SERVER,
             ),
             LOWER_AND_UPPER,
@@ -131,13 +137,16 @@ def test_trial_row_of_an_unreadable_trajectory_keeps_the_reason_and_counts_only_
             UPPER_ONLY,
         ),
         ((SEARCH_ROW_FROM_PROVIDER_SERVER,), NEITHER, NEITHER),
-        ((PAGE_READ_ROW_FROM_HARNESS_PROCESS,), NEITHER, NEITHER),
+        ((CONTENT_FETCH_ROW_FROM_HARNESS_PROCESS,), NEITHER, NEITHER),
         # A row whose sender is not known may have left from the task environment, so it counts in the upper bounds and never in the lower bounds.
-        ((PAGE_READ_ROW_FROM_UNKNOWN_SENDER,), UPPER_ONLY, UPPER_ONLY),
+        ((CONTENT_FETCH_ROW_FROM_UNKNOWN_SENDER,), UPPER_ONLY, UPPER_ONLY),
         (
             (
                 build_network_request_row(
-                    NetworkRequestCategory.PAGE_READ, UNKNOWN_SENDER, NEITHER, NEITHER
+                    NetworkRequestCategory.CONTENT_FETCH,
+                    UNKNOWN_SENDER,
+                    NEITHER,
+                    NEITHER,
                 ),
             ),
             NEITHER,
@@ -146,7 +155,7 @@ def test_trial_row_of_an_unreadable_trajectory_keeps_the_reason_and_counts_only_
         (
             (
                 build_network_request_row(
-                    NetworkRequestCategory.PAGE_READ,
+                    NetworkRequestCategory.CONTENT_FETCH,
                     UNKNOWN_SENDER,
                     LOWER_AND_UPPER,
                     UPPER_ONLY,
@@ -158,9 +167,9 @@ def test_trial_row_of_an_unreadable_trajectory_keeps_the_reason_and_counts_only_
         # The strongest row of the task environment wins wherever it stands.
         (
             (
-                PAGE_READ_ROW_FROM_UNKNOWN_SENDER,
+                CONTENT_FETCH_ROW_FROM_UNKNOWN_SENDER,
                 PACKAGE_ROW_WITH_UNKNOWN_INTERNET_USE,
-                FILE_FETCH_ROW,
+                CONTENT_FETCH_ROW,
             ),
             LOWER_AND_UPPER,
             LOWER_AND_UPPER,
@@ -169,7 +178,7 @@ def test_trial_row_of_an_unreadable_trajectory_keeps_the_reason_and_counts_only_
         (
             (
                 build_network_request_row(
-                    NetworkRequestCategory.FILE_FETCH,
+                    NetworkRequestCategory.CONTENT_FETCH,
                     TASK_ENVIRONMENT,
                     LOWER_AND_UPPER,
                     UPPER_ONLY,
@@ -199,12 +208,12 @@ def test_trial_row_takes_the_strongest_bounds_among_the_rows_of_the_task_environ
 
 
 def test_trial_row_refuses_request_rows_of_another_trial():
-    row_of_another_trial = dataclasses.replace(FILE_FETCH_ROW, trial_id="t2")
+    row_of_another_trial = dataclasses.replace(CONTENT_FETCH_ROW, trial_id="t2")
 
     with pytest.raises(ValueError):
         export_trial_row(
             READ_TRIAL,
-            (FILE_FETCH_ROW, row_of_another_trial),
+            (CONTENT_FETCH_ROW, row_of_another_trial),
             judgment_rule_use_counts=Counter(),
         )
 
@@ -220,10 +229,10 @@ def test_trial_row_asks_the_unknown_sender_rule_once_for_each_row_whose_sender_i
     export_trial_row(
         READ_TRIAL,
         (
-            PAGE_READ_ROW_FROM_UNKNOWN_SENDER,
-            FILE_FETCH_ROW,
+            CONTENT_FETCH_ROW_FROM_UNKNOWN_SENDER,
+            CONTENT_FETCH_ROW,
             SEARCH_ROW_FROM_PROVIDER_SERVER,
-            PAGE_READ_ROW_FROM_UNKNOWN_SENDER,
+            CONTENT_FETCH_ROW_FROM_UNKNOWN_SENDER,
         ),
         judgment_rule_use_counts=judgment_rule_use_counts,
     )
@@ -242,7 +251,7 @@ def test_trial_row_leaves_out_a_row_whose_sender_is_not_known_when_the_unknown_s
 
     trial_row = export_trial_row(
         READ_TRIAL,
-        (PAGE_READ_ROW_FROM_UNKNOWN_SENDER,),
+        (CONTENT_FETCH_ROW_FROM_UNKNOWN_SENDER,),
         judgment_rule_use_counts=Counter(),
     )
 
