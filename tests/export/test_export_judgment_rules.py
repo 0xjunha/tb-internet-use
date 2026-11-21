@@ -17,6 +17,7 @@ from tb_internet_use.export.judgment_rules import (
     treat_assumed_not_needed_result_as_upper_bound_only,
     treat_content_piped_to_consuming_command_as_other_web,
     treat_content_piped_to_showing_command_as_other_web,
+    treat_discarded_content_as_connectivity_check,
     treat_discarded_content_as_other_web,
     treat_host_target_that_may_receive_content_as_other_web,
     treat_local_or_single_label_host_name_of_web_tool_as_unknown_internet_use,
@@ -25,12 +26,15 @@ from tb_internet_use.export.judgment_rules import (
     treat_request_without_host_name_as_sent_to_default_registry_host,
     treat_reserved_host_name_as_unknown_internet_use,
     treat_saved_content_from_package_registry_host_as_content_fetch,
+    treat_saved_content_from_unrecognized_url_as_content_fetch,
     treat_shown_content_from_registry_or_model_hub_host_as_other_web,
     treat_shown_content_from_search_engine_host_as_other_web,
     treat_single_label_host_name_as_not_internet_use,
     treat_templated_host_name_as_unknown_internet_use,
     treat_trial_with_success_line_shared_by_confirmed_requests_as_received,
     treat_url_query_value_and_fragment_as_credential,
+    treat_url_request_to_package_registry_host_as_package,
+    treat_url_request_to_search_engine_host_as_search,
     treat_web_tool_request_without_host_name_as_internet_use,
 )
 from tb_internet_use.export.model import (
@@ -211,6 +215,18 @@ JUDGMENT_RULE_CASES: list[tuple[Callable[..., object], tuple[object, ...], objec
         True,
     ),
     (
+        treat_discarded_content_as_connectivity_check,
+        (
+            _request(
+                ("curl", "https://a.org/x"),
+                NetworkRequestTargetKind.URL,
+                ContentDiscarded(),
+                "a.org",
+            ),
+        ),
+        True,
+    ),
+    (
         treat_host_target_that_may_receive_content_as_other_web,
         (
             _request(
@@ -218,6 +234,42 @@ JUDGMENT_RULE_CASES: list[tuple[Callable[..., object], tuple[object, ...], objec
                 NetworkRequestTargetKind.HOST,
                 ContentShownInResult(),
                 "api",
+            ),
+        ),
+        True,
+    ),
+    (
+        treat_url_request_to_package_registry_host_as_package,
+        (
+            _request(
+                ("curl", "https://pypi.org/project/requests/"),
+                NetworkRequestTargetKind.URL,
+                ContentShownInResult(),
+                "pypi.org",
+            ),
+        ),
+        True,
+    ),
+    (
+        treat_url_request_to_search_engine_host_as_search,
+        (
+            _request(
+                ("curl", "https://html.duckduckgo.com/html?q=x"),
+                NetworkRequestTargetKind.URL,
+                ContentShownInResult(),
+                "html.duckduckgo.com",
+            ),
+        ),
+        True,
+    ),
+    (
+        treat_saved_content_from_unrecognized_url_as_content_fetch,
+        (
+            _request(
+                ("curl", "https://a.org/x"),
+                NetworkRequestTargetKind.URL,
+                ContentSaved("x"),
+                "a.org",
             ),
         ),
         True,

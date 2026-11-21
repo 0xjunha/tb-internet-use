@@ -74,6 +74,23 @@ def treat_discarded_content_as_other_web(
     return True
 
 
+def treat_discarded_content_as_connectivity_check(
+    network_request: NetworkRequest, *, use_counts: Counter[str]
+) -> bool:
+    """Put a request whose content is thrown away in the connectivity check category, e.g. `curl -s -o /dev/null -w '%{http_code}' u`.
+
+    Throwing the content away keeps only whether and how the host answered, e.g. its status code, but the words do not say that the agent wanted no more.
+    `export_network_request_category` asks it for a request that asks for content and whose content destination is `ContentDiscarded` and whose target kind is `URL`, `REPOSITORY_URL` or `HOST`.
+    On `True` the category is `CONNECTIVITY_CHECK`. On `False` it is `OTHER_WEB`.
+    A use is such a request.
+    The category never changes the result of the request, so a discarded page still counts as received when its result says so.
+
+    Decided. The user decided on 2026-11-21 that such a request is a connectivity check, since what it keeps of the answer is only that the host answered.
+    """
+    use_counts[treat_discarded_content_as_connectivity_check.__name__] += 1
+    return True
+
+
 def treat_host_target_that_may_receive_content_as_other_web(
     network_request: NetworkRequest, *, use_counts: Counter[str]
 ) -> bool:
@@ -87,6 +104,54 @@ def treat_host_target_that_may_receive_content_as_other_web(
     Provisional. No earlier code chose, and other web claims no replacement.
     """
     use_counts[treat_host_target_that_may_receive_content_as_other_web.__name__] += 1
+    return True
+
+
+def treat_url_request_to_package_registry_host_as_package(
+    network_request: NetworkRequest, *, use_counts: Counter[str]
+) -> bool:
+    """Put a request for a URL one of whose hosts is a package registry in the package category, e.g. `curl https://pypi.org/pypi/x/json` or `wget https://files.pythonhosted.org/.../x.whl`.
+
+    A registry host gives packages and their metadata, also when no installer asks it, but a page of it may only be read as documentation, e.g. `curl https://pypi.org/project/requests/`, and the words do not say which.
+    `export_network_request_category` asks it for a request from a command or code whose target kind is `URL`, that asks for content it does not throw away, and one of whose public hosts the host catalog gives the service `PACKAGE_REGISTRY`.
+    On `True` the category is `PACKAGE`. On `False` it is the category of the conditions after it, e.g. `CONTENT_FETCH` for saved content.
+    A use is such a request.
+
+    Decided. The user decided on 2026-11-21 that a URL sent to a registry host is a package, since the replacement when the internet is off is the mirror of that registry.
+    """
+    use_counts[treat_url_request_to_package_registry_host_as_package.__name__] += 1
+    return True
+
+
+def treat_url_request_to_search_engine_host_as_search(
+    network_request: NetworkRequest, *, use_counts: Counter[str]
+) -> bool:
+    """Put a request for a URL one of whose hosts is a search engine in the search category, e.g. `curl 'https://html.duckduckgo.com/html?q=x'` or `curl 'https://api.github.com/search/code?q=x'`.
+
+    A command can ask a search engine for its results or for any other page of it, and the words alone do not say which.
+    `export_network_request_category` asks it for a request from a command or code whose target kind is `URL`, that asks for content it does not throw away, none of whose public hosts is a package registry, or whose registry host `treat_url_request_to_package_registry_host_as_package` did not take, and one of which the host catalog gives the service `SEARCH_ENGINE` for the path of the target.
+    On `True` the category is `SEARCH`. On `False` it is the category of the conditions after it.
+    A use is such a request.
+
+    Decided. The user decided on 2026-11-21 that a URL sent to a search engine host is a search, also the search paths of an API host, e.g. `/search/` of `api.github.com`.
+    """
+    use_counts[treat_url_request_to_search_engine_host_as_search.__name__] += 1
+    return True
+
+
+def treat_saved_content_from_unrecognized_url_as_content_fetch(
+    network_request: NetworkRequest, *, use_counts: Counter[str]
+) -> bool:
+    """Put a request for a URL whose content is saved and whose hosts give no known service in the content fetch category, e.g. `curl -o x https://a.org/x`.
+
+    Saving the content shows that the agent wanted the file or page itself, but neither the host nor the words say whether it is data, a document or an answer of an API.
+    `export_network_request_category` asks it for a request from a command or code whose target kind is `URL`, whose content destination is `ContentSaved` and that no service of its public hosts puts in a category, e.g. for `a.org` without a row of the host catalog.
+    On `True` the category is `CONTENT_FETCH`. On `False` it is `OTHER_WEB`.
+    A use is such a request.
+
+    Decided. The user decided on 2026-11-21 that a saved file without other facts is taken as fetched content, whose replacement is to put the file in the image.
+    """
+    use_counts[treat_saved_content_from_unrecognized_url_as_content_fetch.__name__] += 1
     return True
 
 
