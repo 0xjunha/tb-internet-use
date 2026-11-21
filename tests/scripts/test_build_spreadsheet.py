@@ -227,10 +227,7 @@ def test_overview_shows_both_bounds_of_every_key_number(spreadsheet_path: Path):
             4 / 8,
         ],
     }
-    assert (
-        lines["… of them, trials that only installed packages"][3]
-        == "1 to 2 of 3 trials, by whether uncertain requests of other categories count"
-    )
+    assert lines["… of them, trials that only installed packages"][3:] == []
     assert (
         lines["Solved tasks that were solved at least once without a request"][3]
         == "of 4 solved tasks, see Tasks"

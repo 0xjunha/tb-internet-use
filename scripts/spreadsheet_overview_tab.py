@@ -8,6 +8,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from spreadsheet_cells import (
+    EMPTY_CELL,
     LOWER_BOUND_COLOR,
     SPREADSHEET_TITLE,
     UPPER_BOUND_ONLY_COLOR,
@@ -289,7 +290,7 @@ def _add_key_numbers(
     row_tabs: SpreadsheetRowTabs,
     tasks: TasksTab,
 ) -> None:
-    """Add one line per key number, its lower and upper bounds in large type and a short note."""
+    """Add one line per key number, its lower and upper bounds in large type and, except on the line on packages, a short note."""
     measure_rows = row_tabs.trial_category_measure_rows
     trial_count = len(counts.task_by_trial_id)
     trial_count_formula = trial_count_formula_of(row_tabs)
@@ -403,11 +404,7 @@ def _add_key_numbers(
             "… of them, trials that only installed packages",
             package_only_share(package_only_lower_count, package_only_lower_formula),
             package_only_share(package_only_upper_count, package_only_upper_formula),
-            TabCell(
-                f"{count_text_of(package_only_lower_count)} to {count_text_of(package_only_upper_count)} of {count_text_of(len(lower_ids))} trials, by whether uncertain requests of other categories count",
-                formula=f'{count_text_formula(package_only_lower_formula)}&" to "&{count_text_formula(package_only_upper_formula)}&" of "&{count_text_formula(lower_formula)}&" trials, by whether uncertain requests of other categories count"',
-                style=CellStyle.NOTE,
-            ),
+            EMPTY_CELL,
         ),
         (
             "Tasks where at least half of the trials sent a request",
