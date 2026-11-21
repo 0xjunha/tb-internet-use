@@ -102,7 +102,7 @@ from tb_internet_use.tool_call.parse_shell_text import (
 )
 
 if TYPE_CHECKING:
-    # The door is passed in and named in annotations only, so that this module never loads `knowledge/` itself.
+    # `ExpandedToolCallKnowledge` is passed in and named in annotations only, so that this module never loads `knowledge/` itself.
     from tb_internet_use.knowledge.expanded_tool_call_knowledge import (
         ExpandedToolCallKnowledge,
     )
@@ -258,7 +258,7 @@ def expand_ran_texts(
     The calls of one trajectory share the files they write, e.g. main or one subagent, so each trajectory keeps its own `TrialFileContents`.
     A run or use of a path that only a write of another trajectory fits asks `treat_calls_of_other_trajectory_as_not_linked` once all calls are read, since the trajectories do not say how their calls interleave.
     When the rule says to link one, the calls are read again as one trajectory.
-    The counts of the door and of the rules then keep only the second reading, so each command counts once.
+    The counts of `ExpandedToolCallKnowledge` and of the rules then keep only the second reading, so each command counts once.
     A poll's typed text goes to the call that started the polled handle, as `poll_links` gives it.
     Every use of a rule of `judgment_rules.py` adds one to `judgment_rule_use_counts`.
     """

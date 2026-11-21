@@ -1,7 +1,7 @@
-"""Run `export_rows` again on the saved results of a run of `run_pipeline.py`, list the uses of its door and judgment rules, and check the equations that its rows must meet.
+"""Run `export_rows` again on the saved results of a run of `run_pipeline.py`, list the uses of `ExportKnowledge` and of its judgment rules, and check the equations that its rows must meet.
 
-`run_pipeline.py` saves the `Trial` and the network request results of each trial, so this script reads no trajectory. It makes its own door for the trials of each worker process and counts each trial apart, so that its counts do not rest on the files of the run, and it reads the four CSVs of the run for the equations about what was written.
-An equation sets a count of the uses of a judgment rule or of a lookup of the door beside a count that this script takes from the columns of the rows, e.g. the uses of `treat_discarded_content_as_other_web` beside the rows whose content is discarded, so that a rule asked in the wrong place shows as a difference.
+`run_pipeline.py` saves the `Trial` and the network request results of each trial, so this script reads no trajectory. It makes its own `ExportKnowledge` for the trials of each worker process and counts each trial apart, so that its counts do not rest on the files of the run, and it reads the four CSVs of the run for the equations about what was written.
+An equation sets a count of the uses of a judgment rule or of a lookup of `ExportKnowledge` beside a count that this script takes from the columns of the rows, e.g. the uses of `treat_discarded_content_as_other_web` beside the rows whose content is discarded, so that a rule asked in the wrong place shows as a difference.
 An equation whose right side is 0 counts rows that break a rule that holds whatever the catalogs say, e.g. a `connectivity_check` row whose content was requested.
 Each equation of `EQUATIONS` has its definition above its name, and the equations of the judgment rules, named `<judgment rule>_uses_equal_its_situations`, have theirs above `*_RULE_EQUATIONS`.
 
@@ -246,22 +246,22 @@ def write_audit_files(
 
 
 def audit_trial(saved_results_path: Path) -> TrialAudit:
-    """Run `export_rows` again on the saved results of one trial with a door and a counter of its own, and count the situations of the rules from the rows, with an exception named instead of raised."""
+    """Run `export_rows` again on the saved results of one trial with an `ExportKnowledge` and a counter of its own, and count the situations of the rules from the rows, with an exception named instead of raised."""
     trial_id = saved_results_path.stem
     try:
         _, trial, network_request_results, _ = read_saved_results(saved_results_path)
-        process_doors = process_doors_of_worker()
-        # The doors serve every trial of the worker process, so their uses start empty for each trial.
-        process_doors.export_knowledge.uses = KnowledgeUses()
-        process_doors.own_export_knowledge.uses = KnowledgeUses()
+        worker_process_knowledge = knowledge_of_worker_process()
+        # The knowledge classes serve every trial of the worker process, so their uses start empty for each trial.
+        worker_process_knowledge.export_knowledge.uses = KnowledgeUses()
+        worker_process_knowledge.own_export_knowledge.uses = KnowledgeUses()
         trial_audit = TrialAudit(trial_id, (trial.benchmark_version, trial.task_name))
         _, network_request_rows, _ = export_rows(
             trial,
             network_request_results,
-            knowledge=process_doors.export_knowledge,
+            knowledge=worker_process_knowledge.export_knowledge,
             judgment_rule_use_counts=trial_audit.judgment_rule_use_counts,
         )
-        trial_audit.knowledge_uses = process_doors.export_knowledge.uses
+        trial_audit.knowledge_uses = worker_process_knowledge.export_knowledge.uses
         for network_request_result, network_request_row in zip(
             network_request_results, network_request_rows, strict=True
         ):
@@ -269,7 +269,7 @@ def audit_trial(saved_results_path: Path) -> TrialAudit:
                 situation_counts_of(
                     network_request_row,
                     network_request_result.network_request,
-                    process_doors.own_export_knowledge,
+                    worker_process_knowledge.own_export_knowledge,
                 )
             )
         # The rule is asked once for each category and sender of the trial whose rows it marks.
@@ -292,19 +292,19 @@ def audit_trial(saved_results_path: Path) -> TrialAudit:
 
 
 @dataclass(frozen=True, slots=True)
-class ProcessDoors:
-    """Doors of outside knowledge made once in each worker process and used for each of its trials."""
+class WorkerProcessKnowledge:
+    """Knowledge classes made once in each worker process and used for each of its trials."""
 
-    # The door that `export_rows` asks.
+    # The `ExportKnowledge` that `export_rows` asks.
     export_knowledge: ExportKnowledge = field(default_factory=ExportKnowledge)
-    # The door that `situation_counts_of` asks for the hosts of a default registry, so that its lookups do not count as lookups of the step.
+    # The `ExportKnowledge` that `situation_counts_of` asks for the hosts of a default registry, so that its lookups do not count as lookups of the step.
     own_export_knowledge: ExportKnowledge = field(default_factory=ExportKnowledge)
 
 
 @functools.cache
-def process_doors_of_worker() -> ProcessDoors:
-    """Give the doors of this worker process, made at its first trial."""
-    return ProcessDoors()
+def knowledge_of_worker_process() -> WorkerProcessKnowledge:
+    """Give the knowledge classes of this worker process, made at its first trial."""
+    return WorkerProcessKnowledge()
 
 
 def situation_counts_of(
@@ -312,7 +312,7 @@ def situation_counts_of(
     network_request: NetworkRequest,
     own_export_knowledge: ExportKnowledge,
 ) -> Counter[str]:
-    """Count for one request row the situations of the rules and the lookups of the door that the equations of `EQUATIONS` set beside them, a situation under the name of its rule and any other count under the name of its equation, all but the situation of `treat_trial_with_success_line_shared_by_confirmed_requests_as_received`, which `audit_trial` counts for each trial.
+    """Count for one request row the situations of the rules and the lookups of `ExportKnowledge` that the equations of `EQUATIONS` set beside them, a situation under the name of its rule and any other count under the name of its equation, all but the situation of `treat_trial_with_success_line_shared_by_confirmed_requests_as_received`, which `audit_trial` counts for each trial.
 
     The conditions read the columns of the row, as a reader of the CSV would, and the request only for its host names before redaction, its target kind and its program.
     """
@@ -461,7 +461,7 @@ def _default_registry_host_names_of(
     network_request: NetworkRequest,
     own_export_knowledge: ExportKnowledge,
 ) -> tuple[str, ...]:
-    """Give the hosts of the default registry that decided a row without a host name, from the door of this script, or none when the row names no known registry or its target is a local path."""
+    """Give the hosts of the default registry that decided a row without a host name, from the `ExportKnowledge` of this script, or none when the row names no known registry or its target is a local path."""
     source = network_request.source
     if (
         network_request.host_names

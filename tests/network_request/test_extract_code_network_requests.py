@@ -553,7 +553,7 @@ def test_calls_and_urls_that_give_no_request_are_counted_by_reason(tmp_path):
     )
 
 
-def test_door_is_asked_once_per_call_under_the_name_with_a_row_and_programs_by_name():
+def test_knowledge_class_is_asked_once_per_call_under_the_name_with_a_row_and_programs_by_name():
     knowledge = NetworkRequestKnowledge()
 
     _extract(

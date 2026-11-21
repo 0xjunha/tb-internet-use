@@ -1,6 +1,6 @@
 """Answer the questions of `expand_tool_calls` about programs and the languages they run from the program catalogs, counting every use of a row and every input without one.
 
-A blank cell is unknown only in the role columns, `visibility_of_piped_input`, the exit code columns, `options_end_at_first_argument`, `takes_one_letter_options_joined`, `takes_non_option_dash_words_as_arguments` and `default_run_file`. Every other fact column says what it means in a word, e.g. `no` or `none`, and a blank there fails the load, so that the door never reads a missing fact as a default. A blank `subcommand` names the row of the program without a subcommand.
+A blank cell is unknown only in the role columns, `visibility_of_piped_input`, the exit code columns, `options_end_at_first_argument`, `takes_one_letter_options_joined`, `takes_non_option_dash_words_as_arguments` and `default_run_file`. Every other fact column says what it means in a word, e.g. `no` or `none`, and a blank there fails the load, so that `ExpandedToolCallKnowledge` never reads a missing fact as a default. A blank `subcommand` names the row of the program without a subcommand.
 """
 
 import functools
@@ -44,9 +44,9 @@ EXPANDED_TOOL_CALL_CATALOGS_DIR = (
 PROGRAM_BEHAVIORS_CSV = "program_behaviors.csv"
 PROGRAM_OPTION_BEHAVIORS_CSV = "program_option_behaviors.csv"
 CODE_RUNNERS_CSV = "code_runners.csv"
-# The source name under which the door counts a name that it read without its version, keyed by the name as asked and the name without its version, e.g. `("python3.11", "python")`.
+# The source name under which `ExpandedToolCallKnowledge` counts a name that it read without its version, keyed by the name as asked and the name without its version, e.g. `("python3.11", "python")`.
 NAMES_READ_WITHOUT_VERSION = "names_read_without_version"
-# The source name under which the door counts a blank cell of a program row that a word needed, keyed by the program name, the subcommand and the column, e.g. `("echo", "", "options_end_at_first_argument")`.
+# The source name under which `ExpandedToolCallKnowledge` counts a blank cell of a program row that a word needed, keyed by the program name, the subcommand and the column, e.g. `("echo", "", "options_end_at_first_argument")`.
 BLANK_PROGRAM_BEHAVIOR_CELLS = "blank_program_behavior_cells"
 _OPTIONS_END_AT_FIRST_ARGUMENT_COLUMN = "options_end_at_first_argument"
 # A version at the end of a program name, i.e. digits and dots with at most one dash before them, e.g. 3.11 in python3.11 or -12 in gcc-12.
@@ -61,11 +61,11 @@ _NONE = "none"
 
 
 class ExpandedToolCallKnowledge:
-    """Door of `expand_tool_calls` to the outside knowledge, made for one trial and passed to `expand_tool_calls`, which asks it one question per method.
+    """Outside knowledge of `expand_tool_calls`, made for one trial and passed to it as `knowledge`, which it asks one question per method.
 
     An answer is a value or an `Unknown…` type of the step's model, never a default.
     `uses` counts every catalog row that answered and every input without one.
-    The loaded catalogs are cached per process, so making a door per trial is cheap.
+    The loaded catalogs are cached per process, so making one per trial is cheap.
     """
 
     def __init__(self, *, catalogs_dir: Path = EXPANDED_TOOL_CALL_CATALOGS_DIR) -> None:
@@ -136,10 +136,10 @@ class ExpandedToolCallKnowledge:
 
         When `takes_one_letter_options_joined` is `no` or blank, a word of several letters without a row of its own is `UnknownProgramOptionWord`, e.g. `-af` of pgrep, since the letters are not read one by one.
         A word that starts with `+` is `ProgramArgumentWord` when no row of the program or its subcommand names an option that starts with `+`, e.g. `+x` of chmod.
-        A word that starts with `-` and that the rows do not cover is `ProgramArgumentWord` when the program row says `yes` in `takes_non_option_dash_words_as_arguments`, e.g. `---` or `-nx` of echo, and the door then counts no unknown input, since the rows name every option of such a program.
+        A word that starts with `-` and that the rows do not cover is `ProgramArgumentWord` when the program row says `yes` in `takes_non_option_dash_words_as_arguments`, e.g. `---` or `-nx` of echo, and `ExpandedToolCallKnowledge` then counts no unknown input, since the rows name every option of such a program.
         A row of the subcommand comes before a row of the program without a subcommand, e.g. `(git, clone, --depth)` before `(git, "", --depth)`.
         With `is_before_subcommand`, for a word between the program word and the subcommand, e.g. `-C` of `git -C /app log`, only the rows without a subcommand answer, read as the row of the program without a subcommand reads joined letters, since such a word is an option of the program and not of the subcommand.
-        The door counts one use of a row per option it gives, and when the rows do not cover the word one unknown input under the word as written with the subcommand as asked, e.g. `(pgrep, "", -af)`, so that the list of unknown inputs holds only words without rows. For `--name=value` that input is `--name`, since a row is named without a value.
+        `ExpandedToolCallKnowledge` counts one use of a row per option it gives, and when the rows do not cover the word one unknown input under the word as written with the subcommand as asked, e.g. `(pgrep, "", -af)`, so that the list of unknown inputs holds only words without rows. For `--name=value` that input is `--name`, since a row is named without a value.
         """
         catalogs = self._catalogs
         program_name = program_behavior.program_name
@@ -265,7 +265,7 @@ def _option_parts_of_word(
 ) -> list[tuple[str, KnowledgeRowKey, str | None]] | None:
     """Find the name, the row key and the attached value of each option that a word holds, in the order of `ExpandedToolCallKnowledge.program_option_word`, or None when a row is missing.
 
-    It reads the keys and whether each option takes a value from the index made at load, so nothing is counted until the door knows the answer.
+    It reads the keys and whether each option takes a value from the index made at load, so nothing is counted until `ExpandedToolCallKnowledge` knows the answer.
     """
 
     def row_key_for(option_name: str) -> KnowledgeRowKey | None:
@@ -451,27 +451,27 @@ class _ExpandedToolCallCatalogs:
     program_behaviors: Catalog[_ProgramBehaviorRow]
     program_option_behaviors: Catalog[ProgramOptionBehavior]
     code_runners: Catalog[RanTextLanguage]
-    # The keys of the rows of each program name, so the door can pick the row of the subcommand before its one lookup.
+    # The keys of the rows of each program name, so `ExpandedToolCallKnowledge` can pick the row of the subcommand before its one lookup.
     program_behavior_row_keys_by_program_name: Mapping[str, tuple[KnowledgeRowKey, ...]]
     # The keys of the rows that say `name_may_end_with_version`, by the program name without a version, since only they answer for a name with one.
     program_behavior_row_keys_allowing_version_by_program_name: Mapping[
         str, tuple[KnowledgeRowKey, ...]
     ]
-    # Whether the option of each option row takes a value, so that the door can pick the rows of the options of a word, and where an attached value starts, before it counts any.
+    # Whether the option of each option row takes a value, so that `ExpandedToolCallKnowledge` can pick the rows of the options of a word, and where an attached value starts, before it counts any.
     option_takes_value_by_row_key: Mapping[KnowledgeRowKey, bool]
-    # The `takes_one_letter_options_joined` of the row without a subcommand of each program that has one, so that the door reads the options before a subcommand as that row does.
+    # The `takes_one_letter_options_joined` of the row without a subcommand of each program that has one, so that `ExpandedToolCallKnowledge` reads the options before a subcommand as that row does.
     takes_one_letter_options_joined_by_program_name: Mapping[
         str, bool | UnknownTakesOneLetterOptionsJoined
     ]
     # The (program, subcommand) of the option rows whose option starts with `+`, e.g. `+o` of bash, since only for them a word such as `+x` is an option.
     programs_with_plus_options: frozenset[tuple[str, str]]
-    # The keys of the code runner rows, so the door can try the name without its version.
+    # The keys of the code runner rows, so `ExpandedToolCallKnowledge` can try the name without its version.
     code_runner_row_keys: frozenset[KnowledgeRowKey]
 
 
 @dataclass(frozen=True, slots=True)
 class _ProgramBehaviorRow:
-    """Checked values of one row of `program_behaviors.csv`, kept in its catalog, of which the door gives the `ProgramBehavior` as the answer."""
+    """Checked values of one row of `program_behaviors.csv`, kept in its catalog, of which `ExpandedToolCallKnowledge` gives the `ProgramBehavior` as the answer."""
 
     program_behavior: ProgramBehavior
     # The row answers also for the program name with a version at its end, e.g. pip3 for pip.

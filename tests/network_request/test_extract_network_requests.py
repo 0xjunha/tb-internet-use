@@ -1,4 +1,4 @@
-"""Tests for network_request/_extract_network_requests.py, with made-up tool calls run through the real `expand_tool_calls` and the real doors.
+"""Tests for network_request/_extract_network_requests.py, with made-up tool calls run through the real `expand_tool_calls` and the real knowledge classes.
 
 Most cases use made-up catalogs whose rows the cases name, so that they do not change when the real catalogs gain rows, and the last two tests use the real catalogs, so that a row missing there fails.
 
@@ -288,7 +288,7 @@ _REVIEW_DEFAULTS = {"checked_against": "made up", "reviewed": "", "note": ""}
 
 @pytest.fixture(scope="module")
 def catalogs_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    """Write the made-up catalogs of both doors into one new folder, whose file names differ between the doors."""
+    """Write the made-up catalogs of `ExpandedToolCallKnowledge` and `NetworkRequestKnowledge` into one new folder, whose file names differ between the two."""
     catalogs_dir = tmp_path_factory.mktemp("catalogs")
     for file_name, key_columns, defaults, rows in (
         (
@@ -377,7 +377,7 @@ def _extract(
     judgment_rule_use_counts: Counter[str] | None = None,
     no_network_request_counts: Counter[NoNetworkRequestReason] | None = None,
 ) -> _Extraction:
-    """Expand the calls with `expand_tool_calls` and extract their requests, both with new doors on the made-up catalogs."""
+    """Expand the calls with `expand_tool_calls` and extract their requests, both with new knowledge classes on the made-up catalogs."""
     judgment_rule_use_counts = (
         Counter() if judgment_rule_use_counts is None else judgment_rule_use_counts
     )

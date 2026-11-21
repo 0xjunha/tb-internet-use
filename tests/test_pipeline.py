@@ -1,4 +1,4 @@
-"""Tests for pipeline.py, with made-up trial folders and made-up tool calls run through the steps with the doors made from the catalogs of the repo."""
+"""Tests for pipeline.py, with made-up trial folders and made-up tool calls run through the steps with the knowledge classes made from the catalogs of the repo."""
 
 import json
 from collections import Counter
@@ -43,7 +43,7 @@ from tb_internet_use.network_request_result.model import (
     UnusedOutputLineReason,
 )
 from tb_internet_use.pipeline import (
-    KnowledgeDoors,
+    PipelineKnowledge,
     read_trajectory,
     read_trial_file_texts,
     run_steps_of_trial,
@@ -183,7 +183,7 @@ def test_runs_the_conversion_and_then_the_expansion_of_the_tool_calls():
 
     write_call, bash_call = run_steps_to_expanded_tool_calls(
         harness_tool_calls,
-        knowledge_doors=KnowledgeDoors(),
+        pipeline_knowledge=PipelineKnowledge(),
         tool_call_judgment_rule_use_counts=Counter(),
         expanded_tool_call_judgment_rule_use_counts=Counter(),
     )
@@ -255,27 +255,27 @@ def _claude_code_tool_calls_running_a_script_in_the_background() -> tuple[
     return write_call, background_bash_call, task_output_call, later_bash_call
 
 
-def test_each_step_counts_its_lookups_in_its_own_door_and_its_rules_in_its_own_counter():
-    knowledge_doors = KnowledgeDoors()
+def test_each_step_counts_its_lookups_in_its_own_knowledge_class_and_its_rules_in_its_own_counter():
+    pipeline_knowledge = PipelineKnowledge()
     tool_call_judgment_rule_use_counts: Counter[str] = Counter()
     expanded_tool_call_judgment_rule_use_counts: Counter[str] = Counter()
 
     run_steps_to_expanded_tool_calls(
         _claude_code_tool_calls_running_a_script_in_the_background(),
-        knowledge_doors=knowledge_doors,
+        pipeline_knowledge=pipeline_knowledge,
         tool_call_judgment_rule_use_counts=tool_call_judgment_rule_use_counts,
         expanded_tool_call_judgment_rule_use_counts=expanded_tool_call_judgment_rule_use_counts,
     )
 
     # The two `Bash` calls ask `convert_tool_calls` the row of the tool, and cat in fetch.sh asks `expand_tool_calls` the row of the program.
     assert (
-        knowledge_doors.tool_call_knowledge.uses.row_use_counts[
+        pipeline_knowledge.tool_call_knowledge.uses.row_use_counts[
             "harness_tools.csv", ("claude-code", "Bash")
         ]
         == 2
     )
     assert (
-        knowledge_doors.expanded_tool_call_knowledge.uses.row_use_counts[
+        pipeline_knowledge.expanded_tool_call_knowledge.uses.row_use_counts[
             "program_behaviors.csv", ("cat", "")
         ]
         == 1
@@ -293,11 +293,11 @@ def test_each_step_counts_its_lookups_in_its_own_door_and_its_rules_in_its_own_c
     )
 
 
-def test_new_doors_count_only_their_own_lookups():
-    first_doors = KnowledgeDoors()
+def test_new_pipeline_knowledge_counts_only_its_own_lookups():
+    first_pipeline_knowledge = PipelineKnowledge()
     run_steps_to_network_request_results(
         _claude_code_tool_calls_writing_and_running_a_script(),
-        knowledge_doors=first_doors,
+        pipeline_knowledge=first_pipeline_knowledge,
         tool_call_judgment_rule_use_counts=Counter(),
         expanded_tool_call_judgment_rule_use_counts=Counter(),
         network_request_judgment_rule_use_counts=Counter(),
@@ -307,17 +307,19 @@ def test_new_doors_count_only_their_own_lookups():
         program_counts_of_unowned_output_lines=Counter(),
     )
 
-    second_doors = KnowledgeDoors()
+    second_pipeline_knowledge = PipelineKnowledge()
 
-    assert first_doors.tool_call_knowledge.uses.row_use_counts
-    assert first_doors.expanded_tool_call_knowledge.uses.row_use_counts
-    assert first_doors.network_request_knowledge.uses.row_use_counts
-    assert not second_doors.tool_call_knowledge.uses.row_use_counts
-    assert not second_doors.expanded_tool_call_knowledge.uses.row_use_counts
-    assert not second_doors.network_request_knowledge.uses.row_use_counts
+    assert first_pipeline_knowledge.tool_call_knowledge.uses.row_use_counts
+    assert first_pipeline_knowledge.expanded_tool_call_knowledge.uses.row_use_counts
+    assert first_pipeline_knowledge.network_request_knowledge.uses.row_use_counts
+    assert not second_pipeline_knowledge.tool_call_knowledge.uses.row_use_counts
+    assert (
+        not second_pipeline_knowledge.expanded_tool_call_knowledge.uses.row_use_counts
+    )
+    assert not second_pipeline_knowledge.network_request_knowledge.uses.row_use_counts
 
 
-def test_runs_the_extraction_of_network_requests_after_the_expansion_with_its_own_door_and_counters():
+def test_runs_the_extraction_of_network_requests_after_the_expansion_with_its_own_knowledge_class_and_counters():
     write_call, background_bash_call, task_output_call, later_bash_call = (
         _claude_code_tool_calls_running_a_script_in_the_background()
     )
@@ -332,7 +334,7 @@ def test_runs_the_extraction_of_network_requests_after_the_expansion_with_its_ow
         },
         write_call.result,
     )
-    knowledge_doors = KnowledgeDoors()
+    pipeline_knowledge = PipelineKnowledge()
     tool_call_judgment_rule_use_counts: Counter[str] = Counter()
     expanded_tool_call_judgment_rule_use_counts: Counter[str] = Counter()
     network_request_judgment_rule_use_counts: Counter[str] = Counter()
@@ -340,7 +342,7 @@ def test_runs_the_extraction_of_network_requests_after_the_expansion_with_its_ow
 
     _, network_request_results = run_steps_to_network_request_results(
         (write_call, background_bash_call, task_output_call, later_bash_call),
-        knowledge_doors=knowledge_doors,
+        pipeline_knowledge=pipeline_knowledge,
         tool_call_judgment_rule_use_counts=tool_call_judgment_rule_use_counts,
         expanded_tool_call_judgment_rule_use_counts=expanded_tool_call_judgment_rule_use_counts,
         network_request_judgment_rule_use_counts=network_request_judgment_rule_use_counts,
@@ -378,7 +380,7 @@ def test_runs_the_extraction_of_network_requests_after_the_expansion_with_its_ow
         0, "fetch.sh", write_call.key
     )
     assert (
-        knowledge_doors.network_request_knowledge.uses.row_use_counts[
+        pipeline_knowledge.network_request_knowledge.uses.row_use_counts[
             "program_network_requests.csv", ("curl", "", "", "")
         ]
         == 1
@@ -405,7 +407,7 @@ def test_runs_the_extraction_of_network_requests_after_the_expansion_with_its_ow
     )
 
 
-def test_runs_the_decision_of_request_results_after_the_extraction_with_its_own_door_and_counters():
+def test_runs_the_decision_of_request_results_after_the_extraction_with_its_own_knowledge_class_and_counters():
     # pip prints that it installed x, and the later call runs a script whose text the trial does not hold, which prints a download line.
     # The last call runs mytool, which has no row, on a URL, which `extract_network_requests` counts under one of its rules, and cat, which gives no request.
     harness_tool_calls = (
@@ -431,7 +433,7 @@ def test_runs_the_decision_of_request_results_after_the_extraction_with_its_own_
             {"content": ""},
         ),
     )
-    knowledge_doors = KnowledgeDoors()
+    pipeline_knowledge = PipelineKnowledge()
     tool_call_judgment_rule_use_counts: Counter[str] = Counter()
     network_request_judgment_rule_use_counts: Counter[str] = Counter()
     no_network_request_counts: Counter[NoNetworkRequestReason] = Counter()
@@ -448,7 +450,7 @@ def test_runs_the_decision_of_request_results_after_the_extraction_with_its_own_
         (network_request_result, mytool_network_request_result),
     ) = run_steps_to_network_request_results(
         harness_tool_calls,
-        knowledge_doors=knowledge_doors,
+        pipeline_knowledge=pipeline_knowledge,
         tool_call_judgment_rule_use_counts=tool_call_judgment_rule_use_counts,
         expanded_tool_call_judgment_rule_use_counts=Counter(),
         network_request_judgment_rule_use_counts=network_request_judgment_rule_use_counts,
@@ -473,7 +475,7 @@ def test_runs_the_decision_of_request_results_after_the_extraction_with_its_own_
         NetworkRequestResultCertainty.CONFIRMED,
     )
     assert (
-        knowledge_doors.network_request_result_knowledge.uses.row_use_counts[
+        pipeline_knowledge.network_request_result_knowledge.uses.row_use_counts[
             "output_line_patterns", ("program_output", "pip_successfully_installed")
         ]
         == 1
@@ -590,7 +592,7 @@ def test_the_end_of_an_antigravity_cli_background_task_that_the_harness_reports_
 
     _, (network_request_result,) = run_steps_to_network_request_results(
         harness_tool_calls,
-        knowledge_doors=KnowledgeDoors(),
+        pipeline_knowledge=PipelineKnowledge(),
         tool_call_judgment_rule_use_counts=Counter(),
         expanded_tool_call_judgment_rule_use_counts=Counter(),
         network_request_judgment_rule_use_counts=Counter(),
@@ -613,7 +615,7 @@ def test_the_step_that_reports_the_end_of_an_antigravity_cli_background_task_is_
 
     run_command_call, end_message_call = run_steps_to_expanded_tool_calls(
         harness_tool_calls,
-        knowledge_doors=KnowledgeDoors(),
+        pipeline_knowledge=PipelineKnowledge(),
         tool_call_judgment_rule_use_counts=Counter(),
         expanded_tool_call_judgment_rule_use_counts=Counter(),
     )
@@ -703,7 +705,7 @@ def test_the_end_of_a_claude_code_background_task_that_the_harness_reports_in_a_
 
     _, (network_request_result,) = run_steps_to_network_request_results(
         harness_tool_calls,
-        knowledge_doors=KnowledgeDoors(),
+        pipeline_knowledge=PipelineKnowledge(),
         tool_call_judgment_rule_use_counts=Counter(),
         expanded_tool_call_judgment_rule_use_counts=Counter(),
         network_request_judgment_rule_use_counts=Counter(),
@@ -726,7 +728,7 @@ def test_the_task_notification_of_a_claude_code_background_task_is_a_poll_linked
 
     bash_call, task_notification_call = run_steps_to_expanded_tool_calls(
         harness_tool_calls,
-        knowledge_doors=KnowledgeDoors(),
+        pipeline_knowledge=PipelineKnowledge(),
         tool_call_judgment_rule_use_counts=Counter(),
         expanded_tool_call_judgment_rule_use_counts=Counter(),
     )
@@ -803,7 +805,7 @@ def test_the_end_of_a_grok_build_background_task_that_the_harness_reports_in_a_s
 
     _, (network_request_result,) = run_steps_to_network_request_results(
         harness_tool_calls,
-        knowledge_doors=KnowledgeDoors(),
+        pipeline_knowledge=PipelineKnowledge(),
         tool_call_judgment_rule_use_counts=Counter(),
         expanded_tool_call_judgment_rule_use_counts=Counter(),
         network_request_judgment_rule_use_counts=Counter(),
@@ -840,12 +842,14 @@ _JUDGMENT_RULES_BY_COUNTER_ARGUMENT_NAME = {
 
 def _run_steps_of_trial_with_new_counters(
     trial_dir: Path,
-) -> tuple[tuple, KnowledgeDoors, dict[str, Counter]]:
-    """Run `run_steps_of_trial` with new doors and new counters, and return its output with the doors and the counters by argument name."""
-    knowledge_doors = KnowledgeDoors()
+) -> tuple[tuple, PipelineKnowledge, dict[str, Counter]]:
+    """Run `run_steps_of_trial` with a new `PipelineKnowledge` and new counters, and return its output with the `PipelineKnowledge` and the counters by argument name."""
+    pipeline_knowledge = PipelineKnowledge()
     counters: dict[str, Counter] = {name: Counter() for name in _COUNTER_ARGUMENT_NAMES}
-    output = run_steps_of_trial(trial_dir, knowledge_doors=knowledge_doors, **counters)
-    return output, knowledge_doors, counters
+    output = run_steps_of_trial(
+        trial_dir, pipeline_knowledge=pipeline_knowledge, **counters
+    )
+    return output, pipeline_knowledge, counters
 
 
 def test_runs_every_step_on_a_trial_folder_and_keeps_the_counters_of_each_step_apart(
@@ -873,7 +877,7 @@ def test_runs_every_step_on_a_trial_folder_and_keeps_the_counters_of_each_step_a
             network_request_rows,
             trial_category_measure_rows,
         ),
-        knowledge_doors,
+        pipeline_knowledge,
         counters,
     ) = _run_steps_of_trial_with_new_counters(trial_dir)
 
@@ -951,17 +955,19 @@ def test_runs_every_step_on_a_trial_folder_and_keeps_the_counters_of_each_step_a
             ): 1
         }
     )
-    # Each door counts its own lookups, e.g. the export door the default registry of `pip install`.
-    assert knowledge_doors.export_knowledge.uses.row_use_counts == Counter(
+    # Each knowledge class counts its own lookups, e.g. `ExportKnowledge` the default registry of `pip install`.
+    assert pipeline_knowledge.export_knowledge.uses.row_use_counts == Counter(
         {("program_package_registries.csv", ("pip", "install")): 1}
     )
-    for door_name in (
+    for knowledge_field_name in (
         "tool_call_knowledge",
         "expanded_tool_call_knowledge",
         "network_request_knowledge",
         "network_request_result_knowledge",
     ):
-        assert getattr(knowledge_doors, door_name).uses.row_use_counts, door_name
+        assert getattr(pipeline_knowledge, knowledge_field_name).uses.row_use_counts, (
+            knowledge_field_name
+        )
 
 
 def test_a_readable_trial_without_requests_keeps_its_trial_row_alone(
@@ -1017,7 +1023,7 @@ def test_an_unreadable_trajectory_gives_its_reason_no_results_and_the_upper_boun
             network_request_rows,
             measure_rows,
         ),
-        knowledge_doors,
+        pipeline_knowledge,
         counters,
     ) = _run_steps_of_trial_with_new_counters(trial_dir)
 
@@ -1035,10 +1041,10 @@ def test_an_unreadable_trajectory_gives_its_reason_no_results_and_the_upper_boun
     assert {
         (row.request_measure_bound, row.received_measure_bound) for row in measure_rows
     } == {(MeasureBound.UPPER_ONLY, MeasureBound.UPPER_ONLY)}
-    # Only `collect_trials` and `export_rows` ran, and neither used a judgment rule or a door, so no counter and no door counted anything.
+    # Only `collect_trials` and `export_rows` ran, and neither used a judgment rule or a knowledge class, so no counter and no knowledge class counted anything.
     assert not any(counters.values())
-    assert not knowledge_doors.tool_call_knowledge.uses.row_use_counts
-    assert not knowledge_doors.tool_call_knowledge.uses.unknown_input_counts
+    assert not pipeline_knowledge.tool_call_knowledge.uses.row_use_counts
+    assert not pipeline_knowledge.tool_call_knowledge.uses.unknown_input_counts
 
 
 def test_a_trial_folder_without_a_detail_file_raises(tmp_path, write_trial_folder):

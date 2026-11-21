@@ -31,7 +31,7 @@ from tb_internet_use.tool_call.model import (
 
 
 def _catalog_tools() -> set[HarnessTool]:
-    """List the tools with a row in the committed catalog, read from the CSV itself since a door only answers lookups."""
+    """List the tools with a row in the committed catalog, read from the CSV itself since a knowledge class only answers lookups."""
     with (TOOL_CALL_CATALOGS_DIR / HARNESS_TOOLS_CSV).open(newline="") as f:
         return {HarnessTool(row["harness"], row["tool"]) for row in csv.DictReader(f)}
 

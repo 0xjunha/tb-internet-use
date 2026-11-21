@@ -2,7 +2,7 @@
 
 One command can ask for several things, e.g. `pip install requests git+https://github.com/a/b` asks for a package and a repository, and each can end differently.
 
-The module also holds the answers of `NetworkRequestKnowledge` and of the reading functions that `extract_network_requests` tells apart when it runs, e.g. `UnknownProgramNetworkRequestLabel`, since a step never imports the door when it runs.
+The module also holds the answers of `NetworkRequestKnowledge` and of the reading functions that `extract_network_requests` tells apart when it runs, e.g. `UnknownProgramNetworkRequestLabel`, since a step never imports its knowledge class when it runs.
 """
 
 from dataclasses import dataclass

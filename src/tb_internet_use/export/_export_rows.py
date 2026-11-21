@@ -23,7 +23,7 @@ from tb_internet_use.network_request_result.model import NetworkRequestResult
 from tb_internet_use.trial.model import Trial
 
 if TYPE_CHECKING:
-    # The door is passed in and named in annotations only, so that `export_rows` never loads `knowledge/` itself.
+    # `ExportKnowledge` is passed in and named in annotations only, so that `export_rows` never loads `knowledge/` itself.
     from tb_internet_use.knowledge.export_knowledge import ExportKnowledge
 
 

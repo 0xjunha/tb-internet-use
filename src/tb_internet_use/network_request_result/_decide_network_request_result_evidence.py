@@ -75,7 +75,7 @@ from tb_internet_use.tool_call.model import (
 )
 
 if TYPE_CHECKING:
-    # The door is passed in and named in annotations only, so that this module never loads `knowledge/` itself.
+    # `NetworkRequestResultKnowledge` is passed in and named in annotations only, so that this module never loads `knowledge/` itself.
     from tb_internet_use.knowledge.network_request_result_knowledge import (
         NetworkRequestResultKnowledge,
     )
@@ -457,7 +457,7 @@ def _execution_evidence_of(
 
     A finished call of a web tool shows EXECUTED with NOT_VISIBLE.
     Exit code 0 of the call's text shows EXECUTED for a command of that text that `succeeded_if_text_exits_zero` marks, and `treat_exit_code_meaning_as_assumed_level` may lift it by what the exit code catalog says.
-    Another exit code gives no level. The door is asked about it only when it belongs to the command, so that a missing row is counted.
+    Another exit code gives no level. `NetworkRequestResultKnowledge` is asked about it only when it belongs to the command, so that a missing row is counted.
     A request without any of this asks `treat_command_without_own_evidence_as_no_evidence_of_run`.
     """
     expanded_tool_call = expanded_tool_call_by_key[network_request.tool_call_key]
@@ -537,7 +537,7 @@ def _exit_code_evidence_of(
 
     The code belongs to the command when the command is in the text of the call, the text finished, `succeeded_if_text_exits_zero` marks the command, `structure_may_be_wrong` does not, and every program outside the request's program ends with the exit code of the next, e.g. sudo.
     Exit 0 then shows EXECUTED for each such command, both of `a && b` included.
-    Another code belongs to the command only when it is the one command of the text so marked, e.g. `curl -f -s u -o x` alone or after `ls;`, and then the door is asked and its answer is not used.
+    Another code belongs to the command only when it is the one command of the text so marked, e.g. `curl -f -s u -o x` alone or after `ls;`, and then `NetworkRequestResultKnowledge` is asked and its answer is not used.
     """
     command_text_status = expanded_tool_call.command_text_status
     if (
@@ -563,7 +563,7 @@ def _exit_code_evidence_of(
     ):
         return []
     exit_code = command_text_status.exit_code
-    # The door has no row for a program that no fact covers or for options that were not read, so neither is asked.
+    # `NetworkRequestResultKnowledge` has no row for a program that no fact covers or for options that were not read, so neither is asked.
     program_invocation = (
         source.program_invocation
         if isinstance(source.program_invocation, ProgramInvocation)
@@ -1103,7 +1103,7 @@ def _has_unknown_printer(
     *,
     knowledge: NetworkRequestResultKnowledge,
 ) -> bool:
-    """Tell whether the run of a request has no known lines, asking the door through `program_output_lines_of` as the owners of a line were chosen.
+    """Tell whether the run of a request has no known lines, asking `NetworkRequestResultKnowledge` through `program_output_lines_of` as the owners of a line were chosen.
 
     A request of a web tool prints the lines of its result, and a line of a missing program belongs to the command whose program word it names, so neither has an unknown printer.
     """

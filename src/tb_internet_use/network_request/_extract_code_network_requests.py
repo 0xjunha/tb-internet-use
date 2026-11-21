@@ -49,7 +49,7 @@ from tb_internet_use.network_request.parse_urls_in_text import parse_urls_in_tex
 from tb_internet_use.tool_call.model import ToolCallKey
 
 if TYPE_CHECKING:
-    # The door is passed in and named in annotations only, so that this module never loads `knowledge/` itself.
+    # `NetworkRequestKnowledge` is passed in and named in annotations only, so that this module never loads `knowledge/` itself.
     from tb_internet_use.knowledge.network_request_knowledge import (
         NetworkRequestKnowledge,
     )
@@ -185,7 +185,7 @@ def _code_call_name_with_row(
     knowledge: NetworkRequestKnowledge,
     judgment_rule_use_counts: Counter[str],
 ) -> str:
-    """Give the name to ask the door about, the name as written when it has a row, else the shorter name that the judgment rule picks, else the name as written, e.g. `urlopen` for `urllib.request.urlopen`."""
+    """Give the name to ask `NetworkRequestKnowledge` about, the name as written when it has a row, else the shorter name that the judgment rule picks, else the name as written, e.g. `urlopen` for `urllib.request.urlopen`."""
     if knowledge.has_code_call_row(code_language, code_call.name):
         return code_call.name
     shorter_call_name = treat_call_name_that_ends_with_catalog_name_as_that_call(

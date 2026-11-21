@@ -675,7 +675,7 @@ _EXIT_CODES_COLUMNS = [
     "reviewed",
     "note",
 ]
-# A program row of `prog install` that prints the lines of two printing programs and a status code, so that a door that drops a word or a column fails.
+# A program row of `prog install` that prints the lines of two printing programs and a status code, so that a knowledge class that drops a word or a column fails.
 _OUTPUT_LINES_ROW = {
     **dict.fromkeys(_OUTPUT_LINES_COLUMNS, ""),
     "program_name": "prog",
@@ -954,7 +954,7 @@ _OPTIONS_OF_THE_OLD_RULES = [
     ("wget", ProgramOption("-d", None), {P.HTTP_HEADERS}, False),
     ("wget", ProgramOption("--debug", None), {P.HTTP_HEADERS}, False),
 ]
-# Printing programs that the output line patterns name but no program row gives, since a request of code asks the door with the run of its runner, e.g. python, and never as `CODE`.
+# Printing programs that the output line patterns name but no program row gives, since a request of code asks `NetworkRequestResultKnowledge` with the run of its runner, e.g. python, and never as `CODE`.
 _PRINTING_PROGRAMS_NOT_GIVEN_BY_A_PROGRAM_ROW = {P.CODE}
 # (program, subcommand words, answer of `program_output_lines`, answer of `program_exit_code_meaning` for exit 0) of real program rows, with every subcommand of several words.
 # The answers were read from the two CSVs by hand, so that a changed cell or a row lost from either file fails.

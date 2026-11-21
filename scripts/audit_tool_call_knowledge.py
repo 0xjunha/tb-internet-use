@@ -2,7 +2,7 @@
 
 It writes `row_uses.csv`, `unknown_inputs.csv`, `harness_tool_arguments_in_data.csv` and `judgment_rule_uses.csv` under `out/tool_call_knowledge/`, which `.gitignore` keeps out of the repo, since tool and argument names come from trajectories and can hold hidden task content.
 They hold counts and names only, never result text.
-The rows of each file are described above the call that writes it in `main`, together with what one lookup of the door is.
+The rows of each file are described above the call that writes it in `main`, together with what one lookup of `ToolCallKnowledge` is.
 
 Run it as `nice -n 10 uv run python -I scripts/audit_tool_call_knowledge.py <raw_trials_dir> [--limit N | --trial-ids FILE]`.
 """
@@ -75,7 +75,7 @@ def main() -> None:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     # `row_uses.csv` has one row for each catalog row or a declared result format that answered a lookup, with its lookups and trials.
     # A row that no lookup used is not in it.
-    # A lookup of a harness tool is one tool call or one step of a Codex `exec` script other than `apply_patch`, `web__run`, `exec`, `wait` and `request_user_input_async`, which the converter reads without asking the door, a lookup of a result format is one tool call with a result whose format the converter asks for, and a lookup of a return code interpretation is one Claude Code `Bash` result with the status finished that matched a format without an `Exit code` line, whose structured result does not call it interrupted and has a `returnCodeInterpretation` other than null.
+    # A lookup of a harness tool is one tool call or one step of a Codex `exec` script other than `apply_patch`, `web__run`, `exec`, `wait` and `request_user_input_async`, which the converter reads without asking `ToolCallKnowledge`, a lookup of a result format is one tool call with a result whose format the converter asks for, and a lookup of a return code interpretation is one Claude Code `Bash` result with the status finished that matched a format without an `Exit code` line, whose structured result does not call it interrupted and has a `returnCodeInterpretation` other than null.
     # An argument row counts once for every lookup of its tool by a call or a script step that has that argument, so its count is the `call_count` of the argument in `harness_tool_arguments_in_data.csv` plus the script steps with such a lookup that have it.
     write_csv(
         OUT_DIR / "row_uses.csv",
@@ -126,7 +126,7 @@ def main() -> None:
 
 
 def audit_trial(trial_dir: Path) -> TrialAudit:
-    """Run `convert_tool_calls` on one trial and return what its door and its judgment rules counted and the arguments of its calls, with an exception named instead of raised."""
+    """Run `convert_tool_calls` on one trial and return what `ToolCallKnowledge` and its judgment rules counted and the arguments of its calls, with an exception named instead of raised."""
     knowledge = ToolCallKnowledge()
     judgment_rule_use_counts: Counter[str] = Counter()
     try:
@@ -258,7 +258,7 @@ def _argument_rows(
             (harness, tool, argument), Counter()
         )
         type_counts[type_name] += count
-    # The lookups of this door only fill the `action_field` column, so its counts are dropped.
+    # The lookups of this `ToolCallKnowledge` only fill the `action_field` column, so its counts are dropped.
     knowledge = ToolCallKnowledge()
     for argument_key, type_counts in sorted(call_counts_by_type.items()):
         harness, tool, argument = argument_key

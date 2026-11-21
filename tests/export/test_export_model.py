@@ -112,7 +112,7 @@ def test_trial_row_of_an_unreadable_trajectory_counts_only_in_the_upper_bounds(
 
 
 def test_unknown_package_registry_refuses_to_be_read_as_true_or_false():
-    # It stands beside None, the answer for a request that the door is not asked about.
+    # It stands beside None, the answer for a request that `ExportKnowledge` is not asked about.
     with pytest.raises(TypeError):
         bool(UnknownPackageRegistry())
 

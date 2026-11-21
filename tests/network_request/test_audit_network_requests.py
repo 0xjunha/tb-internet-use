@@ -46,7 +46,7 @@ from tb_internet_use.network_request.model import (
     UnknownCodeCall,
     UnknownReceivedContentDestination,
 )
-from tb_internet_use.pipeline import KnowledgeDoors, run_steps_to_expanded_tool_calls
+from tb_internet_use.pipeline import PipelineKnowledge, run_steps_to_expanded_tool_calls
 from tb_internet_use.tool_call.model import (
     HarnessTool,
     HarnessToolCall,
@@ -119,10 +119,10 @@ class _Steps:
 
 
 def _steps(harness_tool_calls: tuple[HarnessToolCall, ...] = _MADE_UP_TRIAL) -> _Steps:
-    knowledge_doors = KnowledgeDoors()
+    pipeline_knowledge = PipelineKnowledge()
     expanded_tool_calls = run_steps_to_expanded_tool_calls(
         harness_tool_calls,
-        knowledge_doors=knowledge_doors,
+        pipeline_knowledge=pipeline_knowledge,
         tool_call_judgment_rule_use_counts=Counter(),
         expanded_tool_call_judgment_rule_use_counts=Counter(),
     )
@@ -130,7 +130,7 @@ def _steps(harness_tool_calls: tuple[HarnessToolCall, ...] = _MADE_UP_TRIAL) -> 
     no_network_request_counts: Counter[NoNetworkRequestReason] = Counter()
     network_requests = extract_network_requests(
         expanded_tool_calls,
-        knowledge=knowledge_doors.network_request_knowledge,
+        knowledge=pipeline_knowledge.network_request_knowledge,
         judgment_rule_use_counts=judgment_rule_use_counts,
         no_network_request_counts=no_network_request_counts,
     )
@@ -139,7 +139,7 @@ def _steps(harness_tool_calls: tuple[HarnessToolCall, ...] = _MADE_UP_TRIAL) -> 
         network_requests,
         no_network_request_counts,
         judgment_rule_use_counts,
-        knowledge_doors.network_request_knowledge.uses,
+        pipeline_knowledge.network_request_knowledge.uses,
     )
 
 
@@ -159,7 +159,7 @@ def _checked(steps: _Steps) -> Any:
         steps.network_requests,
         steps.no_network_request_counts,
         NetworkRequestKnowledge(),
-        audit.ProcessDoors().code_call_names,
+        audit.WorkerProcessKnowledge().code_call_names,
     ).check()
     return trial_audit
 

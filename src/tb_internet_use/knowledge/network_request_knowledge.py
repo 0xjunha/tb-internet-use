@@ -1,6 +1,6 @@
 """Answer the questions of `extract_network_requests` about which programs and code calls fetch, which of their words are targets and where the content goes, from the program request catalog and the code call catalog, counting every use of a row and every input without one.
 
-A blank cell is unknown only in `content_route` of the program request catalog and in `target_kind` of the code call catalog. Every other fact cell of a row of its kind says what it means in a word, e.g. `none` or `no_request`, and a blank there fails the load, so that the door never reads a missing fact as a default.
+A blank cell is unknown only in `content_route` of the program request catalog and in `target_kind` of the code call catalog. Every other fact cell of a row of its kind says what it means in a word, e.g. `none` or `no_request`, and a blank there fails the load, so that `NetworkRequestKnowledge` never reads a missing fact as a default.
 """
 
 import functools
@@ -61,11 +61,11 @@ _ONLY_WHAT_IS_MISSING = "only_what_is_missing"
 
 
 class NetworkRequestKnowledge:
-    """Door of `extract_network_requests` to the outside knowledge, made for one trial and passed to `extract_network_requests`, which asks it one question per method.
+    """Outside knowledge of `extract_network_requests`, made for one trial and passed to it as `knowledge`, which it asks one question per method.
 
     An answer is a value or an `Unknown…` type of the step's model, never a default.
     `uses` counts every catalog row that answered and every input without one.
-    The loaded catalogs are cached per process, so making a door per trial is cheap.
+    The loaded catalogs are cached per process, so making one per trial is cheap.
     """
 
     def __init__(self, *, catalogs_dir: Path = NETWORK_REQUEST_CATALOGS_DIR) -> None:
@@ -132,7 +132,7 @@ class NetworkRequestKnowledge:
 
         `program_name` is the first word that code passes to run, without its folder, e.g. `pip`.
         A row that fetches only what is missing counts as fetching.
-        The door counts one use, or one unknown input, under the key `(program_name, "any subcommand", "", "")`, apart from the counts of `program_network_request_label`.
+        `NetworkRequestKnowledge` counts one use, or one unknown input, under the key `(program_name, "any subcommand", "", "")`, apart from the counts of `program_network_request_label`.
         """
         fetches = self._catalogs.fetches_by_program_name.get(program_name)
         row_key = (program_name, ANY_SUBCOMMAND, "", "")
@@ -223,7 +223,7 @@ def _load_network_request_catalogs(catalogs_dir: Path) -> _NetworkRequestCatalog
 def _check_option_row_has_fetching_program(
     program_name: str, subcommand: str, fetching_program_rows: set[tuple[str, str]]
 ) -> None:
-    """Raise ValueError on an option row whose program, or program and subcommand when the row names one, has no row that fetches, since the door is asked about options only for such programs."""
+    """Raise ValueError on an option row whose program, or program and subcommand when the row names one, has no row that fetches, since `NetworkRequestKnowledge` is asked about options only for such programs."""
     if subcommand:
         if (program_name, subcommand) not in fetching_program_rows:
             raise ValueError(
@@ -243,7 +243,7 @@ class _NetworkRequestCatalogs:
     """Loaded catalogs of `extract_network_requests`, shared by every `NetworkRequestKnowledge` of a process."""
 
     program_network_requests: Catalog[_ProgramNetworkRequestRow]
-    # The keys of all rows, so the door can pick the row of an option before its one lookup.
+    # The keys of all rows, so `NetworkRequestKnowledge` can pick the row of an option before its one lookup.
     program_network_request_row_keys: frozenset[KnowledgeRowKey]
     # Whether any program row of each name fetches, so `may_program_fetch` answers without a lookup per row.
     fetches_by_program_name: Mapping[str, bool]

@@ -2,7 +2,7 @@
 
 A call can run text that sits in a file an earlier call wrote, e.g. `bash build.sh`, and its output can show up only in a later poll or file read, e.g. `tail build.log`.
 
-The module also holds the answers of `ExpandedToolCallKnowledge` that `expand_tool_calls` tells apart when it runs, e.g. `UnknownProgramBehavior`, since a step never imports the door when it runs, and the reading of a `#!` line that `parse_interpreter_line` gives.
+The module also holds the answers of `ExpandedToolCallKnowledge` that `expand_tool_calls` tells apart when it runs, e.g. `UnknownProgramBehavior`, since a step never imports its knowledge class when it runs, and the reading of a `#!` line that `parse_interpreter_line` gives.
 """
 
 from dataclasses import dataclass
@@ -495,7 +495,7 @@ class UnknownOptionsEndAtFirstArgument:
 class UnknownTakesNonOptionDashWordsAsArguments:
     """Answer of `ExpandedToolCallKnowledge`, standing where True or False would, to whether a word that starts with `-` and that no option row of a program covers is an argument of the program, when its row of `program_behaviors.csv` leaves that cell blank.
 
-    Such a word, e.g. `-q` of a program without a row of `-q`, is then an option that the catalog lacks, so the door answers `UnknownProgramOptionWord` for it.
+    Such a word, e.g. `-q` of a program without a row of `-q`, is then an option that the catalog lacks, so `ExpandedToolCallKnowledge` answers `UnknownProgramOptionWord` for it.
     """
 
     def __bool__(self) -> bool:
@@ -509,7 +509,7 @@ class UnknownTakesNonOptionDashWordsAsArguments:
 class UnknownTakesOneLetterOptionsJoined:
     """Answer of `ExpandedToolCallKnowledge`, standing where True or False would, to whether several letters after one `-` are one-letter options of a program, when its row of `program_behaviors.csv` leaves that cell blank.
 
-    A word such as `-ne` without a row of its own is then not read as `-n` and `-e`, so the door answers `UnknownProgramOptionWord` for it.
+    A word such as `-ne` without a row of its own is then not read as `-n` and `-e`, so `ExpandedToolCallKnowledge` answers `UnknownProgramOptionWord` for it.
     """
 
     def __bool__(self) -> bool:

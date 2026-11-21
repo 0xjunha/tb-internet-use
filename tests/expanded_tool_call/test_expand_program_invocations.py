@@ -1287,7 +1287,7 @@ ROLE_CASES = [
 
 
 class _Expansion(NamedTuple):
-    """Result of one `expand_program_invocations` call in a test, with the counts of the door and of the judgment rule."""
+    """Result of one `expand_program_invocations` call in a test, with the counts of `ExpandedToolCallKnowledge` and of the judgment rule."""
 
     program_invocations: tuple[ProgramInvocation | UnknownProgramInvocation, ...]
     roles: tuple[ProgramWordRole | UnknownProgramWordRole | None, ...]
@@ -1437,7 +1437,7 @@ def test_two_options_that_change_the_exit_code_answer_differently_give_unknown(
     )
 
 
-def test_door_is_asked_once_per_program_and_option_and_counts_an_option_without_a_row_as_the_whole_word(
+def test_knowledge_class_is_asked_once_per_program_and_option_and_counts_an_option_without_a_row_as_the_whole_word(
     catalogs_dir,
 ):
     uses = _expansion_of(catalogs_dir, ("find", ".", "-maxdepth", "2")).uses
@@ -1467,7 +1467,7 @@ def test_door_is_asked_once_per_program_and_option_and_counts_an_option_without_
         (("echo", "-ne", "a"), (("echo", "", "-ne"),)),
     ],
 )
-def test_each_word_of_options_is_one_question_of_the_door_and_at_most_one_unknown_input(
+def test_each_word_of_options_is_one_question_of_the_knowledge_class_and_at_most_one_unknown_input(
     catalogs_dir, words, unknown_option_inputs
 ):
     uses = _expansion_of(catalogs_dir, words).uses
@@ -1543,7 +1543,9 @@ def test_each_program_is_given_with_the_index_of_its_word(catalogs_dir):
     assert expansion.program_word_indexes == (0, 3, 6)
 
 
-def test_cluster_word_with_an_expansion_is_not_asked_of_the_door(catalogs_dir):
+def test_cluster_word_with_an_expansion_is_not_asked_of_the_knowledge_class(
+    catalogs_dir,
+):
     uses = _expansion_of(catalogs_dir, ("tar", "$X", "a"), (1,)).uses
 
     assert uses == KnowledgeUses(
@@ -1551,7 +1553,9 @@ def test_cluster_word_with_an_expansion_is_not_asked_of_the_door(catalogs_dir):
     )
 
 
-def test_program_word_with_an_expansion_is_not_asked_of_the_door(catalogs_dir):
+def test_program_word_with_an_expansion_is_not_asked_of_the_knowledge_class(
+    catalogs_dir,
+):
     expansion = _expansion_of(catalogs_dir, ("$CMD", "-x", "u"), (0,))
 
     assert expansion.uses == KnowledgeUses()

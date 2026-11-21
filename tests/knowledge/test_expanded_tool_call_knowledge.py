@@ -41,7 +41,7 @@ from tb_internet_use.knowledge.expanded_tool_call_knowledge import (
     ExpandedToolCallKnowledge,
 )
 
-# A program row of `prog` whose every fact cell reads differently from a blank cell, so that a door that drops a column fails.
+# A program row of `prog` whose every fact cell reads differently from a blank cell, so that a knowledge class that drops a column fails.
 _PROGRAM_ROW_CELLS = {
     "program_name": "prog",
     "subcommand": "",
@@ -224,7 +224,7 @@ _PROGRAM_ROWS_THAT_CANNOT_LOAD = [
     ({"reviewed": "no"}, "not empty or yes"),
     ({"program_name": ""}, "program_name is empty"),
 ]
-# Rows of one program name that differ in `name_may_end_with_version`, so that the door could not tell whether pip3 is pip.
+# Rows of one program name that differ in `name_may_end_with_version`, so that `ExpandedToolCallKnowledge` could not tell whether pip3 is pip.
 _PROGRAM_ROWS_THAT_DISAGREE_ON_A_VERSION = [
     {"program_name": "pip", "subcommand": "", "name_may_end_with_version": "yes"},
     {"program_name": "pip", "subcommand": "install", "name_may_end_with_version": "no"},
@@ -719,7 +719,7 @@ def _option_behavior_of(
     program_behavior: ProgramBehavior,
     option_name: str,
 ) -> ProgramOptionBehavior:
-    """Ask the door about a word that is one option name, and give the row of that option."""
+    """Ask `ExpandedToolCallKnowledge` about a word that is one option name, and give the row of that option."""
     answer = knowledge.program_option_word(program_behavior, option_name)
     assert isinstance(answer, ProgramOptionWord), (program_behavior, option_name)
     (option,) = answer.options
@@ -733,7 +733,7 @@ def _real_option_behavior_of(
     option_name: str,
     subcommand_words: tuple[str, ...] = (),
 ) -> ProgramOptionBehavior:
-    """Ask the door about one option of a program of the real catalog, through the row of the program."""
+    """Ask `ExpandedToolCallKnowledge` about one option of a program of the real catalog, through the row of the program."""
     return _option_behavior_of(
         knowledge,
         _program_behavior_of(knowledge, program_name, *subcommand_words),
@@ -1335,7 +1335,7 @@ def test_code_runner_row_that_expand_tool_calls_cannot_use_fails_the_load(
         ExpandedToolCallKnowledge(catalogs_dir=catalogs_dir)
 
 
-def test_each_door_counts_only_its_own_lookups(tmp_path):
+def test_each_knowledge_class_counts_only_its_own_lookups(tmp_path):
     catalogs_dir = _write_catalogs(tmp_path, program_rows=[_program_row()])
     first = ExpandedToolCallKnowledge(catalogs_dir=catalogs_dir)
     second = ExpandedToolCallKnowledge(catalogs_dir=catalogs_dir)
@@ -1345,8 +1345,8 @@ def test_each_door_counts_only_its_own_lookups(tmp_path):
     assert second.uses == KnowledgeUses()
 
 
-def test_door_module_can_be_the_first_import_of_a_process():
-    # The door imports the model of its step, whose package imports the door under TYPE_CHECKING only, so a fresh process shows that no cycle runs.
+def test_knowledge_class_module_can_be_the_first_import_of_a_process():
+    # `ExpandedToolCallKnowledge` imports the model of its step, whose package imports it under TYPE_CHECKING only, so a fresh process shows that no cycle runs.
     module = "tb_internet_use.knowledge.expanded_tool_call_knowledge"
     subprocess.run([sys.executable, "-I", "-c", f"import {module}"], check=True)
 

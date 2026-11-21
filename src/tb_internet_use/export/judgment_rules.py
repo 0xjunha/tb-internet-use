@@ -203,7 +203,7 @@ def treat_request_without_host_name_as_sent_to_default_registry_host(
 
     A program that installs packages usually names no host, and whether the request went out at all is decided from its output lines when results are decided.
     `export_network_request_row` asks it for each request without a host name whose source is no web tool. It gives the hosts the same reading as hosts that the words name.
-    `package_registry` is the answer of `ExportKnowledge.package_registry`, or None for a request that the door is not asked about, e.g. `git fetch origin`.
+    `package_registry` is the answer of `ExportKnowledge.package_registry`, or None for a request that `ExportKnowledge` is not asked about, e.g. `git fetch origin`.
     It gives the host names of a `PackageRegistry`, e.g. `deb.debian.org archive.ubuntu.com` for `apt-get update`, also when a file names the targets, e.g. `pip install -r reqs.txt`.
     It gives no host for a target that is a local path, e.g. `pip install -e .`, since a local project may or may not ask a registry for what it depends on. It gives none either for `UnknownPackageRegistry` or None. Without a host the request's internet use is not known.
     The other choices are no host for every request, which leaves all of them unknown, or the registry hosts for a local path too.

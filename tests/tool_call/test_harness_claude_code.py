@@ -127,7 +127,7 @@ def _counted_bash_result_of(
     knowledge: ToolCallKnowledge,
     judgment_rule_use_counts: Counter[str],
 ) -> ToolCallResult:
-    """Convert one `Bash` call with the given door and judgment rule counter, so that a test can read what they counted."""
+    """Convert one `Bash` call with the given `ToolCallKnowledge` and judgment rule counter, so that a test can read what they counted."""
     tool_call = convert_one_tool_call(
         _harness_tool_call("Bash", {"command": "x"}, _result(block, structured_result)),
         CONVERTER,
@@ -881,10 +881,10 @@ def test_bash_return_code_interpretation_gives_the_exit_code_of_its_catalog_row(
     assert judgment_rule_use_counts[EXIT_CODE_0_RULE] == 0
 
 
-def test_bash_return_code_interpretation_gives_the_exit_code_the_door_answers(
+def test_bash_return_code_interpretation_gives_the_exit_code_the_knowledge_class_answers(
     tmp_path: Path,
 ):
-    # A made-up row whose exit code is not 1, so that a converter that gives 1 without asking the door fails.
+    # A made-up row whose exit code is not 1, so that a converter that gives 1 without asking `ToolCallKnowledge` fails.
     for file_name in (HARNESS_TOOLS_CSV, HARNESS_TOOL_ARGUMENTS_CSV):
         shutil.copy(TOOL_CALL_CATALOGS_DIR / file_name, tmp_path / file_name)
     (tmp_path / HARNESS_RETURN_CODE_INTERPRETATIONS_CSV).write_text(

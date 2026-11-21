@@ -41,7 +41,7 @@ from tb_internet_use.network_request_result.model import (
     SharedOutputLineAssumptionReason,
     UnusedOutputLineReason,
 )
-from tb_internet_use.pipeline import KnowledgeDoors, run_steps_to_expanded_tool_calls
+from tb_internet_use.pipeline import PipelineKnowledge, run_steps_to_expanded_tool_calls
 from tb_internet_use.tool_call.model import (
     HarnessTool,
     HarnessToolCall,
@@ -142,16 +142,16 @@ class _Steps:
 
 
 def _steps(harness_tool_calls: tuple[HarnessToolCall, ...] = _MADE_UP_TRIAL) -> _Steps:
-    knowledge_doors = KnowledgeDoors()
+    pipeline_knowledge = PipelineKnowledge()
     expanded_tool_calls = run_steps_to_expanded_tool_calls(
         harness_tool_calls,
-        knowledge_doors=knowledge_doors,
+        pipeline_knowledge=pipeline_knowledge,
         tool_call_judgment_rule_use_counts=Counter(),
         expanded_tool_call_judgment_rule_use_counts=Counter(),
     )
     network_requests = extract_network_requests(
         expanded_tool_calls,
-        knowledge=knowledge_doors.network_request_knowledge,
+        knowledge=pipeline_knowledge.network_request_knowledge,
         judgment_rule_use_counts=Counter(),
         no_network_request_counts=Counter(),
     )
@@ -161,7 +161,7 @@ def _steps(harness_tool_calls: tuple[HarnessToolCall, ...] = _MADE_UP_TRIAL) -> 
     steps.network_request_results = decide_network_request_results(
         expanded_tool_calls,
         network_requests,
-        knowledge=knowledge_doors.network_request_result_knowledge,
+        knowledge=pipeline_knowledge.network_request_result_knowledge,
         judgment_rule_use_counts=steps.judgment_rule_use_counts,
         unused_output_line_counts=steps.unused_output_line_counts,
         program_counts_of_unowned_output_lines=steps.program_counts_of_unowned_output_lines,
@@ -695,7 +695,7 @@ def test_counts_the_strongest_evidence_of_each_result():
         ), count in trial_audit.evidence_kind_outcome_counts.items()
         if outcome == "strongest" and count
     }
-    # wget's own download line outranks its exit code 0. Exit code 0, which the door reads as a server's answer, is the only evidence of `sudo curl` and of both requests of `curl -s -o p`.
+    # wget's own download line outranks its exit code 0. Exit code 0, which `NetworkRequestResultKnowledge` reads as a server's answer, is the only evidence of `sudo curl` and of both requests of `curl -s -o p`.
     # The shared download line of D shows only that pip ran, so the install line of A alone outranks it, while it stays the strongest evidence of B.
     assert strongest_counts == {
         "output line downloaded": 1,
@@ -704,7 +704,7 @@ def test_counts_the_strongest_evidence_of_each_result():
         "output line http_status 100-399": 1,
         "output line program_missing": 1,
         "execution status not_run": 1,
-        "exit code 0, door answer server_answered": 3,
+        "exit code 0, knowledge answer server_answered": 3,
         "output line http_status 400-599": 1,
         "shown content of a command result": 1,
     }
@@ -926,7 +926,7 @@ def test_audit_trial_decides_and_checks_a_trial_folder(tmp_path):
 def test_audit_trial_gives_the_same_lookups_for_a_trial_audited_twice(tmp_path):
     trial_dir = _raw_trials_dir(tmp_path) / "t1"
 
-    # The counts of the first trial are copied before the second, since a door that kept its uses would change them in place.
+    # The counts of the first trial are copied before the second, since a knowledge class that kept its uses would change them in place.
     first_row_use_counts = Counter(
         audit.audit_trial(trial_dir).knowledge_uses.row_use_counts
     )

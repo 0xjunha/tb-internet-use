@@ -32,7 +32,7 @@ from tb_internet_use.expanded_tool_call.model import (
 from tb_internet_use.tool_call.model import ShellCommand
 
 if TYPE_CHECKING:
-    # The door is passed in and named in annotations only, so that this module never loads `knowledge/` itself.
+    # `ExpandedToolCallKnowledge` is passed in and named in annotations only, so that this module never loads `knowledge/` itself.
     from tb_internet_use.knowledge.expanded_tool_call_knowledge import (
         ExpandedToolCallKnowledge,
     )
@@ -80,7 +80,7 @@ def expand_program_invocations(
 
     The roles have one entry per word of `shell_command.words`. A program word, a subcommand word, a word that holds an option name and the `--` that ends the options have None.
     The rows have one entry per program, in the order of the programs, and `UnknownProgramBehavior` for an `UnknownProgramInvocation`.
-    They are given so that later code reads a fact of a program, e.g. how much of piped input tail passes on, without asking the door again, which would count the row twice.
+    They are given so that later code reads a fact of a program, e.g. how much of piped input tail passes on, without asking `ExpandedToolCallKnowledge` again, which would count the row twice.
     The program word indexes are 0-based in `shell_command.words`, one per program in the order of the programs, e.g. `(0, 3)` for find and ./run.sh in `find . -exec ./run.sh ;`, so that later code finds the word of a program that words of an outer program follow.
     Every use of `treat_word_with_expansion_as_one_argument` adds one to `judgment_rule_use_counts`.
     """
@@ -272,7 +272,7 @@ class _ProgramWordsState:
                 subcommand_words = self.program_behavior.subcommand_words
                 subcommand_end_index = word_index + len(subcommand_words)
                 if tuple(words[word_index:subcommand_end_index]) != subcommand_words:
-                    # The door found the subcommand after the options it skipped, so another word here is not read.
+                    # `ExpandedToolCallKnowledge` found the subcommand after the options it skipped, so another word here is not read.
                     self.first_unread_word_index = word_index
                     return
                 self.is_before_subcommand = False
@@ -366,7 +366,7 @@ class _ProgramWordsState:
     def is_option_place_unknown(self) -> bool:
         """Tell whether the program has an argument and its row leaves `options_end_at_first_argument` blank, so that whether a later word can be an option is not known.
 
-        It asks the door only after an argument, and is called only for a word that the program then leaves unread when the answer is yes, so the door counts one unknown input per such word.
+        It asks `ExpandedToolCallKnowledge` only after an argument, and is called only for a word that the program then leaves unread when the answer is yes, so `ExpandedToolCallKnowledge` counts one unknown input per such word.
         """
         return self.has_argument() and isinstance(
             self.command_state.knowledge.options_end_at_first_argument(

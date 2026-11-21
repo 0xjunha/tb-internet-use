@@ -19,7 +19,7 @@ from tb_internet_use.tool_call.model import (
 from tb_internet_use.tool_call.parse_patch import parse_patch
 
 if TYPE_CHECKING:
-    # The door is passed in and named in annotations only, so that `convert_tool_calls` never loads `knowledge/` itself.
+    # `ToolCallKnowledge` is passed in and named in annotations only, so that `convert_tool_calls` never loads `knowledge/` itself.
     from tb_internet_use.knowledge.tool_call_knowledge import ToolCallKnowledge
 
 # The kind of path that Copilot CLI says in the telemetry of a `view` result that it listed, a folder.

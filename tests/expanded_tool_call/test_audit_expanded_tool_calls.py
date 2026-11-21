@@ -175,7 +175,7 @@ def _checked(
     `added_rule_uses` adds to the rule uses that the expansion counted, as a broken expansion would.
     """
     judgment_rule_use_counts: Counter[str] = Counter()
-    # The door's uses start empty, so that the unknown inputs are those of this expansion.
+    # The uses of `ExpandedToolCallKnowledge` start empty, so that the unknown inputs are those of this expansion.
     knowledge.uses = KnowledgeUses()
     expanded = expand_tool_calls(
         tool_calls,
@@ -191,7 +191,7 @@ def _checked(
         judgment_rule_use_counts=judgment_rule_use_counts,
         knowledge_uses=knowledge.uses,
     )
-    # The checker asks a door of its own, as `audit_trial` gives it, so that its lookups do not count as lookups of the expansion.
+    # The checker asks an `ExpandedToolCallKnowledge` of its own, as `audit_trial` gives it, so that its lookups do not count as lookups of the expansion.
     own_knowledge = copy.copy(knowledge)
     own_knowledge.uses = KnowledgeUses()
     audit.TrialChecker(
@@ -252,7 +252,7 @@ _MADE_UP_TRIAL = (
         FINISHED,
     ),
     _call(13, "bash sub.sh"),
-    # printf leaves `-v` unread for want of a cell of its row, which the door counts.
+    # printf leaves `-v` unread for want of a cell of its row, which `ExpandedToolCallKnowledge` counts.
     _call(14, "printf a -v x"),
 )
 

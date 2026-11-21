@@ -1,18 +1,18 @@
 # Outside knowledge
 
-Facts that no trajectory holds, e.g. that the Codex tool `exec_command` runs a shell command. They are written by hand, never by a script, and a `reviewed` cell beside each fact says whether a person has reviewed it. A step asks for them only through its door, one class per step, which its entry function takes as an argument.
+Facts that no trajectory holds, e.g. that the Codex tool `exec_command` runs a shell command. They are written by hand, never by a script, and a `reviewed` cell beside each fact says whether a person has reviewed it. A step asks for them only through its knowledge class, one per step, which its entry function takes as `knowledge`.
 
-Every door guarantees three things:
+Every knowledge class guarantees three things:
 
 - An answer is a value or an unknown, never a default.
-- Each unknown input is counted, except an output line that no pattern fits, which has no name to count it under, and an argument of a tool call without a row of `harness_tool_arguments.csv`, which the door never looks up, so it fills no field without a count.
+- Each unknown input is counted, except an output line that no pattern fits, which has no name to count it under, and an argument of a tool call without a row of `harness_tool_arguments.csv`, which no knowledge class looks up, so it fills no field without a count.
 - Each use of a fact is counted.
 
-A door reads a CSV only through `Catalog` in [catalog.py](catalog.py), whose `lookup` records the use or the miss itself. The counts depend on the dataset, so each run writes them under `out/` and no script writes a catalog.
+A knowledge class reads a CSV only through `Catalog` in [catalog.py](catalog.py), whose `lookup` records the use or the miss itself. The counts depend on the dataset, so each run writes them under `out/` and no script writes a catalog.
 
-Knowledge that a CSV cannot hold, e.g. a result format with a template and a function that builds the tool output text, is declared in Python under [declarations/](declarations/). A step reaches it through its door too, and imports no module of `knowledge/` when it runs. Since a Python line has no columns for a review, a hand-filled `<what one row is>_reviews.csv` beside the Python files records what each declared fact was checked against and whether a person reviewed it, e.g. [harness_result_format_reviews.csv](declarations/tool_call/harness_result_formats/README.md#review-record).
+Knowledge that a CSV cannot hold, e.g. a result format with a template and a function that builds the tool output text, is declared in Python under [declarations/](declarations/). A step reaches it through its knowledge class too, and imports no module of `knowledge/` when it runs. Since a Python line has no columns for a review, a hand-filled `<what one row is>_reviews.csv` beside the Python files records what each declared fact was checked against and whether a person reviewed it, e.g. [harness_result_format_reviews.csv](declarations/tool_call/harness_result_formats/README.md#review-record).
 
-| File | Door that reads it | One row | Question it answers |
+| File | Knowledge class that reads it | One row | Question it answers |
 |---|---|---|---|
 | [catalogs/tool_call/harness_tools.csv](catalogs/tool_call/harness_tools.csv) | `ToolCallKnowledge` in [tool_call_knowledge.py](tool_call_knowledge.py) | One tool of one harness | Which `ToolCallAction` type is a call of the tool, and does the tool stop something started earlier? |
 | [catalogs/tool_call/harness_tool_arguments.csv](catalogs/tool_call/harness_tool_arguments.csv) | `ToolCallKnowledge` | One argument of a harness tool that fills an action field | Which field of the action does the argument fill, and which kind of target do its handles name? |

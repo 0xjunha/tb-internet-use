@@ -1,4 +1,4 @@
-"""Tests for the declarations of program output line patterns in program_output.py, beyond the meanings that the door gives example lines."""
+"""Tests for the declarations of program output line patterns in program_output.py, beyond the meanings that `NetworkRequestResultKnowledge` gives example lines."""
 
 import pytest
 

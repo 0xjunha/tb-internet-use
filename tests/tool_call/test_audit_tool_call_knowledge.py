@@ -136,7 +136,7 @@ def _csv_rows(path: Path) -> list[list[str]]:
         return list(csv.reader(f))
 
 
-def test_audit_trial_returns_the_uses_of_the_door_the_rules_and_the_arguments(
+def test_audit_trial_returns_the_uses_of_the_knowledge_class_the_rules_and_the_arguments(
     tmp_path: Path,
 ):
     trial_dir = tmp_path / "trial-1"

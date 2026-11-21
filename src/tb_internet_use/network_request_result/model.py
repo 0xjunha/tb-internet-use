@@ -2,7 +2,7 @@
 
 The four levels alone cannot tell "it failed there" from "nothing shows beyond there", so each result also says why it stopped.
 
-The module also holds the answers of `NetworkRequestResultKnowledge` and the types that `decide_network_request_results` passes between its pieces, e.g. `UnknownOutputLineMeaning` and `OutputPlaceSources`, since a step never imports the door when it runs.
+The module also holds the answers of `NetworkRequestResultKnowledge` and the types that `decide_network_request_results` passes between its pieces, e.g. `UnknownOutputLineMeaning` and `OutputPlaceSources`, since a step never imports its knowledge class when it runs.
 """
 
 from dataclasses import dataclass

@@ -114,7 +114,7 @@ from tb_internet_use.network_request_result.model import (
 from tb_internet_use.tool_call.model import ToolCallKey
 
 if TYPE_CHECKING:
-    # The door is passed in and named in annotations only, so that `export_rows` never loads `knowledge/` itself.
+    # `ExportKnowledge` is passed in and named in annotations only, so that `export_rows` never loads `knowledge/` itself.
     from tb_internet_use.knowledge.export_knowledge import ExportKnowledge
 
 # The text between the texts of two pieces of evidence in the `evidence` column, which differs from the `, ` inside the text of one piece.
@@ -252,7 +252,7 @@ def _host_name_scopes_of(
 def _package_registry_for(
     network_request: NetworkRequest, *, knowledge: ExportKnowledge
 ) -> PackageRegistry | UnknownPackageRegistry | None:
-    """Find the default package registry of the program of a command whose target is a package name, e.g. `pypi` for `pip install requests`, or None for a request that the door is not asked about, e.g. `git fetch origin` or code."""
+    """Find the default package registry of the program of a command whose target is a package name, e.g. `pypi` for `pip install requests`, or None for a request that `ExportKnowledge` is not asked about, e.g. `git fetch origin` or code."""
     source = network_request.source
     if (
         network_request.target_kind != NetworkRequestTargetKind.PACKAGE_NAME
@@ -541,7 +541,7 @@ def _host_service_text_of(
 ) -> str:
     """Give the service of each host in order, separated by spaces, e.g. `not_public unknown` for `10.0.0.5 a.org`.
 
-    A public host gives the service of its row of the host catalog, or `unknown` without one. Any other host gives `not_public`, also one whose scope is not known, e.g. `db`, since the door is asked only about public hosts.
+    A public host gives the service of its row of the host catalog, or `unknown` without one. Any other host gives `not_public`, also one whose scope is not known, e.g. `db`, since `ExportKnowledge` is asked only about public hosts.
     `public_hosts` holds the answers for the public hosts in the same order.
     """
     remaining_public_hosts = iter(public_hosts)
@@ -565,7 +565,7 @@ def _package_registry_text_of(
 ) -> str:
     """Give the registry of a package request, e.g. `pypi`, empty for any other category.
 
-    The registry of a public host of the request comes first, then the default registry of its program. Without either it is `unknown`, also for a request that the door is not asked about.
+    The registry of a public host of the request comes first, then the default registry of its program. Without either it is `unknown`, also for a request that `ExportKnowledge` is not asked about.
     """
     if category != NetworkRequestCategory.PACKAGE:
         return ""

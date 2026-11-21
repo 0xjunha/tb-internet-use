@@ -60,7 +60,7 @@ _COLUMNS = [
     "reviewed",
     "note",
 ]
-# A program row of `prog install` whose every fact cell differs from the first value of its type, so that a door that drops or mixes up a column fails.
+# A program row of `prog install` whose every fact cell differs from the first value of its type, so that a knowledge class that drops or mixes up a column fails.
 _PROGRAM_ROW_CELLS = {
     **dict.fromkeys(_COLUMNS, ""),
     "program_name": "prog",
@@ -106,7 +106,7 @@ _CODE_CALL_COLUMNS = [
     "reviewed",
     "note",
 ]
-# A row of a call that sends a request whose language, target notation and target kind each differ from the first value of their types, so that a door that drops or mixes up a column fails.
+# A row of a call that sends a request whose language, target notation and target kind each differ from the first value of their types, so that a knowledge class that drops or mixes up a column fails.
 _SENDING_CODE_CALL_ROW_CELLS = {
     **dict.fromkeys(_CODE_CALL_COLUMNS, ""),
     "code_language": "javascript",

@@ -4,7 +4,7 @@ The export catalog is outside knowledge for `export_rows`, kept in the three CSV
 
 Whether a host is public at all is no fact of this folder. It is read from the name by `parse_host_name` of `network_request/`, and only a public host is looked up here.
 
-In each file a blank is unknown only in the column that answers the question of the file, and the door then answers with an `Unknown…` type of [model.py](../../../export/model.py). The use of such a row is counted like any other, so it leaves the list of unknown inputs. In every other column a blank fails the load where the table asks for a value.
+In each file a blank is unknown only in the column that answers the question of the file, and `ExportKnowledge` then answers with an `Unknown…` type of [model.py](../../../export/model.py). The use of such a row is counted like any other, so it leaves the list of unknown inputs. In every other column a blank fails the load where the table asks for a value.
 
 [`public_hosts.csv`](public_hosts.csv) has one row per public host name, keyed by `host_name`. A name asked in another case finds the row of its lower-case form, e.g. `PyPI.org` finds `pypi.org`, and no row answers for another name, e.g. `files.pythonhosted.org` for `pypi.org`.
 

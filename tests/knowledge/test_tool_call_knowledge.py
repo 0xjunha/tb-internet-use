@@ -45,7 +45,7 @@ _REVIEW_COLUMNS = ",a manual,yes,"
 
 _TOOL_ROWS = ("h,stop,PollAction,yes", "h,list,OtherAction,")
 _ARGUMENT_ROWS = ("h,stop,id,handles,command", "h,stop,text,input,")
-# The exit code is not 1, so that a door that gives 1 without reading the row fails.
+# The exit code is not 1, so that a knowledge class that gives 1 without reading the row fails.
 _RETURN_CODE_INTERPRETATION_ROWS = ("h,list,Nothing listed,2",)
 
 # (tool rows, argument rows, a part of the error message)
@@ -193,7 +193,7 @@ def test_tool_without_a_row_is_unknown_and_an_argument_row_counts_only_the_calls
     )
 
 
-def test_each_door_counts_only_its_own_lookups(tmp_path):
+def test_each_knowledge_class_counts_only_its_own_lookups(tmp_path):
     catalogs_dir = _write_catalogs(tmp_path, list(_TOOL_ROWS), list(_ARGUMENT_ROWS))
     first = ToolCallKnowledge(catalogs_dir=catalogs_dir)
     second = ToolCallKnowledge(catalogs_dir=catalogs_dir)
@@ -368,7 +368,7 @@ def test_only_a_tool_with_json_formats_has_them_and_asking_counts_nothing():
     assert knowledge.uses == KnowledgeUses()
 
 
-def test_door_module_can_be_the_first_import_of_a_process():
-    # The door imports the model of its step, whose package imports the door under TYPE_CHECKING only, so a fresh process shows that no cycle runs.
+def test_knowledge_class_module_can_be_the_first_import_of_a_process():
+    # `ToolCallKnowledge` imports the model of its step, whose package imports it under TYPE_CHECKING only, so a fresh process shows that no cycle runs.
     module = "tb_internet_use.knowledge.tool_call_knowledge"
     subprocess.run([sys.executable, "-I", "-c", f"import {module}"], check=True)

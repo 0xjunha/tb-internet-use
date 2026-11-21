@@ -1,6 +1,6 @@
 """Run the steps up to `decide_network_request_results` on raw trials, count the results per harness and check the equations that the results must meet.
 
-An equation sets a count of the results beside a count that this script takes another way, e.g. from the expanded calls, from the requests or from the output lines that its own door reads, so that a result that the step dropped, made twice or gave without its evidence shows as a difference.
+An equation sets a count of the results beside a count that this script takes another way, e.g. from the expanded calls, from the requests or from the output lines that its own `NetworkRequestResultKnowledge` reads, so that a result that the step dropped, made twice or gave without its evidence shows as a difference.
 An equation whose right side is 0 counts results that break a rule that holds whatever the data, e.g. a confirmed received result without a download line or a use of the saved file of its own.
 Each equation of `EQUATIONS` has its definition above its name.
 
@@ -76,7 +76,7 @@ from tb_internet_use.network_request_result.parse_tool_output_text import (
     parse_tool_output_text,
 )
 from tb_internet_use.pipeline import (
-    KnowledgeDoors,
+    PipelineKnowledge,
     read_trajectory,
     read_trial_file_texts,
     run_steps_to_expanded_tool_calls,
@@ -111,7 +111,7 @@ EQUATIONS = (
     "results_equal_requests",
     # Requests whose call key and index in the call one result has and no other beside requests.
     "each_request_has_one_result_with_its_key",
-    # Lines of every call's result that this script's own door matches, the parts of a line asked from the last one and the result of web tool actions alone, also as the steps of a tool script, read as page text, beside distinct lines that an `OutputLineEvidence` of a result names, plus the lines that `decide_network_request_results` counted as unused.
+    # Lines of every call's result that this script's own `NetworkRequestResultKnowledge` matches, the parts of a line asked from the last one and the result of web tool actions alone, also as the steps of a tool script, read as page text, beside distinct lines that an `OutputLineEvidence` of a result names, plus the lines that `decide_network_request_results` counted as unused.
     "matched_lines_equal_evidence_lines_and_unused_lines",
     # Requests from a command of the call's own text without `structure_may_be_wrong`, that exits 0 when its text does, whose text ended `FINISHED` with exit code 0 and whose outer programs all end with the exit code of the next one, beside results with an `ExitCodeEvidence` of exit code 0.
     "exit_zero_requests_equal_results_with_exit_zero_evidence",
@@ -437,11 +437,11 @@ _LISTS = (
         "unowned_output_lines.csv",
         ("reason", "kind", "program_name"),
     ),
-    # `exit_code_rule_uses.csv` has one row for each answer of the door that makes exit code 0 give a level, a program and a subcommand, with its requests, trials and tasks.
+    # `exit_code_rule_uses.csv` has one row for each answer of `NetworkRequestResultKnowledge` that makes exit code 0 give a level, a program and a subcommand, with its requests, trials and tasks.
     (
         _EXIT_CODE_RULE_USES,
         "exit_code_rule_uses.csv",
-        ("door_answer", "program_name", "subcommand"),
+        ("knowledge_answer", "program_name", "subcommand"),
     ),
     # `file_use_rule_conditions.csv` has one row for each condition that makes a use of a saved file uncertain, or none, with its requests, trials and tasks.
     (_FILE_USE_RULE_CONDITIONS, "file_use_rule_conditions.csv", ("condition",)),
@@ -476,23 +476,23 @@ def audit_trial(trial_dir: Path) -> TrialAudit:
         if isinstance(harness_tool_calls, UnreadableTrajectory):
             return TrialAudit(trial_dir.name, f"unreadable {harness_tool_calls.reason}")
         (trial,) = collect_trials([read_trial_file_texts(trial_dir)], {})
-        process_doors = process_doors_of_worker()
-        knowledge_doors = process_doors.knowledge_doors
-        # The doors serve every trial of the worker process, so their uses start empty for each trial.
-        knowledge_doors.tool_call_knowledge.uses = KnowledgeUses()
-        knowledge_doors.expanded_tool_call_knowledge.uses = KnowledgeUses()
-        knowledge_doors.network_request_knowledge.uses = KnowledgeUses()
-        knowledge_doors.network_request_result_knowledge.uses = KnowledgeUses()
+        worker_process_knowledge = knowledge_of_worker_process()
+        pipeline_knowledge = worker_process_knowledge.pipeline_knowledge
+        # The knowledge classes serve every trial of the worker process, so their uses start empty for each trial.
+        pipeline_knowledge.tool_call_knowledge.uses = KnowledgeUses()
+        pipeline_knowledge.expanded_tool_call_knowledge.uses = KnowledgeUses()
+        pipeline_knowledge.network_request_knowledge.uses = KnowledgeUses()
+        pipeline_knowledge.network_request_result_knowledge.uses = KnowledgeUses()
         # The steps run as `run_steps_to_network_request_results` runs them, keeping the expanded calls and the requests that the recounts read.
         expanded_tool_calls = run_steps_to_expanded_tool_calls(
             harness_tool_calls,
-            knowledge_doors=knowledge_doors,
+            pipeline_knowledge=pipeline_knowledge,
             tool_call_judgment_rule_use_counts=Counter(),
             expanded_tool_call_judgment_rule_use_counts=Counter(),
         )
         network_requests = extract_network_requests(
             expanded_tool_calls,
-            knowledge=knowledge_doors.network_request_knowledge,
+            knowledge=pipeline_knowledge.network_request_knowledge,
             judgment_rule_use_counts=Counter(),
             no_network_request_counts=Counter(),
         )
@@ -505,22 +505,24 @@ def audit_trial(trial_dir: Path) -> TrialAudit:
         network_request_results = decide_network_request_results(
             expanded_tool_calls,
             network_requests,
-            knowledge=knowledge_doors.network_request_result_knowledge,
+            knowledge=pipeline_knowledge.network_request_result_knowledge,
             judgment_rule_use_counts=trial_audit.judgment_rule_use_counts,
             unused_output_line_counts=trial_audit.unused_output_line_counts,
             program_counts_of_unowned_output_lines=trial_audit.program_counts_of_unowned_output_lines,
         )
         trial_audit.knowledge_uses = (
-            knowledge_doors.network_request_result_knowledge.uses
+            pipeline_knowledge.network_request_result_knowledge.uses
         )
-        # The door of this script starts empty too, and its lookups never join those of the step.
-        process_doors.own_network_request_result_knowledge.uses = KnowledgeUses()
+        # The `NetworkRequestResultKnowledge` of this script starts empty too, and its lookups never join those of the step.
+        worker_process_knowledge.own_network_request_result_knowledge.uses = (
+            KnowledgeUses()
+        )
         TrialChecker(
             trial_audit,
             expanded_tool_calls,
             network_requests,
             network_request_results,
-            process_doors.own_network_request_result_knowledge,
+            worker_process_knowledge.own_network_request_result_knowledge,
         ).check()
     except Exception as error:  # noqa: BLE001, one trial must not stop the run
         return TrialAudit(trial_dir.name, f"exception {type(error).__name__}")
@@ -528,24 +530,24 @@ def audit_trial(trial_dir: Path) -> TrialAudit:
 
 
 @dataclass(frozen=True, slots=True)
-class ProcessDoors:
-    """Doors of outside knowledge made once in each worker process and used for each of its trials.
+class WorkerProcessKnowledge:
+    """Knowledge classes made once in each worker process and used for each of its trials.
 
-    `audit_trial` empties the `uses` of each door that a trial asks before the trial asks it, so that they count the lookups of that trial alone.
+    `audit_trial` empties the `uses` of each knowledge class that a trial asks before the trial asks it, so that they count the lookups of that trial alone.
     """
 
-    # The doors that the steps ask.
-    knowledge_doors: KnowledgeDoors = field(default_factory=KnowledgeDoors)
-    # The door that `TrialChecker` asks what a line means and what an exit code says, so that its lookups do not count as lookups of the step.
+    # The knowledge classes that the steps ask.
+    pipeline_knowledge: PipelineKnowledge = field(default_factory=PipelineKnowledge)
+    # The `NetworkRequestResultKnowledge` that `TrialChecker` asks what a line means and what an exit code says, so that its lookups do not count as lookups of the step.
     own_network_request_result_knowledge: NetworkRequestResultKnowledge = field(
         default_factory=NetworkRequestResultKnowledge
     )
 
 
 @functools.cache
-def process_doors_of_worker() -> ProcessDoors:
-    """Give the doors of this worker process, made at its first trial."""
-    return ProcessDoors()
+def knowledge_of_worker_process() -> WorkerProcessKnowledge:
+    """Give the knowledge classes of this worker process, made at its first trial."""
+    return WorkerProcessKnowledge()
 
 
 @dataclass(slots=True)
@@ -750,7 +752,7 @@ class _DefaultSets[Key](dict[Key, set[str]]):
 class TrialChecker:
     """Checker of the results of one trial, which adds its counts, lists and the sides of each equation to a `TrialAudit`.
 
-    It reads the expanded calls, the requests and the results, and asks its own door what each output line means, so its recounts do not go through the pieces of the step they check.
+    It reads the expanded calls, the requests and the results, and asks its own `NetworkRequestResultKnowledge` what each output line means, so its recounts do not go through the pieces of the step they check.
     """
 
     def __init__(
@@ -795,7 +797,7 @@ class TrialChecker:
         )
 
     def _output_line_meanings_by_place(self) -> dict[_LinePlace, OutputLineMeaning]:
-        """Read the result of every call with this script's own door, the parts of a line from the last one, page text for a call of web tool actions alone."""
+        """Read the result of every call with this script's own `NetworkRequestResultKnowledge`, the parts of a line from the last one, page text for a call of web tool actions alone."""
         output_line_meaning_by_place: dict[_LinePlace, OutputLineMeaning] = {}
         for expanded_tool_call in self.expanded_tool_calls:
             tool_call = expanded_tool_call.tool_call
@@ -839,7 +841,7 @@ class TrialChecker:
             )
 
     def check_output_lines(self) -> None:
-        """Check that the lines that the own door matches are as many as the distinct lines named as evidence and the lines counted as unused, and count the lines by kind and use."""
+        """Check that the lines that the own `NetworkRequestResultKnowledge` matches are as many as the distinct lines named as evidence and the lines counted as unused, and count the lines by kind and use."""
         trial_audit = self.trial_audit
         shared_by_place: dict[_LinePlace, bool] = {}
         for result in self.network_request_results:
@@ -1184,7 +1186,7 @@ class TrialChecker:
     def _evidence_kind_of(
         self, result: NetworkRequestResult, evidence: NetworkRequestResultEvidence
     ) -> str:
-        """Name the kind of one piece of evidence of a result, splitting status codes at 400, shown content by tool, file uses by kind and exit code 0 by the door's answer."""
+        """Name the kind of one piece of evidence of a result, splitting status codes at 400, shown content by tool, file uses by kind and exit code 0 by the answer of `NetworkRequestResultKnowledge`."""
         if isinstance(evidence, OutputLineEvidence):
             status_code = self._status_code_of_line(evidence)
             status_range = (
@@ -1217,7 +1219,7 @@ class TrialChecker:
         if isinstance(evidence, FileUseEvidence):
             return f"file use {evidence.file_use.kind.value}"
         if isinstance(evidence, ExitCodeEvidence):
-            return f"exit code {evidence.exit_code}, door answer {self._exit_code_answer_of(result.network_request, evidence.exit_code)}"
+            return f"exit code {evidence.exit_code}, knowledge answer {self._exit_code_answer_of(result.network_request, evidence.exit_code)}"
         return f"execution status {evidence.execution_status.value}"
 
     def _strongest_evidence_of(
@@ -1249,7 +1251,7 @@ class TrialChecker:
     def _level_and_stop_reason_of_evidence(
         self, result: NetworkRequestResult, evidence: NetworkRequestResultEvidence
     ) -> tuple[NetworkRequestResultLevel, NetworkRequestResultStopReason | None]:
-        """Read the level and stop reason that one piece of evidence shows, from its kind, the status code of its line and the door's answer for exit code 0, with the provisional choice of each judgment rule.
+        """Read the level and stop reason that one piece of evidence shows, from its kind, the status code of its line and the answer of `NetworkRequestResultKnowledge` for exit code 0, with the provisional choice of each judgment rule.
 
         Content received or a status below 400 is a success at `REACHED` for a request that asks for no content, e.g. `curl -I u`.
         """
@@ -1377,7 +1379,7 @@ class TrialChecker:
     def _exit_code_answer_of(
         self, network_request: NetworkRequest, exit_code: int
     ) -> str:
-        """Ask the own door what an exit code says of the program of a command request, `nothing or unknown` for no level."""
+        """Ask the own `NetworkRequestResultKnowledge` what an exit code says of the program of a command request, `nothing or unknown` for no level."""
         source = network_request.source
         if not isinstance(source, FromCommand) or not isinstance(
             source.program_invocation, ProgramInvocation
@@ -1395,7 +1397,7 @@ class TrialChecker:
     def _exit_code_rule_uses_of(
         self, result: NetworkRequestResult
     ) -> list[tuple[str, str, str]]:
-        """List the exit code 0 evidence of a result whose door answer gives a level by `treat_exit_code_meaning_as_assumed_level`, by answer, program and subcommand."""
+        """List the exit code 0 evidence of a result for which the answer of `NetworkRequestResultKnowledge` gives a level by `treat_exit_code_meaning_as_assumed_level`, by answer, program and subcommand."""
         source = result.network_request.source
         if not isinstance(source, FromCommand) or not isinstance(
             source.program_invocation, ProgramInvocation

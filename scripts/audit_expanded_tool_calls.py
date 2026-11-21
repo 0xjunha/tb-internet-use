@@ -1,6 +1,6 @@
 """Run `convert_tool_calls` and `expand_tool_calls` on raw trials, count what the expansion holds per harness and check the equations that the expansion must meet.
 
-An equation sets a count of the output beside a count that this script takes another way, e.g. from the `ToolCall`s, from the words of the commands or from the counts of the door, so that a text, a command or a use that the expansion dropped or made twice shows as a difference.
+An equation sets a count of the output beside a count that this script takes another way, e.g. from the `ToolCall`s, from the words of the commands or from the counts of `ExpandedToolCallKnowledge`, so that a text, a command or a use that the expansion dropped or made twice shows as a difference.
 An equation whose right side is 0 counts values that break a rule that holds whatever the data, e.g. a `FileUse` of a file that a call which did not run wrote.
 Each equation of `EQUATIONS` has its definition above its name.
 
@@ -60,7 +60,7 @@ from tb_internet_use.knowledge.expanded_tool_call_knowledge import (
 )
 from tb_internet_use.knowledge.tool_call_knowledge import ToolCallKnowledge
 from tb_internet_use.pipeline import (
-    KnowledgeDoors,
+    PipelineKnowledge,
     read_trajectory,
     read_trial_file_texts,
     run_steps_to_expanded_tool_calls,
@@ -159,7 +159,7 @@ NOT_FOUND = "not found"
 REPEATED_TRIAL_IDS = "repeated trial id, run once"
 # The examples kept per equation and per trial outcome, so that the CSVs stay short.
 _EXAMPLE_LIMIT = 20
-# The program names that this script counts by their first word without asking the door.
+# The program names that this script counts by their first word without asking `ExpandedToolCallKnowledge`.
 RUNNER_NAMES = frozenset(
     {"bash", "sh", "python", "python3", "node", "make", "source", "."}
 )
@@ -278,7 +278,7 @@ def write_audit_files(total: TrialAuditTotal, out_dir: Path) -> None:
         ),
     )
     uses_total = total.knowledge_uses_total
-    # `knowledge_row_uses.csv` has one row for each row of a catalog of `ExpandedToolCallKnowledge`, or a program name that the door read without its version, with its uses and trials.
+    # `knowledge_row_uses.csv` has one row for each row of a catalog of `ExpandedToolCallKnowledge`, or a program name that `ExpandedToolCallKnowledge` read without its version, with its uses and trials.
     write_csv(
         out_dir / "knowledge_row_uses.csv",
         ("catalog", "row_key", "use_count", "trial_count"),
@@ -353,21 +353,21 @@ def audit_trial(trial_dir: Path) -> TrialAudit:
         if isinstance(harness_tool_calls, UnreadableTrajectory):
             return TrialAudit(trial_dir.name, f"unreadable {harness_tool_calls.reason}")
         (trial,) = collect_trials([read_trial_file_texts(trial_dir)], {})
-        process_doors = process_doors_of_worker()
-        knowledge_doors = process_doors.knowledge_doors
-        # The doors serve every trial of the worker process, so their uses start empty for each trial.
-        knowledge_doors.tool_call_knowledge.uses = KnowledgeUses()
-        knowledge_doors.expanded_tool_call_knowledge.uses = KnowledgeUses()
+        worker_process_knowledge = knowledge_of_worker_process()
+        pipeline_knowledge = worker_process_knowledge.pipeline_knowledge
+        # The knowledge classes serve every trial of the worker process, so their uses start empty for each trial.
+        pipeline_knowledge.tool_call_knowledge.uses = KnowledgeUses()
+        pipeline_knowledge.expanded_tool_call_knowledge.uses = KnowledgeUses()
         judgment_rule_use_counts: Counter[str] = Counter()
         expanded_tool_calls = run_steps_to_expanded_tool_calls(
             harness_tool_calls,
-            knowledge_doors=knowledge_doors,
+            pipeline_knowledge=pipeline_knowledge,
             tool_call_judgment_rule_use_counts=Counter(),
             expanded_tool_call_judgment_rule_use_counts=judgment_rule_use_counts,
         )
         tool_calls = convert_tool_calls(
             harness_tool_calls,
-            knowledge=process_doors.second_tool_call_knowledge,
+            knowledge=worker_process_knowledge.second_tool_call_knowledge,
             judgment_rule_use_counts=Counter(),
         )
         trial_audit = TrialAudit(
@@ -376,13 +376,13 @@ def audit_trial(trial_dir: Path) -> TrialAudit:
             harness=trial.harness,
             task=f"{trial.benchmark_version} {trial.task_name}",
             judgment_rule_use_counts=judgment_rule_use_counts,
-            knowledge_uses=knowledge_doors.expanded_tool_call_knowledge.uses,
+            knowledge_uses=pipeline_knowledge.expanded_tool_call_knowledge.uses,
         )
         TrialChecker(
             trial_audit,
             tool_calls,
             expanded_tool_calls,
-            process_doors.own_expanded_tool_call_knowledge,
+            worker_process_knowledge.own_expanded_tool_call_knowledge,
         ).check()
     except Exception as error:  # noqa: BLE001, one trial must not stop the run
         return TrialAudit(trial_dir.name, f"exception {type(error).__name__}")
@@ -390,25 +390,25 @@ def audit_trial(trial_dir: Path) -> TrialAudit:
 
 
 @dataclass(frozen=True, slots=True)
-class ProcessDoors:
-    """Doors of outside knowledge made once in each worker process and used for each of its trials."""
+class WorkerProcessKnowledge:
+    """Knowledge classes made once in each worker process and used for each of its trials."""
 
-    # The doors that the steps ask.
-    knowledge_doors: KnowledgeDoors = field(default_factory=KnowledgeDoors)
-    # The door of the second run of `convert_tool_calls`, whose lookups count nowhere.
+    # The knowledge classes that the steps ask.
+    pipeline_knowledge: PipelineKnowledge = field(default_factory=PipelineKnowledge)
+    # The `ToolCallKnowledge` of the second run of `convert_tool_calls`, whose lookups count nowhere.
     second_tool_call_knowledge: ToolCallKnowledge = field(
         default_factory=ToolCallKnowledge
     )
-    # The door that `TrialChecker` asks for the rows of pipe readers, of the programs that typed text goes to, of programs with unread words and of the programs that read a harness output file, so that its lookups do not count as lookups of the step.
+    # The `ExpandedToolCallKnowledge` that `TrialChecker` asks for the rows of pipe readers, of the programs that typed text goes to, of programs with unread words and of the programs that read a harness output file, so that its lookups do not count as lookups of the step.
     own_expanded_tool_call_knowledge: ExpandedToolCallKnowledge = field(
         default_factory=ExpandedToolCallKnowledge
     )
 
 
 @functools.cache
-def process_doors_of_worker() -> ProcessDoors:
-    """Give the doors of this worker process, made at its first trial."""
-    return ProcessDoors()
+def knowledge_of_worker_process() -> WorkerProcessKnowledge:
+    """Give the knowledge classes of this worker process, made at its first trial."""
+    return WorkerProcessKnowledge()
 
 
 @dataclass(slots=True)
@@ -564,7 +564,7 @@ class TrialAuditTotal:
 class TrialChecker:
     """Checker of the expanded calls of one trial, which adds its counts and the sides of each equation to a `TrialAudit`.
 
-    It reads only the public types of the steps and asks its own door for the rows of pipe readers, of the programs that typed text goes to, of programs with unread words and of the programs that read a harness output file, so its recounts do not go through the code they check.
+    It reads only the public types of the steps and asks its own `ExpandedToolCallKnowledge` for the rows of pipe readers, of the programs that typed text goes to, of programs with unread words and of the programs that read a harness output file, so its recounts do not go through the code they check.
     """
 
     def __init__(
@@ -907,7 +907,7 @@ class TrialChecker:
     def count_unread_words_beside_lookups(
         self, program_invocation: ProgramInvocation
     ) -> None:
-        """Count, by this script's own door, the two shapes of unread words that do not give one unknown input each.
+        """Count, by this script's own `ExpandedToolCallKnowledge`, the two shapes of unread words that do not give one unknown input each.
 
         An option with a row that takes a value and is the last word leaves the word unread with no unknown input, e.g. `-e` of `node -e`.
         An option cluster word without a row, e.g. `cf` of `tar cf - --exclude=x .`, is read after the words after it, so an option without a row among them gives a second unknown input, e.g. `--exclude`, while the words stay unread from the cluster word. Options with a row before it are read as options, e.g. `-C` of `tar xJf a.tar.xz -C out --strip-components=0`.
@@ -1010,7 +1010,7 @@ class TrialChecker:
         )
 
     def visibility_of_piped_input(self, ran_command: RanCommand) -> OutputVisibility:
-        """Get the share that the innermost program of a pipe reader passes on, from the row this script's own door gives."""
+        """Get the share that the innermost program of a pipe reader passes on, from the row this script's own `ExpandedToolCallKnowledge` gives."""
         innermost = ran_command.program_invocations[-1]
         if (
             isinstance(innermost, UnknownProgramInvocation)
@@ -1267,7 +1267,7 @@ class TrialChecker:
         """Hold the inputs of the poll actions of one call against the branches they fall in, i.e. a text that starts from the input, key presses only, or a program that runs no text as the reader.
 
         The key presses only are counted on the right by the uses of their rule in `check`, so here they add to the left only.
-        The reader is the innermost program of the last command of the own text of the one call that last started each polled handle, and its row comes from this script's own door.
+        The reader is the innermost program of the last command of the own text of the one call that last started each polled handle, and its row comes from this script's own `ExpandedToolCallKnowledge`.
         """
         trial_audit = self.trial_audit
         tool_call_key = expanded_tool_call.tool_call.harness_tool_call.key
@@ -1397,7 +1397,7 @@ class TrialChecker:
                 )
 
     def shows_content_of(self, reader: ExpandedToolCall, path: str) -> bool:
-        """Tell whether a call may have run, has a result with text and names a path with a read or search tool, or as an argument of a command whose program reads its arguments as files to show, by this script's own door.
+        """Tell whether a call may have run, has a result with text and names a path with a read or search tool, or as an argument of a command whose program reads its arguments as files to show, by this script's own `ExpandedToolCallKnowledge`.
 
         A command reads its arguments as files to show when its program's row gives them the role `read_file` and no option of the command has a row that gives them another role, e.g. `tail out` and not `wc -l out`, `grep -c x out` or `find / -name out`.
         A command whose program or options have no row is no place, since no row says that it shows the file, and neither is a command whose stdout ends anywhere but in the result, e.g. `cat P > /dev/null` or `echo "$(tail -1 P)"`.

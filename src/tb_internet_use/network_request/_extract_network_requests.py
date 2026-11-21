@@ -27,7 +27,7 @@ from tb_internet_use.network_request.model import (
 )
 
 if TYPE_CHECKING:
-    # The door is passed in and named in annotations only, so that `extract_network_requests` never loads `knowledge/` itself.
+    # `NetworkRequestKnowledge` is passed in and named in annotations only, so that `extract_network_requests` never loads `knowledge/` itself.
     from tb_internet_use.knowledge.network_request_knowledge import (
         NetworkRequestKnowledge,
     )

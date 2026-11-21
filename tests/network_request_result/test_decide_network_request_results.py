@@ -1,4 +1,4 @@
-"""Tests for _decide_network_request_results.py, with made-up mini-swe-agent and Claude Code calls run through `convert_tool_calls`, `expand_tool_calls` and `extract_network_requests` on the doors made from the catalogs of the repo.
+"""Tests for _decide_network_request_results.py, with made-up mini-swe-agent and Claude Code calls run through `convert_tool_calls`, `expand_tool_calls` and `extract_network_requests` on the knowledge classes made from the catalogs of the repo.
 
 The cases use programs and options whose rows the catalogs hold, e.g. `pip install` and `wget` without options, so that the results rest on the rows and not on a missing one.
 """
@@ -35,7 +35,7 @@ from tb_internet_use.network_request_result.model import (
     ShownContentEvidence,
     UnusedOutputLineReason,
 )
-from tb_internet_use.pipeline import KnowledgeDoors, run_steps_to_expanded_tool_calls
+from tb_internet_use.pipeline import PipelineKnowledge, run_steps_to_expanded_tool_calls
 from tb_internet_use.tool_call.model import (
     ExecutionStatus,
     HarnessTool,
@@ -97,16 +97,16 @@ class _Steps:
 
 
 def _steps(*harness_tool_calls: HarnessToolCall) -> _Steps:
-    knowledge_doors = KnowledgeDoors()
+    pipeline_knowledge = PipelineKnowledge()
     expanded_tool_calls = run_steps_to_expanded_tool_calls(
         harness_tool_calls,
-        knowledge_doors=knowledge_doors,
+        pipeline_knowledge=pipeline_knowledge,
         tool_call_judgment_rule_use_counts=Counter(),
         expanded_tool_call_judgment_rule_use_counts=Counter(),
     )
     network_requests = extract_network_requests(
         expanded_tool_calls,
-        knowledge=knowledge_doors.network_request_knowledge,
+        knowledge=pipeline_knowledge.network_request_knowledge,
         judgment_rule_use_counts=Counter(),
         no_network_request_counts=Counter(),
     )
@@ -128,7 +128,7 @@ class _Decided:
 def _decided(
     steps: _Steps, network_requests: tuple[NetworkRequest, ...] | None = None
 ) -> _Decided:
-    """Decide the results of the requests of the steps, or of `network_requests` when given, on a new door."""
+    """Decide the results of the requests of the steps, or of `network_requests` when given, on a new `NetworkRequestResultKnowledge`."""
     decided = _Decided((), Counter(), Counter(), Counter())
     decided.results = decide_network_request_results(
         steps.expanded_tool_calls,
@@ -850,7 +850,7 @@ def test_adds_to_the_counters_it_is_given_without_clearing_them():
     )
 
 
-def test_counts_the_uses_of_the_door_on_the_door_it_is_given():
+def test_counts_the_uses_of_the_knowledge_class_on_the_knowledge_class_it_is_given():
     steps = _steps(_bash_call(1, "pip install A", "Successfully installed A-1.0"))
     knowledge = NetworkRequestResultKnowledge()
 

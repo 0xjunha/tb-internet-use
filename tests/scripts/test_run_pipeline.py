@@ -431,7 +431,7 @@ def test_main_writes_the_rows_sorted_by_trial_id_and_every_equation_holds(
         ],
         ["unowned_line_in_unknown_run", "download_started", "setup.sh", "1", "1", "1"],
     ]
-    # The doors of the steps before `export_rows` keep their lookups, e.g. the row of pip and the unknown mytool.
+    # The knowledge classes of the steps before `export_rows` keep their lookups, e.g. the row of pip and the unknown mytool.
     assert [
         "program_network_requests.csv",
         '["pip", "install", "", ""]',

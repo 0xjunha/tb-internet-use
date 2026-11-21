@@ -1,6 +1,6 @@
 """Run the steps up to `extract_network_requests` on raw trials, count the requests per harness and check the equations that the requests must meet.
 
-An equation sets a count of the requests beside a count that this script takes another way, e.g. from the words of the commands with its own URL pattern, from the counts of the door or from the actions of the calls, so that a request that the step dropped or made twice shows as a difference.
+An equation sets a count of the requests beside a count that this script takes another way, e.g. from the words of the commands with its own URL pattern, from the counts of `NetworkRequestKnowledge` or from the actions of the calls, so that a request that the step dropped or made twice shows as a difference.
 An equation whose right side is 0 counts values that break a rule that holds whatever the data, e.g. a request whose URL target has a host without `$` that is missing from `host_names`.
 Each equation of `EQUATIONS` has its definition above its name.
 
@@ -65,7 +65,7 @@ from tb_internet_use.network_request.parse_code import parse_code
 from tb_internet_use.network_request.parse_host_name import parse_host_name
 from tb_internet_use.network_request.parse_url import parse_url
 from tb_internet_use.pipeline import (
-    KnowledgeDoors,
+    PipelineKnowledge,
     read_trajectory,
     read_trial_file_texts,
     run_steps_to_expanded_tool_calls,
@@ -97,7 +97,7 @@ OUT_DIR = Path(__file__).resolve().parents[1] / "out" / "network_request"
 EQUATIONS = (
     # `ProgramInvocation`s and `UnknownProgramInvocation`s of the commands beside lookups of program rows of `program_network_requests.csv`, i.e. uses and unknown inputs without an option and not under `any subcommand`, plus `UnknownProgramInvocation`s.
     "program_invocations_equal_program_lookups",
-    # Program runs with a request, i.e. distinct (call, command id, program invocation) of the `FromCommand` requests, beside runs that a door of this script answers with `FetchingProgramLabel`, minus the counts `option_sends_no_request` and `no_target_arguments`, plus runs without a row that run nothing else and have a URL in their words, with the variables of one sure value filled, found with this script's own pattern, whose host `parse_host_name` does not read as local or reserved.
+    # Program runs with a request, i.e. distinct (call, command id, program invocation) of the `FromCommand` requests, beside runs that the `NetworkRequestKnowledge` of this script answers with `FetchingProgramLabel`, minus the counts `option_sends_no_request` and `no_target_arguments`, plus runs without a row that run nothing else and have a URL in their words, with the variables of one sure value filled, found with this script's own pattern, whose host `parse_host_name` does not read as local or reserved.
     "command_request_runs_equal_fetching_and_public_url_runs",
     # `RanCodeText`s without a `FromCode` request beside those whose URLs, found with this script's own pattern, are all local, reserved, of a namespace host with no dot in the last path part or on a line with a call of a `sends_no_network_request` row, and in which no call name of a `sends_network_request` row is followed by `(` outside strings and comments, before the point where `parse_code` stops reading and other than as the name of a JavaScript method definition.
     "code_texts_without_request_show_no_request",
@@ -341,16 +341,16 @@ def audit_trial(trial_dir: Path) -> TrialAudit:
         if isinstance(harness_tool_calls, UnreadableTrajectory):
             return TrialAudit(trial_dir.name, f"unreadable {harness_tool_calls.reason}")
         (trial,) = collect_trials([read_trial_file_texts(trial_dir)], {})
-        process_doors = process_doors_of_worker()
-        knowledge_doors = process_doors.knowledge_doors
-        # The doors serve every trial of the worker process, so their uses start empty for each trial.
-        knowledge_doors.tool_call_knowledge.uses = KnowledgeUses()
-        knowledge_doors.expanded_tool_call_knowledge.uses = KnowledgeUses()
-        knowledge_doors.network_request_knowledge.uses = KnowledgeUses()
+        worker_process_knowledge = knowledge_of_worker_process()
+        pipeline_knowledge = worker_process_knowledge.pipeline_knowledge
+        # The knowledge classes serve every trial of the worker process, so their uses start empty for each trial.
+        pipeline_knowledge.tool_call_knowledge.uses = KnowledgeUses()
+        pipeline_knowledge.expanded_tool_call_knowledge.uses = KnowledgeUses()
+        pipeline_knowledge.network_request_knowledge.uses = KnowledgeUses()
         # The steps up to `extract_network_requests` run as `run_steps_to_network_request_results` runs them, keeping the expanded calls that the recounts read.
         expanded_tool_calls = run_steps_to_expanded_tool_calls(
             harness_tool_calls,
-            knowledge_doors=knowledge_doors,
+            pipeline_knowledge=pipeline_knowledge,
             tool_call_judgment_rule_use_counts=Counter(),
             expanded_tool_call_judgment_rule_use_counts=Counter(),
         )
@@ -358,7 +358,7 @@ def audit_trial(trial_dir: Path) -> TrialAudit:
         no_network_request_counts: Counter[NoNetworkRequestReason] = Counter()
         network_requests = extract_network_requests(
             expanded_tool_calls,
-            knowledge=knowledge_doors.network_request_knowledge,
+            knowledge=pipeline_knowledge.network_request_knowledge,
             judgment_rule_use_counts=judgment_rule_use_counts,
             no_network_request_counts=no_network_request_counts,
         )
@@ -368,15 +368,15 @@ def audit_trial(trial_dir: Path) -> TrialAudit:
             harness=trial.harness,
             task=f"{trial.benchmark_version} {trial.task_name}",
             judgment_rule_use_counts=judgment_rule_use_counts,
-            knowledge_uses=knowledge_doors.network_request_knowledge.uses,
+            knowledge_uses=pipeline_knowledge.network_request_knowledge.uses,
         )
         TrialChecker(
             trial_audit,
             expanded_tool_calls,
             network_requests,
             no_network_request_counts,
-            process_doors.own_network_request_knowledge,
-            process_doors.code_call_names,
+            worker_process_knowledge.own_network_request_knowledge,
+            worker_process_knowledge.code_call_names,
         ).check()
     except Exception as error:  # noqa: BLE001, one trial must not stop the run
         return TrialAudit(trial_dir.name, f"exception {type(error).__name__}")
@@ -385,7 +385,7 @@ def audit_trial(trial_dir: Path) -> TrialAudit:
 
 @dataclass(frozen=True, slots=True)
 class CodeCallNames:
-    """Call names of the code call catalog by effect and language, read by this script from the CSV itself so that its recounts do not go through the door."""
+    """Call names of the code call catalog by effect and language, read by this script from the CSV itself so that its recounts do not go through `NetworkRequestKnowledge`."""
 
     # By (code language, effect), e.g. ("python", "sends_network_request").
     names_by_language_and_effect: dict[tuple[str, str], tuple[str, ...]]
@@ -415,12 +415,12 @@ def code_call_names_from_csv(csv_path: Path) -> CodeCallNames:
 
 
 @dataclass(frozen=True, slots=True)
-class ProcessDoors:
-    """Doors of outside knowledge and the call names of the code call catalog, made once in each worker process and used for each of its trials."""
+class WorkerProcessKnowledge:
+    """Knowledge classes and the call names of the code call catalog, made once in each worker process and used for each of its trials."""
 
-    # The doors that the steps ask.
-    knowledge_doors: KnowledgeDoors = field(default_factory=KnowledgeDoors)
-    # The door that `TrialChecker` asks whether a program fetches, so that its lookups do not count as lookups of the step.
+    # The knowledge classes that the steps ask.
+    pipeline_knowledge: PipelineKnowledge = field(default_factory=PipelineKnowledge)
+    # The `NetworkRequestKnowledge` that `TrialChecker` asks whether a program fetches, so that its lookups do not count as lookups of the step.
     own_network_request_knowledge: NetworkRequestKnowledge = field(
         default_factory=NetworkRequestKnowledge
     )
@@ -432,9 +432,9 @@ class ProcessDoors:
 
 
 @functools.cache
-def process_doors_of_worker() -> ProcessDoors:
-    """Give the doors of this worker process, made at its first trial."""
-    return ProcessDoors()
+def knowledge_of_worker_process() -> WorkerProcessKnowledge:
+    """Give the knowledge classes of this worker process, made at its first trial."""
+    return WorkerProcessKnowledge()
 
 
 @dataclass(slots=True)
@@ -610,7 +610,7 @@ class TrialAuditTotal:
 class TrialChecker:
     """Checker of the requests of one trial, which adds its counts and the sides of each equation to a `TrialAudit`.
 
-    It reads the expanded calls, its own door and the code call catalog file, so its recounts do not go through `extract_network_requests`, though they read URLs, host names and code with the same `parse_url`, `parse_host_name` and `parse_code`.
+    It reads the expanded calls, its own `NetworkRequestKnowledge` and the code call catalog file, so its recounts do not go through `extract_network_requests`, though they read URLs, host names and code with the same `parse_url`, `parse_host_name` and `parse_code`.
     """
 
     def __init__(
@@ -736,7 +736,7 @@ class TrialChecker:
         )
 
     def check_program_lookups(self) -> None:
-        """Check that the door was asked once for each program invocation of the commands."""
+        """Check that `NetworkRequestKnowledge` was asked once for each program invocation of the commands."""
         program_invocation_count = 0
         unknown_program_invocation_count = 0
         for expanded_tool_call in self.expanded_tool_calls:

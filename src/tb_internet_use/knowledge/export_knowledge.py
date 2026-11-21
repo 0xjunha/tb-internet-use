@@ -28,11 +28,11 @@ PROGRAM_PACKAGE_REGISTRIES_CSV = "program_package_registries.csv"
 
 
 class ExportKnowledge:
-    """Door of `export_rows` to the outside knowledge, made for one trial and passed to `export_rows`, which asks it one question per method.
+    """Outside knowledge of `export_rows`, made for one trial and passed to it as `knowledge`, which it asks one question per method.
 
     An answer is a value or an `Unknown…` type of the step's model, never a default.
     `uses` counts every catalog row that answered and every input without one.
-    The loaded catalogs are cached per process, so making a door per trial is cheap.
+    The loaded catalogs are cached per process, so making one per trial is cheap.
     """
 
     def __init__(self, *, catalogs_dir: Path = EXPORT_CATALOGS_DIR) -> None:
@@ -174,7 +174,7 @@ def _check_review_columns(columns: Mapping[str, str]) -> None:
 
 
 def _check_host_name(host_name: str) -> None:
-    """Raise ValueError on a host name that is empty or not in lower case, since the door matches names in lower case."""
+    """Raise ValueError on a host name that is empty or not in lower case, since `ExportKnowledge` matches names in lower case."""
     if not host_name or host_name != host_name.lower():
         raise ValueError(f"host name {host_name!r} is empty or not in lower case")
 

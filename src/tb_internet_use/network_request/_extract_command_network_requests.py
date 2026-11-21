@@ -60,7 +60,7 @@ from tb_internet_use.network_request.parse_url import parse_url
 from tb_internet_use.network_request.parse_urls_in_text import parse_urls_in_text
 
 if TYPE_CHECKING:
-    # The door is passed in and named in annotations only, so that this module never loads `knowledge/` itself.
+    # `NetworkRequestKnowledge` is passed in and named in annotations only, so that this module never loads `knowledge/` itself.
     from tb_internet_use.knowledge.network_request_knowledge import (
         NetworkRequestKnowledge,
     )
@@ -286,7 +286,7 @@ def _extract_public_url_network_requests(
 def _program_option_effects_of(
     program_invocation: ProgramInvocation, knowledge: NetworkRequestKnowledge
 ) -> tuple[ProgramOptionEffect | UnknownProgramOptionEffect, ...]:
-    """Give the answer of the door for each option of a program, in the order of its options, e.g. `SENDS_CONTENT_TO_FILE` for `-o` of `curl -o a.tgz u`."""
+    """Give the answer of `NetworkRequestKnowledge` for each option of a program, in the order of its options, e.g. `SENDS_CONTENT_TO_FILE` for `-o` of `curl -o a.tgz u`."""
     return tuple(
         knowledge.program_option_effect(program_invocation, program_option)
         for program_option in program_invocation.options

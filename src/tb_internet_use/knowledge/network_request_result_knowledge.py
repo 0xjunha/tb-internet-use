@@ -1,6 +1,6 @@
 """Answer the questions of `decide_network_request_results` about output lines and program runs from the output line pattern declarations and the program output catalogs, counting every use of a pattern or row and every input without a row.
 
-A blank cell of `printing_programs`, `prints_status_code` or `meaning` is unknown, and the door then answers with the `Unknown…` type of the method when the row applies, never with a default. Any other cell of these columns says what it means in a word, e.g. `none` or `changes_nothing`. A blank `subcommand` names the row of the program without a subcommand, a blank `option_name` makes the row a program row, and a blank `option_value_part` makes an option row apply to every value of its option. A blank `program_name`, `exit_code` or `checked_against` fails the load.
+A blank cell of `printing_programs`, `prints_status_code` or `meaning` is unknown, and `NetworkRequestResultKnowledge` then answers with the `Unknown…` type of the method when the row applies, never with a default. Any other cell of these columns says what it means in a word, e.g. `none` or `changes_nothing`. A blank `subcommand` names the row of the program without a subcommand, a blank `option_name` makes the row a program row, and a blank `option_value_part` makes an option row apply to every value of its option. A blank `program_name`, `exit_code` or `checked_against` fails the load.
 """
 
 import functools
@@ -43,12 +43,12 @@ _NONE = "none"
 
 
 class NetworkRequestResultKnowledge:
-    """Door of `decide_network_request_results` to the outside knowledge, made for one trial and passed to `decide_network_request_results`, which asks it one question per method.
+    """Outside knowledge of `decide_network_request_results`, made for one trial and passed to it as `knowledge`, which it asks one question per method.
 
     An answer is a value or an `Unknown…` type of the step's model, never a default.
     `uses` counts every declared pattern that answered, every catalog row that answered and every program run, option or exit code without a row.
     A line without a pattern is not counted, since an output line has no name, so a missing pattern cannot be told apart from a line that means nothing.
-    The loaded catalogs are cached per process, so making a door per trial is cheap.
+    The loaded catalogs are cached per process, so making one per trial is cheap.
     """
 
     def __init__(
@@ -170,7 +170,7 @@ def _find_and_count_rows_of_program_run[Row](
     """Find the row of a program run and the row of each of its options, each paired with its option, or None when a row is missing, and count the rows found or the keys missed in `uses`.
 
     The key of a row is the program name, the subcommand words split by one space, the option name, or a blank for the program row, and `key_end`.
-    Nothing is counted until the door knows whether every row is there. Then each row found counts as a use. When a row is missing, only the missing keys count, as unknown inputs, e.g. `(curl, "", --compressed)`, and only the program row's key when that is missing.
+    Nothing is counted until `NetworkRequestResultKnowledge` knows whether every row is there. Then each row found counts as a use. When a row is missing, only the missing keys count, as unknown inputs, e.g. `(curl, "", --compressed)`, and only the program row's key when that is missing.
     A run with `unread_words` misses a row too, since an option of it was not read. It counts the first unread word in place of an option name, e.g. `(curl, "", --foo)` for `curl --foo x u`, since no row can answer for options that nobody read.
     That count goes straight into `uses.unknown_input_counts`, since `Catalog.lookup` would count it as a use if a row had that word as its option.
     """
@@ -267,7 +267,7 @@ def _program_run_catalog_of[Row](catalog: Catalog[Row]) -> _ProgramRunCatalog[Ro
 
 @dataclass(frozen=True, slots=True)
 class _ProgramRunCatalog[Row]:
-    """Catalog keyed by program, subcommand and option, with the set of its keys, so that the door can tell whether every row of a run is there before it counts any."""
+    """Catalog keyed by program, subcommand and option, with the set of its keys, so that `NetworkRequestResultKnowledge` can tell whether every row of a run is there before it counts any."""
 
     catalog: Catalog[Row]
     row_keys: frozenset[KnowledgeRowKey]

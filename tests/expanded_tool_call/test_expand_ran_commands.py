@@ -325,7 +325,7 @@ def test_row_of_each_program_is_counted_once_per_command(catalogs_dir):
         knowledge=knowledge,
         judgment_rule_use_counts=Counter(),
     )
-    # The share of tail comes from the row that `expand_program_invocations` read, so the door is not asked again.
+    # The share of tail comes from the row that `expand_program_invocations` read, so `ExpandedToolCallKnowledge` is not asked again.
     assert Counter(
         {
             row_key: count

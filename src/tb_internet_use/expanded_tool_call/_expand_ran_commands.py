@@ -37,7 +37,7 @@ from tb_internet_use.tool_call.model import (
 )
 
 if TYPE_CHECKING:
-    # The door is passed in and named in annotations only, so that this module never loads `knowledge/` itself.
+    # `ExpandedToolCallKnowledge` is passed in and named in annotations only, so that this module never loads `knowledge/` itself.
     from tb_internet_use.knowledge.expanded_tool_call_knowledge import (
         ExpandedToolCallKnowledge,
     )
@@ -148,7 +148,7 @@ def expand_ran_commands(
 class RanCommandsOfShellText:
     """Commands of one shell text as `expand_ran_commands` reads them, with the facts read on the way that the piece following the texts they run needs again.
 
-    That piece needs the row of a program, e.g. whether `eval` runs its text in the calling shell, and the assignments that a text run by `eval` sees, without asking the door again, which would count the row twice.
+    That piece needs the row of a program, e.g. whether `eval` runs its text in the calling shell, and the assignments that a text run by `eval` sees, without asking `ExpandedToolCallKnowledge` again, which would count the row twice.
     """
 
     ran_commands: tuple[RanCommand, ...]

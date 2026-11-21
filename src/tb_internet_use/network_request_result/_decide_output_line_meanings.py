@@ -12,7 +12,7 @@ from tb_internet_use.network_request_result.parse_tool_output_text import (
 from tb_internet_use.tool_call.model import ToolCall
 
 if TYPE_CHECKING:
-    # The door is passed in and named in annotations only, so that this module never loads `knowledge/` itself.
+    # `NetworkRequestResultKnowledge` is passed in and named in annotations only, so that this module never loads `knowledge/` itself.
     from tb_internet_use.knowledge.network_request_result_knowledge import (
         NetworkRequestResultKnowledge,
     )
@@ -26,10 +26,10 @@ def decide_output_line_meanings(
 ) -> tuple[OutputLineWithMeaning, ...]:
     """Decide the meaning of each line of the `tool_output_text` of a call's result, at most one per line, in the order of the lines.
 
-    The parts of a line are asked of the door from the last one, and the first part that a pattern fits gives the meaning of the line.
+    The parts of a line are asked of `NetworkRequestResultKnowledge` from the last one, and the first part that a pattern fits gives the meaning of the line.
     So `Downloading x 10%\\rSuccessfully downloaded x` means what its last part means, and `HTTP/1.1 200 OK\\rContent-Length: 9` what its first part means.
-    `is_web_tool_result` says that the result is page text of a call made only of web tool actions, which the door reads with its own patterns.
-    A line that no pattern fits gives nothing and the door counts nothing for it.
+    `is_web_tool_result` says that the result is page text of a call made only of web tool actions, which `NetworkRequestResultKnowledge` reads with its own patterns.
+    A line that no pattern fits gives nothing and `NetworkRequestResultKnowledge` counts nothing for it.
     A call without a result, or with a result that holds no text, gives no line.
     """
     result = tool_call.result

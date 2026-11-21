@@ -18,7 +18,7 @@ from tb_internet_use.tool_call.model import (
 )
 
 if TYPE_CHECKING:
-    # The door and the declaration types are named in annotations only, so that `convert_tool_calls` never loads `knowledge/` itself.
+    # `ToolCallKnowledge` and the declaration types are named in annotations only, so that `convert_tool_calls` never loads `knowledge/` itself.
     from tb_internet_use.knowledge.harness_result_format_declaration import (
         JsonObject,
     )

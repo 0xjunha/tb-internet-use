@@ -45,11 +45,11 @@ _NO_RESULT_FORMATS = HarnessToolResultDeclaration()
 
 
 class ToolCallKnowledge:
-    """Door of `convert_tool_calls` to the outside knowledge, made for one trial and passed to `convert_tool_calls`, which asks it one question per method.
+    """Outside knowledge of `convert_tool_calls`, made for one trial and passed to it as `knowledge`, which it asks one question per method.
 
     An answer is a value or an unknown, never a default.
     `uses` counts every catalog row and every declared result format that answered, and every input without one apart from an argument without a row, as `harness_tool_label` says.
-    The loaded catalogs are cached per process, so making a door per trial is cheap.
+    The loaded catalogs are cached per process, so making one per trial is cheap.
     """
 
     def __init__(
@@ -167,7 +167,7 @@ def harness_tool_result_declaration_of(
 ) -> HarnessToolResultDeclaration:
     """Find the declared result formats of a harness tool, with all three lists None for a tool or harness without declared formats.
 
-    It counts nothing, so conversion asks the door, and only the door and audits of the declarations call it.
+    It counts nothing, so conversion asks `ToolCallKnowledge`, and only `ToolCallKnowledge` and audits of the declarations call it.
     """
     formats_by_tool = result_formats_by_harness.get(tool.harness, {})
     return formats_by_tool.get(tool.name, _NO_RESULT_FORMATS)
@@ -215,14 +215,14 @@ class _ToolCallCatalogs:
 
     harness_tools: Catalog[_HarnessToolRow]
     harness_tool_arguments: Catalog[_HarnessToolArgumentRow]
-    # The keys of the argument rows of each tool, so the door can look up the rows of the arguments a call has.
+    # The keys of the argument rows of each tool, so `ToolCallKnowledge` can look up the rows of the arguments a call has.
     argument_row_keys_by_tool: Mapping[HarnessTool, tuple[KnowledgeRowKey, ...]]
     harness_return_code_interpretations: Catalog[_HarnessReturnCodeInterpretationRow]
 
 
 @dataclass(frozen=True, slots=True)
 class _HarnessToolRow:
-    """Checked values of one row of `harness_tools.csv`, kept in its catalog and merged into a `HarnessToolLabel` when the door answers."""
+    """Checked values of one row of `harness_tools.csv`, kept in its catalog and merged into a `HarnessToolLabel` when `ToolCallKnowledge` answers."""
 
     action_type: str  # the name of a `ToolCallAction` member class, or `DEFERRED`
     stops_execution: bool  # False for a tool whose action is no `PollAction`
@@ -230,7 +230,7 @@ class _HarnessToolRow:
 
 @dataclass(frozen=True, slots=True)
 class _HarnessToolArgumentRow:
-    """Checked values of one row of `harness_tool_arguments.csv`, kept in its catalog and merged into a `HarnessToolLabel` when the door answers."""
+    """Checked values of one row of `harness_tool_arguments.csv`, kept in its catalog and merged into a `HarnessToolLabel` when `ToolCallKnowledge` answers."""
 
     action_field: str  # a field of the action class of the tool
     handle_kind: ExecutionHandleKind | None  # None when the column is empty
@@ -238,7 +238,7 @@ class _HarnessToolArgumentRow:
 
 @dataclass(frozen=True, slots=True)
 class _HarnessReturnCodeInterpretationRow:
-    """Checked value of one row of `harness_return_code_interpretations.csv`, kept in its catalog and given by the door as the answer."""
+    """Checked value of one row of `harness_return_code_interpretations.csv`, kept in its catalog and given by `ToolCallKnowledge` as the answer."""
 
     exit_code: int
 

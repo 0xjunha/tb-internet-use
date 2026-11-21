@@ -61,7 +61,7 @@ _PUBLIC_HOST_ROWS = (
     "code.org,code_hosting,",
     "blank.org,,",
 )
-# `h`, `blank` has a blank sender. The sender is not the first value of the enum, so that a door that gives it without reading the row fails.
+# `h`, `blank` has a blank sender. The sender is not the first value of the enum, so that a knowledge class that gives it without reading the row fails.
 _HARNESS_WEB_TOOL_ROWS = ("h,search,provider_server", "h,blank,")
 # `pkg`, `sub add` has two hosts, and `pkg`, `blank` a blank registry.
 _PROGRAM_PACKAGE_REGISTRY_ROWS = (
@@ -235,7 +235,7 @@ def test_each_lookup_adds_one_to_its_count(knowledge):
     assert knowledge.uses.unknown_input_counts[PUBLIC_HOSTS_CSV, ("a.org",)] == 3
 
 
-def test_each_door_counts_only_its_own_lookups(tmp_path):
+def test_each_knowledge_class_counts_only_its_own_lookups(tmp_path):
     catalogs_dir = _write_catalogs(tmp_path)
     first = ExportKnowledge(catalogs_dir=catalogs_dir)
     second = ExportKnowledge(catalogs_dir=catalogs_dir)
@@ -283,8 +283,8 @@ def test_row_without_checked_against_raises(tmp_path, file_name, header, row):
         ExportKnowledge(catalogs_dir=catalogs_dir)
 
 
-def test_door_module_can_be_the_first_import_of_a_process():
-    # The door imports the models of three steps, whose packages import their doors under TYPE_CHECKING only, so a fresh process shows that no cycle runs.
+def test_knowledge_class_module_can_be_the_first_import_of_a_process():
+    # `ExportKnowledge` imports the models of three steps, whose packages import their knowledge classes under TYPE_CHECKING only, so a fresh process shows that no cycle runs.
     module = "tb_internet_use.knowledge.export_knowledge"
     subprocess.run([sys.executable, "-I", "-c", f"import {module}"], check=True)
 

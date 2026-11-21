@@ -1,4 +1,4 @@
-"""Tests for _decide_output_line_owners.py, with made-up calls, places and requests of one trial and lines read by the real door."""
+"""Tests for _decide_output_line_owners.py, with made-up calls, places and requests of one trial and lines read by the real `NetworkRequestResultKnowledge`."""
 
 from collections import Counter
 from dataclasses import dataclass
@@ -201,7 +201,7 @@ def place(
 def lines(
     showing_tool_call_key: ToolCallKey, text: str, *, is_web_tool_result: bool = False
 ) -> list[OutputLineWithMeaning]:
-    """Read each line of a made-up result with a door of its own, so that the door under test counts nothing for it."""
+    """Read each line of a made-up result with a `NetworkRequestResultKnowledge` of its own, so that the one under test counts nothing for it."""
     knowledge = NetworkRequestResultKnowledge()
     output_lines_with_meaning: list[OutputLineWithMeaning] = []
     for line_index, line in enumerate(text.split("\n")):
@@ -549,7 +549,7 @@ def test_a_line_that_only_other_programs_print_has_no_owner_unless_the_run_print
     )
 
 
-def test_a_line_that_any_program_prints_has_no_owner_whose_run_the_door_says_prints_no_line():
+def test_a_line_that_any_program_prints_has_no_owner_whose_run_the_knowledge_class_says_prints_no_line():
     # `getent hosts a.org; curl -i https://b.org/y` and `HTTP/1.1 405 Method Not Allowed`. getent(1) shows only entries of the hosts database, so curl alone owns the status line.
     getent = command(0, "getent hosts a.org", program("getent", "hosts"))
     curl = command(
@@ -982,7 +982,7 @@ def test_a_web_tool_request_owns_the_lines_of_its_own_result_only():
     )
 
 
-def test_the_door_is_asked_only_about_runs_whose_rows_answer_whether_they_print_a_line():
+def test_the_knowledge_class_is_asked_only_about_runs_whose_rows_answer_whether_they_print_a_line():
     # `pip install A` under a line that only pip prints, `curl u` under a line that any program prints, which still needs the question whether curl prints no line at all, and `curl --foo x u`, whose unread words no row can answer for.
     pip = command(0, "pip install A", program("pip", "install"))
     curl = command(0, "curl https://a.org/x", program("curl"))

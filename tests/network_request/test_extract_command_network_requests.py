@@ -147,7 +147,7 @@ def _expanded_tool_call(
 
 @dataclass(frozen=True, slots=True)
 class _Extraction:
-    """Output of one call of `extract_command_network_requests` with the counts it added and the door it asked."""
+    """Output of one call of `extract_command_network_requests` with the counts it added and the `NetworkRequestKnowledge` it asked."""
 
     network_requests: tuple[NetworkRequest, ...]
     judgment_rule_use_counts: Counter[str]
@@ -614,7 +614,7 @@ def test_a_program_without_a_row_finds_urls_in_its_option_values_and_unread_word
     assert _targets(_requests(git_push)) == ["https://a.org/r", "https://b.org/r"]
 
 
-def test_the_door_is_asked_once_for_each_program_of_a_command():
+def test_the_knowledge_class_is_asked_once_for_each_program_of_a_command():
     # `python -m venv` as `expand_tool_calls` reads it, a python that runs the module venv, neither with a row of the request catalog.
     python = _program("python", runs_next_program=True)
     venv = _program("venv")

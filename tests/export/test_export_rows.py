@@ -592,7 +592,7 @@ def test_request_rows_follow_the_order_of_the_results_and_keep_two_requests_of_o
     )
 
 
-def test_every_piece_counts_its_rule_uses_in_the_one_counter_and_the_door_counts_its_questions(
+def test_every_piece_counts_its_rule_uses_in_the_one_counter_and_the_knowledge_class_counts_its_questions(
     knowledge: ExportKnowledge,
 ):
     judgment_rule_use_counts: Counter[str] = Counter()

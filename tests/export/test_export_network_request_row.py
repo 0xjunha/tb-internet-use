@@ -653,7 +653,7 @@ INTERNET_USE_CASES: list[
         {DEFAULT_REGISTRY_RULE: 1, DOTTED_HOST_RULE: 1},
     ),
     (
-        "git push origin main, which the door is not asked about",
+        "git push origin main, which `ExportKnowledge` is not asked about",
         _request(
             _command(_program("git", "push")),
             None,
@@ -864,7 +864,7 @@ SENDER_CASES = [
     SENDER_CASES,
     ids=[case for case, *_ in SENDER_CASES],
 )
-def test_sender_is_the_task_environment_for_commands_and_code_and_the_door_answer_for_web_tools(
+def test_sender_is_the_task_environment_for_commands_and_code_and_the_knowledge_class_answer_for_web_tools(
     case: str,
     network_request: NetworkRequest,
     sender: NetworkRequestSender,
@@ -881,7 +881,7 @@ def test_sender_is_the_task_environment_for_commands_and_code_and_the_door_answe
     } == unknown_inputs
 
 
-def test_door_is_asked_about_public_hosts_and_package_commands_only(
+def test_knowledge_class_is_asked_about_public_hosts_and_package_commands_only(
     knowledge: ExportKnowledge,
 ):
     two_hosts = _request(

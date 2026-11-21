@@ -2279,7 +2279,7 @@ def test_the_other_choice_of_the_other_trajectory_rule_links_the_file_and_counts
         use_counts[OTHER_TRAJECTORY_RULE_NAME] += 1
         return False
 
-    # mytool has no row, and the missing result of the run asks a rule, so the door and the rules count something for one reading.
+    # mytool has no row, and the missing result of the run asks a rule, so `ExpandedToolCallKnowledge` and the rules count something for one reading.
     one_trajectory_knowledge = ExpandedToolCallKnowledge(catalogs_dir=catalogs_dir)
     one_trajectory_use_counts: Counter[str] = Counter()
     _expand(

@@ -28,7 +28,7 @@ from tb_internet_use.expanded_tool_call.model import (
 from tb_internet_use.tool_call.model import ToolCall, ToolCallKey
 
 if TYPE_CHECKING:
-    # The door is passed in and named in annotations only, so that `expand_tool_calls` never loads `knowledge/` itself.
+    # `ExpandedToolCallKnowledge` is passed in and named in annotations only, so that `expand_tool_calls` never loads `knowledge/` itself.
     from tb_internet_use.knowledge.expanded_tool_call_knowledge import (
         ExpandedToolCallKnowledge,
     )

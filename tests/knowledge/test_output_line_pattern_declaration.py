@@ -1,6 +1,6 @@
 """Tests for knowledge/output_line_pattern_declaration.py, with made-up patterns.
 
-The meanings that the declared patterns give lines are tested through the door in test_network_request_result_knowledge.py.
+The meanings that the declared patterns give lines are tested through `NetworkRequestResultKnowledge` in test_network_request_result_knowledge.py.
 """
 
 import pytest

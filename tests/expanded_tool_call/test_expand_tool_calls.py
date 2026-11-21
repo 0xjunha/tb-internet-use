@@ -219,7 +219,7 @@ def _shell_commands_of(tool_call: ToolCall) -> tuple[ShellCommand, ...]:
 
 @pytest.fixture
 def knowledge(catalogs_dir: Path) -> ExpandedToolCallKnowledge:
-    # A new door for each test, so that a test of the counts sees only its own lookups.
+    # A new `ExpandedToolCallKnowledge` for each test, so that a test of the counts sees only its own lookups.
     return ExpandedToolCallKnowledge(catalogs_dir=catalogs_dir)
 
 

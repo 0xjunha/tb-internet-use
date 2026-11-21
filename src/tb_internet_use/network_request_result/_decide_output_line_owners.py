@@ -45,7 +45,7 @@ from tb_internet_use.network_request_result.parse_package_names_text import (
 from tb_internet_use.tool_call.model import ExitOutcome, ToolCallKey
 
 if TYPE_CHECKING:
-    # The door is passed in and named in annotations only, so that this module never loads `knowledge/` itself.
+    # `NetworkRequestResultKnowledge` is passed in and named in annotations only, so that this module never loads `knowledge/` itself.
     from tb_internet_use.knowledge.network_request_result_knowledge import (
         NetworkRequestResultKnowledge,
     )
@@ -294,9 +294,9 @@ def _may_print_output_line(
     """Tell whether the run of a request can print a line, `expanded_tool_call` being the call of the request.
 
     A line of a missing program is printed for the command whose program word it names, e.g. `pip3: command not found` for `pip3 install x`.
-    A bare number is printed only by a run that the door says prints a status code, e.g. `curl -w "%{http_code}" u`, so a run whose lines are not known prints none.
-    A run whose lines are not known can print any other line, since the door does not know that it cannot.
-    A run that the door says prints no line of a pattern prints none of them, e.g. `getent hosts a.org`, which shows only entries of the hosts database, beside the `HTTP/1.1 405` of `curl -i` in the same result.
+    A bare number is printed only by a run that `NetworkRequestResultKnowledge` says prints a status code, e.g. `curl -w "%{http_code}" u`, so a run whose lines are not known prints none.
+    A run whose lines are not known can print any other line, since `NetworkRequestResultKnowledge` does not know that it cannot.
+    A run that `NetworkRequestResultKnowledge` says prints no line of a pattern prints none of them, e.g. `getent hosts a.org`, which shows only entries of the hosts database, beside the `HTTP/1.1 405` of `curl -i` in the same result.
     Any other line that any program prints can be printed by any other run, and a line that only some programs print needs one of them among the printing programs of the run.
     A request of a web tool can print every line of its result, which is read with the web tool result patterns only.
     """
@@ -341,9 +341,9 @@ def program_output_lines_of(
     *,
     knowledge: NetworkRequestResultKnowledge,
 ) -> ProgramOutputLines | UnknownProgramOutputLines:
-    """Find the lines that the run of a request prints, asking the door about the program of a command, or about the last program of the command that ran the code of a request in code, e.g. python of `python get.py`.
+    """Find the lines that the run of a request prints, asking `NetworkRequestResultKnowledge` about the program of a command, or about the last program of the command that ran the code of a request in code, e.g. python of `python get.py`.
 
-    A program that no fact covers and one with unread words are not asked about, since the door has no row for them.
+    A program that no fact covers and one with unread words are not asked about, since `NetworkRequestResultKnowledge` has no row for them.
     Code typed through a poll is not asked about, since the trajectory does not say which command of the starting call took it.
     """
     if isinstance(source, FromCommand):

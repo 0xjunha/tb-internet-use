@@ -58,7 +58,7 @@ from tb_internet_use.network_request_result.model import (
     NetworkRequestResult,
     NetworkRequestResultStopReason,
 )
-from tb_internet_use.pipeline import KnowledgeDoors, run_steps_of_trial
+from tb_internet_use.pipeline import PipelineKnowledge, run_steps_of_trial
 from tb_internet_use.tool_call import judgment_rules as tool_call_judgment_rules
 from tb_internet_use.trial.model import Trial
 
@@ -74,7 +74,7 @@ from trial_folders_and_csv_files import (
 OUT_DIR = Path(__file__).resolve().parents[1] / "out" / "pipeline"
 # The folder of the package, whose files other than those of the export step make the code digest of a saved file.
 PACKAGE_DIR = Path(tb_internet_use.__file__).resolve().parent
-# The paths under `PACKAGE_DIR` of the export step, its catalogs and its door, which `export_rows` alone reads.
+# The paths under `PACKAGE_DIR` of the export step, its catalogs and `ExportKnowledge`, which `export_rows` alone reads.
 _EXPORT_STEP_PATHS = (
     Path("export"),
     Path("knowledge/catalogs/export"),
@@ -91,7 +91,7 @@ SAVED_RESULTS_OF_OTHER_CODE = "saved_results_of_other_code"
 KEY_WORD_LENGTH_LIMIT = 64
 # Progress goes to stderr after this many trials, often enough to follow a run of 21,450 trials and seldom enough to stay short.
 _PROGRESS_INTERVAL = 200
-# The step packages that have a door and judgment rules, in pipeline order, with the module of their rules.
+# The step packages that have a knowledge class and judgment rules, in pipeline order, with the module of their rules.
 JUDGMENT_RULES_BY_STEP_PACKAGE: dict[str, ModuleType] = {
     "tool_call": tool_call_judgment_rules,
     "expanded_tool_call": expanded_tool_call_judgment_rules,
@@ -394,11 +394,11 @@ def run_trial(
 def _run_trial_from_folder(
     trial_dir: Path, saved_results_path: Path, code_digest: str
 ) -> TrialRun:
-    """Run every step on one trial folder with the doors of this worker process, and save its `Trial`, its results and the counts of the steps before `export_rows` with the code digest."""
-    knowledge_doors = knowledge_doors_of_worker()
-    # The doors serve every trial of the worker process, so their uses start empty for each trial.
-    for door_field in dataclasses.fields(knowledge_doors):
-        getattr(knowledge_doors, door_field.name).uses = KnowledgeUses()
+    """Run every step on one trial folder with the knowledge classes of this worker process, and save its `Trial`, its results and the counts of the steps before `export_rows` with the code digest."""
+    pipeline_knowledge = pipeline_knowledge_of_worker_process()
+    # The knowledge classes serve every trial of the worker process, so their uses start empty for each trial.
+    for knowledge_field in dataclasses.fields(pipeline_knowledge):
+        getattr(pipeline_knowledge, knowledge_field.name).uses = KnowledgeUses()
     trial_run = TrialRun(trial_dir.name)
     counts = trial_run.earlier_step_counts
     (
@@ -410,7 +410,7 @@ def _run_trial_from_folder(
         trial_category_measure_rows,
     ) = run_steps_of_trial(
         trial_dir,
-        knowledge_doors=knowledge_doors,
+        pipeline_knowledge=pipeline_knowledge,
         tool_call_judgment_rule_use_counts=counts.judgment_rule_use_counts_by_step_package[
             "tool_call"
         ],
@@ -431,7 +431,7 @@ def _run_trial_from_folder(
     counts.network_request_count = len(network_requests)
     for step_package in counts.knowledge_uses_by_step_package:
         counts.knowledge_uses_by_step_package[step_package] = getattr(
-            knowledge_doors, f"{step_package}_knowledge"
+            pipeline_knowledge, f"{step_package}_knowledge"
         ).uses
     _save_results(
         saved_results_path, code_digest, trial, network_request_results, counts
@@ -443,7 +443,7 @@ def _run_trial_from_folder(
         network_request_rows,
         trial_category_measure_rows,
     )
-    trial_run.export_knowledge_uses = knowledge_doors.export_knowledge.uses
+    trial_run.export_knowledge_uses = pipeline_knowledge.export_knowledge.uses
     return trial_run
 
 
@@ -452,8 +452,8 @@ def _run_trial_from_saved_results(
     network_request_results: tuple[NetworkRequestResult, ...],
     earlier_step_counts: EarlierStepCounts,
 ) -> TrialRun:
-    """Run `export_rows` on the saved `Trial` and results of one trial with the export door of this worker process, keeping the saved counts of the steps before it."""
-    export_knowledge = knowledge_doors_of_worker().export_knowledge
+    """Run `export_rows` on the saved `Trial` and results of one trial with the `ExportKnowledge` of this worker process, keeping the saved counts of the steps before it."""
+    export_knowledge = pipeline_knowledge_of_worker_process().export_knowledge
     export_knowledge.uses = KnowledgeUses()
     trial_run = TrialRun(trial.trial_id, earlier_step_counts=earlier_step_counts)
     trial_row, network_request_rows, trial_category_measure_rows = export_rows(
@@ -515,7 +515,7 @@ def read_saved_results(
 
 
 def earlier_step_code_digest_of(package_dir: Path) -> str:
-    """Give the SHA-256 digest of the paths and bytes of every `.py` and `.csv` file under the package folder that the steps before `export_rows` read, i.e. all but those of the export step, its catalogs and its door."""
+    """Give the SHA-256 digest of the paths and bytes of every `.py` and `.csv` file under the package folder that the steps before `export_rows` read, i.e. all but those of the export step, its catalogs and `ExportKnowledge`."""
     digest = hashlib.sha256()
     for path in sorted(package_dir.rglob("*")):
         relative_path = path.relative_to(package_dir)
@@ -530,16 +530,16 @@ def earlier_step_code_digest_of(package_dir: Path) -> str:
 
 
 @functools.cache
-def knowledge_doors_of_worker() -> KnowledgeDoors:
-    """Give the doors of this worker process, made at its first trial."""
-    return KnowledgeDoors()
+def pipeline_knowledge_of_worker_process() -> PipelineKnowledge:
+    """Give the knowledge classes of this worker process, made at its first trial."""
+    return PipelineKnowledge()
 
 
 @dataclass(slots=True)
 class EarlierStepCounts:
     """Record of what the steps before `export_rows` counted for one trial, saved with its results so that a run with `--resume` or `--export-only` still lists those counts."""
 
-    # The lookups of the door of each step, by step package.
+    # The lookups of the knowledge class of each step, by step package.
     knowledge_uses_by_step_package: dict[str, KnowledgeUses] = field(
         default_factory=lambda: {
             step_package: KnowledgeUses()
@@ -930,9 +930,9 @@ def write_pipeline_run_files(
         step_dir.mkdir(exist_ok=True)
         # A row key is written as a JSON array of its key column values.
         for file_name, key_column_name, key_count_total in (
-            # `<step package>/row_uses.csv` has one row for each catalog row or a declared row of the door of the step that answered, with its lookups, trials and tasks.
+            # `<step package>/row_uses.csv` has one row for each catalog row or a declared row of the knowledge class of the step that answered, with its lookups, trials and tasks.
             ("row_uses.csv", "row_key", total.row_use_totals[step_package]),
-            # `<step package>/unknown_inputs.csv` has one row for each key that the door of the step found no row for, with its lookups, trials and tasks, most trials first.
+            # `<step package>/unknown_inputs.csv` has one row for each key that the knowledge class of the step found no row for, with its lookups, trials and tasks, most trials first.
             (
                 "unknown_inputs.csv",
                 "key_asked",

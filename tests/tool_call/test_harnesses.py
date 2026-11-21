@@ -50,7 +50,7 @@ from tb_internet_use.tool_call.model import (
 
 
 def _catalog_rows(csv_name: str) -> list[dict[str, str]]:
-    """Read the rows of one committed catalog CSV, from the file itself since a door only answers lookups."""
+    """Read the rows of one committed catalog CSV, from the file itself since a knowledge class only answers lookups."""
     with (TOOL_CALL_CATALOGS_DIR / csv_name).open(newline="") as f:
         return list(csv.DictReader(f))
 

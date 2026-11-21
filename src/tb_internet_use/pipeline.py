@@ -1,4 +1,4 @@
-"""Open the files of one trial, make the doors of outside knowledge and call the steps of the pipeline in order, which take text and types and never a path."""
+"""Open the files of one trial, make the knowledge classes and call the steps of the pipeline in order, which take text and types and never a path."""
 
 from collections import Counter
 from collections.abc import Sequence
@@ -54,7 +54,7 @@ _STATUS_FILE_NAME = "status.json"
 def run_steps_of_trial(
     trial_dir: Path,
     *,
-    knowledge_doors: KnowledgeDoors,
+    pipeline_knowledge: PipelineKnowledge,
     tool_call_judgment_rule_use_counts: Counter[str],
     expanded_tool_call_judgment_rule_use_counts: Counter[str],
     network_request_judgment_rule_use_counts: Counter[str],
@@ -94,7 +94,7 @@ def run_steps_of_trial(
         network_requests, network_request_results = (
             run_steps_to_network_request_results(
                 harness_tool_calls,
-                knowledge_doors=knowledge_doors,
+                pipeline_knowledge=pipeline_knowledge,
                 tool_call_judgment_rule_use_counts=tool_call_judgment_rule_use_counts,
                 expanded_tool_call_judgment_rule_use_counts=expanded_tool_call_judgment_rule_use_counts,
                 network_request_judgment_rule_use_counts=network_request_judgment_rule_use_counts,
@@ -107,7 +107,7 @@ def run_steps_of_trial(
     trial_row, network_request_rows, trial_category_measure_rows = export_rows(
         trial,
         network_request_results,
-        knowledge=knowledge_doors.export_knowledge,
+        knowledge=pipeline_knowledge.export_knowledge,
         judgment_rule_use_counts=export_judgment_rule_use_counts,
     )
     return (
@@ -148,10 +148,10 @@ def read_trial_file_texts(trial_dir: Path) -> TrialFileTexts:
 
 
 @dataclass(frozen=True, slots=True)
-class KnowledgeDoors:
-    """Doors of outside knowledge that the steps of one run ask, made from the catalogs and declarations of `knowledge/` and each passed to the entry function of its step as its `knowledge`.
+class PipelineKnowledge:
+    """Knowledge classes of the steps of one run, made from the catalogs and declarations of `knowledge/` and each passed to the entry function of its step as its `knowledge`.
 
-    Each door counts its lookups in its `uses`, so a caller that makes new doors for each trial gets the lookups of that trial.
+    Each knowledge class counts its lookups in its `uses`, so a caller that makes a new `PipelineKnowledge` for each trial gets the lookups of that trial.
     """
 
     tool_call_knowledge: ToolCallKnowledge = field(default_factory=ToolCallKnowledge)
@@ -170,7 +170,7 @@ class KnowledgeDoors:
 def run_steps_to_network_request_results(
     harness_tool_calls: Sequence[HarnessToolCall],
     *,
-    knowledge_doors: KnowledgeDoors,
+    pipeline_knowledge: PipelineKnowledge,
     tool_call_judgment_rule_use_counts: Counter[str],
     expanded_tool_call_judgment_rule_use_counts: Counter[str],
     network_request_judgment_rule_use_counts: Counter[str],
@@ -181,27 +181,27 @@ def run_steps_to_network_request_results(
         tuple[UnusedOutputLineReason, OutputLineKind, str]
     ],
 ) -> tuple[tuple[NetworkRequest, ...], tuple[NetworkRequestResult, ...]]:
-    """Run `convert_tool_calls`, `expand_tool_calls`, `extract_network_requests` and then `decide_network_request_results` on the tool calls of one trial, with the doors of `knowledge_doors`, and return the network requests and their results.
+    """Run `convert_tool_calls`, `expand_tool_calls`, `extract_network_requests` and then `decide_network_request_results` on the tool calls of one trial, with the knowledge classes of `pipeline_knowledge`, and return the network requests and their results.
 
     Each step counts the uses of its judgment rules in its own counter, as in `run_steps_to_expanded_tool_calls`. `extract_network_requests` counts in `no_network_request_counts`, by reason, each program run and code call that gave no request, except a call whose name already gave a request whose target the code does not show, and each URL in code that would give an uncertain request but is dropped as a namespace URL or as a local or reserved URL, e.g. `non_fetching_program` for `cat notes.txt`. `decide_network_request_results` counts in `unused_output_line_counts` each output line that a pattern fits and that gave no evidence, and in `program_counts_of_unowned_output_lines` also by program for the reasons `NO_UNKNOWN_RUN` and `UNOWNED_LINE_IN_UNKNOWN_RUN`, e.g. `setup.sh` for `Downloading torch-2.3.0.whl` in the result of `./setup.sh`.
     Each `NetworkRequestResult` holds its `NetworkRequest`. The output of `extract_network_requests` is returned apart all the same, so that a caller can count it on its own.
     """
     expanded_tool_calls = run_steps_to_expanded_tool_calls(
         harness_tool_calls,
-        knowledge_doors=knowledge_doors,
+        pipeline_knowledge=pipeline_knowledge,
         tool_call_judgment_rule_use_counts=tool_call_judgment_rule_use_counts,
         expanded_tool_call_judgment_rule_use_counts=expanded_tool_call_judgment_rule_use_counts,
     )
     network_requests = extract_network_requests(
         expanded_tool_calls,
-        knowledge=knowledge_doors.network_request_knowledge,
+        knowledge=pipeline_knowledge.network_request_knowledge,
         judgment_rule_use_counts=network_request_judgment_rule_use_counts,
         no_network_request_counts=no_network_request_counts,
     )
     network_request_results = decide_network_request_results(
         expanded_tool_calls,
         network_requests,
-        knowledge=knowledge_doors.network_request_result_knowledge,
+        knowledge=pipeline_knowledge.network_request_result_knowledge,
         judgment_rule_use_counts=network_request_result_judgment_rule_use_counts,
         unused_output_line_counts=unused_output_line_counts,
         program_counts_of_unowned_output_lines=program_counts_of_unowned_output_lines,
@@ -212,22 +212,22 @@ def run_steps_to_network_request_results(
 def run_steps_to_expanded_tool_calls(
     harness_tool_calls: Sequence[HarnessToolCall],
     *,
-    knowledge_doors: KnowledgeDoors,
+    pipeline_knowledge: PipelineKnowledge,
     tool_call_judgment_rule_use_counts: Counter[str],
     expanded_tool_call_judgment_rule_use_counts: Counter[str],
 ) -> tuple[ExpandedToolCall, ...]:
-    """Run `convert_tool_calls` and then `expand_tool_calls` on the tool calls of one trial, with the doors of `knowledge_doors`.
+    """Run `convert_tool_calls` and then `expand_tool_calls` on the tool calls of one trial, with the knowledge classes of `pipeline_knowledge`.
 
     Each step counts the uses of its judgment rules in its own counter, e.g. `treat_lines_joined_after_three_repairs_as_left_joined` in `tool_call_judgment_rule_use_counts` when `convert_tool_calls` splits a shell text and in `expanded_tool_call_judgment_rule_use_counts` when `expand_tool_calls` splits the text of a file it follows.
     Each `ExpandedToolCall` holds its `ToolCall`, so the output of `convert_tool_calls` is not returned apart.
     """
     tool_calls = convert_tool_calls(
         harness_tool_calls,
-        knowledge=knowledge_doors.tool_call_knowledge,
+        knowledge=pipeline_knowledge.tool_call_knowledge,
         judgment_rule_use_counts=tool_call_judgment_rule_use_counts,
     )
     return expand_tool_calls(
         tool_calls,
-        knowledge=knowledge_doors.expanded_tool_call_knowledge,
+        knowledge=pipeline_knowledge.expanded_tool_call_knowledge,
         judgment_rule_use_counts=expanded_tool_call_judgment_rule_use_counts,
     )

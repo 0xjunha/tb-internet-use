@@ -1,4 +1,4 @@
-"""Tests for scripts/audit_export_knowledge.py, run on the output of scripts/run_pipeline.py for made-up trial folders, with the written files, the counts of `export_rows` or the lookups of its door changed so that the equation under test differs.
+"""Tests for scripts/audit_export_knowledge.py, run on the output of scripts/run_pipeline.py for made-up trial folders, with the written files, the counts of `export_rows` or the lookups of `ExportKnowledge` changed so that the equation under test differs.
 
 The equations hold whatever the catalogs say, so the cases use the catalogs of the repo. Beside the equations, some cases assert the exit code and what the other CSVs of the audit hold, e.g. the rows of `row_uses.csv` that the catalogs of the repo give.
 """
@@ -334,7 +334,7 @@ def test_a_rule_counted_out_of_its_situation_makes_its_equation_differ(
     assert equation in _differing_equations(out_dir)
 
 
-def test_a_lookup_of_the_door_out_of_its_situation_makes_its_equation_differ(
+def test_a_lookup_of_the_knowledge_class_out_of_its_situation_makes_its_equation_differ(
     run_dir, tmp_path, monkeypatch
 ):
     def export_rows_asking_one_host_more(*arguments: Any, **keywords: Any) -> Any:

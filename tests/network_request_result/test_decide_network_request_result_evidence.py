@@ -1,4 +1,4 @@
-"""Tests for _decide_network_request_result_evidence.py, with made-up calls, places, line owners and requests of one trial, lines read by the real door and the real catalogs."""
+"""Tests for _decide_network_request_result_evidence.py, with made-up calls, places, line owners and requests of one trial, lines read by the real `NetworkRequestResultKnowledge` and the real catalogs."""
 
 import csv
 import dataclasses
@@ -360,7 +360,7 @@ def owned(
     names_another_target: bool = False,
     is_web_tool_result: bool = False,
 ) -> OutputLineOwners:
-    """Make the owners of a line read with a door of its own, so that the door under test counts nothing for it."""
+    """Make the owners of a line read with a `NetworkRequestResultKnowledge` of its own, so that the one under test counts nothing for it."""
     output_line_meaning = NetworkRequestResultKnowledge().output_line_meaning(
         line, is_web_tool_result=is_web_tool_result
     )
@@ -1239,7 +1239,7 @@ def test_line_that_an_unknown_printer_may_have_printed_may_belong_to_another_req
     assert not evidence_with_level.evidence.is_shared_with_other_requests
     assert decided.judgment_rule_use_counts == Counter({RULE_20: 1, RULE_11: 1})
     if which in ("unread words", "code typed through a poll"):
-        # The door has no row for such a run, so it is not asked and counts nothing.
+        # `NetworkRequestResultKnowledge` has no row for such a run, so it is not asked and counts nothing.
         assert decided.knowledge.uses.unknown_input_counts == Counter()
 
 
@@ -1708,7 +1708,7 @@ NO_RUN_EVIDENCE_CASES = [
 
 
 @pytest.mark.parametrize("which", NO_RUN_EVIDENCE_CASES)
-def test_request_without_evidence_of_its_own_run_asks_the_rule_and_the_door_nothing(
+def test_request_without_evidence_of_its_own_run_asks_the_rule_and_the_knowledge_class_nothing(
     which: str,
 ):
     network_request, expanded_tool_calls = no_run_evidence_case(which)
@@ -1770,7 +1770,7 @@ def test_finished_web_tool_call_shows_that_the_tool_ran():
     [((), True), (("ls",), True), (("cd /app",), False)],
     ids=["alone", "after ls ;", "after cd &&"],
 )
-def test_other_exit_code_gives_no_level_and_asks_the_door_only_when_it_is_the_commands(
+def test_other_exit_code_gives_no_level_and_asks_the_knowledge_class_only_when_it_is_the_commands(
     words_before: tuple[str, ...], exit_code_is_the_commands: bool
 ):
     commands_before = [
@@ -2027,7 +2027,7 @@ def test_line_of_a_that_shows_only_its_run_does_not_stop_b():
     assert decided.judgment_rule_use_counts == Counter({RULE_11: 1})
 
 
-def test_exit_zero_of_a_run_with_unread_words_shows_the_run_without_asking_the_door():
+def test_exit_zero_of_a_run_with_unread_words_shows_the_run_without_asking_the_knowledge_class():
     curl = command(
         0,
         "curl --foo x https://a.org/x",

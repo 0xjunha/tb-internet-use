@@ -92,7 +92,7 @@ def pipe_reader_of(
 ) -> PipeReader:
     """Build the `PipeReader` of a command that reads a pipe, from the row of its innermost program, e.g. tail in `sudo tail -1`.
 
-    `program_invocations`, `word_roles` and `program_behaviors` are what `expand_program_invocations` gave for the command, so the door is not asked again and the row of the reader is counted once.
+    `program_invocations`, `word_roles` and `program_behaviors` are what `expand_program_invocations` gave for the command, so `ExpandedToolCallKnowledge` is not asked again and the row of the reader is counted once.
     The program writes the piped output to a file only when its row says that it passes on all of it and a word names a file it writes, e.g. log in `tee log` or `tee -a log`.
     That is how `program_behaviors.csv` tells a program that copies its stdin to files, e.g. tee, from one that writes something else, e.g. curl in `curl -o f -d @- u`.
     """

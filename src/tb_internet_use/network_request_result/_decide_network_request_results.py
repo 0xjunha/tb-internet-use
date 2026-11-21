@@ -30,7 +30,7 @@ from tb_internet_use.network_request_result.model import (
 )
 
 if TYPE_CHECKING:
-    # The door is passed in and named in annotations only, so that `decide_network_request_results` never loads `knowledge/` itself.
+    # `NetworkRequestResultKnowledge` is passed in and named in annotations only, so that `decide_network_request_results` never loads `knowledge/` itself.
     from tb_internet_use.knowledge.network_request_result_knowledge import (
         NetworkRequestResultKnowledge,
     )
