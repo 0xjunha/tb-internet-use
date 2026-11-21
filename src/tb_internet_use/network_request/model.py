@@ -519,3 +519,4 @@ class UnknownHostNameScopeReason(StrEnum):
     DOTTED_NAME = "dotted_name"  # e.g. `files.acme.org`
     SINGLE_LABEL = "single_label"  # e.g. `db`
     TEMPLATED = "templated"  # e.g. `$HOST`
+    EMPTY_LABEL = "empty_label"  # e.g. `a..org` or `...`, no name by RFC 1035

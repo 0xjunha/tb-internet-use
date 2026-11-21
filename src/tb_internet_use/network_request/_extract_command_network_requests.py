@@ -362,6 +362,7 @@ def urls_that_may_be_public(
     """Find the URLs whose host is public or may be, e.g. `https://a.org/x`, `http://db:5432` and `https://$HOST/x` but not `http://localhost:8000/x` or `https://example.com`.
 
     A host that the standards settle is kept when public. A dotted name that they do not settle is kept when `treat_dotted_host_name_as_public` reads it as public, and a single label or a template when `treat_single_label_or_templated_host_name_as_possibly_public` says it may be.
+    A name with an empty label is kept, e.g. `https://../x`, since its internet use is unknown.
     A URL whose host cannot be read is not kept, e.g. `http://[::1/x`.
     """
     return tuple(
@@ -375,10 +376,15 @@ def urls_that_may_be_public(
 def _may_host_name_be_public(
     host_name: str, judgment_rule_use_counts: Counter[str]
 ) -> bool:
-    """Tell whether a host name is public by the standards or by the rules of `judgment_rules.py`, e.g. True for `files.acme.org` and `db`, False for `127.0.0.1`."""
+    """Tell whether a host name is public by the standards or by the rules of `judgment_rules.py`, e.g. True for `files.acme.org` and `db`, False for `127.0.0.1`.
+
+    A name with an empty label may be public, e.g. `...`, since the user decided on 2026-11-21 that its internet use is unknown and so it counts toward the upper bound.
+    """
     host_name_scope = parse_host_name(host_name)
     if isinstance(host_name_scope, HostNameScope):
         return host_name_scope == HostNameScope.PUBLIC
+    if host_name_scope.reason == UnknownHostNameScopeReason.EMPTY_LABEL:
+        return True
     if host_name_scope.reason == UnknownHostNameScopeReason.DOTTED_NAME:
         return (
             treat_dotted_host_name_as_public(

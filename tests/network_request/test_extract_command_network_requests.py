@@ -661,6 +661,14 @@ def test_the_knowledge_class_is_asked_once_for_each_program_of_a_command():
             {DOTTED_NAME_RULE_NAME: 1},
             id="mytool https://files.acme.org/x",
         ),
+        # A name with an empty label is kept without a rule, so its request counts toward the upper bound, as the user decided on 2026-11-21.
+        pytest.param(
+            ("https://a..org/x",),
+            (),
+            [("https://a..org/x", ("a..org",))],
+            {},
+            id="mytool https://a..org/x",
+        ),
         pytest.param(
             ("https://$U/x",),
             (VariableValues("U", ("a.org",), False, False),),

@@ -51,16 +51,19 @@ def treat_single_label_or_templated_host_name_as_possibly_public(
 ) -> bool:
     """Read a host name without a dot or with a template as one that may be public where a visible public URL is asked for, e.g. `db` in `http://db:5432` or `$HOST` in `https://$HOST/x`.
 
-    It is asked only for the forms SINGLE_LABEL and TEMPLATED, and a DOTTED_NAME raises `ValueError`, since `treat_dotted_host_name_as_public` decides that form.
+    It is asked only for the forms SINGLE_LABEL and TEMPLATED. A DOTTED_NAME raises `ValueError`, since `treat_dotted_host_name_as_public` decides that form, and so does an EMPTY_LABEL, which the user decided on 2026-11-21.
     It returns whether such a URL in the words of a program without a row, in the strings of a code call without a row, or in code outside every call gives an uncertain request.
     On `True` it does. The request then counts only toward the upper bound for a templated name, and in no bound for a name without a dot, which `treat_single_label_host_name_as_not_internet_use` reads as no internet use. On `False` it gives no request.
     A use is such a host name.
 
     Provisional. The earlier code made no choice, and an uncertain request keeps the lower bound true while dropping it would lower the upper bound for a templated name.
     """
-    if unknown_host_name_scope.reason == UnknownHostNameScopeReason.DOTTED_NAME:
+    if unknown_host_name_scope.reason not in (
+        UnknownHostNameScopeReason.SINGLE_LABEL,
+        UnknownHostNameScopeReason.TEMPLATED,
+    ):
         raise ValueError(
-            "a dotted host name is decided by treat_dotted_host_name_as_public"
+            f"a host name of the form {unknown_host_name_scope.reason} is not decided here"
         )
     use_counts[
         treat_single_label_or_templated_host_name_as_possibly_public.__name__

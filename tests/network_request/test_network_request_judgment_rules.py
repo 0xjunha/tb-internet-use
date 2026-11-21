@@ -23,6 +23,7 @@ from tb_internet_use.tool_call.model import WebFindAction
 DOTTED_NAME = UnknownHostNameScope(UnknownHostNameScopeReason.DOTTED_NAME)
 SINGLE_LABEL = UnknownHostNameScope(UnknownHostNameScopeReason.SINGLE_LABEL)
 TEMPLATED = UnknownHostNameScope(UnknownHostNameScopeReason.TEMPLATED)
+EMPTY_LABEL = UnknownHostNameScope(UnknownHostNameScopeReason.EMPTY_LABEL)
 
 
 def test_dotted_host_name_is_read_as_public_and_counted_and_other_forms_are_left_alone():
@@ -49,10 +50,11 @@ def test_single_label_or_templated_host_name_is_read_as_possibly_public_and_coun
     assert treat_single_label_or_templated_host_name_as_possibly_public(
         TEMPLATED, use_counts=use_counts
     )
-    with pytest.raises(ValueError):
-        treat_single_label_or_templated_host_name_as_possibly_public(
-            DOTTED_NAME, use_counts=use_counts
-        )
+    for unknown_host_name_scope in (DOTTED_NAME, EMPTY_LABEL):
+        with pytest.raises(ValueError):
+            treat_single_label_or_templated_host_name_as_possibly_public(
+                unknown_host_name_scope, use_counts=use_counts
+            )
     assert use_counts == Counter(
         {"treat_single_label_or_templated_host_name_as_possibly_public": 2}
     )

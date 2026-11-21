@@ -12,6 +12,7 @@ from tb_internet_use.network_request.parse_host_name import parse_host_name
 DOTTED_NAME = UnknownHostNameScope(UnknownHostNameScopeReason.DOTTED_NAME)
 SINGLE_LABEL = UnknownHostNameScope(UnknownHostNameScopeReason.SINGLE_LABEL)
 TEMPLATED = UnknownHostNameScope(UnknownHostNameScopeReason.TEMPLATED)
+EMPTY_LABEL = UnknownHostNameScope(UnknownHostNameScopeReason.EMPTY_LABEL)
 
 
 @pytest.mark.parametrize(
@@ -43,6 +44,15 @@ TEMPLATED = UnknownHostNameScope(UnknownHostNameScopeReason.TEMPLATED)
         ("localhost.", HostNameScope.LOCAL),
         ("example.com.", HostNameScope.RESERVED),
         ("db.", SINGLE_LABEL),
+        ("www.google.com.", DOTTED_NAME),
+        # An empty label is no part of a name by RFC 1035, also beside one trailing dot or before a local name.
+        ("...", EMPTY_LABEL),
+        ("..", EMPTY_LABEL),
+        ("files.acme.org...", EMPTY_LABEL),
+        ("a..org", EMPTY_LABEL),
+        (".a.org", EMPTY_LABEL),
+        ("a..localhost", EMPTY_LABEL),
+        ("1..2", EMPTY_LABEL),
         ("example.com", HostNameScope.RESERVED),
         ("api.example.org", HostNameScope.RESERVED),
         ("example.net", HostNameScope.RESERVED),

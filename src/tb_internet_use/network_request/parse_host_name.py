@@ -36,6 +36,7 @@ def parse_host_name(host_name: str) -> HostNameScope | UnknownHostNameScope:
     An IP address is PUBLIC only when `ipaddress` reads it as global, so the shared block `100.64.0.0/10` of RFC 6598 is LOCAL although it is not private.
     A name that holds `$`, `{` or `}` is TEMPLATED, since its value is set when the command runs.
     A short form of an IPv4 address is read as the address, so `0` is LOCAL as `0.0.0.0`, e.g. `curl 0:8000`, and `127.0.1` as `127.0.0.1`.
+    A name with an empty label after the one trailing dot is EMPTY_LABEL, e.g. `...` or `a..org`, since RFC 1035 allows an empty label only for the root.
     Any other name is DOTTED_NAME when it holds a dot and SINGLE_LABEL when it does not.
     """
     host_name = host_name.lower().strip("[]").removesuffix(".")
@@ -69,7 +70,12 @@ def _ipv4_address_of_short_form(host_name: str) -> ipaddress.IPv4Address | None:
 def _host_name_scope_of_name(
     host_name: str,
 ) -> HostNameScope | UnknownHostNameScope:
-    """Find the scope of a lower-case host name that is no IP address, e.g. LOCAL for `db.internal` and SINGLE_LABEL for `db`."""
+    """Find the scope of a lower-case host name that is no IP address, e.g. LOCAL for `db.internal` and SINGLE_LABEL for `db`.
+
+    An empty label is read first, so `a..localhost` is EMPTY_LABEL and not LOCAL, since such a name is no name of the standards.
+    """
+    if "" in host_name.split("."):
+        return UnknownHostNameScope(UnknownHostNameScopeReason.EMPTY_LABEL)
     if _LOCAL_NAME.search(host_name):
         return HostNameScope.LOCAL
     if _RESERVED_NAME.search(host_name):
