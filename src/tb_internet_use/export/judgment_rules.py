@@ -222,13 +222,29 @@ def treat_templated_host_name_as_unknown_internet_use(
     return True
 
 
+def treat_host_name_with_empty_label_as_unknown_internet_use(
+    network_request: NetworkRequest, *, use_counts: Counter[str]
+) -> bool:
+    """Leave the internet use of a request unknown when a host name of it has an empty label and none is public or templated, e.g. `curl ...` or `https://../x` in code.
+
+    RFC 1035 allows an empty label only for the root, so no resolver finds such a name on the internet, but the text may stand for a host that the trajectory does not show.
+    `export_network_request_row` asks it for a request with such a host name, among the hosts that its words name or that it is taken to be sent to.
+    On `True` `is_internet_use` is None, so the request counts only toward the upper bound. On `False` it is False and the request counts in no bound.
+    A use is such a request.
+
+    Decided. The user decided on 2026-11-21 that such a name is never a public host and counts only toward the upper bound.
+    """
+    use_counts[treat_host_name_with_empty_label_as_unknown_internet_use.__name__] += 1
+    return True
+
+
 def treat_single_label_host_name_as_not_internet_use(
     network_request: NetworkRequest, *, use_counts: Counter[str]
 ) -> bool:
-    """Count a request with a host name without a dot, and none public, templated or reserved, as no internet use, also when local host names sit beside it, e.g. `curl http://db:8000/x` or `socket.create_connection(("api", 8000))` in code.
+    """Count a request with a host name without a dot, and none public, templated, with an empty label or reserved, as no internet use, also when local host names sit beside it, e.g. `curl http://db:8000/x` or `socket.create_connection(("api", 8000))` in code.
 
     A name without a dot does not resolve on public DNS, only inside a container network or through `/etc/hosts`, so the request goes to a service inside the task environment, which turning the internet off would not block.
-    `export_network_request_row` asks it for a request from a command or code with such a host name and no public, templated or reserved host, among the hosts that its words name or that it is taken to be sent to.
+    `export_network_request_row` asks it for a request from a command or code with such a host name and no host that is public, templated or reserved or has an empty label, among the hosts that its words name or that it is taken to be sent to.
     A web tool request with such a host name is left to `treat_local_or_single_label_host_name_of_web_tool_as_unknown_internet_use`, since the name then resolves where the web tool sends from.
     On `True` `is_internet_use` is False, as for `localhost`, and the request counts in no bound. On `False` it is None, so the request counts only toward the upper bound.
     A use is such a request.
@@ -242,7 +258,7 @@ def treat_single_label_host_name_as_not_internet_use(
 def treat_reserved_host_name_as_unknown_internet_use(
     network_request: NetworkRequest, *, use_counts: Counter[str]
 ) -> bool:
-    """Leave the internet use of a request unknown when a host name of it is reserved for examples and tests and none is public or templated, e.g. `curl https://example.com/`.
+    """Leave the internet use of a request unknown when a host name of it is reserved for examples and tests and none is public, templated or with an empty label, e.g. `curl https://example.com/`.
 
     A reserved name resolves nowhere by the standards, but the task environment may still map it to a service of its own.
     `export_network_request_row` asks it for a request with such a host name, among the hosts that its words name or that it is taken to be sent to.

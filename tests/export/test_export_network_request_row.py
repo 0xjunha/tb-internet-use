@@ -32,6 +32,7 @@ from tb_internet_use.export.judgment_rules import (
     treat_assumed_not_needed_result_as_upper_bound_only,
     treat_discarded_content_as_connectivity_check,
     treat_host_target_that_may_receive_content_as_other_web,
+    treat_host_name_with_empty_label_as_unknown_internet_use,
     treat_local_or_single_label_host_name_of_web_tool_as_unknown_internet_use,
     treat_repository_request_for_no_content_as_other_web,
     treat_request_without_host_name_as_sent_to_default_registry_host,
@@ -124,6 +125,9 @@ DEFAULT_REGISTRY_RULE = (
 TEMPLATED_HOST_RULE = treat_templated_host_name_as_unknown_internet_use.__name__
 SINGLE_LABEL_HOST_RULE = treat_single_label_host_name_as_not_internet_use.__name__
 RESERVED_HOST_RULE = treat_reserved_host_name_as_unknown_internet_use.__name__
+EMPTY_LABEL_HOST_RULE = (
+    treat_host_name_with_empty_label_as_unknown_internet_use.__name__
+)
 LOCAL_HOST_OF_WEB_TOOL_RULE = (
     treat_local_or_single_label_host_name_of_web_tool_as_unknown_internet_use.__name__
 )
@@ -327,6 +331,7 @@ CURL_A_ORG = _curl("https://a.org/x", "a.org")
 CURL_DB = _curl("http://db:5432/", "db")
 CURL_TEMPLATED_HOST = _curl("https://$HOST/x", "$HOST")
 CURL_EXAMPLE = _curl("https://example.com/", "example.com")
+CURL_EMPTY_LABEL = _curl("...", "...")
 CURL_LOCALHOST = _curl("http://localhost:8000/health", "localhost")
 WEB_SEARCH = _request(
     _web_tool("codex", "web_search_call"),
@@ -409,6 +414,28 @@ INTERNET_USE_CASES: list[
             "request_measure_bound": UPPER_ONLY,
         },
         {TEMPLATED_HOST_RULE: 1},
+    ),
+    # A host name with an empty label, which no resolver finds, while one trailing dot only marks a fully qualified name.
+    (
+        "curl ...",
+        CURL_EMPTY_LABEL,
+        {
+            "host_scope": "unknown_empty_label",
+            "host_service": "not_public",
+            "is_internet_use": None,
+            "request_measure_bound": UPPER_ONLY,
+        },
+        {EMPTY_LABEL_HOST_RULE: 1},
+    ),
+    (
+        "curl https://www.google.com./",
+        _curl("https://www.google.com./", "www.google.com."),
+        {
+            "host_scope": "public",
+            "is_internet_use": True,
+            "request_measure_bound": LOWER_AND_UPPER,
+        },
+        {DOTTED_HOST_RULE: 1},
     ),
     # A reserved host name.
     (
@@ -523,6 +550,44 @@ INTERNET_USE_CASES: list[
             "is_internet_use": None,
         },
         {TEMPLATED_HOST_RULE: 1},
+    ),
+    (
+        "an empty label and a public host",
+        _request(
+            _command(_program("curl")),
+            "https://../x",
+            URL,
+            ContentShownInResult(),
+            "..",
+            "a.org",
+        ),
+        {"host_scope": "unknown_empty_label public", "is_internet_use": True},
+        {DOTTED_HOST_RULE: 1},
+    ),
+    (
+        "an empty label and a reserved host",
+        _request(
+            _command(_program("curl")),
+            "https://../x",
+            URL,
+            ContentShownInResult(),
+            "example.com",
+            "..",
+        ),
+        {"host_scope": "reserved unknown_empty_label", "is_internet_use": None},
+        {EMPTY_LABEL_HOST_RULE: 1},
+    ),
+    (
+        "a web tool with an empty label",
+        _request(
+            _web_tool("claude-code", "WebFetch"),
+            "https://a..org/",
+            URL,
+            ContentShownInResult(),
+            "a..org",
+        ),
+        {"host_scope": "unknown_empty_label", "is_internet_use": None},
+        {EMPTY_LABEL_HOST_RULE: 1},
     ),
     (
         "a web tool with a single label",
@@ -792,6 +857,7 @@ OTHER_INTERNET_USE_ANSWER_CASES = [
     (TEMPLATED_HOST_RULE, False, CURL_TEMPLATED_HOST, False),
     (SINGLE_LABEL_HOST_RULE, False, CURL_DB, None),
     (RESERVED_HOST_RULE, False, CURL_EXAMPLE, False),
+    (EMPTY_LABEL_HOST_RULE, False, CURL_EMPTY_LABEL, False),
     (LOCAL_HOST_OF_WEB_TOOL_RULE, False, WEB_FETCH_LOCALHOST, False),
 ]
 

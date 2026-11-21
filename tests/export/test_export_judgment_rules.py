@@ -15,6 +15,7 @@ from tb_internet_use.export.judgment_rules import (
     treat_assumed_failure_as_possibly_received,
     treat_assumed_not_needed_result_as_upper_bound_only,
     treat_discarded_content_as_connectivity_check,
+    treat_host_name_with_empty_label_as_unknown_internet_use,
     treat_host_target_that_may_receive_content_as_other_web,
     treat_local_or_single_label_host_name_of_web_tool_as_unknown_internet_use,
     treat_repository_request_for_no_content_as_other_web,
@@ -310,6 +311,18 @@ JUDGMENT_RULE_CASES: list[tuple[Callable[..., object], tuple[object, ...], objec
                 NetworkRequestTargetKind.URL,
                 ContentShownInResult(),
                 "db",
+            ),
+        ),
+        True,
+    ),
+    (
+        treat_host_name_with_empty_label_as_unknown_internet_use,
+        (
+            _request(
+                ("curl", "..."),
+                NetworkRequestTargetKind.URL,
+                ContentShownInResult(),
+                "...",
             ),
         ),
         True,

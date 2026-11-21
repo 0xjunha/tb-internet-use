@@ -31,6 +31,7 @@ from tb_internet_use.export.judgment_rules import (
     treat_assumed_failure_as_possibly_received,
     treat_assumed_not_needed_result_as_upper_bound_only,
     treat_discarded_content_as_connectivity_check,
+    treat_host_name_with_empty_label_as_unknown_internet_use,
     treat_host_target_that_may_receive_content_as_other_web,
     treat_local_or_single_label_host_name_of_web_tool_as_unknown_internet_use,
     treat_repository_request_for_no_content_as_other_web,
@@ -343,10 +344,8 @@ def situation_counts_of(
         for host_name in host_names
     )
     has_public = "public" in host_scope_texts
-    has_templated = any(
-        text.startswith("unknown_") and text != "unknown_single_label"
-        for text in host_scope_texts
-    )
+    has_templated = "unknown_templated" in host_scope_texts
+    has_empty_label = "unknown_empty_label" in host_scope_texts
     has_reserved = "reserved" in host_scope_texts
     # A request for a URL from a command or code that keeps what it receives, the part of the situations of the rules that read the services of its hosts.
     is_url_request_for_kept_content = (
@@ -371,8 +370,12 @@ def situation_counts_of(
         and is_web_tool,
         treat_templated_host_name_as_unknown_internet_use: not has_public
         and has_templated,
+        treat_host_name_with_empty_label_as_unknown_internet_use: not has_public
+        and not has_templated
+        and has_empty_label,
         treat_reserved_host_name_as_unknown_internet_use: not has_public
         and not has_templated
+        and not has_empty_label
         and has_reserved,
         treat_local_or_single_label_host_name_of_web_tool_as_unknown_internet_use: is_local_or_single_label
         and is_web_tool,

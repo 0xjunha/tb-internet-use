@@ -48,10 +48,10 @@ _BASH_CALLS_OF_TRIAL = {
         ),
     ],
     "t3": [("ls", "notes.txt")],
-    # Code that asks the first page of a registry and a search of a search engine, which the rule for a URL without a path or a query takes and leaves.
+    # Code that asks the first page of a registry and a search of a search engine, which the rule for a URL without a path or a query takes and leaves, and a host with an empty label.
     "t7": [
         (
-            "python3 -c 'import urllib.request as u; u.urlopen(\"https://pypi.org/\")'; curl 'https://html.duckduckgo.com/html?q=x'",
+            "python3 -c 'import urllib.request as u; u.urlopen(\"https://pypi.org/\")'; curl 'https://html.duckduckgo.com/html?q=x'; curl https://a..org/x",
             "",
         )
     ],
@@ -182,6 +182,7 @@ def test_every_equation_holds_on_the_rows_of_made_up_trials(
         "treat_request_without_host_name_as_sent_to_default_registry_host",
         "treat_single_label_host_name_as_not_internet_use",
         "treat_templated_host_name_as_unknown_internet_use",
+        "treat_host_name_with_empty_label_as_unknown_internet_use",
         "treat_local_or_single_label_host_name_of_web_tool_as_unknown_internet_use",
         "treat_url_query_value_and_fragment_as_credential",
         "treat_dotted_host_name_as_public",
