@@ -194,7 +194,10 @@ def _band_label_of(band: int) -> str:
 
 # The list of tabs at the end of `Overview`, by the questions they answer.
 _TAB_QUESTIONS = (
-    (TASKS_TAB_NAME, "Which tasks send requests, and were they solved without one?"),
+    (
+        TASKS_TAB_NAME,
+        "Which tasks send internet requests, and were they solved without one?",
+    ),
     (REQUESTED_ITEMS_TAB_NAME, "What did the trials of each task ask for?"),
     (
         REGISTRIES_AND_HOSTS_TAB_NAME,
@@ -420,7 +423,7 @@ def _add_key_numbers(
             "Solved tasks that were solved at least once without a request",
             solved_task_count([SolvedWithoutRequestVerdict.YES]),
             solved_task_count(
-                [SolvedWithoutRequestVerdict.YES, SolvedWithoutRequestVerdict.NOT_KNOWN]
+                [SolvedWithoutRequestVerdict.YES, SolvedWithoutRequestVerdict.MAYBE]
             ),
             TabCell(
                 f"of {count_text_of(solved_count)} solved tasks, see {TASKS_TAB_NAME}",

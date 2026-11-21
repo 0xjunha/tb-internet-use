@@ -144,7 +144,7 @@ class SolvedWithoutRequestVerdict(StrEnum):
     # At least one passed trial is `neither`.
     YES = "yes"
     # None is `neither` and at least one is `upper_only`, which may have sent nothing.
-    NOT_KNOWN = "not known"
+    MAYBE = "maybe"
     # Every passed trial is `lower_and_upper`.
     NO = "no"
     NEVER_SOLVED = "never solved"
@@ -165,7 +165,7 @@ class PassedTrialCounts:
         if self.without_request_trial_count:
             return SolvedWithoutRequestVerdict.YES
         if self.upper_bound_only_trial_count:
-            return SolvedWithoutRequestVerdict.NOT_KNOWN
+            return SolvedWithoutRequestVerdict.MAYBE
         return SolvedWithoutRequestVerdict.NO
 
 

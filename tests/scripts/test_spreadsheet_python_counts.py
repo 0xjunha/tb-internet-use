@@ -227,9 +227,9 @@ def test_judges_each_task_by_the_bounds_of_its_passed_trials(made_up_run_dir: Pa
     assert {
         task: counts.passed_trial_counts_of(task).verdict for task in counts.tasks
     } == {
-        TASK_A_3: verdict.NOT_KNOWN,
+        TASK_A_3: verdict.MAYBE,
         TASK_B_3: verdict.YES,
-        TASK_0_4: verdict.NOT_KNOWN,
+        TASK_0_4: verdict.MAYBE,
         TASK_A_4: verdict.YES,
     }
     assert counts.passed_trial_counts_of(
@@ -243,7 +243,7 @@ def test_judges_each_task_by_the_bounds_of_its_passed_trials(made_up_run_dir: Pa
         pytest.param((3, 1, 1), "yes", id="one passed trial without a request"),
         pytest.param(
             (3, 0, 1),
-            "not known",
+            "maybe",
             id="one passed trial only in the upper bound",
         ),
         pytest.param((3, 0, 0), "no", id="every passed trial lower"),

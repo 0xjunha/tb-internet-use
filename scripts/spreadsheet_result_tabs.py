@@ -182,7 +182,7 @@ def lay_out_tasks_tab(
     # The question wraps within the frozen columns, so that it stays whole while the others scroll.
     _add_title_and_question(
         grid,
-        "Which tasks send requests from the task environment, and were they solved without one?",
+        "Which tasks send internet requests from the task environment, and were they solved without one?",
         columns.task_name,
     )
     header_row = grid.add_row(
@@ -190,8 +190,8 @@ def lay_out_tasks_tab(
             *(["benchmark_version"] if columns.shows_benchmark_version else []),
             "task_name",
             "Trials",
-            "Request",
-            "Bounds",
+            "Request, lower bound",
+            "Request bounds",
             "Request, upper bound",
             *columns.categories,
             "Web tool from outside",
@@ -381,7 +381,7 @@ def _tasks_line_cells_of(
         formula=(
             f'IF({passed_cell}=0,"{verdict.NEVER_SOLVED}",'
             f'IF({passed_without_cell}>0,"{verdict.YES}",'
-            f'IF({passed_upper_bound_only_formula}>0,"{verdict.NOT_KNOWN}",'
+            f'IF({passed_upper_bound_only_formula}>0,"{verdict.MAYBE}",'
             f'"{verdict.NO}")))'
         ),
     )

@@ -114,7 +114,7 @@ def test_chart_data_holds_the_tables_of_the_three_charts_of_overview(
         spreadsheet_path, "Chart data", "Solved without a request?"
     )[1:] == [
         ["yes", 2],
-        ["not known", 2],
+        ["maybe", 2],
         ["no", 0],
         ["never solved", 0],
     ]
@@ -264,8 +264,8 @@ def test_tasks_has_a_line_per_task_sorted_by_version_and_then_by_the_lower_bound
     ]
     assert header[2:15] == [
         "Trials",
-        "Request",
-        "Bounds",
+        "Request, lower bound",
+        "Request bounds",
         "Request, upper bound",
         "package",
         "content_fetch",
@@ -289,7 +289,7 @@ def test_tasks_has_a_line_per_task_sorted_by_version_and_then_by_the_lower_bound
         "Did not reach a server": 1 / 2,
         "Passed": 1,
         "Passed without a request": 0,
-        "Solved without a request?": "not known",
+        "Solved without a request?": "maybe",
         "Bar, lower bound": 1 / 2,
         "Bar, upper bound only": 1 / 2,
     }
@@ -297,7 +297,7 @@ def test_tasks_has_a_line_per_task_sorted_by_version_and_then_by_the_lower_bound
     assert [
         line_by_task["4-0-0 a"][column]
         for column in (
-            "Request",
+            "Request, lower bound",
             "Web tool from outside",
             "Passed",
             "Passed without a request",
@@ -771,10 +771,10 @@ def test_frozen_panes_filters_hidden_columns_color_scales_and_bars_of_tasks_foll
         if dimension.hidden
     } == {column["Bar, lower bound"], column["Bar, upper bound only"]}
     assert [str(r.sqref) for r in sheet.conditional_formatting] == [
-        f"{column['Request']}{first_row}:{column['Request']}{last_row}",
+        f"{column['Request, lower bound']}{first_row}:{column['Request, lower bound']}{last_row}",
         f"{column['Request, upper bound']}{first_row}:{column['Did not reach a server']}{last_row}",
     ]
-    assert sheet[f"{column['Bounds']}{first_row}"].value.startswith(
+    assert sheet[f"{column['Request bounds']}{first_row}"].value.startswith(
         f"=SPARKLINE({column['Bar, lower bound']}{first_row}:{column['Bar, upper bound only']}{first_row},"
     )
 
