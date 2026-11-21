@@ -126,6 +126,7 @@ def test_gives_what_a_package_request_without_a_target_says_of_it():
     row = {
         "category": "package",
         "target": "",
+        "target_kind": "",
         "package_registry": "apt",
         "host_names": "",
         "unknown_target_reason": "",
@@ -139,6 +140,57 @@ def test_gives_what_a_package_request_without_a_target_says_of_it():
         )
         == "(value_set_at_run_time)"
     )
+
+
+@pytest.mark.parametrize(
+    ("target", "package_registry", "host_names", "requested_item"),
+    [
+        pytest.param(
+            "https://pypi.org/pypi/x/json", "pypi", "pypi.org", "pypi.org", id="pip url"
+        ),
+        pytest.param(
+            "http://deb.debian.org/debian/dists/x/Release",
+            "apt",
+            "deb.debian.org",
+            "deb.debian.org",
+            id="apt url",
+        ),
+        pytest.param(
+            "https://files.pythonhosted.org/p/x/x-1.0.tar.gz",
+            "pypi",
+            "files.pythonhosted.org",
+            "files.pythonhosted.org",
+            id="pip source archive url",
+        ),
+        pytest.param(
+            "https://files.pythonhosted.org/p/n/Foo_Bar-2.1.0-py3-none-any.whl",
+            "pypi",
+            "files.pythonhosted.org",
+            "foo-bar",
+            id="pip wheel url keeps the wheel name",
+        ),
+        pytest.param(
+            "https://dl-cdn.alpinelinux.org/alpine/v3/main/x",
+            "apk",
+            "",
+            "(no host name)",
+            id="url without host name",
+        ),
+    ],
+)
+def test_gives_the_host_of_a_package_request_to_a_registry_url(
+    target: str, package_registry: str, host_names: str, requested_item: str
+):
+    row = {
+        "category": "package",
+        "target": target,
+        "target_kind": "url",
+        "package_registry": package_registry,
+        "host_names": host_names,
+        "unknown_target_reason": "",
+    }
+
+    assert spreadsheet_python_counts.requested_item_of(row) == requested_item
 
 
 def test_keys_web_tool_requests_by_the_harness_of_their_trial_and_counts_the_upper_bound_alone(

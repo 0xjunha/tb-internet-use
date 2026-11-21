@@ -22,6 +22,7 @@ from tb_internet_use.export.model import (
 )
 from tb_internet_use.network_request.model import (
     NetworkRequestCertainty,
+    NetworkRequestTargetKind,
     NetworkRequestUncertaintyReason,
     UnknownNetworkRequestTargetReason,
 )
@@ -490,16 +491,25 @@ def share_band_of(share: float) -> int:
 def requested_item_of(row: dict[str, str]) -> str:
     """Give what a request row asked for, as a line of the tab `Requested items` shows it.
 
-    A package gives its name as `package_name_of` shows it, or what the row says of its missing target, e.g. `(named_in_file)`. Another request gives its host name.
+    A package gives its name as `package_name_of` shows it, or what the row says of its missing target, e.g. `(named_in_file)`. Another request gives its host name. So does a package whose target is a URL, e.g. `https://pypi.org/pypi/x/json` gives `pypi.org`, since the URL names no package that `package_name_of` can read. A URL of a wheel file of pip still gives the name of the wheel, e.g. `numpy` of `https://files.pythonhosted.org/.../numpy-2.1.0-py3-none-any.whl`.
     """
     if row["category"] != NetworkRequestCategory.PACKAGE:
-        return row["host_names"] or "(no host name)"
+        return _host_names_of(row)
+    if row["target_kind"] == NetworkRequestTargetKind.URL and not _is_pip_wheel_file(
+        row["target"], row["package_registry"]
+    ):
+        return _host_names_of(row)
     if row["target"]:
         return package_name_of(row["target"], row["package_registry"])
     if row["unknown_target_reason"]:
         return f"({row['unknown_target_reason']})"
     # e.g. `apt-get update`, which reads the index of the registry.
     return "(no package named)"
+
+
+def _host_names_of(row: dict[str, str]) -> str:
+    """Give the host names of a request row as `Requested items` shows them, or `(no host name)` when it names none."""
+    return row["host_names"] or "(no host name)"
 
 
 # The name at the start of a requirement of pip, before extras and version specifiers, e.g. `uvicorn` of `uvicorn[standard]>=0.30`.
@@ -516,7 +526,7 @@ def package_name_of(target: str, package_registry: str) -> str:
     It joins the lines of one package across versions, e.g. `orjson==3.10.12` and `orjson==3.10.15` both give `orjson`. pip names are written as pip compares them, in lower case with `-` for runs of `_`, `.` and `-`, e.g. `Typing_Extensions` gives `typing-extensions`. npm keeps a leading `@scope/`, e.g. `@babel/core@7` gives `@babel/core`. apt drops `=version` and `/release`, e.g. `ovmf/trixie` gives `ovmf`. A wheel file of pip gives the name it carries, e.g. `dist/numpy-2.1.0-py3-none-any.whl` gives `numpy`. A URL or path of pip, e.g. `git+https://github.com/a/b.git`, a target of another registry, or a path of apt such as `/app/x.deb` stays as it is, since it names no package of a registry.
     """
     if package_registry in _PIP_REGISTRIES:
-        if target.endswith(".whl"):
+        if _is_pip_wheel_file(target, package_registry):
             # A wheel file is named `<name>-<version>-<tags>.whl`, e.g. `numpy-2.1.0-cp312-cp312-linux_x86_64.whl`.
             target = target.rsplit("/", 1)[-1].split("-", 1)[0]
         elif "/" in target or ":" in target:
@@ -529,6 +539,11 @@ def package_name_of(target: str, package_registry: str) -> str:
     if package_registry == "apt" and not target.startswith(("/", ".")):
         return re.split(r"[=/]", target, maxsplit=1)[0]
     return target
+
+
+def _is_pip_wheel_file(target: str, package_registry: str) -> bool:
+    """Tell whether a target is a wheel file that pip installs, by path or URL, e.g. `dist/numpy-2.1.0-py3-none-any.whl`."""
+    return package_registry in _PIP_REGISTRIES and target.endswith(".whl")
 
 
 def _count_network_request_row(

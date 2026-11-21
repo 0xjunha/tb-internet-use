@@ -127,7 +127,10 @@ def _request_row(
         made_by=made_by,
         target=target,
         unknown_target_reason=unknown_target_reason,
-        target_kind=NetworkRequestTargetKind.URL,
+        # Every package of the made-up run is named by a package name, e.g. `requests`.
+        target_kind=NetworkRequestTargetKind.PACKAGE_NAME
+        if category == NetworkRequestCategory.PACKAGE
+        else NetworkRequestTargetKind.URL,
         host_names=host_names,
         received_content_destination="saved",
         request_certainty=request_certainty,
