@@ -8,7 +8,7 @@ In each file a blank is unknown only in the column that answers the question of 
 
 [`public_hosts.csv`](public_hosts.csv) has one row per public host name and start of a URL path, keyed by `host_name` and `path_prefix`. Most hosts have one row with a blank `path_prefix`. A host whose paths give different services has a row for each such start and one blank row for the rest, e.g. `huggingface.co` with `/api/` for its API and a blank row for its model files. A name asked in another case finds the rows of its lower-case form, e.g. `PyPI.org` finds `pypi.org`, and no row answers for another name, e.g. `files.pythonhosted.org` for `pypi.org`.
 
-`ExportKnowledge.public_host` picks the row whose `path_prefix` is the longest start of the path of the target URL, e.g. `/api/` for `https://huggingface.co/api/models`, also when the URL lacks its scheme as curl allows, e.g. `curl huggingface.co/api/models`, and the blank row when none is or the host is not named by the target URL, e.g. `ping pypi.org`. A path is matched in its case, from its first `/`.
+`ExportKnowledge.public_host` picks the row whose `path_prefix` is the longest start of the path of the target URL, e.g. `/api/` for `https://huggingface.co/api/models`, also when the URL lacks its scheme as curl allows, e.g. `curl huggingface.co/api/models`, and the blank row when none is or the host is not named by the target URL, e.g. `ping pypi.org`. A `path_prefix` is matched as a plain start of the path, in its case and from its first `/`, so it should end at a segment boundary, e.g. `/api/`, since `/api` would also match `/apis/x`.
 
 | Column | Cell | Blank |
 |---|---|---|
@@ -43,6 +43,6 @@ All three files end with the same three columns.
 | `reviewed` | `yes` once a person has reviewed the row | Not reviewed yet |
 | `note` | Free text, e.g. what the check does not cover | Nothing to note |
 
-A host enters `public_hosts.csv` only when a page of the host itself, or a page of the service that runs it, says which `HostService` it gives, e.g. the GitHub documentation for `github.com`. Host names come from the trajectories, so a row holds only the host of a widely used public service, never a name that shows the content of a task. A host that serves an API, e.g. `rest.uniprot.org`, gets the service `web_api`, and a path that serves search results gets `search_engine`, e.g. `/search/` of `api.github.com`.
+A host enters `public_hosts.csv` only when a page of the host itself, or a page of the service that runs it, says which `HostService` it gives, e.g. the GitHub documentation for `github.com`. Host names come from the trajectories, so a row holds only the host of a widely used public service. Such a host gets a row even when it occurs in the trajectories of one task only, while a host that is no such service gets none, since its name could show the content of a task. A host that serves an API, e.g. `rest.uniprot.org`, gets the service `web_api`, and a path that serves search results gets `search_engine`, e.g. `/search/` of `api.github.com`.
 
 A row that `export_rows` cannot use raises `ValueError` when the catalog is loaded, e.g. a host name with a capital letter, a `path_prefix` that does not start with `/`, a `service` that is no `HostService`, a `sender` of `unknown` or host names without a registry. No script writes the three CSVs.
