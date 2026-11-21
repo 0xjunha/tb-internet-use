@@ -358,12 +358,12 @@ The category is computed from what the request's own text shows, so the same com
 
 | Asked through `ExportKnowledge` | Answer in this example |
 |---|---|
-| Which service does the public host data.example.org give? | Unknown, since no row of `public_hosts.csv` names it, so the row's `host_service` is `unknown`. A known service would be e.g. a package registry or code hosting |
+| Which service does the public host data.example.org give at the path `/a.tgz`? | Unknown, since no row of `public_hosts.csv` names it, so the row's `host_service` is `unknown`. A known service would be e.g. a package registry, code hosting or a web API, and a host whose paths give different services has a row for each start of a path |
 | Which registry does `pip install` ask when no setting names another? | `pypi`, at the host `pypi.org` |
 
 | Column | What it gives here | Why |
 |---|---|---|
-| Category | Content fetch for r1 to r3, which save what a URL gives. Package for r4 | The category rules of the step |
+| Category | Content fetch for r1 to r3, which save what a URL gives. Package for r4 | The category rules of the step, which read the service of a URL's host before where its content goes. No host of r1 to r3 has a row, so `treat_saved_content_from_unrecognized_url_as_content_fetch` makes their saved files content fetches. r4 names a package |
 | Internet use | Yes for all four | r1 to r3 name their hosts, which are read as public in this example. r4 names no host, so `treat_request_without_host_name_as_sent_to_default_registry_host` gives it the host of the default registry of `pip install`, `pypi.org`, which is public |
 | Request bounds | Both bounds for r1 to r4 | Each is a confirmed request that is internet use. How far it got does not matter here |
 | Received bounds | Neither for r3, the upper bound only for r1, r2 and r4 | r3's own line confirms that it failed. r1 and r2 share one error line, so their failure is assumed and `treat_assumed_failure_as_possibly_received` keeps them in the upper bound. r4's lines show that a download began but not that the package arrived |
@@ -371,7 +371,7 @@ The category is computed from what the request's own text shows, so the same com
 
 Each category and sender of the trial then gets one row with the strongest bounds of its requests, where a row among success line owners one of which received counts in the lower bound of received. All four requests here have the sender `task_environment`, which gives the last table of [Where this ends](#where-this-ends). The trial row takes the strongest bounds of all requests that the task environment sent.
 The lines of case C give no request and no row. `decide_network_request_results` only counts them as unused lines.
-Some columns need a choice that facts alone do not settle, e.g. whether a request that names no host goes to the default registry of its program. Such choices are the judgment rules of `export/judgment_rules.py`, all provisional but the one that counts a request to a host name without a dot as no internet use and the one that counts a trial with a line of success shared by confirmed requests as one that received, and each use of one is counted.
+Some columns need a choice that facts alone do not settle, e.g. whether a request that names no host goes to the default registry of its program. Such choices are the judgment rules of `export/judgment_rules.py`, and each use of one is counted. Most are provisional. The user decided the one that counts a request to a host name without a dot as no internet use, the one that counts a trial with a line of success shared by confirmed requests as one that received, and the four category rules of discarded content, of a URL of a registry host, of a URL of a search engine host and of saved content from a host without a row.
 The entry function `export_rows` calls these pieces in order.
 
 | Piece | What it gives |
