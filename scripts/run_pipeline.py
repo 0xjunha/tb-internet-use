@@ -2,6 +2,7 @@
 
 Each trial runs as its own task in one of at most 4 worker processes. A trial that raises, runs longer than `--trial-time-limit-seconds` (600 unless given) or kills its worker counts as raised, and the other trials still give their rows.
 The `Trial` and the network request results of each trial are saved as they come, so that a long run that stops can go on with `--resume`, and `--export-only` runs `export_rows` again on the saved results without reading a trajectory, e.g. after a rule of `export/judgment_rules.py` changed.
+`--export-only` counts a trial as raised when the code digest of its saved results differs from that of the code that runs, unless `--ignore-code-digest` is given, e.g. after a commit that only renamed things. `summary.csv` then counts the trials exported from saved results of other code.
 Each equation of `EQUATIONS` has its definition above its name. Progress goes to stderr, and no text of a trajectory is printed.
 
 It writes `network_request_rows.csv`, `trial_rows.csv`, `trial_category_measure_rows.csv`, `task_category_measures.csv`, `raised_trials.csv`, `summary.csv`, `equations.csv`, `<step package>/row_uses.csv`, `<step package>/unknown_inputs.csv`, `<step package>/judgment_rule_uses.csv`, `network_request/no_network_request_reasons.csv`, `network_request_result/unused_output_lines.csv`, `network_request_result/unowned_output_line_programs.csv` and the saved results `network_request_results/<trial id>.pickle` under the output folder, `out/pipeline/` unless `--out-dir` names another, which `.gitignore` keeps out of the repo, since the rows hold targets and host names from trajectories.
@@ -9,7 +10,7 @@ The rows of each file are described above the statement that writes it in `write
 The words of a key of `unknown_inputs.csv` and the program names of `unowned_output_line_programs.csv` come from trajectories, and these lists are meant to be read and passed on as the knowledge to fill, so `cut_key_word` cuts an option word at its first `=` and any word after 64 characters. A bare word that is a credential, e.g. a token given as an argument, is cut only after 64 characters.
 
 The script ends with exit code 1 when a trial raised or an equation differs.
-Run it as `nice -n 10 uv run python -I scripts/run_pipeline.py <raw_trials_dir> [--limit N | --trial-ids FILE] [--out-dir DIR] [--resume | --export-only] [--trial-time-limit-seconds N]`.
+Run it as `nice -n 10 uv run python -I scripts/run_pipeline.py <raw_trials_dir> [--limit N | --trial-ids FILE] [--out-dir DIR] [--resume | --export-only [--ignore-code-digest]] [--trial-time-limit-seconds N]`.
 """
 
 import argparse
@@ -189,7 +190,12 @@ def main() -> None:
     reuse.add_argument(
         "--export-only",
         action="store_true",
-        help="run only export_rows, on the saved output of every trial, and count a trial without one or with one made by other code as raised",
+        help="run only export_rows, on the saved output of every trial, and count a trial without one, or with one made by other code unless --ignore-code-digest is given, as raised",
+    )
+    parser.add_argument(
+        "--ignore-code-digest",
+        action="store_true",
+        help="with --export-only, reuse the saved output of every trial whatever code made it",
     )
     parser.add_argument(
         "--trial-time-limit-seconds",
@@ -198,6 +204,8 @@ def main() -> None:
         help="count a trial that runs longer as raised",
     )
     arguments = parser.parse_args()
+    if arguments.ignore_code_digest and not arguments.export_only:
+        parser.error("--ignore-code-digest needs --export-only")
 
     chosen_trial_dirs = chosen_trial_dirs_from(arguments)
     trial_dirs = list(dict.fromkeys(chosen_trial_dirs))
@@ -209,6 +217,7 @@ def main() -> None:
         code_digest=earlier_step_code_digest_of(PACKAGE_DIR),
         reuses_saved_results=arguments.resume or arguments.export_only,
         needs_saved_results=arguments.export_only,
+        ignores_code_digest=arguments.ignore_code_digest,
     )
     start_time = time.monotonic()
     trial_runs: list[TrialRun] = []
@@ -233,6 +242,11 @@ def main() -> None:
     for equation, left, right in equation_rows:
         print(f"{equation}: {left} = {right} {'holds' if left == right else 'differs'}")
     print(f"raised trials: {len(pipeline_run_total.raised_trials)}")
+    if pipeline_run_total.trials_exported_from_saved_results_of_other_code:
+        print(
+            f"trials exported from saved results of other code: {pipeline_run_total.trials_exported_from_saved_results_of_other_code}",
+            file=sys.stderr,
+        )
     print(f"written under {arguments.out_dir}")
     if pipeline_run_total.raised_trials or any(
         left != right for _, left, right in equation_rows
@@ -364,10 +378,11 @@ def run_trial(
     code_digest: str,
     reuses_saved_results: bool,
     needs_saved_results: bool,
+    ignores_code_digest: bool,
 ) -> TrialRun:
     """Run the steps on one trial folder, or `export_rows` alone on its saved results, and return what it gave, with an exception named instead of raised.
 
-    Saved results are reused only when their code digest is `code_digest`. The results of a trial that ran from its folder are saved under `results_dir` only after `run_steps_of_trial` returns, and that function runs `export_rows` too, so a trial whose `export_rows` raises has no saved results and `--export-only` counts it as raised.
+    Saved results are reused only when their code digest is `code_digest`, or with `ignores_code_digest` whatever their digest, and the `TrialRun` then says whether the digest differed. The results of a trial that ran from its folder are saved under `results_dir` only after `run_steps_of_trial` returns, and that function runs `export_rows` too, so a trial whose `export_rows` raises has no saved results and `--export-only` counts it as raised.
     """
     trial_id = trial_dir.name
     # `network_request_results/<trial id>.pickle` holds the code digest, the `Trial`, the network request results and the counts of the steps before `export_rows` of one trial.
@@ -378,10 +393,14 @@ def run_trial(
             saved_code_digest, trial, network_request_results, earlier_step_counts = (
                 read_saved_results(saved_results_path)
             )
-            if saved_code_digest == code_digest:
-                return _run_trial_from_saved_results(
+            if ignores_code_digest or saved_code_digest == code_digest:
+                trial_run = _run_trial_from_saved_results(
                     trial, network_request_results, earlier_step_counts
                 )
+                trial_run.exported_from_saved_results_of_other_code = (
+                    saved_code_digest != code_digest
+                )
+                return trial_run
             if needs_saved_results:
                 return TrialRun(trial_id, raise_reason=SAVED_RESULTS_OF_OTHER_CODE)
         elif needs_saved_results:
@@ -581,6 +600,8 @@ class TrialRun:
     earlier_step_counts: EarlierStepCounts = field(default_factory=EarlierStepCounts)
     export_knowledge_uses: KnowledgeUses = field(default_factory=KnowledgeUses)
     export_judgment_rule_use_counts: Counter[str] = field(default_factory=Counter)
+    # Whether the rows came from saved results whose code digest differs from that of the code that ran, as `--ignore-code-digest` allows.
+    exported_from_saved_results_of_other_code: bool = False
 
     def set_output(
         self,
@@ -671,6 +692,7 @@ class PipelineRunTotal:
     unowned_output_line_program_total: KeyCountTotal = field(
         default_factory=KeyCountTotal
     )
+    trials_exported_from_saved_results_of_other_code: int = 0
 
     @classmethod
     def of_trial_runs(
@@ -704,6 +726,9 @@ class PipelineRunTotal:
             )
             return
         self.trials.append(trial_run.trial)
+        self.trials_exported_from_saved_results_of_other_code += (
+            trial_run.exported_from_saved_results_of_other_code
+        )
         self.trial_rows.append(trial_run.trial_row)
         self.network_request_rows.extend(trial_run.network_request_rows)
         self.trial_category_measure_rows.extend(trial_run.trial_category_measure_rows)
@@ -860,6 +885,10 @@ class PipelineRunTotal:
             ("repeated_trial_ids_dropped", self.repeated_trial_id_count),
             ("trials_raised", len(self.raised_trials)),
             ("trial_rows", len(self.trial_rows)),
+            (
+                "trials_exported_from_saved_results_of_other_code",
+                self.trials_exported_from_saved_results_of_other_code,
+            ),
             *(
                 (f"trials_unreadable_{reason}", count)
                 for reason, count in sorted(unreadable_reason_counts.items())
@@ -914,7 +943,7 @@ def write_pipeline_run_files(
         _first_column_values_of(out_dir / "trial_rows.csv"),
         _first_column_values_of(out_dir / "raised_trials.csv"),
     )
-    # `summary.csv` has one row for each count of the run, e.g. the trial folders chosen, the trial rows written or the trials whose trajectory could not be read by reason.
+    # `summary.csv` has one row for each count of the run, e.g. the trial folders chosen, the trial rows written, the trials exported from saved results of other code or the trials whose trajectory could not be read by reason.
     write_csv(out_dir / "summary.csv", ("count_name", "count"), total.summary_rows())
     # `equations.csv` has one row for each equation between steps of `EQUATIONS`, with its two sides and whether they are equal.
     write_csv(

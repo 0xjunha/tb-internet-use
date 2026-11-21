@@ -649,6 +649,74 @@ def test_saved_results_of_other_code_run_again_with_resume_and_raise_with_export
     } == {"other"}
 
 
+def test_export_only_with_ignore_code_digest_exports_saved_results_of_other_code_and_counts_them(
+    tmp_path, monkeypatch, write_trial_folder, capsys
+):
+    raw_trials_dir = tmp_path / "raw"
+    _write_raw_trials(raw_trials_dir, write_trial_folder)
+    out_dir = tmp_path / "out"
+    _run_main(monkeypatch, raw_trials_dir, ["t1", "t2", "t3"], out_dir)
+    first_files = _texts_of(out_dir, (*_ROW_FILE_NAMES, *_COUNT_FILE_NAMES))
+    first_summary_rows = _csv_rows(out_dir / "summary.csv")
+    for trial_id in ("t1", "t2", "t3"):
+        (raw_trials_dir / trial_id / "trajectory.json").unlink(missing_ok=True)
+    monkeypatch.setattr(
+        run_pipeline, "earlier_step_code_digest_of", lambda package_dir: "other"
+    )
+    capsys.readouterr()
+
+    exit_code = _run_main(
+        monkeypatch,
+        raw_trials_dir,
+        ["t1", "t2", "t3"],
+        out_dir,
+        "--export-only",
+        "--ignore-code-digest",
+    )
+
+    assert exit_code == 0
+    assert _texts_of(out_dir, (*_ROW_FILE_NAMES, *_COUNT_FILE_NAMES)) == first_files
+    assert ["trials_exported_from_saved_results_of_other_code", "0"] in (
+        first_summary_rows
+    )
+    assert [
+        row
+        for row in _csv_rows(out_dir / "summary.csv")
+        if row not in first_summary_rows
+    ] == [["trials_exported_from_saved_results_of_other_code", "3"]]
+    assert (
+        "trials exported from saved results of other code: 3" in capsys.readouterr().err
+    )
+    # The saved results keep the digest of the code that made them.
+    assert (
+        run_pipeline.read_saved_results(
+            out_dir / "network_request_results" / "t1.pickle"
+        )[0]
+        != "other"
+    )
+
+
+@pytest.mark.parametrize("other_options", [(), ("--resume",)])
+def test_ignore_code_digest_without_export_only_is_refused(
+    tmp_path, monkeypatch, write_trial_folder, other_options
+):
+    raw_trials_dir = tmp_path / "raw"
+    _write_raw_trials(raw_trials_dir, write_trial_folder)
+    out_dir = tmp_path / "out"
+
+    exit_code = _run_main(
+        monkeypatch,
+        raw_trials_dir,
+        ["t1"],
+        out_dir,
+        *other_options,
+        "--ignore-code-digest",
+    )
+
+    assert exit_code == 2
+    assert not out_dir.exists()
+
+
 def test_the_code_digest_changes_with_a_file_that_the_earlier_steps_read_and_not_with_one_of_the_export_step(
     tmp_path,
 ):
