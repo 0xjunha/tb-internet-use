@@ -210,14 +210,14 @@ def test_overview_shows_the_key_numbers_with_the_upper_bound_only_on_two_lines(
     assert {
         label: lines[label][1:3]
         for label in (
-            "Trials with a request from the task environment",
+            "Trials with an internet request from the task environment",
             "… of them, trials that only installed packages",
             "Tasks where at least half of the trials sent a request",
             "Solved tasks that were solved at least once without a request",
             "Trials with a web tool request sent from outside the task environment",
         )
     } == {
-        "Trials with a request from the task environment": [3 / 8, 5 / 8],
+        "Trials with an internet request from the task environment": [3 / 8, 5 / 8],
         "… of them, trials that only installed packages": [2 / 3, None],
         "Tasks where at least half of the trials sent a request": [2, 3],
         "Solved tasks that were solved at least once without a request": [2, None],

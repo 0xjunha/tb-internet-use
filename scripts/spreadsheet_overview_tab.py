@@ -340,7 +340,7 @@ def _add_key_numbers(
 
     lines: list[tuple[str, TabCell, TabCell | None, str | TabCell]] = [
         (
-            "Trials with a request from the task environment",
+            "Trials with an internet request from the task environment",
             key_share(len(lower_ids), lower_formula),
             key_share(len(upper_ids), upper_formula),
             f"{BOUNDS_TAB_NAME} splits the difference by cause",
