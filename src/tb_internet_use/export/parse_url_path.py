@@ -24,6 +24,19 @@ def parse_url_path(target: str, host_name: str) -> str | None:
     It returns None when the word names no such URL of `host_name`, e.g. `file:///tmp/x` without a host, `git@github.com:a/b.git` as scp writes it, or `https://b.org/x` for `a.org`.
     The path is kept as the trajectory writes it, in its case and with its escapes, e.g. `/A%20b` for `https://a.org/A%20b`.
     """
+    after_authority = url_after_authority_of(target, host_name)
+    if after_authority is None:
+        return None
+    if not after_authority.startswith("/"):
+        return ""
+    return _PATH_END.split(after_authority, maxsplit=1)[0]
+
+
+def url_after_authority_of(target: str, host_name: str) -> str | None:
+    """Find the path, query and fragment of the URL that a target word names, as `parse_url_path` finds the URL, e.g. `/x/y?q=1#k` for `https://a.org/x/y?q=1#k` and `a.org`, or None when the word names no URL of `host_name`.
+
+    A URL that ends at its host gives an empty text, e.g. `https://a.org`.
+    """
     url = _url_of_target(target)
     if (
         url is None
@@ -34,9 +47,9 @@ def parse_url_path(target: str, host_name: str) -> str | None:
     scheme_match = SCHEME_AND_SLASHES.match(url)
     after_scheme = url[scheme_match.end() :] if scheme_match else url
     authority_end_match = _AUTHORITY_END.search(after_scheme)
-    if authority_end_match is None or authority_end_match.group() != "/":
+    if authority_end_match is None:
         return ""
-    return _PATH_END.split(after_scheme[authority_end_match.start() :], maxsplit=1)[0]
+    return after_scheme[authority_end_match.start() :]
 
 
 def _url_of_target(target: str) -> str | None:
