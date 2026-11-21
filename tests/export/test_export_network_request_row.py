@@ -988,6 +988,38 @@ COLUMN_CASES: list[tuple[str, NetworkRequest, dict[str, object], dict[str, int]]
         },
         {DOTTED_HOST_RULE: 1, SEARCH_ENGINE_HOST_RULE: 1, CREDENTIAL_RULE: 1},
     ),
+    # curl reads a URL without a scheme too, so its path picks the row of the host as well.
+    (
+        "curl 'api.github.com/search/code?q=x'",
+        _curl("api.github.com/search/code?q=x", "api.github.com"),
+        {
+            "category": NetworkRequestCategory.SEARCH,
+            "host_service": "search_engine",
+        },
+        {DOTTED_HOST_RULE: 1, SEARCH_ENGINE_HOST_RULE: 1},
+    ),
+    (
+        "curl huggingface.co/api/models",
+        _curl("huggingface.co/api/models", "huggingface.co"),
+        {
+            "category": NetworkRequestCategory.REMOTE_API_CALL,
+            "host_service": "web_api",
+        },
+        {DOTTED_HOST_RULE: 1},
+    ),
+    # pip reads the URL of a direct reference of PEP 508 after the name.
+    (
+        "pip install x@https://huggingface.co/api/x.whl",
+        _request(
+            _command(_program("pip", "install")),
+            "x@https://huggingface.co/api/x.whl",
+            URL,
+            ContentSaved(None),
+            "huggingface.co",
+        ),
+        {"host_service": "web_api"},
+        {DOTTED_HOST_RULE: 1},
+    ),
     (
         "curl https://api.github.com/repos/a/b",
         _curl("https://api.github.com/repos/a/b", "api.github.com"),

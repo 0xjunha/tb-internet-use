@@ -8,7 +8,7 @@ In each file a blank is unknown only in the column that answers the question of 
 
 [`public_hosts.csv`](public_hosts.csv) has one row per public host name and start of a URL path, keyed by `host_name` and `path_prefix`. Most hosts have one row with a blank `path_prefix`. A host whose paths give different services has a row for each such start and one blank row for the rest, e.g. `huggingface.co` with `/api/` for its API and a blank row for its model files. A name asked in another case finds the rows of its lower-case form, e.g. `PyPI.org` finds `pypi.org`, and no row answers for another name, e.g. `files.pythonhosted.org` for `pypi.org`.
 
-`ExportKnowledge.public_host` picks the row whose `path_prefix` is the longest start of the path of the target URL, e.g. `/api/` for `https://huggingface.co/api/models`, and the blank row when none is or the host is not named by the target URL, e.g. `ping pypi.org`. A path is matched in its case, from its first `/`.
+`ExportKnowledge.public_host` picks the row whose `path_prefix` is the longest start of the path of the target URL, e.g. `/api/` for `https://huggingface.co/api/models`, also when the URL lacks its scheme as curl allows, e.g. `curl huggingface.co/api/models`, and the blank row when none is or the host is not named by the target URL, e.g. `ping pypi.org`. A path is matched in its case, from its first `/`.
 
 | Column | Cell | Blank |
 |---|---|---|

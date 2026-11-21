@@ -14,7 +14,7 @@ from tb_internet_use.network_request.model import (
 from tb_internet_use.network_request.parse_url import SCHEME_AND_SLASHES, parse_url
 
 # A URL with a scheme anywhere in a word, e.g. in `git+https://github.com/a/b` or the direct reference `x@https://a.org/x.whl` of PEP 508.
-_URL_IN_WORD = re.compile(SCHEME_AND_SLASHES.pattern + r"\S*")
+URL_IN_WORD = re.compile(SCHEME_AND_SLASHES.pattern + r"\S*")
 # A host at the start of a URL without a scheme, e.g. `pypi.org` in `pypi.org/simple`, `localhost` in `localhost:8000/x` or `a.org` in `a.org?q=1`.
 _SCHEMELESS_HOST = re.compile(r"^([\w.-]+)(?::\d+)?(?:[/?#]|$)")
 # A remote git address without a scheme, e.g. `github.com` in `git@github.com:a/b.git`.
@@ -100,7 +100,7 @@ def _parsed_target_from_pip_requirement(requirement: str) -> ParsedTarget:
     A `file` URL such as `file:///tmp/x.whl` or `git+file:///repo` names a path on the machine.
     A requirement that holds `/` and no URL is a path too, e.g. `src/pkg` in `pip install -e src/pkg`, since a name of PEP 508 cannot hold `/`.
     """
-    if url_match := _URL_IN_WORD.search(requirement):
+    if url_match := URL_IN_WORD.search(requirement):
         url = url_match.group()
         if _is_file_url(url):
             return ParsedTarget(None, None, is_local_path=True)

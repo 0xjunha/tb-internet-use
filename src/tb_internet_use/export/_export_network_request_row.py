@@ -100,7 +100,6 @@ from tb_internet_use.network_request.model import (
     UnknownReceivedContentDestination,
 )
 from tb_internet_use.network_request.parse_host_name import parse_host_name
-from tb_internet_use.network_request.parse_url import parse_url
 from tb_internet_use.network_request_result.model import (
     ExecutionStatusEvidence,
     ExitCodeEvidence,
@@ -253,22 +252,24 @@ def _public_hosts_of(
     *,
     knowledge: ExportKnowledge,
 ) -> list[PublicHost | UnknownPublicHost]:
-    """Give the answers of `knowledge` for the public hosts of a request in order, asking with the path of the target for the host of a target URL, e.g. `/api/models` for `huggingface.co` of `curl https://huggingface.co/api/models`.
+    """Give the answers of `knowledge` for the public hosts of a request in order, asking with the path of the target for the host of a target URL, e.g. `/api/models` for `huggingface.co` of `curl https://huggingface.co/api/models` or `curl huggingface.co/api/models`.
 
     Another host that the request names is asked without a path, since the path of the target is not its path, e.g. the host of another URL in the words of the same JavaScript `fetch` call.
     """
     target = network_request.target
-    target_host_name = None
-    url_path = None
-    if isinstance(target, str) and network_request.target_kind in (
-        NetworkRequestTargetKind.URL,
-        NetworkRequestTargetKind.REPOSITORY_URL,
-    ):
-        target_host_name = parse_url(target)
-        url_path = parse_url_path(target)
+    url_target = (
+        target
+        if isinstance(target, str)
+        and network_request.target_kind
+        in (NetworkRequestTargetKind.URL, NetworkRequestTargetKind.REPOSITORY_URL)
+        else None
+    )
     return [
         knowledge.public_host(
-            host_name, url_path=url_path if host_name == target_host_name else None
+            host_name,
+            url_path=None
+            if url_target is None
+            else parse_url_path(url_target, host_name),
         )
         for host_name, host_name_scope in zip(
             network_request.host_names, host_name_scopes, strict=True
