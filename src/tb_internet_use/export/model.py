@@ -214,6 +214,9 @@ class HostService(StrEnum):
     CODE_HOSTING = "code_hosting"  # e.g. github.com
     MODEL_HUB = "model_hub"  # e.g. huggingface.co
     SEARCH_ENGINE = "search_engine"  # e.g. html.duckduckgo.com
+    WEB_API = "web_api"  # e.g. rest.uniprot.org
+    FILE_HOSTING = "file_hosting"  # e.g. files.rcsb.org
+    DOCUMENTATION = "documentation"  # e.g. docs.nvidia.com
 
 
 @dataclass(frozen=True, slots=True)
