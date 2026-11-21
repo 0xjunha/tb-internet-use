@@ -101,6 +101,14 @@ TERM_MEANINGS = (
         "Web tool from outside",
         "A web tool of the harness (harness_process) or the model provider (provider_server). unknown: no fact places it",
     ),
+    (
+        "connectivity_check",
+        "A request that only checks that a host answers, e.g. ping, or a URL without path or query to a registry or search engine",
+    ),
+    (
+        "remote_api_call",
+        "A request to a web API host, also one that fetches one record by its ID, e.g. rest.uniprot.org/uniprotkb/P12345.fasta",
+    ),
     ("Passed", f"A reward of {PASSED_REWARD}"),
     (
         "Requests",
