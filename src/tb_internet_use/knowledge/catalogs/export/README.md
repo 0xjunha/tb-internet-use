@@ -6,12 +6,15 @@ Whether a host is public at all is no fact of this folder. It is read from the n
 
 In each file a blank is unknown only in the column that answers the question of the file, and `ExportKnowledge` then answers with an `Unknown…` type of [model.py](../../../export/model.py). The use of such a row is counted like any other, so it leaves the list of unknown inputs. In every other column a blank fails the load where the table asks for a value.
 
-[`public_hosts.csv`](public_hosts.csv) has one row per public host name, keyed by `host_name`. A name asked in another case finds the row of its lower-case form, e.g. `PyPI.org` finds `pypi.org`, and no row answers for another name, e.g. `files.pythonhosted.org` for `pypi.org`.
+[`public_hosts.csv`](public_hosts.csv) has one row per public host name and start of a URL path, keyed by `host_name` and `path_prefix`. Most hosts have one row with a blank `path_prefix`. A host whose paths give different services has a row for each such start and one blank row for the rest, e.g. `huggingface.co` with `/api/` for its API and a blank row for its model files. A name asked in another case finds the rows of its lower-case form, e.g. `PyPI.org` finds `pypi.org`, and no row answers for another name, e.g. `files.pythonhosted.org` for `pypi.org`.
+
+`ExportKnowledge.public_host` picks the row whose `path_prefix` is the longest start of the path of the target URL, e.g. `/api/` for `https://huggingface.co/api/models`, and the blank row when none is or the host is not named by the target URL, e.g. `ping pypi.org`. A path is matched in its case, from its first `/`.
 
 | Column | Cell | Blank |
 |---|---|---|
 | `host_name` | The host name in lower case, e.g. `pypi.org` | Fails the load |
-| `service` | A `HostService` value, e.g. `package_registry` or `code_hosting` | Unknown |
+| `path_prefix` | The start of the URL paths that the row covers, from the `/` after the host, e.g. `/api/` | Every other path of the host |
+| `service` | A `HostService` value, e.g. `package_registry`, `code_hosting`, `model_hub`, `search_engine`, `web_api`, `file_hosting` or `documentation` | Unknown |
 | `package_registry` | The registry name when `service` is `package_registry`, e.g. `pypi` | Required for a registry, and blank for any other service |
 
 [`harness_web_tools.csv`](harness_web_tools.csv) has one row per harness tool that can make web requests, keyed by `harness` and `tool` as `harness_tools.csv` of `tool_call/` names them. A web step in a tool script is found by the tool of the script, e.g. `(codex, exec)`.
@@ -40,6 +43,6 @@ All three files end with the same three columns.
 | `reviewed` | `yes` once a person has reviewed the row | Not reviewed yet |
 | `note` | Free text, e.g. what the check does not cover | Nothing to note |
 
-A host enters `public_hosts.csv` only when a page of the host itself, or a page of the service that runs it, says which `HostService` it gives, e.g. the GitHub documentation for `github.com`. Host names come from the trajectories, so a row holds only the host of a widely used public service, never a name that shows the content of a task. A host that serves an API of a service, e.g. `api.github.com`, gets no row yet, since whether what such a host shows is a page read is not decided.
+A host enters `public_hosts.csv` only when a page of the host itself, or a page of the service that runs it, says which `HostService` it gives, e.g. the GitHub documentation for `github.com`. Host names come from the trajectories, so a row holds only the host of a widely used public service, never a name that shows the content of a task. A host that serves an API, e.g. `rest.uniprot.org`, gets the service `web_api`, and a path that serves search results gets `search_engine`, e.g. `/search/` of `api.github.com`.
 
-A row that `export_rows` cannot use raises `ValueError` when the catalog is loaded, e.g. a host name with a capital letter, a `service` that is no `HostService`, a `sender` of `unknown` or host names without a registry. No script writes the three CSVs.
+A row that `export_rows` cannot use raises `ValueError` when the catalog is loaded, e.g. a host name with a capital letter, a `path_prefix` that does not start with `/`, a `service` that is no `HostService`, a `sender` of `unknown` or host names without a registry. No script writes the three CSVs.

@@ -143,12 +143,13 @@ SHOWN_FROM_SEARCH_ENGINE_RULE = (
     treat_shown_content_from_search_engine_host_as_other_web.__name__
 )
 
-# The made-up host catalog. `a.org` and `api.github.com` have no row.
+# The made-up host catalog. `a.org` and `api.github.com` have no row, and `huggingface.co` gives an API at the paths under `/api/`.
 PUBLIC_HOST_ROWS = (
-    "pypi.org,package_registry,pypi",
-    "github.com,code_hosting,",
-    "huggingface.co,model_hub,",
-    "duckduckgo.com,search_engine,",
+    "pypi.org,,package_registry,pypi",
+    "github.com,,code_hosting,",
+    "huggingface.co,/api/,web_api,",
+    "huggingface.co,,model_hub,",
+    "duckduckgo.com,,search_engine,",
 )
 # The made-up web tool catalog. Claude Code `Fetch` has no row.
 HARNESS_WEB_TOOL_ROWS = (
@@ -905,12 +906,42 @@ def test_knowledge_class_is_asked_about_public_hosts_and_package_commands_only(
 
     assert knowledge.uses.unknown_input_counts == Counter(
         {
-            (PUBLIC_HOSTS_CSV, ("a.org",)): 1,
+            (PUBLIC_HOSTS_CSV, ("a.org", "")): 1,
             (PROGRAM_PACKAGE_REGISTRIES_CSV, ("conda", "install")): 1,
         }
     )
     assert knowledge.uses.row_use_counts == Counter(
         {(PROGRAM_PACKAGE_REGISTRIES_CSV, ("pip", "install")): 1}
+    )
+
+
+def test_knowledge_class_is_asked_with_the_path_of_the_target_for_the_host_of_the_target_alone(
+    knowledge: ExportKnowledge,
+):
+    api_request = _curl("https://huggingface.co/api/models?search=x", "huggingface.co")
+    # Code that names two URLs in one call, whose target is the first.
+    two_urls = _request(
+        FromCode(0, ArgumentText(0), CodeLanguage.JAVASCRIPT, "fetch"),
+        "https://a.org/api/x",
+        URL,
+        UnknownReceivedContentDestination(),
+        "a.org",
+        "huggingface.co",
+    )
+
+    api_row, _ = _exported(_result(api_request), knowledge)
+    two_urls_row, _ = _exported(_result(two_urls), knowledge)
+
+    assert api_row.host_service == "web_api"
+    assert two_urls_row.host_service == "unknown model_hub"
+    assert knowledge.uses.row_use_counts == Counter(
+        {
+            (PUBLIC_HOSTS_CSV, ("huggingface.co", "/api/")): 1,
+            (PUBLIC_HOSTS_CSV, ("huggingface.co", "")): 1,
+        }
+    )
+    assert knowledge.uses.unknown_input_counts == Counter(
+        {(PUBLIC_HOSTS_CSV, ("a.org", "")): 1}
     )
 
 

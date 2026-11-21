@@ -1,10 +1,10 @@
 """Answer the questions of `export_rows` about public hosts, web tools and package registries from the export catalogs, counting every use of a row and every input without one.
 
-A blank cell is unknown only in the column that answers the question of each file, i.e. `service`, `sender` and `package_registry`. A blank there gives the `Unknown…` answer of the row, which counts as a use of the row and not as an unknown input. Every other column fails the load when it is blank where the README of the catalogs asks for a value.
+A blank cell is unknown only in the column that answers the question of each file, i.e. `service`, `sender` and `package_registry`. A blank there gives the `Unknown…` answer of the row, which counts as a use of the row and not as an unknown input. A blank `path_prefix` is the row of every other path of its host. Every other column fails the load when it is blank where the README of the catalogs asks for a value.
 """
 
 import functools
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -39,13 +39,24 @@ class ExportKnowledge:
         self.uses = KnowledgeUses()
         self._catalogs = _load_export_catalogs(catalogs_dir)
 
-    def public_host(self, host_name: str) -> PublicHost | UnknownPublicHost:
-        """Answer which service a public host gives, or `UnknownPublicHost` for a host without a row or with a blank `service`.
+    def public_host(
+        self, host_name: str, *, url_path: str | None
+    ) -> PublicHost | UnknownPublicHost:
+        """Answer which service a public host gives at a path, or `UnknownPublicHost` for a host without a row for the path or with a blank `service`.
 
-        The name is matched in lower case, since host names do not differ by case (RFC 4343), e.g. `PyPI.org` asks the row of `pypi.org`.
-        One lookup counts the row `(lower-case name,)`, or the same key as an unknown input.
+        `url_path` is the path of the URL that names the host, as `parse_url_path` reads it, or None when the request names the host without such a URL, e.g. `ping pypi.org`.
+        The row is the one of the host whose `path_prefix` is the longest start of `url_path`, e.g. `/api/` for `/api/models` of `huggingface.co`. Without one, or for None, it is the row whose `path_prefix` is blank.
+        The name is matched in lower case, since host names do not differ by case (RFC 4343), e.g. `PyPI.org` asks the row of `pypi.org`. The path keeps its case, since paths can differ by case (RFC 3986).
+        One lookup counts the row `(lower-case name, path_prefix)`, or `(lower-case name, "")` as an unknown input when the host has no row for the path.
         """
-        row = self._catalogs.public_hosts.lookup((host_name.lower(),), self.uses)
+        lower_case_host_name = host_name.lower()
+        path_prefix = _longest_path_prefix_of(
+            self._catalogs.path_prefixes_by_host_name.get(lower_case_host_name, ()),
+            url_path,
+        )
+        row = self._catalogs.public_hosts.lookup(
+            (lower_case_host_name, path_prefix), self.uses
+        )
         return UnknownPublicHost() if row is None else row
 
     def network_request_sender(
@@ -81,13 +92,21 @@ class ExportKnowledge:
 
 @functools.cache
 def _load_export_catalogs(catalogs_dir: Path) -> _ExportCatalogs:
-    """Load the three export CSVs of a folder once per process, raising ValueError on a row that `export_rows` cannot use."""
+    """Load the three export CSVs of a folder once per process, raising ValueError on a row that `export_rows` cannot use, and index the path prefixes of each host."""
+    public_hosts = load_catalog(
+        catalogs_dir / PUBLIC_HOSTS_CSV,
+        key_columns=("host_name", "path_prefix"),
+        row_from_columns=_public_host_from_columns,
+    )
+    path_prefixes_by_host_name: dict[str, list[str]] = {}
+    for host_name, path_prefix in public_hosts.row_keys:
+        path_prefixes_by_host_name.setdefault(host_name, []).append(path_prefix)
     return _ExportCatalogs(
-        public_hosts=load_catalog(
-            catalogs_dir / PUBLIC_HOSTS_CSV,
-            key_columns=("host_name",),
-            row_from_columns=_public_host_from_columns,
-        ),
+        public_hosts=public_hosts,
+        path_prefixes_by_host_name={
+            host_name: tuple(path_prefixes)
+            for host_name, path_prefixes in path_prefixes_by_host_name.items()
+        },
         harness_web_tools=load_catalog(
             catalogs_dir / HARNESS_WEB_TOOLS_CSV,
             key_columns=("harness", "tool"),
@@ -106,16 +125,38 @@ class _ExportCatalogs:
     """Loaded catalogs of `export_rows`, shared by every `ExportKnowledge` of a process."""
 
     public_hosts: Catalog[PublicHost | UnknownPublicHost]
+    # The `path_prefix` of each row of a host in `public_hosts.csv`, in the order of the file, e.g. `("/api/", "")` for `huggingface.co`.
+    path_prefixes_by_host_name: Mapping[str, tuple[str, ...]]
     harness_web_tools: Catalog[NetworkRequestSender | UnknownNetworkRequestSender]
     program_package_registries: Catalog[PackageRegistry | UnknownPackageRegistry]
+
+
+def _longest_path_prefix_of(path_prefixes: Sequence[str], url_path: str | None) -> str:
+    """Find the longest of the path prefixes of a host that starts `url_path`, or the blank prefix when none does or `url_path` is None."""
+    if url_path is None:
+        return ""
+    return max(
+        (
+            path_prefix
+            for path_prefix in path_prefixes
+            if path_prefix and url_path.startswith(path_prefix)
+        ),
+        key=len,
+        default="",
+    )
 
 
 def _public_host_from_columns(
     columns: Mapping[str, str],
 ) -> PublicHost | UnknownPublicHost:
-    """Read one row of `public_hosts.csv`, raising ValueError on a host name that is empty or not in lower case, on a service that is no `HostService` and on a `package_registry` that is missing for a registry or given for any other service."""
+    """Read one row of `public_hosts.csv`, raising ValueError on a host name that is empty or not in lower case, on a path prefix that is neither blank nor starts with `/`, on a service that is no `HostService` and on a `package_registry` that is missing for a registry or given for any other service."""
     _check_review_columns(columns)
     _check_host_name(columns["host_name"])
+    path_prefix = columns["path_prefix"]
+    if path_prefix and not path_prefix.startswith("/"):
+        raise ValueError(
+            f"path_prefix {path_prefix!r} is neither blank nor starts with /"
+        )
     service = columns["service"]
     package_registry = columns["package_registry"]
     is_package_registry = service == HostService.PACKAGE_REGISTRY

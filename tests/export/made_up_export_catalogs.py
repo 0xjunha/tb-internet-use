@@ -20,12 +20,12 @@ def write_made_up_export_catalogs(
     harness_web_tool_rows: Sequence[str],
     program_package_registry_rows: Sequence[str],
 ) -> Path:
-    """Write the three export CSVs into a new folder and return the folder, each row given as its columns before `checked_against`, e.g. `pypi.org,package_registry,pypi`."""
+    """Write the three export CSVs into a new folder and return the folder, each row given as its columns before `checked_against`, e.g. `pypi.org,,package_registry,pypi`."""
     catalogs_dir.mkdir()
     for file_name, header, rows in (
         (
             PUBLIC_HOSTS_CSV,
-            "host_name,service,package_registry,checked_against,reviewed,note",
+            "host_name,path_prefix,service,package_registry,checked_against,reviewed,note",
             public_host_rows,
         ),
         (

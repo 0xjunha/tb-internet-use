@@ -390,7 +390,7 @@ def catalogs_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
     # Hosts such as `a.org` have no row, nor do Claude Code `Fetch` and `conda install`.
     return write_made_up_export_catalogs(
         tmp_path_factory.mktemp("export") / "catalogs",
-        public_host_rows=("pypi.org,package_registry,pypi",),
+        public_host_rows=("pypi.org,,package_registry,pypi",),
         harness_web_tool_rows=("codex,web_search_call,provider_server",),
         program_package_registry_rows=(
             "pip,install,pypi,pypi.org",
@@ -621,8 +621,8 @@ def test_every_piece_counts_its_rule_uses_in_the_one_counter_and_the_knowledge_c
     ) == (LOWER_AND_UPPER, LOWER_AND_UPPER)
     assert knowledge.uses.unknown_input_counts == Counter(
         {
-            (PUBLIC_HOSTS_CSV, ("a.org",)): 1,
-            (PUBLIC_HOSTS_CSV, ("b.org",)): 1,
+            (PUBLIC_HOSTS_CSV, ("a.org", "")): 1,
+            (PUBLIC_HOSTS_CSV, ("b.org", "")): 1,
             (HARNESS_WEB_TOOLS_CSV, ("claude-code", "Fetch")): 1,
         }
     )

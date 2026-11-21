@@ -229,7 +229,7 @@ class PublicHost:
 
 @dataclass(frozen=True, slots=True)
 class UnknownPublicHost:
-    """Answer of `ExportKnowledge` for a public host without a row of the host catalog.
+    """Answer of `ExportKnowledge` for a public host without a row of the host catalog for the path of its URL.
 
     `ExportKnowledge` also gives it for a host whose row has a blank `service`.
     """

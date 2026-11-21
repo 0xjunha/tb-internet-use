@@ -222,7 +222,7 @@ def knowledge(tmp_path: Path) -> ExportKnowledge:
     return ExportKnowledge(
         catalogs_dir=write_made_up_export_catalogs(
             tmp_path / "catalogs",
-            public_host_rows=("pypi.org,package_registry,pypi",),
+            public_host_rows=("pypi.org,,package_registry,pypi",),
             harness_web_tool_rows=("codex,web_search_call,provider_server",),
             program_package_registry_rows=("pip,install,pypi,pypi.org",),
         )

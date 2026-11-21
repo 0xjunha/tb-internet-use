@@ -199,7 +199,7 @@ def test_every_equation_holds_on_the_rows_of_made_up_trials(
     assert _csv_rows(out_dir / "row_uses.csv")[1:] == [
         ["program_package_registries.csv", '["pip", "install"]', "2", "2", "1"],
         ["harness_web_tools.csv", '["claude-code", "WebFetch"]', "1", "1", "1"],
-        ["public_hosts.csv", '["github.com"]', "1", "1", "1"],
+        ["public_hosts.csv", '["github.com", ""]', "1", "1", "1"],
     ]
     assert _csv_rows(out_dir / "trials_not_audited.csv") == [
         ["trial_id", "exception_type"]
@@ -338,7 +338,7 @@ def test_a_lookup_of_the_knowledge_class_out_of_its_situation_makes_its_equation
     run_dir, tmp_path, monkeypatch
 ):
     def export_rows_asking_one_host_more(*arguments: Any, **keywords: Any) -> Any:
-        keywords["knowledge"].public_host("pypi.org")
+        keywords["knowledge"].public_host("pypi.org", url_path=None)
         return run_pipeline.export_rows(*arguments, **keywords)
 
     monkeypatch.setattr(audit, "export_rows", export_rows_asking_one_host_more)

@@ -73,6 +73,7 @@ from tb_internet_use.export.model import (
     UnknownPackageRegistry,
     UnknownPublicHost,
 )
+from tb_internet_use.export.parse_url_path import parse_url_path
 from tb_internet_use.network_request.judgment_rules import (
     treat_dotted_host_name_as_public,
 )
@@ -99,6 +100,7 @@ from tb_internet_use.network_request.model import (
     UnknownReceivedContentDestination,
 )
 from tb_internet_use.network_request.parse_host_name import parse_host_name
+from tb_internet_use.network_request.parse_url import parse_url
 from tb_internet_use.network_request_result.model import (
     ExecutionStatusEvidence,
     ExitCodeEvidence,
@@ -129,7 +131,7 @@ def export_network_request_row(
 ) -> NetworkRequestRow:
     """Export the `NetworkRequestRow` of one network request result, by the conditions of the module docstring, with its credentials redacted.
 
-    It asks `knowledge` about each public host of the request, about the package registry of a command whose target is a package name, and about the sender of a web tool.
+    It asks `knowledge` about each public host of the request, with the path of the target for the host of a target URL, about the package registry of a command whose target is a package name, and about the sender of a web tool.
     Each judgment rule adds one to `judgment_rule_use_counts` under its name when it decides something, also the rule of `extract_network_requests` that reads a dotted host name as public.
     The four columns that hold text of the trajectory, i.e. `source`, `made_by`, `target` and `host_names`, pass through `redact_credentials`.
     `is_among_success_line_owners_one_of_which_received` is False here, since it rests on the rows of the other requests that share an output line, and `mark_network_request_rows_among_success_line_owners` sets it once all rows of the trial are made.
@@ -138,13 +140,9 @@ def export_network_request_row(
     host_name_scopes = _host_name_scopes_of(
         network_request.host_names, judgment_rule_use_counts=judgment_rule_use_counts
     )
-    public_hosts = [
-        knowledge.public_host(host_name)
-        for host_name, host_name_scope in zip(
-            network_request.host_names, host_name_scopes, strict=True
-        )
-        if host_name_scope == HostNameScope.PUBLIC
-    ]
+    public_hosts = _public_hosts_of(
+        network_request, host_name_scopes, knowledge=knowledge
+    )
     package_registry = _package_registry_for(network_request, knowledge=knowledge)
     is_internet_use = _internet_use_from_host_name_scopes(
         host_name_scopes,
@@ -247,6 +245,36 @@ def _host_name_scopes_of(
             )
         host_name_scopes.append(host_name_scope)
     return tuple(host_name_scopes)
+
+
+def _public_hosts_of(
+    network_request: NetworkRequest,
+    host_name_scopes: Sequence[HostNameScope | UnknownHostNameScope],
+    *,
+    knowledge: ExportKnowledge,
+) -> list[PublicHost | UnknownPublicHost]:
+    """Give the answers of `knowledge` for the public hosts of a request in order, asking with the path of the target for the host of a target URL, e.g. `/api/models` for `huggingface.co` of `curl https://huggingface.co/api/models`.
+
+    Another host that the request names is asked without a path, since the path of the target is not its path, e.g. the host of another URL in the words of the same JavaScript `fetch` call.
+    """
+    target = network_request.target
+    target_host_name = None
+    url_path = None
+    if isinstance(target, str) and network_request.target_kind in (
+        NetworkRequestTargetKind.URL,
+        NetworkRequestTargetKind.REPOSITORY_URL,
+    ):
+        target_host_name = parse_url(target)
+        url_path = parse_url_path(target)
+    return [
+        knowledge.public_host(
+            host_name, url_path=url_path if host_name == target_host_name else None
+        )
+        for host_name, host_name_scope in zip(
+            network_request.host_names, host_name_scopes, strict=True
+        )
+        if host_name_scope == HostNameScope.PUBLIC
+    ]
 
 
 def _package_registry_for(

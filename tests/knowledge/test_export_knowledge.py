@@ -37,7 +37,7 @@ from tb_internet_use.knowledge.tool_call_knowledge import (
 from tb_internet_use.tool_call.model import HarnessTool
 
 _PUBLIC_HOSTS_HEADER = (
-    "host_name,service,package_registry,checked_against,reviewed,note"
+    "host_name,path_prefix,service,package_registry,checked_against,reviewed,note"
 )
 _HARNESS_WEB_TOOLS_HEADER = "harness,tool,sender,checked_against,reviewed,note"
 _PROGRAM_PACKAGE_REGISTRIES_HEADER = "program_name,subcommand,package_registry,package_registry_host_names,checked_against,reviewed,note"
@@ -46,7 +46,7 @@ _REVIEW_COLUMNS = ",a manual,yes,"
 
 # (file name, header, the columns of a row before `checked_against`) of one row that loads, for each catalog.
 _CATALOGS_WITH_A_ROW = [
-    (PUBLIC_HOSTS_CSV, _PUBLIC_HOSTS_HEADER, "reg.org,package_registry,reg"),
+    (PUBLIC_HOSTS_CSV, _PUBLIC_HOSTS_HEADER, "reg.org,,package_registry,reg"),
     (HARNESS_WEB_TOOLS_CSV, _HARNESS_WEB_TOOLS_HEADER, "h,search,provider_server"),
     (
         PROGRAM_PACKAGE_REGISTRIES_CSV,
@@ -55,11 +55,15 @@ _CATALOGS_WITH_A_ROW = [
     ),
 ]
 
-# `blank.org` has a blank service, so its row answers unknown.
+# `blank.org` has a blank service, so its row answers unknown. `hub.org` gives an API under `/api/` and `/api/search/` and a model hub at every other path. `api.org` has rows for paths alone, so another path of it has no row.
 _PUBLIC_HOST_ROWS = (
-    "reg.org,package_registry,reg",
-    "code.org,code_hosting,",
-    "blank.org,,",
+    "reg.org,,package_registry,reg",
+    "code.org,,code_hosting,",
+    "blank.org,,,",
+    "hub.org,/api/,web_api,",
+    "hub.org,/api/search/,search_engine,",
+    "hub.org,,model_hub,",
+    "api.org,/v1/,web_api,",
 )
 # `h`, `blank` has a blank sender. The sender is not the first value of the enum, so that a knowledge class that gives it without reading the row fails.
 _HARNESS_WEB_TOOL_ROWS = ("h,search,provider_server", "h,blank,")
@@ -72,13 +76,16 @@ _PROGRAM_PACKAGE_REGISTRY_ROWS = (
 
 # (public host rows, web tool rows, program rows, a part of the error message)
 _ROWS_THAT_CANNOT_LOAD = [
-    (["Reg.org,package_registry,reg"], [], [], "not in lower case"),
-    ([",code_hosting,"], [], [], "empty or not in lower case"),
-    (["a.org,docs,"], [], [], "'docs' is not a valid HostService"),
-    (["a.org,package_registry,"], [], [], "holds a name exactly when"),
-    (["a.org,code_hosting,reg"], [], [], "holds a name exactly when"),
+    (["Reg.org,,package_registry,reg"], [], [], "not in lower case"),
+    ([",,code_hosting,"], [], [], "empty or not in lower case"),
+    (["a.org,api/,web_api,"], [], [], "path_prefix 'api/' is neither blank"),
+    (["a.org,,docs,"], [], [], "'docs' is not a valid HostService"),
+    (["a.org,,package_registry,"], [], [], "holds a name exactly when"),
+    (["a.org,,code_hosting,reg"], [], [], "holds a name exactly when"),
     # A blank service is unknown, so it cannot name a registry either.
-    (["a.org,,reg"], [], [], "holds a name exactly when"),
+    (["a.org,,,reg"], [], [], "holds a name exactly when"),
+    # Two rows of one host and one path prefix.
+    (["a.org,/x/,web_api,", "a.org,/x/,model_hub,"], [], [], "two rows have the key"),
     ([], ["h,t,unknown"], [], "unknown only when blank"),
     ([], ["h,t,server"], [], "'server' is not a valid NetworkRequestSender"),
     ([], [",t,provider_server"], [], "harness or tool is empty"),
@@ -139,25 +146,71 @@ def knowledge(tmp_path) -> ExportKnowledge:
 def test_public_host_is_answered_from_its_row_in_lower_case_or_unknown_and_counted(
     knowledge,
 ):
-    assert knowledge.public_host("reg.org") == PublicHost(
+    assert knowledge.public_host("reg.org", url_path=None) == PublicHost(
         HostService.PACKAGE_REGISTRY, "reg"
     )
-    assert knowledge.public_host("Code.ORG") == PublicHost(
+    # A host without rows for paths answers by its blank prefix at any path.
+    assert knowledge.public_host("Code.ORG", url_path="/a/b") == PublicHost(
         HostService.CODE_HOSTING, None
     )
     # A row of another name never answers, also not one of a parent domain.
-    assert knowledge.public_host("files.reg.org") == UnknownPublicHost()
-    assert knowledge.public_host("blank.org") == UnknownPublicHost()
+    assert knowledge.public_host("files.reg.org", url_path="") == UnknownPublicHost()
+    assert knowledge.public_host("blank.org", url_path=None) == UnknownPublicHost()
 
     assert knowledge.uses.row_use_counts == Counter(
         {
-            (PUBLIC_HOSTS_CSV, ("reg.org",)): 1,
-            (PUBLIC_HOSTS_CSV, ("code.org",)): 1,
-            (PUBLIC_HOSTS_CSV, ("blank.org",)): 1,
+            (PUBLIC_HOSTS_CSV, ("reg.org", "")): 1,
+            (PUBLIC_HOSTS_CSV, ("code.org", "")): 1,
+            (PUBLIC_HOSTS_CSV, ("blank.org", "")): 1,
         }
     )
     assert knowledge.uses.unknown_input_counts == Counter(
-        {(PUBLIC_HOSTS_CSV, ("files.reg.org",)): 1}
+        {(PUBLIC_HOSTS_CSV, ("files.reg.org", "")): 1}
+    )
+
+
+# (path of the URL, path prefix of the row that answers for `hub.org`, its service)
+_HUB_PATH_CASES = [
+    ("/api/models", "/api/", HostService.WEB_API),
+    # The longest prefix that starts the path wins, whatever the order of the rows.
+    ("/api/search/code", "/api/search/", HostService.SEARCH_ENGINE),
+    ("/a/b/resolve/main/model.bin", "", HostService.MODEL_HUB),
+    # A prefix matches only from the start of the path and in its case.
+    ("/x/api/models", "", HostService.MODEL_HUB),
+    ("/API/models", "", HostService.MODEL_HUB),
+    # A path that is shorter than a prefix, a URL without a path and a host named without a URL.
+    ("/api", "", HostService.MODEL_HUB),
+    ("", "", HostService.MODEL_HUB),
+    (None, "", HostService.MODEL_HUB),
+]
+
+
+@pytest.mark.parametrize(("url_path", "path_prefix", "service"), _HUB_PATH_CASES)
+def test_public_host_is_answered_from_the_row_with_the_longest_path_prefix_of_the_path(
+    knowledge, url_path, path_prefix, service
+):
+    assert knowledge.public_host("hub.org", url_path=url_path) == PublicHost(
+        service, None
+    )
+    assert knowledge.uses.row_use_counts == Counter(
+        {(PUBLIC_HOSTS_CSV, ("hub.org", path_prefix)): 1}
+    )
+
+
+def test_path_of_a_host_with_rows_for_other_paths_alone_is_unknown_and_counted_as_the_blank_prefix(
+    knowledge,
+):
+    assert knowledge.public_host("api.org", url_path="/v1/x") == PublicHost(
+        HostService.WEB_API, None
+    )
+    assert knowledge.public_host("api.org", url_path="/v2/x") == UnknownPublicHost()
+    assert knowledge.public_host("api.org", url_path=None) == UnknownPublicHost()
+
+    assert knowledge.uses.row_use_counts == Counter(
+        {(PUBLIC_HOSTS_CSV, ("api.org", "/v1/")): 1}
+    )
+    assert knowledge.uses.unknown_input_counts == Counter(
+        {(PUBLIC_HOSTS_CSV, ("api.org", "")): 2}
     )
 
 
@@ -228,11 +281,11 @@ def test_package_registry_is_answered_only_by_the_row_of_the_very_subcommand_or_
 
 def test_each_lookup_adds_one_to_its_count(knowledge):
     for _ in range(3):
-        knowledge.public_host("reg.org")
-        knowledge.public_host("a.org")
+        knowledge.public_host("reg.org", url_path=None)
+        knowledge.public_host("a.org", url_path=None)
 
-    assert knowledge.uses.row_use_counts[PUBLIC_HOSTS_CSV, ("reg.org",)] == 3
-    assert knowledge.uses.unknown_input_counts[PUBLIC_HOSTS_CSV, ("a.org",)] == 3
+    assert knowledge.uses.row_use_counts[PUBLIC_HOSTS_CSV, ("reg.org", "")] == 3
+    assert knowledge.uses.unknown_input_counts[PUBLIC_HOSTS_CSV, ("a.org", "")] == 3
 
 
 def test_each_knowledge_class_counts_only_its_own_lookups(tmp_path):
@@ -240,7 +293,7 @@ def test_each_knowledge_class_counts_only_its_own_lookups(tmp_path):
     first = ExportKnowledge(catalogs_dir=catalogs_dir)
     second = ExportKnowledge(catalogs_dir=catalogs_dir)
 
-    first.public_host("reg.org")
+    first.public_host("reg.org", url_path=None)
     first.network_request_sender(HarnessTool("h", "search"))
     first.package_registry(_program_invocation("pkg", "install"))
 
@@ -313,14 +366,17 @@ def test_real_catalogs_load_and_answer_for_the_rows_they_hold():
     assert real_knowledge.package_registry(
         _program_invocation("go", "build")
     ) == PackageRegistry("go_module_proxy", ("proxy.golang.org",))
-    assert real_knowledge.public_host("api.github.com") == UnknownPublicHost()
-    assert real_knowledge.public_host("repo1.maven.org") == PublicHost(
-        HostService.PACKAGE_REGISTRY, "maven_central"
+    assert (
+        real_knowledge.public_host("a.example.org", url_path=None)
+        == UnknownPublicHost()
     )
-    assert real_knowledge.public_host("github.com") == PublicHost(
+    assert real_knowledge.public_host(
+        "repo1.maven.org", url_path="/maven2/x"
+    ) == PublicHost(HostService.PACKAGE_REGISTRY, "maven_central")
+    assert real_knowledge.public_host("github.com", url_path=None) == PublicHost(
         HostService.CODE_HOSTING, None
     )
-    assert real_knowledge.public_host("www.bing.com") == PublicHost(
+    assert real_knowledge.public_host("www.bing.com", url_path=None) == PublicHost(
         HostService.SEARCH_ENGINE, None
     )
     assert (
