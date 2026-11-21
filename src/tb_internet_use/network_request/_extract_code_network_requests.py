@@ -54,8 +54,8 @@ if TYPE_CHECKING:
         NetworkRequestKnowledge,
     )
 
-# The start of an argument text whose first argument is a tuple that opens with a string, e.g. `("api", 8000)`.
-_TUPLE_OPENING_WITH_STRING = re.compile(r"""\s*\(\s*["']""")
+# The start of an argument text whose first argument is a tuple whose first element is one whole string, e.g. `("api", 8000)` but not `("172.18.0." + str(i), 80)`.
+_TUPLE_OPENING_WITH_WHOLE_STRING = re.compile(r"""\s*\(\s*(["'])[^"'\\]*\1\s*,""")
 # A port that closes the authority of a URL, e.g. `:8069` of `name:8069`.
 _PORT_AT_END = re.compile(r":[0-9]+$")
 
@@ -271,10 +271,12 @@ def _target_text_of(
 ) -> str | None:
     """Find the target that the text of a sending call shows, or None when the code builds it.
 
-    It is the first argument when that is one string, else the value of the one assignment of the name that the first argument is, e.g. the URL of `URL = "https://a.org/x"` for `requests.get(URL)`.
-    A host and port tuple whose argument text opens with a tuple that opens with a string takes that string, e.g. `api` of `socket.create_connection(("api", 8000))`.
-    Any other string of the call may be some other argument, e.g. `config.json` of `hf_hub_download(repo_id=REPO, filename="config.json")` or `tmo` of `socket.create_connection((HOST, 80), "tmo")`, so the target is built in code.
+    A host and port tuple is read by `_target_text_of_host_and_port_tuple`.
+    Any other target is the first argument when that is one string, else the value of the one assignment of the name that the first argument is, e.g. the URL of `URL = "https://a.org/x"` for `requests.get(URL)`.
+    Any other string of the call may be some other argument, e.g. `config.json` of `hf_hub_download(repo_id=REPO, filename="config.json")`, so the target is built in code.
     """
+    if target_notation == TargetNotation.HOST_AND_PORT_TUPLE:
+        return _target_text_of_host_and_port_tuple(code_call)
     if code_call.first_argument_string is not None:
         return code_call.first_argument_string
     if code_call.first_argument_name is not None:
@@ -284,11 +286,19 @@ def _target_text_of(
             if assignment.name == code_call.first_argument_name
         ]
         return assigned_values[0] if len(assigned_values) == 1 else None
-    if (
-        target_notation == TargetNotation.HOST_AND_PORT_TUPLE
-        and isinstance(code_call.argument_text, str)
-        and _TUPLE_OPENING_WITH_STRING.match(code_call.argument_text)
-    ):
+    return None
+
+
+def _target_text_of_host_and_port_tuple(code_call: CodeCall) -> str | None:
+    """Find the host that the first argument of a call writes as the first element of a host and port tuple, or None when the code builds it.
+
+    The host is the first string when the tuple opens with that string alone, e.g. `api` of `socket.create_connection(("api", 8000))`.
+    A string that more code extends names no host, e.g. `172.18.0.` of `socket.create_connection(("172.18.0." + str(i), 80))`.
+    A first argument that is a string or a name is no tuple, e.g. `socket.create_connection(SOCK)` after `SOCK = "/tmp/x.sock"`, and a string after the tuple is another argument, e.g. `tmo` of `socket.create_connection((HOST, 80), "tmo")`.
+    """
+    if isinstance(
+        code_call.argument_text, str
+    ) and _TUPLE_OPENING_WITH_WHOLE_STRING.match(code_call.argument_text):
         return code_call.string_literals[0]
     return None
 

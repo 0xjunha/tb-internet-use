@@ -345,6 +345,26 @@ _CASES = [
         PYTHON,
         [("socket.create_connection", "a.org", HOST, ("a.org",), None)],
     ),
+    # A string that the code extends is only the start of the host.
+    (
+        "host and port tuple whose host string is extended",
+        "socket.create_connection(('10.0.0.' + str(i), 80))",
+        PYTHON,
+        [("socket.create_connection", BUILT_IN_CODE, HOST, (), None)],
+    ),
+    # A string is no host and port tuple, also when a name holds it.
+    (
+        "host and port call with a string",
+        'socket.create_connection("/tmp/x.sock")',
+        PYTHON,
+        [("socket.create_connection", BUILT_IN_CODE, HOST, (), None)],
+    ),
+    (
+        "host and port call with a name of a string",
+        'SOCK = "/tmp/x.sock"\nsocket.create_connection(SOCK)',
+        PYTHON,
+        [("socket.create_connection", BUILT_IN_CODE, HOST, (), None)],
+    ),
     # A dotted call takes the name of its row also when the code builds its target.
     (
         "dotted call without visible url",
