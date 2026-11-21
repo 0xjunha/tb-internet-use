@@ -231,7 +231,8 @@ _OVERVIEW_LABEL_COLUMN_WIDTH = 70
 
 # Sizes that put the three charts side by side on one screen.
 _CHART_HEIGHT_IN_CM = 6.0
-_CATEGORY_CHART_WIDTH_IN_CM = 9.0
+# Wide enough for the longest category, `connectivity_check`, beside its bar, since Google Sheets cuts a label at a share of the chart width (at 9 cm it showed `connectivity`).
+_CATEGORY_CHART_WIDTH_IN_CM = 14.0
 _BAND_CHART_WIDTH_IN_CM = 10.0
 # Wide enough for the longest verdict, `never solved`, on one line beside its bar.
 _VERDICT_CHART_WIDTH_IN_CM = 10.0
