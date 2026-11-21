@@ -283,7 +283,9 @@ def _tasks_line_cells_of(
             counts.any_category_trial_ids[MainMeasure.REQUEST, CountedBound.UPPER],
         ),
         columns.web_tool: share(
-            web_tool_trial_count_formula_of(row_tabs, task_key=task_key),
+            web_tool_trial_count_formula_of(
+                row_tabs, CountedBound.LOWER, task_key=task_key
+            ),
             counts.request_trial_ids_of(
                 CountedBound.LOWER, senders=KNOWN_OUTSIDE_SENDERS
             ),

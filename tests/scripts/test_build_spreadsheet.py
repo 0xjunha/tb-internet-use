@@ -201,12 +201,13 @@ def test_only_the_python_copies_are_hidden_and_tabs_come_in_order(
     ]
 
 
-def test_overview_shows_the_key_numbers_with_the_upper_bound_only_on_two_lines(
-    spreadsheet_path: Path,
-):
+def test_overview_shows_both_bounds_of_every_key_number(spreadsheet_path: Path):
     lines = _lines_by_label(spreadsheet_path, "Overview")
 
-    # t5 also requested other categories. Tasks 4-0-0 0 and a have half or more in the lower bound, 3-0-0 a also in the upper.
+    # Of the lower-bound trials t1, t3 and t5, t5 requested other categories in the lower bound and t1 only in the upper, so only t3 installed nothing but packages in both columns.
+    # Tasks 4-0-0 0 and a have half or more in the lower bound, 3-0-0 a also in the upper.
+    # Tasks 4-0-0 a and 3-0-0 b were solved without a request, 4-0-0 0 and 3-0-0 a only by trials in the upper bound alone.
+    # t3 and t8 searched through the provider. In the upper bound t6 also fetched through the harness and t4 has an unreadable trajectory.
     assert {
         label: lines[label][1:3]
         for label in (
@@ -218,14 +219,18 @@ def test_overview_shows_the_key_numbers_with_the_upper_bound_only_on_two_lines(
         )
     } == {
         "Trials with an internet request from the task environment": [3 / 8, 5 / 8],
-        "… of them, trials that only installed packages": [2 / 3, None],
+        "… of them, trials that only installed packages": [1 / 3, 2 / 3],
         "Tasks where at least half of the trials sent a request": [2, 3],
-        "Solved tasks that were solved at least once without a request": [2, None],
+        "Solved tasks that were solved at least once without a request": [2, 4],
         "Trials with a web tool request sent from outside the task environment": [
             2 / 8,
-            None,
+            4 / 8,
         ],
     }
+    assert (
+        lines["… of them, trials that only installed packages"][3]
+        == "1 to 2 of 3 trials, by whether uncertain requests of other categories count"
+    )
     assert (
         lines["Solved tasks that were solved at least once without a request"][3]
         == "of 4 solved tasks, see Tasks"

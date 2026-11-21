@@ -16,7 +16,7 @@ Each tab of results opens with its title and the question it answers. A table sh
 
 | Tab | What it answers |
 |---|---|
-| `Overview` | Five key numbers, three charts and the list of tabs, on one screen |
+| `Overview` | Five key numbers, each with its lower and upper bound, three charts and the list of tabs, on one screen. The upper bound of the trials that only installed packages leaves out only trials with a request of another category in the lower bound, and its lower bound also those with one in the upper bound or of sender `unknown`. The upper bound of web tools also counts sender `unknown` and unreadable trajectories |
 | `Tasks` | For each task, the share of trials with a request from the task environment, by category, with a bar of both bounds under the header `Bounds`, and whether it was solved without a request: `yes` when a passed trial shows no request, `not known` when every passed trial shows a request but some only in the upper bound, which may have sent nothing, `no` when every passed trial is in the lower bound, and `never solved` |
 | `Requested items` | What the trials of each task asked for, e.g. the package `orjson` of `orjson==3.10.12` or a host name. Python counts its lines, and the checks hold them only from above, so a line that is too low would pass |
 | `Registries and hosts` | What a mirror or the image would have to serve, by package registry or host service, with a bar of trials in each line |

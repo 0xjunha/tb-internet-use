@@ -146,17 +146,22 @@ def _lay_out_trial_rows_tab(row_files: RowFiles) -> RowTab:
 def _lay_out_trial_category_measure_rows_tab(
     row_files: RowFiles, counts: SpreadsheetPythonCounts
 ) -> RowTab:
-    """Lay out `trial_category_measure_rows.csv` with columns from `trial_rows.csv`."""
-    reward_by_trial_id = {
-        row["trial_id"]: _number_or_none_of(row["reward"])
-        for row in csv_dicts_of(row_files.trial_rows, TrialRow)
+    """Lay out `trial_category_measure_rows.csv` with columns from `trial_rows.csv`.
+
+    The column `trial_rows.any_category_request_measure_bound` lets a count keep the rows of trials in the lower bound, e.g. the trials of the lower bound that also have a row of a category other than `package`.
+    """
+    trial_rows_by_trial_id = {
+        row["trial_id"]: row for row in csv_dicts_of(row_files.trial_rows, TrialRow)
     }
     rows = [
         [
             *_row_tab_cells_of(row, TrialCategoryMeasureRow),
             task_key_of(counts.task_by_trial_id[row["trial_id"]]),
             counts.harness_by_trial_id[row["trial_id"]],
-            reward_by_trial_id[row["trial_id"]],
+            _number_or_none_of(trial_rows_by_trial_id[row["trial_id"]]["reward"]),
+            trial_rows_by_trial_id[row["trial_id"]][
+                "any_category_request_measure_bound"
+            ],
         ]
         for row in csv_dicts_of(
             row_files.trial_category_measure_rows, TrialCategoryMeasureRow
@@ -169,6 +174,7 @@ def _lay_out_trial_category_measure_rows_tab(
             "trial_rows.task_key",
             "trial_rows.harness",
             "trial_rows.reward",
+            "trial_rows.any_category_request_measure_bound",
         ),
         rows,
         tab_color=EVIDENCE_TAB_COLOR,
@@ -269,16 +275,32 @@ def request_trial_count_formula_of(
 
 
 def web_tool_trial_count_formula_of(
-    row_tabs: SpreadsheetRowTabs, *, task_key: str | None = None
+    row_tabs: SpreadsheetRowTabs,
+    counted_bound: CountedBound,
+    *,
+    task_key: str | None = None,
 ) -> str:
-    """Give the `COUNTUNIQUEIFS` of the trials with a lower-bound web tool request from a known sender outside the task environment, of all tasks or of one."""
+    """Give the `COUNTUNIQUEIFS` of the trials with a web tool request sent from outside the task environment in a bound, of all tasks or of one.
+
+    The lower bound counts requests in the lower bound from a known sender outside the task environment. The upper bound also counts those in the upper bound alone and those of sender `unknown`, e.g. a web tool of a harness that does not say where it runs, and the rows that an unreadable trajectory gives.
+    """
+    sender_conditions = (
+        [
+            ("sender", not_equal_to(TASK_ENVIRONMENT)),
+            ("sender", not_equal_to(UNKNOWN_SENDER)),
+            ("request_measure_bound", equal_to(LOWER_AND_UPPER)),
+        ]
+        if counted_bound == CountedBound.LOWER
+        else [
+            ("sender", not_equal_to(TASK_ENVIRONMENT)),
+            ("request_measure_bound", not_equal_to(NEITHER)),
+        ]
+    )
     return count_unique_ifs_formula(
         row_tabs.trial_category_measure_rows,
         "trial_id",
         [
             *([("trial_rows.task_key", task_key)] if task_key is not None else []),
-            ("sender", not_equal_to(TASK_ENVIRONMENT)),
-            ("sender", not_equal_to(UNKNOWN_SENDER)),
-            ("request_measure_bound", equal_to(LOWER_AND_UPPER)),
+            *sender_conditions,
         ],
     )

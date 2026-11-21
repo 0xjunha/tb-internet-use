@@ -4,6 +4,7 @@
 """
 
 import datetime
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from spreadsheet_cells import (
@@ -33,7 +34,10 @@ from spreadsheet_result_tabs import TasksTab
 from spreadsheet_row_tabs import (
     KNOWN_OUTSIDE_SENDERS,
     LOWER_AND_UPPER,
+    NEITHER,
+    OUTSIDE_SENDERS,
     TASK_ENVIRONMENT,
+    UNKNOWN_SENDER,
     SpreadsheetRowTabs,
     header_cells_of,
     request_trial_count_formula_of,
@@ -62,6 +66,12 @@ from tb_internet_use.export.model import NetworkRequestCategory
 _HALF_OF_THE_TRIALS = 0.5
 
 _BAND_COUNT = 10
+
+_OTHER_CATEGORIES_THAN_PACKAGE = tuple(
+    category.value
+    for category in NetworkRequestCategory
+    if category != NetworkRequestCategory.PACKAGE
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -278,7 +288,7 @@ def _add_key_numbers(
     row_tabs: SpreadsheetRowTabs,
     tasks: TasksTab,
 ) -> None:
-    """Add one line per key number, its lower bound in large type and a short note."""
+    """Add one line per key number, its lower and upper bounds in large type and a short note."""
     measure_rows = row_tabs.trial_category_measure_rows
     trial_count = len(counts.task_by_trial_id)
     trial_count_formula = trial_count_formula_of(row_tabs)
@@ -286,16 +296,21 @@ def _add_key_numbers(
     upper_ids = counts.any_category_trial_ids[MainMeasure.REQUEST, CountedBound.UPPER]
     lower_formula = request_trial_count_formula_of(row_tabs, CountedBound.LOWER)
     upper_formula = request_trial_count_formula_of(row_tabs, CountedBound.UPPER)
-    other_category_ids = {
-        trial_id
-        for category in NetworkRequestCategory
-        if category != NetworkRequestCategory.PACKAGE
-        for trial_id in counts.request_trial_ids.get(
-            (category.value, TASK_ENVIRONMENT, CountedBound.LOWER), set()
-        )
-    }
-    package_only_count = len(lower_ids - other_category_ids)
-    other_category_formula = count_unique_ifs_formula(
+    # Lower-bound trials with a lower-bound row of a category other than `package` from the task environment, which the upper column of the line on packages leaves out.
+    certain_other_category_ids = lower_ids & counts.request_trial_ids_of(
+        CountedBound.LOWER,
+        categories=_OTHER_CATEGORIES_THAN_PACKAGE,
+        senders=[TASK_ENVIRONMENT],
+    )
+    # Lower-bound trials with a row of a category other than `package` in either bound that the task environment may have sent, which the lower column leaves out too.
+    possible_other_category_ids = lower_ids & counts.request_trial_ids_of(
+        CountedBound.UPPER,
+        categories=_OTHER_CATEGORIES_THAN_PACKAGE,
+        senders=[TASK_ENVIRONMENT, UNKNOWN_SENDER],
+    )
+    package_only_lower_count = len(lower_ids - possible_other_category_ids)
+    package_only_upper_count = len(lower_ids - certain_other_category_ids)
+    certain_other_category_formula = count_unique_ifs_formula(
         measure_rows,
         "trial_id",
         [
@@ -304,6 +319,21 @@ def _add_key_numbers(
             ("request_measure_bound", equal_to(LOWER_AND_UPPER)),
         ],
     )
+    possible_other_category_formula = count_unique_ifs_formula(
+        measure_rows,
+        "trial_id",
+        [
+            (
+                "trial_rows.any_category_request_measure_bound",
+                equal_to(LOWER_AND_UPPER),
+            ),
+            *(("sender", not_equal_to(sender)) for sender in KNOWN_OUTSIDE_SENDERS),
+            ("category", not_equal_to(NetworkRequestCategory.PACKAGE)),
+            ("request_measure_bound", not_equal_to(NEITHER)),
+        ],
+    )
+    package_only_lower_formula = f"{lower_formula}-{possible_other_category_formula}"
+    package_only_upper_formula = f"{lower_formula}-{certain_other_category_formula}"
     task_shares = {
         counted_bound: [counts.task_share_of(task, ids) for task in counts.tasks]
         for counted_bound, ids in (
@@ -315,10 +345,33 @@ def _add_key_numbers(
     solved_count = sum(
         1 for verdict in verdicts if verdict != SolvedWithoutRequestVerdict.NEVER_SOLVED
     )
-    web_tool_ids = counts.request_trial_ids_of(
-        CountedBound.LOWER, senders=KNOWN_OUTSIDE_SENDERS
-    )
-    web_tool_formula = web_tool_trial_count_formula_of(row_tabs)
+    web_tool_ids = {
+        CountedBound.LOWER: counts.request_trial_ids_of(
+            CountedBound.LOWER, senders=KNOWN_OUTSIDE_SENDERS
+        ),
+        CountedBound.UPPER: counts.request_trial_ids_of(
+            CountedBound.UPPER, senders=OUTSIDE_SENDERS
+        ),
+    }
+
+    def package_only_share(count: int, count_formula: str) -> TabCell:
+        return TabCell(
+            count / len(lower_ids) if lower_ids else 0.0,
+            formula=f"({count_formula})/{lower_formula}",
+            style=CellStyle.KEY_SHARE,
+        )
+
+    def solved_task_count(
+        verdicts_counted: Sequence[SolvedWithoutRequestVerdict],
+    ) -> TabCell:
+        return TabCell(
+            sum(1 for verdict in verdicts if verdict in verdicts_counted),
+            formula="+".join(
+                f"COUNTIFS({tasks.column_range(tasks.columns.verdict)},{equal_to(verdict)})"
+                for verdict in verdicts_counted
+            ),
+            style=CellStyle.KEY_COUNT,
+        )
 
     def key_share(count: int, count_formula: str) -> TabCell:
         return TabCell(
@@ -338,24 +391,20 @@ def _add_key_numbers(
             style=CellStyle.KEY_COUNT,
         )
 
-    lines: list[tuple[str, TabCell, TabCell | None, str | TabCell]] = [
+    lines: list[tuple[str, TabCell, TabCell, str | TabCell]] = [
         (
             "Trials with an internet request from the task environment",
             key_share(len(lower_ids), lower_formula),
             key_share(len(upper_ids), upper_formula),
-            f"{BOUNDS_TAB_NAME} splits the difference by cause",
+            f"Lower bound: trials that certainly sent a request. Upper bound: also includes trials that may have sent one. See {BOUNDS_TAB_NAME}.",
         ),
         (
             "… of them, trials that only installed packages",
+            package_only_share(package_only_lower_count, package_only_lower_formula),
+            package_only_share(package_only_upper_count, package_only_upper_formula),
             TabCell(
-                package_only_count / len(lower_ids) if lower_ids else 0.0,
-                formula=f"({lower_formula}-{other_category_formula})/{lower_formula}",
-                style=CellStyle.KEY_SHARE,
-            ),
-            None,
-            TabCell(
-                f"{count_text_of(package_only_count)} of {count_text_of(len(lower_ids))} trials, no other category in the lower bound",
-                formula=f'{count_text_formula(f"{lower_formula}-{other_category_formula}")}&" of "&{count_text_formula(lower_formula)}&" trials, no other category in the lower bound"',
+                f"{count_text_of(package_only_lower_count)} to {count_text_of(package_only_upper_count)} of {count_text_of(len(lower_ids))} trials, by whether uncertain requests of other categories count",
+                formula=f'{count_text_formula(package_only_lower_formula)}&" to "&{count_text_formula(package_only_upper_formula)}&" of "&{count_text_formula(lower_formula)}&" trials, by whether uncertain requests of other categories count"',
                 style=CellStyle.NOTE,
             ),
         ),
@@ -371,12 +420,10 @@ def _add_key_numbers(
         ),
         (
             "Solved tasks that were solved at least once without a request",
-            TabCell(
-                verdicts.count(SolvedWithoutRequestVerdict.YES),
-                formula=f"COUNTIFS({tasks.column_range(tasks.columns.verdict)},{equal_to(SolvedWithoutRequestVerdict.YES)})",
-                style=CellStyle.KEY_COUNT,
+            solved_task_count([SolvedWithoutRequestVerdict.YES]),
+            solved_task_count(
+                [SolvedWithoutRequestVerdict.YES, SolvedWithoutRequestVerdict.NOT_KNOWN]
             ),
-            None,
             TabCell(
                 f"of {count_text_of(solved_count)} solved tasks, see {TASKS_TAB_NAME}",
                 formula=f'"of "&{count_text_formula(f"""COUNTIFS({tasks.column_range(tasks.columns.passed)},">0")""")}&" solved tasks, see {TASKS_TAB_NAME}"',
@@ -385,8 +432,14 @@ def _add_key_numbers(
         ),
         (
             "Trials with a web tool request sent from outside the task environment",
-            key_share(len(web_tool_ids), web_tool_formula),
-            None,
+            key_share(
+                len(web_tool_ids[CountedBound.LOWER]),
+                web_tool_trial_count_formula_of(row_tabs, CountedBound.LOWER),
+            ),
+            key_share(
+                len(web_tool_ids[CountedBound.UPPER]),
+                web_tool_trial_count_formula_of(row_tabs, CountedBound.UPPER),
+            ),
             "stays on when the network of the task environment is off",
         ),
     ]
@@ -394,7 +447,7 @@ def _add_key_numbers(
         grid.add_row(
             TabCell(label),
             lower_cell,
-            upper_cell or TabCell(None),
+            upper_cell,
             note if isinstance(note, TabCell) else TabCell(note, style=CellStyle.NOTE),
         )
 
