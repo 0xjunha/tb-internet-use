@@ -48,6 +48,7 @@ from spreadsheet_row_tabs import (
     SpreadsheetRowTabs,
     header_cells_of,
     request_trial_count_formula_of,
+    shown_task_name_of,
     task_key_of,
     trial_count_formula_of,
     web_tool_trial_count_formula_of,
@@ -264,7 +265,7 @@ def _tasks_line_cells_of(
     task_trial_conditions = [("task_key", task_key)]
     task_measure_conditions = [("trial_rows.task_key", task_key)]
     cells: dict[int, TabCell] = {
-        columns.task_name: TabCell(task[1]),
+        columns.task_name: TabCell(shown_task_name_of(task[1])),
         columns.trials: TabCell(
             trial_count,
             formula=count_ifs_formula(trial_rows, task_trial_conditions),
@@ -499,7 +500,7 @@ def lay_out_requested_items_tab(counts: SpreadsheetPythonCounts) -> RequestedIte
         line_key = key.registry_or_host_service_line_key
         grid.add_row(
             *([TabCell(key.task[0])] if columns.shows_benchmark_version else []),
-            TabCell(key.task[1]),
+            TabCell(shown_task_name_of(key.task[1])),
             TabCell(line_key.category),
             TabCell(registry_or_host_service_label_of(line_key)),
             TabCell(key.requested_item),

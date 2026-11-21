@@ -160,7 +160,7 @@ TASK_A_3 = ("3-0-0", "terminal-bench/a")
 TASK_B_3 = ("3-0-0", "terminal-bench/b")
 TASK_A_4 = ("4-0-0", "terminal-bench/a")
 # Sorts first by name but last by share, to show which order `Tasks` uses.
-TASK_0_4 = ("4-0-0", "terminal-bench/0")
+TASK_0_4 = ("4-0-0", "terminal-bench/0a")
 
 # t1 receives a package, retries it twice with a failure before and after reaching the server, and requests an unknown host and no host name (upper only).
 # t2 of Devin passes with no request.

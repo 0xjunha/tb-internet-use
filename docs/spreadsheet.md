@@ -25,9 +25,9 @@ Each tab of results opens with its title and the question it answers. A table sh
 | `Method & checks` | What the numbers cannot say, the terms, whether every formula gives the value that Python counted, and what the numbers rest on. Its lines on harnesses whose trajectories lack calls name only those with a trial in the run, each with what it lacks, from `MISSING_CALLS_BY_HARNESS` of `spreadsheet_method_and_checks_tab.py` |
 | `Chart data` | The tables that the charts of `Overview` draw |
 
-`Tasks` and `Requested items` name a task by `task_name`, and only a run of several benchmark versions puts its version in a first column `benchmark_version`, since with one version the column would repeat the same text on every line. The formulas, frozen panes, filters, color scales and bars of the two tabs, and the formulas of other tabs over them, take their columns from whether `benchmark_version` is shown.
+`Tasks` and `Requested items` name a task by `task_name` without the part up to its first `/`, e.g. `atrx-vep-crispr` for `terminal-bench/atrx-vep-crispr`, and only a run of several benchmark versions puts its version in a first column `benchmark_version`, since with one version the column would repeat the same text on every line. The formulas, frozen panes, filters, color scales and bars of the two tabs, and the formulas of other tabs over them, take their columns from whether `benchmark_version` is shown.
 
-The row tabs `trial_rows`, `trial_category_measure_rows` and `network_request_rows` sit between the tabs of results and `Method & checks`. The last holds only the request rows in the lower bound and those of web tools, since all of them, about 250,000 rows, would fill most of the 10 million cells that one Google Sheets file allows.
+The row tabs `trial_rows`, `trial_category_measure_rows` and `network_request_rows` sit between the tabs of results and `Method & checks`. The column `task_name` of `trial_rows` and the column `task_key` of each row tab leave out the part of the task name up to its first `/`, as `Tasks` does, so that a task is found by the same text in every tab. The last holds only the request rows in the lower bound and those of web tools, since all of them, about 250,000 rows, would fill most of the 10 million cells that one Google Sheets file allows.
 
 ## How the numbers are checked
 

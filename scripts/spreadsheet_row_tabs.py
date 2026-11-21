@@ -123,17 +123,23 @@ def lay_out_row_tabs(
 
 
 def _lay_out_trial_rows_tab(row_files: RowFiles) -> RowTab:
-    """Lay out `trial_rows.csv` with a column `task_key`, which the other tabs count tasks by."""
+    """Lay out `trial_rows.csv` with a column `task_key`, which the other tabs count tasks by.
+
+    The column `task_name` shows the task name as the tabs of results do, so that a task is found by the same text in every tab.
+    """
     columns = (*_field_names_of(TrialRow), "task_key")
     version_letter = get_column_letter(columns.index("benchmark_version") + 1)
-    task_letter = get_column_letter(columns.index("task_name") + 1)
+    task_index = columns.index("task_name")
+    task_letter = get_column_letter(task_index + 1)
     rows: list[list[object]] = []
     for row_number, row in enumerate(
         csv_dicts_of(row_files.trial_rows, TrialRow), start=2
     ):
+        cells = _row_tab_cells_of(row, TrialRow)
+        cells[task_index] = shown_task_name_of(row["task_name"])
         rows.append(
             [
-                *_row_tab_cells_of(row, TrialRow),
+                *cells,
                 TabCell(
                     task_key_of((row["benchmark_version"], row["task_name"])),
                     formula=f'{version_letter}{row_number}&"{TASK_KEY_SEPARATOR}"&{task_letter}{row_number}',
@@ -210,8 +216,13 @@ def _lay_out_network_request_rows_tab(
 
 
 def task_key_of(task: TaskKey) -> str:
-    """Give the `task_key` of a task, e.g. `4-0-0 terminal-bench/a`."""
-    return f"{task[0]}{TASK_KEY_SEPARATOR}{task[1]}"
+    """Give the `task_key` of a task, e.g. `4-1-0 atrx-vep-crispr` for the task `terminal-bench/atrx-vep-crispr` of version `4-1-0`."""
+    return f"{task[0]}{TASK_KEY_SEPARATOR}{shown_task_name_of(task[1])}"
+
+
+def shown_task_name_of(task_name: str) -> str:
+    """Give the task name that the tabs of results show, without the part up to its first `/`, e.g. `atrx-vep-crispr` for `terminal-bench/atrx-vep-crispr`."""
+    return task_name.partition("/")[2] or task_name
 
 
 # Written as numbers so that formulas can compare them.

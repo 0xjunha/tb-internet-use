@@ -257,10 +257,10 @@ def test_tasks_has_a_line_per_task_sorted_by_version_and_then_by_the_lower_bound
     line_by_task = {f"{line[0]} {line[1]}": dict(zip(header, line)) for line in lines}
 
     assert list(line_by_task) == [
-        "3-0-0 terminal-bench/a",
-        "3-0-0 terminal-bench/b",
-        "4-0-0 terminal-bench/a",
-        "4-0-0 terminal-bench/0",
+        "3-0-0 a",
+        "3-0-0 b",
+        "4-0-0 a",
+        "4-0-0 0a",
     ]
     assert header[2:15] == [
         "Trials",
@@ -278,8 +278,8 @@ def test_tasks_has_a_line_per_task_sorted_by_version_and_then_by_the_lower_bound
         "Solved without a request?",
     ]
     # t5 failed a clone. t4 passed, unreadable, and t5 did not.
-    assert line_by_task["4-0-0 terminal-bench/0"] == dict(
-        zip(header, ["4-0-0", "terminal-bench/0", 2, 1 / 2, None, 1])
+    assert line_by_task["4-0-0 0a"] == dict(
+        zip(header, ["4-0-0", "0a", 2, 1 / 2, None, 1])
     ) | {
         "package": 1 / 2,
         "content_fetch": 1 / 2,
@@ -295,7 +295,7 @@ def test_tasks_has_a_line_per_task_sorted_by_version_and_then_by_the_lower_bound
     }
     # t3 searched through the provider. t2 of Devin passed with no request.
     assert [
-        line_by_task["4-0-0 terminal-bench/a"][column]
+        line_by_task["4-0-0 a"][column]
         for column in (
             "Request",
             "Web tool from outside",
@@ -305,7 +305,7 @@ def test_tasks_has_a_line_per_task_sorted_by_version_and_then_by_the_lower_bound
         )
     ] == [2 / 3, 1 / 3, 2, 1, "yes"]
     # t6 sent from outside only with the sender unknown, which is in no lower bound.
-    assert line_by_task["3-0-0 terminal-bench/a"]["Web tool from outside"] == 0
+    assert line_by_task["3-0-0 a"]["Web tool from outside"] == 0
 
 
 def test_requested_items_join_versions_of_one_package_and_count_tasks_that_share_it(
@@ -317,7 +317,7 @@ def test_requested_items_join_versions_of_one_package_and_count_tasks_that_share
     )[1:] == [
         [
             "4-0-0",
-            "terminal-bench/0",
+            "0a",
             "package",
             "pypi",
             "(named_in_file)",
@@ -327,7 +327,7 @@ def test_requested_items_join_versions_of_one_package_and_count_tasks_that_share
         ],
         [
             "4-0-0",
-            "terminal-bench/0",
+            "0a",
             "content_fetch",
             "code_hosting",
             "github.com",
@@ -337,7 +337,7 @@ def test_requested_items_join_versions_of_one_package_and_count_tasks_that_share
         ],
         [
             "4-0-0",
-            "terminal-bench/0",
+            "0a",
             "remote_api_call",
             "web_api",
             "api.github.com",
@@ -345,8 +345,8 @@ def test_requested_items_join_versions_of_one_package_and_count_tasks_that_share
             1 / 2,
             1,
         ],
-        ["4-0-0", "terminal-bench/0", "other_web", "unknown", "b.org", 1, 1 / 2, 1],
-        ["4-0-0", "terminal-bench/a", "package", "pypi", "requests", 2, 2 / 3, 1],
+        ["4-0-0", "0a", "other_web", "unknown", "b.org", 1, 1 / 2, 1],
+        ["4-0-0", "a", "package", "pypi", "requests", 2, 2 / 3, 1],
     ]
 
 
@@ -585,7 +585,7 @@ def test_a_check_fails_when_a_requested_item_has_more_trials_than_its_registry(
     _set_cell_in_tab_and_copy(
         spreadsheet_path,
         "Requested items",
-        ("4-0-0", "terminal-bench/a", "package", "pypi", "requests"),
+        ("4-0-0", "a", "package", "pypi", "requests"),
         6,
         4,
     )
@@ -625,9 +625,7 @@ def test_a_check_fails_when_a_formula_differs_from_its_python_copy(
 ):
     workbook = load_workbook(spreadsheet_path)
     python_copy = workbook[f"Tasks{spreadsheet_cells.PYTHON_COPY_TAB_SUFFIX}"]
-    trials = next(
-        row[2] for row in python_copy.iter_rows() if row[1].value == "terminal-bench/b"
-    )
+    trials = next(row[2] for row in python_copy.iter_rows() if row[1].value == "b")
     assert isinstance(trials, Cell)
     assert isinstance(trials.value, int)
     trials.value = trials.value + 1
@@ -706,13 +704,13 @@ def test_with_one_version_tasks_and_requested_items_name_a_task_by_task_name_alo
     assert "benchmark_version" not in tasks_header + items_header
     # One version, so the lines go by the lower bound alone, and c and d of no request by name.
     assert [(line[0], line[2]) for line in task_lines] == [
-        ("terminal-bench/a", 2 / 3),
-        ("terminal-bench/0", 1 / 2),
-        ("terminal-bench/c", 0),
-        ("terminal-bench/d", 0),
+        ("a", 2 / 3),
+        ("0a", 1 / 2),
+        ("c", 0),
+        ("d", 0),
     ]
     assert item_lines[-1] == [
-        "terminal-bench/a",
+        "a",
         "package",
         "pypi",
         "requests",
@@ -720,6 +718,16 @@ def test_with_one_version_tasks_and_requested_items_name_a_task_by_task_name_alo
         2 / 3,
         1,
     ]
+
+
+def test_trial_rows_name_a_task_as_tasks_does(spreadsheet_path: Path):
+    # The formulas of `Tasks` match its names to the `task_key` of the row tabs, which the formula check holds.
+    header, *trial_lines = _rows_from_header_of(
+        spreadsheet_path, "trial_rows", "trial_id"
+    )
+    task_name_index = header.index("task_name")
+
+    assert {line[task_name_index] for line in trial_lines} == {"a", "b", "0a"}
 
 
 def _column_by_header(sheet: Any, header_row: int) -> dict[str, str]:
