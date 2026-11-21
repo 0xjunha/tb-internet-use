@@ -1,4 +1,4 @@
-"""Tests for _export_network_request_category.py, one made-up request for each condition of its module docstring in order, then requests that two conditions fit and each judgment rule with its other answer."""
+"""Tests for _export_network_request_category.py, one made-up request or more for each condition of its module docstring in order, then requests that two conditions fit and each judgment rule with its other answer."""
 
 from collections import Counter
 
@@ -16,14 +16,12 @@ from tb_internet_use.export._export_network_request_category import (
     export_network_request_category,
 )
 from tb_internet_use.export.judgment_rules import (
-    treat_content_piped_to_consuming_command_as_other_web,
-    treat_content_piped_to_showing_command_as_other_web,
-    treat_discarded_content_as_other_web,
+    treat_discarded_content_as_connectivity_check,
     treat_host_target_that_may_receive_content_as_other_web,
     treat_repository_request_for_no_content_as_other_web,
-    treat_saved_content_from_package_registry_host_as_content_fetch,
-    treat_shown_content_from_registry_or_model_hub_host_as_other_web,
-    treat_shown_content_from_search_engine_host_as_other_web,
+    treat_saved_content_from_unrecognized_url_as_content_fetch,
+    treat_url_request_to_package_registry_host_as_package,
+    treat_url_request_to_search_engine_host_as_search,
 )
 from tb_internet_use.export.model import (
     HostService,
@@ -56,6 +54,7 @@ from tb_internet_use.tool_call.model import HarnessTool, ToolCallKey
 PACKAGE = NetworkRequestCategory.PACKAGE
 CONTENT_FETCH = NetworkRequestCategory.CONTENT_FETCH
 SEARCH = NetworkRequestCategory.SEARCH
+REMOTE_API_CALL = NetworkRequestCategory.REMOTE_API_CALL
 CONNECTIVITY_CHECK = NetworkRequestCategory.CONNECTIVITY_CHECK
 OTHER_WEB = NetworkRequestCategory.OTHER_WEB
 UNKNOWN = NetworkRequestCategory.UNKNOWN
@@ -66,32 +65,29 @@ URL = NetworkRequestTargetKind.URL
 SEARCH_QUERY = NetworkRequestTargetKind.SEARCH_QUERY
 HOST = NetworkRequestTargetKind.HOST
 
-# The answers of the host catalog of the made-up cases. `a.org` and `api.github.com` have no row in `CASES`. `OTHER_ANSWER_CASES` gives them `PYPI` and `GITHUB` in one case each, so that a piped request whose rule answers False reaches the conditions of saved or shown content from such a host.
+# The answers of the host catalog of the made-up cases, as `ExportKnowledge` gives them for the path of the target, e.g. `WEB_API` for `/api/models` of `huggingface.co` and `SEARCH_ENGINE` for `/search/code` of `api.github.com`. `a.org` has no row.
 PYPI = PublicHost(HostService.PACKAGE_REGISTRY, "pypi")
 GITHUB = PublicHost(HostService.CODE_HOSTING, None)
 HUGGINGFACE = PublicHost(HostService.MODEL_HUB, None)
-DUCKDUCKGO = PublicHost(HostService.SEARCH_ENGINE, None)
+SEARCH_ENGINE = PublicHost(HostService.SEARCH_ENGINE, None)
+WEB_API = PublicHost(HostService.WEB_API, None)
+RCSB_FILES = PublicHost(HostService.FILE_HOSTING, None)
+DOCUMENTATION = PublicHost(HostService.DOCUMENTATION, None)
 NO_ROW = UnknownPublicHost()
+
+CONTENT_SHOWN_IN_RESULT = ContentShownInResult()
 
 REPOSITORY_REQUEST_FOR_NO_CONTENT_RULE = (
     treat_repository_request_for_no_content_as_other_web.__name__
 )
-DISCARDED_CONTENT_RULE = treat_discarded_content_as_other_web.__name__
+DISCARDED_CONTENT_RULE = treat_discarded_content_as_connectivity_check.__name__
 HOST_TARGET_RULE = treat_host_target_that_may_receive_content_as_other_web.__name__
-SAVED_FROM_PACKAGE_REGISTRY_RULE = (
-    treat_saved_content_from_package_registry_host_as_content_fetch.__name__
+PACKAGE_REGISTRY_HOST_RULE = (
+    treat_url_request_to_package_registry_host_as_package.__name__
 )
-PIPED_TO_CONSUMING_COMMAND_RULE = (
-    treat_content_piped_to_consuming_command_as_other_web.__name__
-)
-PIPED_TO_SHOWING_COMMAND_RULE = (
-    treat_content_piped_to_showing_command_as_other_web.__name__
-)
-SHOWN_FROM_SEARCH_ENGINE_RULE = (
-    treat_shown_content_from_search_engine_host_as_other_web.__name__
-)
-SHOWN_FROM_REGISTRY_OR_MODEL_HUB_RULE = (
-    treat_shown_content_from_registry_or_model_hub_host_as_other_web.__name__
+SEARCH_ENGINE_HOST_RULE = treat_url_request_to_search_engine_host_as_search.__name__
+SAVED_FROM_UNRECOGNIZED_URL_RULE = (
+    treat_saved_content_from_unrecognized_url_as_content_fetch.__name__
 )
 
 
@@ -146,42 +142,35 @@ def _request(
     )
 
 
+def _curl(
+    url: str,
+    host_name: str,
+    received_content_destination: ReceivedContentDestination = CONTENT_SHOWN_IN_RESULT,
+) -> NetworkRequest:
+    return _request(
+        _command("curl", url), URL, received_content_destination, url, host_name
+    )
+
+
+def _python_request(url: str, host_name: str) -> NetworkRequest:
+    """Make the request of `requests.get(url)` in Python code, whose content destination the trial does not show."""
+    return _request(
+        _python_code("requests.get"),
+        URL,
+        UnknownReceivedContentDestination(),
+        url,
+        host_name,
+    )
+
+
 def _piped(visibility_at_end: OutputVisibility) -> ContentPipedToCommand:
     return ContentPipedToCommand(1, visibility_at_end)
 
 
-SUBPROCESS_PIP_INSTALL = _request(
-    _python_code("subprocess.run"),
-    UnknownNetworkRequestTargetKind(),
-    UnknownReceivedContentDestination(),
-    UnknownNetworkRequestTarget(UnknownNetworkRequestTargetReason.BUILT_IN_CODE),
-)
-PIP_INSTALL_REQUESTS = _request(
-    _command("pip", "requests"), PACKAGE_NAME, ContentSaved(None), "requests"
-)
-WEB_SEARCH = _request(
-    _web_tool("codex", "web_search_call"),
-    SEARCH_QUERY,
-    ContentShownInResult(),
-    "how to x?",
-)
-CURL_HEAD = _request(
-    _command("curl", "https://a.org/x"),
-    URL,
-    NoContentRequested(),
-    "https://a.org/x",
-    "a.org",
-)
 GIT_PUSH = _request(
     _command("git", "origin", "main"), REPOSITORY_URL, NoContentRequested(), None
 )
-CURL_TO_DEV_NULL = _request(
-    _command("curl", "https://a.org/x"),
-    URL,
-    ContentDiscarded(),
-    "https://a.org/x",
-    "a.org",
-)
+CURL_REGISTRY_TO_DEV_NULL = _curl("https://pypi.org", "pypi.org", ContentDiscarded())
 SOCKET_CONNECTION = _request(
     _python_code("socket.create_connection"),
     HOST,
@@ -189,61 +178,32 @@ SOCKET_CONNECTION = _request(
     "api",
     "api",
 )
+CURL_PROJECT_PAGE = _curl("https://pypi.org/project/requests/", "pypi.org")
 WGET_WHEEL = _request(
-    _command("wget", "https://pypi.org/packages/x.whl"),
+    _command("wget", "https://files.pythonhosted.org/x.whl"),
     URL,
     ContentSaved("x.whl"),
-    "https://pypi.org/packages/x.whl",
+    "https://files.pythonhosted.org/x.whl",
+    "files.pythonhosted.org",
+)
+CURL_SEARCH_PAGE = _curl("https://html.duckduckgo.com/html?q=x", "html.duckduckgo.com")
+CURL_SAVED_FROM_HOST_WITHOUT_ROW = _curl("https://a.org/x", "a.org", ContentSaved("x"))
+# One request that names a search engine and a registry, e.g. two URLs in the words of one call.
+CURL_SEARCH_ENGINE_AND_REGISTRY = _request(
+    _command("curl", "https://html.duckduckgo.com/html?q=x"),
+    URL,
+    ContentShownInResult(),
+    "https://html.duckduckgo.com/html?q=x",
+    "html.duckduckgo.com",
     "pypi.org",
 )
-CURL_TO_TAR = _request(
-    _command("curl", "https://a.org/x.tgz"),
-    URL,
-    _piped(OutputVisibility.NONE),
-    "https://a.org/x.tgz",
-    "a.org",
-)
-CURL_TO_HEAD = _request(
-    _command("curl", "https://api.github.com/repos/a/b/releases/latest"),
-    URL,
-    _piped(OutputVisibility.PARTIAL),
-    "https://api.github.com/repos/a/b/releases/latest",
-    "api.github.com",
-)
-FETCH_PAGE = _request(
-    _web_tool("claude-code", "Fetch"),
+CURL_SEARCH_ENGINE_AND_WEB_API = _request(
+    _command("curl", "https://html.duckduckgo.com/html?q=x"),
     URL,
     ContentShownInResult(),
-    "https://a.org/p",
-    "a.org",
-)
-CURL_README = _request(
-    _command("curl", "https://github.com/a/b/README.md"),
-    URL,
-    ContentShownInResult(),
-    "https://github.com/a/b/README.md",
-    "github.com",
-)
-CURL_SEARCH_PAGE = _request(
-    _command("curl", "https://duckduckgo.com/html?q=x"),
-    URL,
-    ContentShownInResult(),
-    "https://duckduckgo.com/html?q=x",
-    "duckduckgo.com",
-)
-CURL_PROJECT_PAGE = _request(
-    _command("curl", "https://pypi.org/project/requests/"),
-    URL,
-    ContentShownInResult(),
-    "https://pypi.org/project/requests/",
-    "pypi.org",
-)
-CURL_POST = _request(
-    _command("curl", "https://a.org/solve"),
-    URL,
-    ContentShownInResult(),
-    "https://a.org/solve",
-    "a.org",
+    "https://html.duckduckgo.com/html?q=x",
+    "html.duckduckgo.com",
+    "rest.uniprot.org",
 )
 
 # (case, request, answers of the host catalog for its public hosts, category, judgment rules counted once)
@@ -259,13 +219,28 @@ CASES: list[
     # The target kind is not known.
     (
         'code `subprocess.run(["pip", "install", "x"])`',
-        SUBPROCESS_PIP_INSTALL,
+        _request(
+            _python_code("subprocess.run"),
+            UnknownNetworkRequestTargetKind(),
+            UnknownReceivedContentDestination(),
+            UnknownNetworkRequestTarget(
+                UnknownNetworkRequestTargetReason.BUILT_IN_CODE
+            ),
+        ),
         [],
         UNKNOWN,
         [],
     ),
-    # The target is a package name, which does not need to be known.
-    ("`pip install requests`", PIP_INSTALL_REQUESTS, [], PACKAGE, []),
+    # The target is a package name, which does not need to be known, also when the content is saved.
+    (
+        "`pip install requests`",
+        _request(
+            _command("pip", "requests"), PACKAGE_NAME, ContentSaved(None), "requests"
+        ),
+        [],
+        PACKAGE,
+        [],
+    ),
     (
         "`pip install $PKG`",
         _request(
@@ -280,212 +255,27 @@ CASES: list[
         PACKAGE,
         [],
     ),
-    # A package name, though the content is saved.
-    (
-        "`pip install --index-url https://mirror.internal/simple x`",
-        _request(
-            _command("pip", "x"),
-            PACKAGE_NAME,
-            ContentSaved(None),
-            "x",
-            "mirror.internal",
-        ),
-        [],
-        PACKAGE,
-        [],
-    ),
     # The target is a search query.
-    ("Codex `web_search_call`", WEB_SEARCH, [], SEARCH, []),
-    # No content requested and the target is not a repository.
-    ("`curl -I https://a.org/x`", CURL_HEAD, [NO_ROW], CONNECTIVITY_CHECK, []),
-    # No content requested and the target is a repository.
     (
-        "`git push origin main`",
-        GIT_PUSH,
-        [],
-        OTHER_WEB,
-        [REPOSITORY_REQUEST_FOR_NO_CONTENT_RULE],
-    ),
-    # The content is thrown away.
-    (
-        "`curl -s -o /dev/null https://a.org/x`",
-        CURL_TO_DEV_NULL,
-        [NO_ROW],
-        OTHER_WEB,
-        [DISCARDED_CONTENT_RULE],
-    ),
-    # A host alone that may receive content.
-    (
-        'code `socket.create_connection(("api", 8000))`',
-        SOCKET_CONNECTION,
-        [],
-        OTHER_WEB,
-        [HOST_TARGET_RULE],
-    ),
-    # Saved content from a package registry host.
-    (
-        "`wget https://pypi.org/packages/x.whl`",
-        WGET_WHEEL,
-        [PYPI],
-        CONTENT_FETCH,
-        [SAVED_FROM_PACKAGE_REGISTRY_RULE],
-    ),
-    # Saved content from a repository on code hosting, from a host without a row and from a model hub. A later read of the file does not change it.
-    (
-        "`pip install git+https://github.com/a/b`",
+        "Codex `web_search_call`",
         _request(
-            _command("pip", "git+https://github.com/a/b"),
-            REPOSITORY_URL,
-            ContentSaved(None),
-            "git+https://github.com/a/b",
-            "github.com",
-        ),
-        [GITHUB],
-        CONTENT_FETCH,
-        [],
-    ),
-    (
-        "`curl -o page.html https://a.org/p` before `cat page.html`",
-        _request(
-            _command("curl", "https://a.org/p"),
-            URL,
-            ContentSaved("page.html"),
-            "https://a.org/p",
-            "a.org",
-        ),
-        [NO_ROW],
-        CONTENT_FETCH,
-        [],
-    ),
-    (
-        "`curl -O https://huggingface.co/m/model.bin`",
-        _request(
-            _command("curl", "https://huggingface.co/m/model.bin"),
-            URL,
-            ContentSaved("model.bin"),
-            "https://huggingface.co/m/model.bin",
-            "huggingface.co",
-        ),
-        [HUGGINGFACE],
-        CONTENT_FETCH,
-        [],
-    ),
-    # Content piped to a command that shows none of it.
-    (
-        "`curl https://a.org/x.tgz | tar xz`",
-        CURL_TO_TAR,
-        [NO_ROW],
-        OTHER_WEB,
-        [PIPED_TO_CONSUMING_COMMAND_RULE],
-    ),
-    # Content piped to a command that shows part of it and to one that shows all of it.
-    (
-        "`curl https://api.github.com/repos/a/b/releases/latest | head`",
-        CURL_TO_HEAD,
-        [NO_ROW],
-        OTHER_WEB,
-        [PIPED_TO_SHOWING_COMMAND_RULE],
-    ),
-    (
-        "`curl https://a.org/x | tee log`",
-        _request(
-            _command("curl", "https://a.org/x"),
-            URL,
-            _piped(OutputVisibility.WHOLE),
-            "https://a.org/x",
-            "a.org",
-        ),
-        [NO_ROW],
-        OTHER_WEB,
-        [PIPED_TO_SHOWING_COMMAND_RULE],
-    ),
-    # Shown content from a web tool, here a tool without a row of the web tool catalog.
-    ("`Fetch` of `https://a.org/p`", FETCH_PAGE, [NO_ROW], CONTENT_FETCH, []),
-    # Shown content from a code hosting host.
-    (
-        "`curl https://github.com/a/b/README.md`",
-        CURL_README,
-        [GITHUB],
-        CONTENT_FETCH,
-        [],
-    ),
-    # Shown content from a search engine host.
-    (
-        "`curl 'https://duckduckgo.com/html?q=x'`",
-        CURL_SEARCH_PAGE,
-        [DUCKDUCKGO],
-        OTHER_WEB,
-        [SHOWN_FROM_SEARCH_ENGINE_RULE],
-    ),
-    # Shown content from a package registry host and from a model hub host.
-    (
-        "`curl https://pypi.org/project/requests/`",
-        CURL_PROJECT_PAGE,
-        [PYPI],
-        OTHER_WEB,
-        [SHOWN_FROM_REGISTRY_OR_MODEL_HUB_RULE],
-    ),
-    (
-        "`curl https://huggingface.co/api/models/m`",
-        _request(
-            _command("curl", "https://huggingface.co/api/models/m"),
-            URL,
+            _web_tool("codex", "web_search_call"),
+            SEARCH_QUERY,
             ContentShownInResult(),
-            "https://huggingface.co/api/models/m",
-            "huggingface.co",
+            "how to x?",
         ),
-        [HUGGINGFACE],
-        OTHER_WEB,
-        [SHOWN_FROM_REGISTRY_OR_MODEL_HUB_RULE],
-    ),
-    # Any other request. What was sent does not make a remote API call, and a code hosting host without a row gives no service.
-    (
-        "`curl -X POST -d @in.json https://a.org/solve`",
-        CURL_POST,
-        [NO_ROW],
-        OTHER_WEB,
+        [],
+        SEARCH,
         [],
     ),
+    # No content requested and the target is not a repository, whatever its host.
     (
-        "`curl https://api.github.com/repos/a/b/releases/latest`",
-        _request(
-            _command("curl", "https://api.github.com/repos/a/b/releases/latest"),
-            URL,
-            ContentShownInResult(),
-            "https://api.github.com/repos/a/b/releases/latest",
-            "api.github.com",
-        ),
+        "`curl -I https://a.org/x`",
+        _curl("https://a.org/x", "a.org", NoContentRequested()),
         [NO_ROW],
-        OTHER_WEB,
+        CONNECTIVITY_CHECK,
         [],
     ),
-    (
-        "`curl https://a.org/x | mytool`",
-        _request(
-            _command("curl", "https://a.org/x"),
-            URL,
-            _piped(OutputVisibility.UNKNOWN),
-            "https://a.org/x",
-            "a.org",
-        ),
-        [NO_ROW],
-        OTHER_WEB,
-        [],
-    ),
-    (
-        'code `requests.get("https://a.org/x")`',
-        _request(
-            _python_code("requests.get"),
-            URL,
-            UnknownReceivedContentDestination(),
-            "https://a.org/x",
-            "a.org",
-        ),
-        [NO_ROW],
-        OTHER_WEB,
-        [],
-    ),
-    # Requests that two conditions fit, which get the first. `ping pypi.org` asks for no content and is for a host alone, and is no package though its host is a registry.
     (
         "`ping pypi.org`",
         _request(
@@ -499,7 +289,64 @@ CASES: list[
         CONNECTIVITY_CHECK,
         [],
     ),
-    # A web fetch of a registry page is shown content from a web tool and from a package registry host.
+    (
+        "`getent hosts pypi.org`",
+        _request(
+            _command("getent", "pypi.org"),
+            HOST,
+            NoContentRequested(),
+            "pypi.org",
+            "pypi.org",
+        ),
+        [PYPI],
+        CONNECTIVITY_CHECK,
+        [],
+    ),
+    # No content requested and the target is a repository.
+    (
+        "`git push origin main`",
+        GIT_PUSH,
+        [],
+        OTHER_WEB,
+        [REPOSITORY_REQUEST_FOR_NO_CONTENT_RULE],
+    ),
+    # The content is thrown away, also for a registry host, whose rule comes later, and for a host alone, whose rule comes later too.
+    (
+        "`curl -s -o /dev/null https://pypi.org`",
+        CURL_REGISTRY_TO_DEV_NULL,
+        [PYPI],
+        CONNECTIVITY_CHECK,
+        [DISCARDED_CONTENT_RULE],
+    ),
+    (
+        "`nc api 8000 > /dev/null`",
+        _request(_command("nc", "api", "8000"), HOST, ContentDiscarded(), "api", "api"),
+        [],
+        CONNECTIVITY_CHECK,
+        [DISCARDED_CONTENT_RULE],
+    ),
+    # A host alone that may receive content.
+    (
+        'code `socket.create_connection(("api", 8000))`',
+        SOCKET_CONNECTION,
+        [],
+        OTHER_WEB,
+        [HOST_TARGET_RULE],
+    ),
+    # A URL from a web tool, whatever its host.
+    (
+        "`Fetch` of `https://a.org/p`",
+        _request(
+            _web_tool("claude-code", "Fetch"),
+            URL,
+            ContentShownInResult(),
+            "https://a.org/p",
+            "a.org",
+        ),
+        [NO_ROW],
+        CONTENT_FETCH,
+        [],
+    ),
     (
         "`WebFetch` of `https://pypi.org/project/requests/`",
         _request(
@@ -513,71 +360,279 @@ CASES: list[
         CONTENT_FETCH,
         [],
     ),
-    # Shown content from a code hosting host and a search engine host.
     (
-        "`curl https://github.com/a/b https://duckduckgo.com/html?q=x` as one request",
-        _request(
-            _command("curl", "https://github.com/a/b"),
-            URL,
-            ContentShownInResult(),
-            "https://github.com/a/b",
-            "github.com",
-            "duckduckgo.com",
-        ),
-        [GITHUB, DUCKDUCKGO],
-        CONTENT_FETCH,
-        [],
-    ),
-    # Discarded content for a host alone is decided by the rule about discarded content, not the one about a host alone.
-    (
-        "`nc api 8000 > /dev/null`",
-        _request(_command("nc", "api", "8000"), HOST, ContentDiscarded(), "api", "api"),
-        [],
-        OTHER_WEB,
-        [DISCARDED_CONTENT_RULE],
-    ),
-    # Shown content from a search engine host and a package registry host asks only the rule about a search engine.
-    (
-        "`curl https://duckduckgo.com/html?q=x https://pypi.org/simple/x/` as one request",
-        _request(
-            _command("curl", "https://duckduckgo.com/html?q=x"),
-            URL,
-            ContentShownInResult(),
-            "https://duckduckgo.com/html?q=x",
-            "duckduckgo.com",
-            "pypi.org",
-        ),
-        [DUCKDUCKGO, PYPI],
-        OTHER_WEB,
-        [SHOWN_FROM_SEARCH_ENGINE_RULE],
-    ),
-    # Shown content from a code hosting host and a package registry host asks no rule.
-    (
-        "`curl https://github.com/a/b https://pypi.org/project/b/` as one request",
-        _request(
-            _command("curl", "https://github.com/a/b"),
-            URL,
-            ContentShownInResult(),
-            "https://github.com/a/b",
-            "github.com",
-            "pypi.org",
-        ),
-        [GITHUB, PYPI],
-        CONTENT_FETCH,
-        [],
-    ),
-    # A web tool asks no rule, even for a search engine host.
-    (
-        "`WebFetch` of `https://duckduckgo.com/html?q=x`",
+        "`WebFetch` of `https://html.duckduckgo.com/html?q=x`",
         _request(
             _web_tool("claude-code", "WebFetch"),
             URL,
             ContentShownInResult(),
-            "https://duckduckgo.com/html?q=x",
-            "duckduckgo.com",
+            "https://html.duckduckgo.com/html?q=x",
+            "html.duckduckgo.com",
         ),
-        [DUCKDUCKGO],
+        [SEARCH_ENGINE],
         CONTENT_FETCH,
+        [],
+    ),
+    # A repository, saved or shown, also from a host without a row.
+    (
+        "`git clone https://github.com/a/b`",
+        _request(
+            _command("git", "https://github.com/a/b"),
+            REPOSITORY_URL,
+            ContentSaved(None),
+            "https://github.com/a/b",
+            "github.com",
+        ),
+        [GITHUB],
+        CONTENT_FETCH,
+        [],
+    ),
+    (
+        "`git ls-remote https://github.com/a/b`",
+        _request(
+            _command("git", "https://github.com/a/b"),
+            REPOSITORY_URL,
+            ContentShownInResult(),
+            "https://github.com/a/b",
+            "github.com",
+        ),
+        [GITHUB],
+        CONTENT_FETCH,
+        [],
+    ),
+    (
+        "`pip install git+https://a.org/b.git`",
+        _request(
+            _command("pip", "git+https://a.org/b.git"),
+            REPOSITORY_URL,
+            ContentSaved(None),
+            "git+https://a.org/b.git",
+            "a.org",
+        ),
+        [NO_ROW],
+        CONTENT_FETCH,
+        [],
+    ),
+    # A URL of a package registry host, shown or saved.
+    (
+        "`curl https://pypi.org/project/requests/`",
+        CURL_PROJECT_PAGE,
+        [PYPI],
+        PACKAGE,
+        [PACKAGE_REGISTRY_HOST_RULE],
+    ),
+    (
+        "`wget https://files.pythonhosted.org/x.whl`",
+        WGET_WHEEL,
+        [PYPI],
+        PACKAGE,
+        [PACKAGE_REGISTRY_HOST_RULE],
+    ),
+    # A URL of a search engine host, also at a search path of an API host.
+    (
+        "`curl 'https://html.duckduckgo.com/html?q=x'`",
+        CURL_SEARCH_PAGE,
+        [SEARCH_ENGINE],
+        SEARCH,
+        [SEARCH_ENGINE_HOST_RULE],
+    ),
+    (
+        "`curl 'https://api.github.com/search/code?q=x'`",
+        _curl("https://api.github.com/search/code?q=x", "api.github.com"),
+        [SEARCH_ENGINE],
+        SEARCH,
+        [SEARCH_ENGINE_HOST_RULE],
+    ),
+    # A URL of a web API host, whatever its content destination, also one without a path.
+    (
+        'code `requests.get("https://rest.uniprot.org/uniprotkb/P12345.json")`',
+        _python_request(
+            "https://rest.uniprot.org/uniprotkb/P12345.json", "rest.uniprot.org"
+        ),
+        [WEB_API],
+        REMOTE_API_CALL,
+        [],
+    ),
+    (
+        "`curl https://api.github.com/repos/a/b | head`",
+        _curl(
+            "https://api.github.com/repos/a/b",
+            "api.github.com",
+            _piped(OutputVisibility.PARTIAL),
+        ),
+        [WEB_API],
+        REMOTE_API_CALL,
+        [],
+    ),
+    (
+        "`curl https://api.github.com/repos/a/b`",
+        _curl("https://api.github.com/repos/a/b", "api.github.com"),
+        [WEB_API],
+        REMOTE_API_CALL,
+        [],
+    ),
+    (
+        "`curl 'https://huggingface.co/api/models?search=x'`",
+        _curl("https://huggingface.co/api/models?search=x", "huggingface.co"),
+        [WEB_API],
+        REMOTE_API_CALL,
+        [],
+    ),
+    (
+        'code `"https://rest.uniprot.org"`',
+        _python_request("https://rest.uniprot.org", "rest.uniprot.org"),
+        [WEB_API],
+        REMOTE_API_CALL,
+        [],
+    ),
+    # A URL of a host that gives a file or a page at a fixed address, saved, piped, shown or in code.
+    (
+        "`curl -o page.html https://docs.python.org/3/library/json.html`",
+        _curl(
+            "https://docs.python.org/3/library/json.html",
+            "docs.python.org",
+            ContentSaved("page.html"),
+        ),
+        [DOCUMENTATION],
+        CONTENT_FETCH,
+        [],
+    ),
+    (
+        "`curl https://raw.githubusercontent.com/a/b/main/x.py | head`",
+        _curl(
+            "https://raw.githubusercontent.com/a/b/main/x.py",
+            "raw.githubusercontent.com",
+            _piped(OutputVisibility.PARTIAL),
+        ),
+        [GITHUB],
+        CONTENT_FETCH,
+        [],
+    ),
+    (
+        "`curl https://github.com/a/b/issues`",
+        _curl("https://github.com/a/b/issues", "github.com"),
+        [GITHUB],
+        CONTENT_FETCH,
+        [],
+    ),
+    (
+        "`curl https://files.rcsb.org/download/1abc.pdb | grep ATOM`",
+        _curl(
+            "https://files.rcsb.org/download/1abc.pdb",
+            "files.rcsb.org",
+            _piped(OutputVisibility.PARTIAL),
+        ),
+        [RCSB_FILES],
+        CONTENT_FETCH,
+        [],
+    ),
+    (
+        "`curl -O https://huggingface.co/a/b/resolve/main/model.bin`",
+        _curl(
+            "https://huggingface.co/a/b/resolve/main/model.bin",
+            "huggingface.co",
+            ContentSaved("model.bin"),
+        ),
+        [HUGGINGFACE],
+        CONTENT_FETCH,
+        [],
+    ),
+    (
+        'code `"https://huggingface.co"`',
+        _python_request("https://huggingface.co", "huggingface.co"),
+        [HUGGINGFACE],
+        CONTENT_FETCH,
+        [],
+    ),
+    # A URL whose content is saved, from a host without a row. A later read of the file does not change it.
+    (
+        "`curl -o x https://a.org/x`",
+        CURL_SAVED_FROM_HOST_WITHOUT_ROW,
+        [NO_ROW],
+        CONTENT_FETCH,
+        [SAVED_FROM_UNRECOGNIZED_URL_RULE],
+    ),
+    (
+        "`curl -o page.html https://a.org/p` before `cat page.html`",
+        _curl("https://a.org/p", "a.org", ContentSaved("page.html")),
+        [NO_ROW],
+        CONTENT_FETCH,
+        [SAVED_FROM_UNRECOGNIZED_URL_RULE],
+    ),
+    # Any other request. Neither the end of the path nor what was sent makes another category.
+    (
+        "`curl https://a.org/data.csv | mytool`",
+        _curl("https://a.org/data.csv", "a.org", _piped(OutputVisibility.UNKNOWN)),
+        [NO_ROW],
+        OTHER_WEB,
+        [],
+    ),
+    (
+        "`curl https://a.org/x.tgz | tar xz`",
+        _curl("https://a.org/x.tgz", "a.org", _piped(OutputVisibility.NONE)),
+        [NO_ROW],
+        OTHER_WEB,
+        [],
+    ),
+    (
+        "`curl https://a.org/x | head`",
+        _curl("https://a.org/x", "a.org", _piped(OutputVisibility.PARTIAL)),
+        [NO_ROW],
+        OTHER_WEB,
+        [],
+    ),
+    (
+        "`curl -X POST -d @in.json https://a.org/solve`",
+        _curl("https://a.org/solve", "a.org"),
+        [NO_ROW],
+        OTHER_WEB,
+        [],
+    ),
+    (
+        'code `requests.get("https://a.org/x")`',
+        _python_request("https://a.org/x", "a.org"),
+        [NO_ROW],
+        OTHER_WEB,
+        [],
+    ),
+    # Requests that two conditions fit, which get the first. A registry host comes before a search engine host, which comes before a web API host, which comes before a content host, which comes before saving.
+    (
+        "`curl https://html.duckduckgo.com/html?q=x https://pypi.org/simple/x/` as one request",
+        CURL_SEARCH_ENGINE_AND_REGISTRY,
+        [SEARCH_ENGINE, PYPI],
+        PACKAGE,
+        [PACKAGE_REGISTRY_HOST_RULE],
+    ),
+    (
+        "`curl https://html.duckduckgo.com/html?q=x https://rest.uniprot.org/x` as one request",
+        CURL_SEARCH_ENGINE_AND_WEB_API,
+        [SEARCH_ENGINE, WEB_API],
+        SEARCH,
+        [SEARCH_ENGINE_HOST_RULE],
+    ),
+    (
+        "`curl https://github.com/a/b https://api.github.com/repos/a/b` as one request",
+        _request(
+            _command("curl", "https://github.com/a/b"),
+            URL,
+            ContentShownInResult(),
+            "https://github.com/a/b",
+            "github.com",
+            "api.github.com",
+        ),
+        [GITHUB, WEB_API],
+        REMOTE_API_CALL,
+        [],
+    ),
+    (
+        "`curl -o x.json https://rest.uniprot.org/uniprotkb/P12345.json`",
+        _curl(
+            "https://rest.uniprot.org/uniprotkb/P12345.json",
+            "rest.uniprot.org",
+            ContentSaved("x.json"),
+        ),
+        [WEB_API],
+        REMOTE_API_CALL,
         [],
     ),
 ]
@@ -593,26 +648,37 @@ OTHER_ANSWER_CASES: list[
     ]
 ] = [
     (REPOSITORY_REQUEST_FOR_NO_CONTENT_RULE, GIT_PUSH, [], CONNECTIVITY_CHECK, []),
-    (DISCARDED_CONTENT_RULE, CURL_TO_DEV_NULL, [NO_ROW], CONNECTIVITY_CHECK, []),
+    (DISCARDED_CONTENT_RULE, CURL_REGISTRY_TO_DEV_NULL, [PYPI], OTHER_WEB, []),
     (HOST_TARGET_RULE, SOCKET_CONNECTION, [], CONNECTIVITY_CHECK, []),
-    (SAVED_FROM_PACKAGE_REGISTRY_RULE, WGET_WHEEL, [PYPI], PACKAGE, []),
-    # Content piped to a command that shows none of it gets the category of saved content, which asks the rule about saved content only when a host is a package registry.
-    (PIPED_TO_CONSUMING_COMMAND_RULE, CURL_TO_TAR, [NO_ROW], CONTENT_FETCH, []),
+    # A registry host that the rule does not take leaves the conditions after it, i.e. a search engine host, saving and any other request.
+    (PACKAGE_REGISTRY_HOST_RULE, CURL_PROJECT_PAGE, [PYPI], OTHER_WEB, []),
     (
-        PIPED_TO_CONSUMING_COMMAND_RULE,
-        CURL_TO_TAR,
+        PACKAGE_REGISTRY_HOST_RULE,
+        WGET_WHEEL,
         [PYPI],
         CONTENT_FETCH,
-        [SAVED_FROM_PACKAGE_REGISTRY_RULE],
+        [SAVED_FROM_UNRECOGNIZED_URL_RULE],
     ),
-    # Content piped to a command that shows it gets the category of shown content.
-    (PIPED_TO_SHOWING_COMMAND_RULE, CURL_TO_HEAD, [GITHUB], CONTENT_FETCH, []),
-    (SHOWN_FROM_SEARCH_ENGINE_RULE, CURL_SEARCH_PAGE, [DUCKDUCKGO], SEARCH, []),
     (
-        SHOWN_FROM_REGISTRY_OR_MODEL_HUB_RULE,
-        CURL_PROJECT_PAGE,
-        [PYPI],
-        CONTENT_FETCH,
+        PACKAGE_REGISTRY_HOST_RULE,
+        CURL_SEARCH_ENGINE_AND_REGISTRY,
+        [SEARCH_ENGINE, PYPI],
+        SEARCH,
+        [SEARCH_ENGINE_HOST_RULE],
+    ),
+    (SEARCH_ENGINE_HOST_RULE, CURL_SEARCH_PAGE, [SEARCH_ENGINE], OTHER_WEB, []),
+    (
+        SEARCH_ENGINE_HOST_RULE,
+        CURL_SEARCH_ENGINE_AND_WEB_API,
+        [SEARCH_ENGINE, WEB_API],
+        REMOTE_API_CALL,
+        [],
+    ),
+    (
+        SAVED_FROM_UNRECOGNIZED_URL_RULE,
+        CURL_SAVED_FROM_HOST_WITHOUT_ROW,
+        [NO_ROW],
+        OTHER_WEB,
         [],
     ),
 ]

@@ -1,8 +1,8 @@
 """Run `export_rows` again on the saved results of a run of `run_pipeline.py`, list the uses of `ExportKnowledge` and of its judgment rules, and check the equations that its rows must meet.
 
 `run_pipeline.py` saves the `Trial` and the network request results of each trial, so this script reads no trajectory. It makes its own `ExportKnowledge` for the trials of each worker process and counts each trial apart, so that its counts do not rest on the files of the run, and it reads the four CSVs of the run for the equations about what was written.
-An equation sets a count of the uses of a judgment rule or of a lookup of `ExportKnowledge` beside a count that this script takes from the columns of the rows, e.g. the uses of `treat_discarded_content_as_other_web` beside the rows whose content is discarded, so that a rule asked in the wrong place shows as a difference.
-An equation whose right side is 0 counts rows that break a rule that holds whatever the catalogs say, e.g. a `connectivity_check` row whose content was requested.
+An equation sets a count of the uses of a judgment rule or of a lookup of `ExportKnowledge` beside a count that this script takes from the columns of the rows, e.g. the uses of `treat_discarded_content_as_connectivity_check` beside the rows whose content is discarded, so that a rule asked in the wrong place shows as a difference.
+An equation whose right side is 0 counts rows that break a rule that holds whatever the catalogs say, e.g. a `connectivity_check` row whose content was kept.
 Each equation of `EQUATIONS` has its definition above its name, and the equations of the judgment rules, named `<judgment rule>_uses_equal_its_situations`, have theirs above `*_RULE_EQUATIONS`.
 
 It writes `row_uses.csv`, `unknown_inputs.csv`, `judgment_rule_uses.csv`, `equations.csv` and `trials_not_audited.csv` under the output folder, `out/export_knowledge/` unless `--out-dir` names another, which `.gitignore` keeps out of the repo, since host names and tool names come from trajectories.
@@ -30,25 +30,24 @@ from tb_internet_use.export import judgment_rules as export_judgment_rules
 from tb_internet_use.export.judgment_rules import (
     treat_assumed_failure_as_possibly_received,
     treat_assumed_not_needed_result_as_upper_bound_only,
-    treat_content_piped_to_consuming_command_as_other_web,
-    treat_content_piped_to_showing_command_as_other_web,
-    treat_discarded_content_as_other_web,
+    treat_discarded_content_as_connectivity_check,
     treat_host_target_that_may_receive_content_as_other_web,
     treat_local_or_single_label_host_name_of_web_tool_as_unknown_internet_use,
     treat_repository_request_for_no_content_as_other_web,
     treat_request_of_unknown_sender_as_possibly_from_task_environment,
     treat_request_without_host_name_as_sent_to_default_registry_host,
     treat_reserved_host_name_as_unknown_internet_use,
-    treat_saved_content_from_package_registry_host_as_content_fetch,
-    treat_shown_content_from_registry_or_model_hub_host_as_other_web,
-    treat_shown_content_from_search_engine_host_as_other_web,
+    treat_saved_content_from_unrecognized_url_as_content_fetch,
     treat_single_label_host_name_as_not_internet_use,
     treat_templated_host_name_as_unknown_internet_use,
     treat_trial_with_success_line_shared_by_confirmed_requests_as_received,
     treat_url_query_value_and_fragment_as_credential,
+    treat_url_request_to_package_registry_host_as_package,
+    treat_url_request_to_search_engine_host_as_search,
     treat_web_tool_request_without_host_name_as_internet_use,
 )
 from tb_internet_use.export.model import (
+    HostService,
     MeasureBound,
     NetworkRequestCategory,
     NetworkRequestResultView,
@@ -120,10 +119,12 @@ EQUATIONS = (
     "package_registry_lookups_equal_package_name_commands",
     # Rows whose `sender` is not `task_environment` and whose `source_kind` is not `web_tool` beside 0.
     "rows_sent_from_outside_the_task_environment_by_no_web_tool",
-    # Rows whose `category` is `remote_api_call`, which no rule gives yet, beside 0.
-    "remote_api_call_rows",
-    # `connectivity_check` rows whose `received_content_destination` is not `not_requested` beside 0.
-    "connectivity_check_rows_whose_content_is_requested",
+    # `remote_api_call` rows that are not for a URL from a command or code with a `web_api` host, beside 0.
+    "remote_api_call_rows_without_web_api_host",
+    # `connectivity_check` rows whose `received_content_destination` is neither `not_requested` nor `discarded` beside 0.
+    "connectivity_check_rows_whose_content_is_kept",
+    # `content_fetch` rows that are for a URL from a command or code, with no host of a service that gives content and no saved content, beside 0.
+    "content_fetch_rows_without_content_host_or_saved_content",
     # Lines of the run's `network_request_rows.csv` that differ from the rows exported again, in the order of the file, plus the lines one side has more, beside 0.
     "written_request_rows_differing_from_rows_exported_again",
     # `TrialCategoryMeasureRow` lines of read trials whose bounds are not the strongest of the request rows of their trial, category and sender, where a request row with `is_among_success_line_owners_one_of_which_received` counts as `lower_and_upper` received, plus such groups without a line and lines without a group, beside 0.
@@ -155,6 +156,10 @@ _URL_OR_REPOSITORY = (
     NetworkRequestTargetKind.URL,
     NetworkRequestTargetKind.REPOSITORY_URL,
 )
+# The `host_service` words of the hosts that give a file or a page at a fixed address, whose URLs are content fetches.
+_CONTENT_HOST_SERVICES = {"code_hosting", "model_hub", "file_hosting", "documentation"}
+# The `host_service` words that put a URL request in a category before saving does, i.e. every service of a public host.
+_CATEGORY_HOST_SERVICES = {service.value for service in HostService}
 _USERINFO_WITHOUT_SCHEME = re.compile(r"[^/ @]+:[^/ @]*@")
 _USERINFO_AFTER_SCHEME = re.compile(r"://([^/ ]*)@")
 _REDACTED = "REDACTED"
@@ -340,6 +345,12 @@ def situation_counts_of(
         for text in host_scope_texts
     )
     has_reserved = "reserved" in host_scope_texts
+    # A request for a URL from a command or code that keeps what it receives, the part of the situations of the rules that read the services of its hosts.
+    is_url_request_for_kept_content = (
+        row.target_kind == NetworkRequestTargetKind.URL
+        and not is_web_tool
+        and row.received_content_destination not in ("not_requested", "discarded")
+    )
     is_local_or_single_label = bool(host_scope_texts) and set(host_scope_texts) <= {
         "local",
         "unknown_single_label",
@@ -362,31 +373,20 @@ def situation_counts_of(
         treat_repository_request_for_no_content_as_other_web: row.received_content_destination
         == "not_requested"
         and row.target_kind == NetworkRequestTargetKind.REPOSITORY_URL,
-        treat_discarded_content_as_other_web: row.received_content_destination
+        treat_discarded_content_as_connectivity_check: row.received_content_destination
         == "discarded"
         and row.target_kind in (*_URL_OR_REPOSITORY, NetworkRequestTargetKind.HOST),
         treat_host_target_that_may_receive_content_as_other_web: row.target_kind
         == NetworkRequestTargetKind.HOST
         and row.received_content_destination not in ("not_requested", "discarded"),
-        treat_saved_content_from_package_registry_host_as_content_fetch: row.received_content_destination
-        == "saved"
-        and row.target_kind in _URL_OR_REPOSITORY
+        treat_url_request_to_package_registry_host_as_package: is_url_request_for_kept_content
         and "package_registry" in host_services,
-        treat_content_piped_to_consuming_command_as_other_web: row.received_content_destination
-        == "piped_none"
-        and row.target_kind in _URL_OR_REPOSITORY,
-        treat_content_piped_to_showing_command_as_other_web: row.received_content_destination
-        in ("piped_whole", "piped_partial")
-        and row.target_kind in _URL_OR_REPOSITORY,
-        treat_shown_content_from_search_engine_host_as_other_web: _is_shown_without_web_tool_or_code_hosting(
-            row, host_services
-        )
+        treat_url_request_to_search_engine_host_as_search: is_url_request_for_kept_content
+        and "package_registry" not in host_services
         and "search_engine" in host_services,
-        treat_shown_content_from_registry_or_model_hub_host_as_other_web: _is_shown_without_web_tool_or_code_hosting(
-            row, host_services
-        )
-        and "search_engine" not in host_services
-        and bool({"package_registry", "model_hub"} & set(host_services)),
+        treat_saved_content_from_unrecognized_url_as_content_fetch: is_url_request_for_kept_content
+        and row.received_content_destination == "saved"
+        and not set(host_services) & _CATEGORY_HOST_SERVICES,
         treat_assumed_not_needed_result_as_upper_bound_only: row.is_internet_use
         is not False
         and row.result_view == NetworkRequestResultView.NOT_NEEDED
@@ -428,12 +428,19 @@ def situation_counts_of(
     counts["rows_sent_from_outside_the_task_environment_by_no_web_tool"] = int(
         row.sender != NetworkRequestSender.TASK_ENVIRONMENT and not is_web_tool
     )
-    counts["remote_api_call_rows"] = int(
+    counts["remote_api_call_rows_without_web_api_host"] = int(
         row.category == NetworkRequestCategory.REMOTE_API_CALL
+        and not (is_url_request_for_kept_content and "web_api" in host_services)
     )
-    counts["connectivity_check_rows_whose_content_is_requested"] = int(
+    counts["connectivity_check_rows_whose_content_is_kept"] = int(
         row.category == NetworkRequestCategory.CONNECTIVITY_CHECK
-        and row.received_content_destination != "not_requested"
+        and row.received_content_destination not in ("not_requested", "discarded")
+    )
+    counts["content_fetch_rows_without_content_host_or_saved_content"] = int(
+        row.category == NetworkRequestCategory.CONTENT_FETCH
+        and is_url_request_for_kept_content
+        and not set(host_services) & _CONTENT_HOST_SERVICES
+        and row.received_content_destination != "saved"
     )
     counts["lower_bound_rows_that_are_not_confirmed_internet_use"] = int(
         row.request_measure_bound == MeasureBound.LOWER_AND_UPPER
@@ -476,18 +483,6 @@ def _host_scope_text_of(host_name: str) -> str:
     if host_name_scope.reason == UnknownHostNameScopeReason.DOTTED_NAME:
         return HostNameScope.PUBLIC.value
     return f"unknown_{host_name_scope.reason}"
-
-
-def _is_shown_without_web_tool_or_code_hosting(
-    row: NetworkRequestRow, host_services: Sequence[str]
-) -> bool:
-    """Tell whether a row for a URL or repository shows its content in the result, comes from no web tool and has no code hosting host, the part that the two rules of shown content share."""
-    return (
-        row.received_content_destination == "shown"
-        and row.target_kind in _URL_OR_REPOSITORY
-        and row.source_kind != NetworkRequestSourceKind.WEB_TOOL
-        and "code_hosting" not in host_services
-    )
 
 
 def _is_confirmed_internet_use(row: NetworkRequestRow) -> bool:
@@ -606,8 +601,9 @@ class TrialAuditTotal:
         }
         for equation in (
             "rows_sent_from_outside_the_task_environment_by_no_web_tool",
-            "remote_api_call_rows",
-            "connectivity_check_rows_whose_content_is_requested",
+            "remote_api_call_rows_without_web_api_host",
+            "connectivity_check_rows_whose_content_is_kept",
+            "content_fetch_rows_without_content_host_or_saved_content",
             "lower_bound_rows_that_are_not_confirmed_internet_use",
             "needed_confirmed_internet_use_rows_outside_the_lower_bound",
         ):

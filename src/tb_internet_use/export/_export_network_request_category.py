@@ -11,29 +11,29 @@ A request gets its category from the first condition below that fits it.
 - A request that asks for no content gives `CONNECTIVITY_CHECK`, unless its target is a repository, which a judgment rule decides.
 - A request whose content is thrown away is decided by a judgment rule.
 - A request for a host alone that may receive content is decided by a judgment rule.
-- Saved content gives `CONTENT_FETCH`, unless a host is a package registry, which a judgment rule decides.
-- Content piped to a command that shows none of it is decided by a judgment rule, and otherwise gets the category of saved content.
-- Content piped to a command that shows all or part of it is decided by a judgment rule, and otherwise gets the category of shown content.
-- Shown content from a web tool or from a code hosting host gives `CONTENT_FETCH`.
-- Shown content from a search engine host is decided by a judgment rule.
-- Shown content from a package registry or model hub host is decided by a judgment rule.
-- Any other request gives `OTHER_WEB`, e.g. `curl https://a.org/x` or `curl u | mytool`.
+- A URL from a web tool gives `CONTENT_FETCH`.
+- A repository gives `CONTENT_FETCH`, e.g. `git clone u`.
+- A URL of a package registry host is decided by a judgment rule.
+- A URL of a search engine host is decided by a judgment rule.
+- A URL of a web API host gives `REMOTE_API_CALL`.
+- A URL of a code hosting, model hub, file hosting or documentation host gives `CONTENT_FETCH`.
+- A URL whose content is saved is decided by a judgment rule.
+- Any other request gives `OTHER_WEB`, e.g. `curl https://a.org/x | mytool` or `requests.get("https://a.org/x")` in code.
+
+The services of the hosts of a URL come before where its content goes, since the same URL may be saved in one call and piped in another, e.g. `curl -o x.pdb https://files.rcsb.org/download/1abc.pdb` and `curl https://files.rcsb.org/download/1abc.pdb | head`, while the host says what was asked for.
 """
 
 from collections import Counter
 from collections.abc import Sequence
 from typing import assert_never
 
-from tb_internet_use.expanded_tool_call.model import OutputVisibility
 from tb_internet_use.export.judgment_rules import (
-    treat_content_piped_to_consuming_command_as_other_web,
-    treat_content_piped_to_showing_command_as_other_web,
-    treat_discarded_content_as_other_web,
+    treat_discarded_content_as_connectivity_check,
     treat_host_target_that_may_receive_content_as_other_web,
     treat_repository_request_for_no_content_as_other_web,
-    treat_saved_content_from_package_registry_host_as_content_fetch,
-    treat_shown_content_from_registry_or_model_hub_host_as_other_web,
-    treat_shown_content_from_search_engine_host_as_other_web,
+    treat_saved_content_from_unrecognized_url_as_content_fetch,
+    treat_url_request_to_package_registry_host_as_package,
+    treat_url_request_to_search_engine_host_as_search,
 )
 from tb_internet_use.export.model import (
     HostService,
@@ -43,14 +43,20 @@ from tb_internet_use.export.model import (
 )
 from tb_internet_use.network_request.model import (
     ContentDiscarded,
-    ContentPipedToCommand,
     ContentSaved,
-    ContentShownInResult,
     FromWebTool,
     NetworkRequest,
     NetworkRequestTargetKind,
     NoContentRequested,
     UnknownNetworkRequestTargetKind,
+)
+
+# The services of hosts that give a file or a page at a fixed address, e.g. `files.rcsb.org`, so that every URL of them is a content fetch.
+_CONTENT_HOST_SERVICES = (
+    HostService.CODE_HOSTING,
+    HostService.MODEL_HUB,
+    HostService.FILE_HOSTING,
+    HostService.DOCUMENTATION,
 )
 
 
@@ -62,11 +68,9 @@ def export_network_request_category(
 ) -> NetworkRequestCategory:
     """Export the category of a request from the first condition of the module docstring that fits it, reading its target kind, its content destination, its source and the services of its hosts.
 
-    `public_hosts` holds the answers of `ExportKnowledge` for the public hosts among `NetworkRequest.host_names`.
+    `public_hosts` holds the answers of `ExportKnowledge` for the public hosts among `NetworkRequest.host_names`, where the host of a target URL is asked for the path of the URL.
     A target kind that is not known gives `UNKNOWN`, while a target that is not known does not, e.g. `pip install $PKG` is `PACKAGE`.
     A request that asks for no content is `CONNECTIVITY_CHECK` whatever its host, e.g. `ping pypi.org`, unless it is for a repository, which `treat_repository_request_for_no_content_as_other_web` decides.
-    A request for a URL or a repository whose content is saved is `CONTENT_FETCH`, e.g. `git clone u`. So is shown content from a web tool or a code hosting host, e.g. `curl https://github.com/a/b/README.md`.
-    What host services and content destinations cannot tell apart is `OTHER_WEB`, e.g. `curl https://a.org/x` or `curl u | mytool`.
     Each judgment rule adds one to `judgment_rule_use_counts` under its name when it decides a condition.
     """
     target_kind = network_request.target_kind
@@ -80,117 +84,73 @@ def export_network_request_category(
     if isinstance(received_content_destination, NoContentRequested):
         if target_kind != NetworkRequestTargetKind.REPOSITORY_URL:
             return NetworkRequestCategory.CONNECTIVITY_CHECK
-        return _other_web_or_connectivity_check_for(
-            treat_repository_request_for_no_content_as_other_web(
-                network_request, use_counts=judgment_rule_use_counts
-            )
-        )
+        if treat_repository_request_for_no_content_as_other_web(
+            network_request, use_counts=judgment_rule_use_counts
+        ):
+            return NetworkRequestCategory.OTHER_WEB
+        return NetworkRequestCategory.CONNECTIVITY_CHECK
     if isinstance(received_content_destination, ContentDiscarded):
-        return _other_web_or_connectivity_check_for(
-            treat_discarded_content_as_other_web(
-                network_request, use_counts=judgment_rule_use_counts
-            )
-        )
+        if treat_discarded_content_as_connectivity_check(
+            network_request, use_counts=judgment_rule_use_counts
+        ):
+            return NetworkRequestCategory.CONNECTIVITY_CHECK
+        return NetworkRequestCategory.OTHER_WEB
     if target_kind == NetworkRequestTargetKind.HOST:
-        return _other_web_or_connectivity_check_for(
-            treat_host_target_that_may_receive_content_as_other_web(
-                network_request, use_counts=judgment_rule_use_counts
-            )
-        )
+        if treat_host_target_that_may_receive_content_as_other_web(
+            network_request, use_counts=judgment_rule_use_counts
+        ):
+            return NetworkRequestCategory.OTHER_WEB
+        return NetworkRequestCategory.CONNECTIVITY_CHECK
     # The conditions below are only for a URL or a repository, so a target kind added later fails here instead of taking them.
     if (
         target_kind != NetworkRequestTargetKind.URL
         and target_kind != NetworkRequestTargetKind.REPOSITORY_URL
     ):
         assert_never(target_kind)
-    match received_content_destination:
-        case ContentSaved():
-            return _category_for_saved_content(
-                network_request,
-                public_hosts,
-                judgment_rule_use_counts=judgment_rule_use_counts,
-            )
-        case ContentPipedToCommand(visibility_at_end=OutputVisibility.NONE):
-            if treat_content_piped_to_consuming_command_as_other_web(
-                network_request, use_counts=judgment_rule_use_counts
-            ):
-                return NetworkRequestCategory.OTHER_WEB
-            return _category_for_saved_content(
-                network_request,
-                public_hosts,
-                judgment_rule_use_counts=judgment_rule_use_counts,
-            )
-        case ContentPipedToCommand(
-            visibility_at_end=OutputVisibility.WHOLE | OutputVisibility.PARTIAL
-        ):
-            if treat_content_piped_to_showing_command_as_other_web(
-                network_request, use_counts=judgment_rule_use_counts
-            ):
-                return NetworkRequestCategory.OTHER_WEB
-            return _category_for_shown_content(
-                network_request,
-                public_hosts,
-                judgment_rule_use_counts=judgment_rule_use_counts,
-            )
-        case ContentShownInResult():
-            return _category_for_shown_content(
-                network_request,
-                public_hosts,
-                judgment_rule_use_counts=judgment_rule_use_counts,
-            )
-        case _:
-            # A reader that no fact covers, e.g. `curl u | mytool`, or a destination that the trial does not show, e.g. code.
-            return NetworkRequestCategory.OTHER_WEB
+    return _category_for_url_request(
+        network_request,
+        public_hosts,
+        judgment_rule_use_counts=judgment_rule_use_counts,
+    )
 
 
-def _other_web_or_connectivity_check_for(is_other_web: bool) -> NetworkRequestCategory:
-    """Give `OTHER_WEB` for a judgment rule that answers `True` and `CONNECTIVITY_CHECK` for one that answers `False`."""
-    if is_other_web:
-        return NetworkRequestCategory.OTHER_WEB
-    return NetworkRequestCategory.CONNECTIVITY_CHECK
-
-
-def _category_for_saved_content(
+def _category_for_url_request(
     network_request: NetworkRequest,
     public_hosts: Sequence[PublicHost | UnknownPublicHost],
     *,
     judgment_rule_use_counts: Counter[str],
 ) -> NetworkRequestCategory:
-    """Give the category of a request for a URL or a repository whose content is saved, asking a judgment rule when a host is a package registry."""
-    if _has_host_service(public_hosts, HostService.PACKAGE_REGISTRY):
-        if treat_saved_content_from_package_registry_host_as_content_fetch(
-            network_request, use_counts=judgment_rule_use_counts
-        ):
-            return NetworkRequestCategory.CONTENT_FETCH
-        return NetworkRequestCategory.PACKAGE
-    return NetworkRequestCategory.CONTENT_FETCH
-
-
-def _category_for_shown_content(
-    network_request: NetworkRequest,
-    public_hosts: Sequence[PublicHost | UnknownPublicHost],
-    *,
-    judgment_rule_use_counts: Counter[str],
-) -> NetworkRequestCategory:
-    """Give the category of a request for a URL or a repository whose content is shown in the result, by its source and the services of its hosts."""
+    """Give the category of a request for a URL or a repository that asks for content it does not throw away, by its source and target kind, then by the services of its hosts and last by whether its content is saved."""
     if isinstance(network_request.source, FromWebTool):
         return NetworkRequestCategory.CONTENT_FETCH
-    if _has_host_service(public_hosts, HostService.CODE_HOSTING):
+    if network_request.target_kind == NetworkRequestTargetKind.REPOSITORY_URL:
         return NetworkRequestCategory.CONTENT_FETCH
-    if _has_host_service(public_hosts, HostService.SEARCH_ENGINE):
-        if treat_shown_content_from_search_engine_host_as_other_web(
-            network_request, use_counts=judgment_rule_use_counts
-        ):
-            return NetworkRequestCategory.OTHER_WEB
-        return NetworkRequestCategory.SEARCH
-    if _has_host_service(public_hosts, HostService.PACKAGE_REGISTRY) or (
-        _has_host_service(public_hosts, HostService.MODEL_HUB)
+    if _has_host_service(
+        public_hosts, HostService.PACKAGE_REGISTRY
+    ) and treat_url_request_to_package_registry_host_as_package(
+        network_request, use_counts=judgment_rule_use_counts
     ):
-        if treat_shown_content_from_registry_or_model_hub_host_as_other_web(
-            network_request, use_counts=judgment_rule_use_counts
-        ):
-            return NetworkRequestCategory.OTHER_WEB
+        return NetworkRequestCategory.PACKAGE
+    if _has_host_service(
+        public_hosts, HostService.SEARCH_ENGINE
+    ) and treat_url_request_to_search_engine_host_as_search(
+        network_request, use_counts=judgment_rule_use_counts
+    ):
+        return NetworkRequestCategory.SEARCH
+    if _has_host_service(public_hosts, HostService.WEB_API):
+        return NetworkRequestCategory.REMOTE_API_CALL
+    if any(
+        _has_host_service(public_hosts, host_service)
+        for host_service in _CONTENT_HOST_SERVICES
+    ):
         return NetworkRequestCategory.CONTENT_FETCH
+    if isinstance(
+        network_request.received_content_destination, ContentSaved
+    ) and treat_saved_content_from_unrecognized_url_as_content_fetch(
+        network_request, use_counts=judgment_rule_use_counts
+    ):
+        return NetworkRequestCategory.CONTENT_FETCH
+    # Neither a host nor saving the content says what was asked for, e.g. `curl https://a.org/x | mytool` or code.
     return NetworkRequestCategory.OTHER_WEB
 
 

@@ -303,8 +303,8 @@ def test_task_lines_out_of_order_or_below_the_unreadable_trials_differ(
 # (equation, rule names that a changed `export_rows` counts once more), one case for a rule of `export/judgment_rules.py` asked for a request, one for `treat_trial_with_success_line_shared_by_confirmed_requests_as_received`, asked for a category and sender of a trial, one for `treat_dotted_host_name_as_public` and one for a name that is no rule.
 BROKEN_COUNT_CASES = [
     (
-        "treat_discarded_content_as_other_web_uses_equal_its_situations",
-        ["treat_discarded_content_as_other_web"],
+        "treat_discarded_content_as_connectivity_check_uses_equal_its_situations",
+        ["treat_discarded_content_as_connectivity_check"],
     ),
     (
         "treat_dotted_host_name_as_public_uses_equal_its_situations",

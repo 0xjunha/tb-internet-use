@@ -1077,7 +1077,7 @@ def test_a_trial_folder_without_a_detail_file_raises(tmp_path, write_trial_folde
         pytest.param(
             "curl -s -o /dev/null -w '%{http_code}' https://a.org/x; curl -s -o /dev/null -w '%{http_code}' https://b.org/y; ./check.sh",
             "200",
-            NetworkRequestCategory.OTHER_WEB,
+            NetworkRequestCategory.CONNECTIVITY_CHECK,
             False,
             id="curl -w beside a script",
         ),

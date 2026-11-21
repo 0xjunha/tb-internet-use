@@ -9,26 +9,19 @@ from made_up_network_request_rows import build_network_request_row
 
 from tb_internet_use.expanded_tool_call.model import (
     CallCommandText,
-    OutputVisibility,
     UnknownProgramInvocation,
 )
 from tb_internet_use.export.judgment_rules import (
     treat_assumed_failure_as_possibly_received,
     treat_assumed_not_needed_result_as_upper_bound_only,
-    treat_content_piped_to_consuming_command_as_other_web,
-    treat_content_piped_to_showing_command_as_other_web,
     treat_discarded_content_as_connectivity_check,
-    treat_discarded_content_as_other_web,
     treat_host_target_that_may_receive_content_as_other_web,
     treat_local_or_single_label_host_name_of_web_tool_as_unknown_internet_use,
     treat_repository_request_for_no_content_as_other_web,
     treat_request_of_unknown_sender_as_possibly_from_task_environment,
     treat_request_without_host_name_as_sent_to_default_registry_host,
     treat_reserved_host_name_as_unknown_internet_use,
-    treat_saved_content_from_package_registry_host_as_content_fetch,
     treat_saved_content_from_unrecognized_url_as_content_fetch,
-    treat_shown_content_from_registry_or_model_hub_host_as_other_web,
-    treat_shown_content_from_search_engine_host_as_other_web,
     treat_single_label_host_name_as_not_internet_use,
     treat_templated_host_name_as_unknown_internet_use,
     treat_trial_with_success_line_shared_by_confirmed_requests_as_received,
@@ -48,7 +41,6 @@ from tb_internet_use.export.model import (
 )
 from tb_internet_use.network_request.model import (
     ContentDiscarded,
-    ContentPipedToCommand,
     ContentSaved,
     ContentShownInResult,
     FromCommand,
@@ -203,18 +195,6 @@ JUDGMENT_RULE_CASES: list[tuple[Callable[..., object], tuple[object, ...], objec
         True,
     ),
     (
-        treat_discarded_content_as_other_web,
-        (
-            _request(
-                ("curl", "https://a.org/x"),
-                NetworkRequestTargetKind.URL,
-                ContentDiscarded(),
-                "a.org",
-            ),
-        ),
-        True,
-    ),
-    (
         treat_discarded_content_as_connectivity_check,
         (
             _request(
@@ -270,66 +250,6 @@ JUDGMENT_RULE_CASES: list[tuple[Callable[..., object], tuple[object, ...], objec
                 NetworkRequestTargetKind.URL,
                 ContentSaved("x"),
                 "a.org",
-            ),
-        ),
-        True,
-    ),
-    (
-        treat_saved_content_from_package_registry_host_as_content_fetch,
-        (
-            _request(
-                ("wget", "https://pypi.org/packages/x.whl"),
-                NetworkRequestTargetKind.URL,
-                ContentSaved("x.whl"),
-                "pypi.org",
-            ),
-        ),
-        True,
-    ),
-    (
-        treat_content_piped_to_consuming_command_as_other_web,
-        (
-            _request(
-                ("curl", "https://a.org/x.tgz"),
-                NetworkRequestTargetKind.URL,
-                ContentPipedToCommand(1, OutputVisibility.NONE),
-                "a.org",
-            ),
-        ),
-        True,
-    ),
-    (
-        treat_content_piped_to_showing_command_as_other_web,
-        (
-            _request(
-                ("curl", "https://a.org/x"),
-                NetworkRequestTargetKind.URL,
-                ContentPipedToCommand(1, OutputVisibility.PARTIAL),
-                "a.org",
-            ),
-        ),
-        True,
-    ),
-    (
-        treat_shown_content_from_search_engine_host_as_other_web,
-        (
-            _request(
-                ("curl", "https://duckduckgo.com/html?q=x"),
-                NetworkRequestTargetKind.URL,
-                ContentShownInResult(),
-                "duckduckgo.com",
-            ),
-        ),
-        True,
-    ),
-    (
-        treat_shown_content_from_registry_or_model_hub_host_as_other_web,
-        (
-            _request(
-                ("curl", "https://pypi.org/project/requests/"),
-                NetworkRequestTargetKind.URL,
-                ContentShownInResult(),
-                "pypi.org",
             ),
         ),
         True,

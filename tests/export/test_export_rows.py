@@ -16,9 +16,10 @@ from tb_internet_use.expanded_tool_call.model import (
 from tb_internet_use.export import export_rows
 from tb_internet_use.export.judgment_rules import (
     treat_assumed_failure_as_possibly_received,
-    treat_discarded_content_as_other_web,
+    treat_discarded_content_as_connectivity_check,
     treat_request_of_unknown_sender_as_possibly_from_task_environment,
     treat_request_without_host_name_as_sent_to_default_registry_host,
+    treat_saved_content_from_unrecognized_url_as_content_fetch,
     treat_url_query_value_and_fragment_as_credential,
 )
 from tb_internet_use.export.model import (
@@ -95,7 +96,10 @@ DEFAULT_REGISTRY_RULE = (
     treat_request_without_host_name_as_sent_to_default_registry_host.__name__
 )
 ASSUMED_FAILURE_RULE = treat_assumed_failure_as_possibly_received.__name__
-DISCARDED_CONTENT_RULE = treat_discarded_content_as_other_web.__name__
+DISCARDED_CONTENT_RULE = treat_discarded_content_as_connectivity_check.__name__
+SAVED_FROM_UNRECOGNIZED_URL_RULE = (
+    treat_saved_content_from_unrecognized_url_as_content_fetch.__name__
+)
 CREDENTIAL_RULE = treat_url_query_value_and_fragment_as_credential.__name__
 UNKNOWN_SENDER_RULE = (
     treat_request_of_unknown_sender_as_possibly_from_task_environment.__name__
@@ -497,9 +501,14 @@ def test_example_of_the_pipeline_example_reaches_its_last_table(
         ),
     )
     assert trial_row == _trial_row(READ_TRIAL, LOWER_AND_UPPER, UPPER_ONLY)
-    # Three named hosts and `pypi.org`, the default host of `pip install`, are dotted names read as public.
+    # Three named hosts and `pypi.org`, the default host of `pip install`, are dotted names read as public. The three saved files come from hosts without a row.
     assert judgment_rule_use_counts == Counter(
-        {DOTTED_HOST_RULE: 4, ASSUMED_FAILURE_RULE: 2, DEFAULT_REGISTRY_RULE: 1}
+        {
+            DOTTED_HOST_RULE: 4,
+            ASSUMED_FAILURE_RULE: 2,
+            DEFAULT_REGISTRY_RULE: 1,
+            SAVED_FROM_UNRECOGNIZED_URL_RULE: 3,
+        }
     )
 
 

@@ -338,6 +338,16 @@ def _destination(
             NoContentRequested(),
             id="ping pypi.org",
         ),
+        # A lookup of a name prints the address and asks the host itself for nothing.
+        pytest.param(
+            {
+                "program_invocation": _invocation(
+                    "getent", ("hosts",), arguments=("pypi.org",)
+                )
+            },
+            NoContentRequested(),
+            id="getent hosts pypi.org",
+        ),
         pytest.param(
             {
                 "program_invocation": _invocation(

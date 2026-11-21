@@ -30,17 +30,17 @@ from tb_internet_use.export._export_network_request_row import (
 from tb_internet_use.export.judgment_rules import (
     treat_assumed_failure_as_possibly_received,
     treat_assumed_not_needed_result_as_upper_bound_only,
-    treat_discarded_content_as_other_web,
+    treat_discarded_content_as_connectivity_check,
     treat_host_target_that_may_receive_content_as_other_web,
     treat_local_or_single_label_host_name_of_web_tool_as_unknown_internet_use,
     treat_repository_request_for_no_content_as_other_web,
     treat_request_without_host_name_as_sent_to_default_registry_host,
     treat_reserved_host_name_as_unknown_internet_use,
-    treat_saved_content_from_package_registry_host_as_content_fetch,
-    treat_shown_content_from_search_engine_host_as_other_web,
     treat_single_label_host_name_as_not_internet_use,
     treat_templated_host_name_as_unknown_internet_use,
     treat_url_query_value_and_fragment_as_credential,
+    treat_url_request_to_package_registry_host_as_package,
+    treat_url_request_to_search_engine_host_as_search,
     treat_web_tool_request_without_host_name_as_internet_use,
 )
 from tb_internet_use.export.model import (
@@ -134,21 +134,21 @@ CREDENTIAL_RULE = treat_url_query_value_and_fragment_as_credential.__name__
 REPOSITORY_REQUEST_FOR_NO_CONTENT_RULE = (
     treat_repository_request_for_no_content_as_other_web.__name__
 )
-DISCARDED_CONTENT_RULE = treat_discarded_content_as_other_web.__name__
+DISCARDED_CONTENT_RULE = treat_discarded_content_as_connectivity_check.__name__
 HOST_TARGET_RULE = treat_host_target_that_may_receive_content_as_other_web.__name__
-SAVED_FROM_PACKAGE_REGISTRY_RULE = (
-    treat_saved_content_from_package_registry_host_as_content_fetch.__name__
+PACKAGE_REGISTRY_HOST_RULE = (
+    treat_url_request_to_package_registry_host_as_package.__name__
 )
-SHOWN_FROM_SEARCH_ENGINE_RULE = (
-    treat_shown_content_from_search_engine_host_as_other_web.__name__
-)
+SEARCH_ENGINE_HOST_RULE = treat_url_request_to_search_engine_host_as_search.__name__
 
-# The made-up host catalog. `a.org` and `api.github.com` have no row, and `huggingface.co` gives an API at the paths under `/api/`.
+# The made-up host catalog. `a.org` has no row, `huggingface.co` gives an API at the paths under `/api/`, and `api.github.com` search results at the paths under `/search/`.
 PUBLIC_HOST_ROWS = (
     "pypi.org,,package_registry,pypi",
     "github.com,,code_hosting,",
     "huggingface.co,/api/,web_api,",
     "huggingface.co,,model_hub,",
+    "api.github.com,/search/,search_engine,",
+    "api.github.com,,web_api,",
     "duckduckgo.com,,search_engine,",
 )
 # The made-up web tool catalog. Claude Code `Fetch` has no row.
@@ -947,6 +947,56 @@ def test_knowledge_class_is_asked_with_the_path_of_the_target_for_the_host_of_th
 
 # (case, request, expected columns, judgment rules counted with their uses)
 COLUMN_CASES: list[tuple[str, NetworkRequest, dict[str, object], dict[str, int]]] = [
+    # A host whose rows differ by path gives the service of the row for the path of the target, and of its blank row for another path or none.
+    (
+        "curl 'https://huggingface.co/api/models?search=x'",
+        _curl("https://huggingface.co/api/models?search=x", "huggingface.co"),
+        {
+            "category": NetworkRequestCategory.REMOTE_API_CALL,
+            "host_service": "web_api",
+        },
+        {DOTTED_HOST_RULE: 1, CREDENTIAL_RULE: 1},
+    ),
+    (
+        "curl -O https://huggingface.co/a/b/resolve/main/model.bin",
+        _curl(
+            "https://huggingface.co/a/b/resolve/main/model.bin",
+            "huggingface.co",
+            ContentSaved("model.bin"),
+        ),
+        {"category": NetworkRequestCategory.CONTENT_FETCH, "host_service": "model_hub"},
+        {DOTTED_HOST_RULE: 1},
+    ),
+    (
+        'code `"https://huggingface.co"`',
+        _request(
+            FromCode(0, ArgumentText(0), CodeLanguage.PYTHON, "requests.get"),
+            "https://huggingface.co",
+            URL,
+            UnknownReceivedContentDestination(),
+            "huggingface.co",
+        ),
+        {"category": NetworkRequestCategory.CONTENT_FETCH, "host_service": "model_hub"},
+        {DOTTED_HOST_RULE: 1},
+    ),
+    (
+        "curl 'https://api.github.com/search/code?q=x'",
+        _curl("https://api.github.com/search/code?q=x", "api.github.com"),
+        {
+            "category": NetworkRequestCategory.SEARCH,
+            "host_service": "search_engine",
+        },
+        {DOTTED_HOST_RULE: 1, SEARCH_ENGINE_HOST_RULE: 1, CREDENTIAL_RULE: 1},
+    ),
+    (
+        "curl https://api.github.com/repos/a/b",
+        _curl("https://api.github.com/repos/a/b", "api.github.com"),
+        {
+            "category": NetworkRequestCategory.REMOTE_API_CALL,
+            "host_service": "web_api",
+        },
+        {DOTTED_HOST_RULE: 1},
+    ),
     (
         "pip install git+https://github.com/a/b",
         _request(
@@ -999,26 +1049,18 @@ COLUMN_CASES: list[tuple[str, NetworkRequest, dict[str, object], dict[str, int]]
             "pypi.org",
         ),
         {
-            "category": NetworkRequestCategory.CONTENT_FETCH,
+            "category": NetworkRequestCategory.PACKAGE,
             "host_service": "package_registry",
-            "package_registry": "",
+            "package_registry": "pypi",
             "received_content_destination": "saved",
         },
-        {DOTTED_HOST_RULE: 1, SAVED_FROM_PACKAGE_REGISTRY_RULE: 1},
-    ),
-    (
-        "curl -O https://huggingface.co/m/model.bin",
-        _curl(
-            "https://huggingface.co/m/model.bin", "huggingface.co", ContentSaved(None)
-        ),
-        {"category": NetworkRequestCategory.CONTENT_FETCH, "host_service": "model_hub"},
-        {DOTTED_HOST_RULE: 1},
+        {DOTTED_HOST_RULE: 1, PACKAGE_REGISTRY_HOST_RULE: 1},
     ),
     (
         "curl -s -o /dev/null https://a.org/x",
         _curl("https://a.org/x", "a.org", ContentDiscarded()),
         {
-            "category": NetworkRequestCategory.OTHER_WEB,
+            "category": NetworkRequestCategory.CONNECTIVITY_CHECK,
             "received_content_destination": "discarded",
         },
         {DOTTED_HOST_RULE: 1, DISCARDED_CONTENT_RULE: 1},
@@ -1027,10 +1069,10 @@ COLUMN_CASES: list[tuple[str, NetworkRequest, dict[str, object], dict[str, int]]
         "curl 'https://duckduckgo.com/html?q=x'",
         _curl("https://duckduckgo.com/html?q=x", "duckduckgo.com"),
         {
-            "category": NetworkRequestCategory.OTHER_WEB,
+            "category": NetworkRequestCategory.SEARCH,
             "target": "https://duckduckgo.com/html?q=REDACTED",
         },
-        {DOTTED_HOST_RULE: 1, SHOWN_FROM_SEARCH_ENGINE_RULE: 1, CREDENTIAL_RULE: 1},
+        {DOTTED_HOST_RULE: 1, SEARCH_ENGINE_HOST_RULE: 1, CREDENTIAL_RULE: 1},
     ),
     (
         "requests.get in Python code",
