@@ -49,7 +49,7 @@ _BASH_CALLS_OF_TRIAL = {
     ],
     "t3": [("ls", "notes.txt")],
     "t4": None,
-    # Two wget requests own one `saved` line, which only wget prints, so the trial counts in the lower bound of received fetched files although each request stays assumed.
+    # Two wget requests own one `saved` line, which only wget prints, so the trial counts in the lower bound of received file fetches although each request stays assumed.
     "t6": [
         (
             "wget https://a.org/x.tgz https://a.org/y.tgz; ./check.sh",
@@ -254,8 +254,8 @@ BROKEN_FILE_CASES = [
     (
         "measure_rows_above_their_request_rows_equal_categories_and_senders_with_success_line_owners",
         "trial_category_measure_rows.csv",
-        "t6,fetched_file,task_environment,lower_and_upper,lower_and_upper",
-        "t6,fetched_file,task_environment,lower_and_upper,upper_only",
+        "t6,file_fetch,task_environment,lower_and_upper,lower_and_upper",
+        "t6,file_fetch,task_environment,lower_and_upper,upper_only",
     ),
     (
         "task_lines_whose_trial_count_differs_from_trial_rows",

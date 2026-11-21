@@ -39,7 +39,7 @@ from tb_internet_use.export.judgment_rules import (
     treat_request_of_unknown_sender_as_possibly_from_task_environment,
     treat_request_without_host_name_as_sent_to_default_registry_host,
     treat_reserved_host_name_as_unknown_internet_use,
-    treat_saved_content_from_package_registry_host_as_fetched_file,
+    treat_saved_content_from_package_registry_host_as_file_fetch,
     treat_shown_content_from_registry_or_model_hub_host_as_other_web,
     treat_shown_content_from_search_engine_host_as_other_web,
     treat_single_label_host_name_as_not_internet_use,
@@ -370,7 +370,7 @@ def situation_counts_of(
         treat_host_target_that_may_receive_content_as_other_web: row.target_kind
         == NetworkRequestTargetKind.HOST
         and row.received_content_destination not in ("not_requested", "discarded"),
-        treat_saved_content_from_package_registry_host_as_fetched_file: row.received_content_destination
+        treat_saved_content_from_package_registry_host_as_file_fetch: row.received_content_destination
         == "saved"
         and row.target_kind in _URL_OR_REPOSITORY
         and "package_registry" in host_services,

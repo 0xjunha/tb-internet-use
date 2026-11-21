@@ -1,7 +1,7 @@
 """Export the category of one network request by what it tried to get, from the materials in the text that sent it and the services of its public hosts.
 
 The category never reads the response or how a saved file was used later, so a command gets the same category whether it succeeded or failed.
-For example, `curl -o page.html u` is a fetched file even when a later call only runs `cat page.html`.
+For example, `curl -o page.html u` is a file fetch even when a later call only runs `cat page.html`.
 
 A request gets its category from the first condition below that fits it.
 
@@ -11,7 +11,7 @@ A request gets its category from the first condition below that fits it.
 - A request that asks for no content gives `CONNECTIVITY_CHECK`, unless its target is a repository, which a judgment rule decides.
 - A request whose content is thrown away is decided by a judgment rule.
 - A request for a host alone that may receive content is decided by a judgment rule.
-- Saved content gives `FETCHED_FILE`, unless a host is a package registry, which a judgment rule decides.
+- Saved content gives `FILE_FETCH`, unless a host is a package registry, which a judgment rule decides.
 - Content piped to a command that shows none of it is decided by a judgment rule, and otherwise gets the category of saved content.
 - Content piped to a command that shows all or part of it is decided by a judgment rule, and otherwise gets the category of shown content.
 - Shown content from a web tool or from a code hosting host gives `PAGE_READ`.
@@ -31,7 +31,7 @@ from tb_internet_use.export.judgment_rules import (
     treat_discarded_content_as_other_web,
     treat_host_target_that_may_receive_content_as_other_web,
     treat_repository_request_for_no_content_as_other_web,
-    treat_saved_content_from_package_registry_host_as_fetched_file,
+    treat_saved_content_from_package_registry_host_as_file_fetch,
     treat_shown_content_from_registry_or_model_hub_host_as_other_web,
     treat_shown_content_from_search_engine_host_as_other_web,
 )
@@ -65,7 +65,7 @@ def export_network_request_category(
     `public_hosts` holds the answers of `ExportKnowledge` for the public hosts among `NetworkRequest.host_names`.
     A target kind that is not known gives `UNKNOWN`, while a target that is not known does not, e.g. `pip install $PKG` is `PACKAGE`.
     A request that asks for no content is `CONNECTIVITY_CHECK` whatever its host, e.g. `ping pypi.org`, unless it is for a repository, which `treat_repository_request_for_no_content_as_other_web` decides.
-    A request for a URL or a repository whose content is saved is `FETCHED_FILE`, e.g. `git clone u`. Shown content is `PAGE_READ` from a web tool or a code hosting host, e.g. `curl https://github.com/a/b/README.md`.
+    A request for a URL or a repository whose content is saved is `FILE_FETCH`, e.g. `git clone u`. Shown content is `PAGE_READ` from a web tool or a code hosting host, e.g. `curl https://github.com/a/b/README.md`.
     What host services and content destinations cannot tell apart is `OTHER_WEB`, e.g. `curl https://a.org/x` or `curl u | mytool`.
     Each judgment rule adds one to `judgment_rule_use_counts` under its name when it decides a condition.
     """
@@ -158,12 +158,12 @@ def _category_for_saved_content(
 ) -> NetworkRequestCategory:
     """Give the category of a request for a URL or a repository whose content is saved, asking a judgment rule when a host is a package registry."""
     if _has_host_service(public_hosts, HostService.PACKAGE_REGISTRY):
-        if treat_saved_content_from_package_registry_host_as_fetched_file(
+        if treat_saved_content_from_package_registry_host_as_file_fetch(
             network_request, use_counts=judgment_rule_use_counts
         ):
-            return NetworkRequestCategory.FETCHED_FILE
+            return NetworkRequestCategory.FILE_FETCH
         return NetworkRequestCategory.PACKAGE
-    return NetworkRequestCategory.FETCHED_FILE
+    return NetworkRequestCategory.FILE_FETCH
 
 
 def _category_for_shown_content(

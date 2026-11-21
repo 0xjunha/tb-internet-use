@@ -898,7 +898,7 @@ def test_runs_every_step_on_a_trial_folder_and_keeps_the_counters_of_each_step_a
     assert [
         (row.made_by, row.target, row.category) for row in network_request_rows
     ] == [
-        ("wget", "https://files.acme.org/x.tgz", NetworkRequestCategory.FETCHED_FILE),
+        ("wget", "https://files.acme.org/x.tgz", NetworkRequestCategory.FILE_FETCH),
         ("pip install", "", NetworkRequestCategory.PACKAGE),
         ("mytool", "https://b.org/y", NetworkRequestCategory.OTHER_WEB),
     ]
@@ -906,7 +906,7 @@ def test_runs_every_step_on_a_trial_folder_and_keeps_the_counters_of_each_step_a
     assert {
         (row.category, row.request_measure_bound) for row in trial_category_measure_rows
     } == {
-        (NetworkRequestCategory.FETCHED_FILE, MeasureBound.LOWER_AND_UPPER),
+        (NetworkRequestCategory.FILE_FETCH, MeasureBound.LOWER_AND_UPPER),
         (NetworkRequestCategory.PACKAGE, MeasureBound.LOWER_AND_UPPER),
         # mytool is an uncertain request.
         (NetworkRequestCategory.OTHER_WEB, MeasureBound.UPPER_ONLY),
@@ -1092,7 +1092,7 @@ def test_a_trial_folder_without_a_detail_file_raises(tmp_path, write_trial_folde
         pytest.param(
             "wget https://a.org/x.tgz https://a.org/y.tgz; ./check.sh",
             "'x.tgz' saved [1024/1024]",
-            NetworkRequestCategory.FETCHED_FILE,
+            NetworkRequestCategory.FILE_FETCH,
             True,
             id="wget saved beside a script",
         ),

@@ -21,7 +21,7 @@ from tb_internet_use.export.judgment_rules import (
     treat_discarded_content_as_other_web,
     treat_host_target_that_may_receive_content_as_other_web,
     treat_repository_request_for_no_content_as_other_web,
-    treat_saved_content_from_package_registry_host_as_fetched_file,
+    treat_saved_content_from_package_registry_host_as_file_fetch,
     treat_shown_content_from_registry_or_model_hub_host_as_other_web,
     treat_shown_content_from_search_engine_host_as_other_web,
 )
@@ -54,7 +54,7 @@ from tb_internet_use.network_request.model import (
 from tb_internet_use.tool_call.model import HarnessTool, ToolCallKey
 
 PACKAGE = NetworkRequestCategory.PACKAGE
-FETCHED_FILE = NetworkRequestCategory.FETCHED_FILE
+FILE_FETCH = NetworkRequestCategory.FILE_FETCH
 SEARCH = NetworkRequestCategory.SEARCH
 PAGE_READ = NetworkRequestCategory.PAGE_READ
 CONNECTIVITY_CHECK = NetworkRequestCategory.CONNECTIVITY_CHECK
@@ -80,7 +80,7 @@ REPOSITORY_REQUEST_FOR_NO_CONTENT_RULE = (
 DISCARDED_CONTENT_RULE = treat_discarded_content_as_other_web.__name__
 HOST_TARGET_RULE = treat_host_target_that_may_receive_content_as_other_web.__name__
 SAVED_FROM_PACKAGE_REGISTRY_RULE = (
-    treat_saved_content_from_package_registry_host_as_fetched_file.__name__
+    treat_saved_content_from_package_registry_host_as_file_fetch.__name__
 )
 PIPED_TO_CONSUMING_COMMAND_RULE = (
     treat_content_piped_to_consuming_command_as_other_web.__name__
@@ -328,7 +328,7 @@ CASES: list[
         "`wget https://pypi.org/packages/x.whl`",
         WGET_WHEEL,
         [PYPI],
-        FETCHED_FILE,
+        FILE_FETCH,
         [SAVED_FROM_PACKAGE_REGISTRY_RULE],
     ),
     # Saved content from a repository on code hosting, from a host without a row and from a model hub. A later read of the file does not change it.
@@ -342,7 +342,7 @@ CASES: list[
             "github.com",
         ),
         [GITHUB],
-        FETCHED_FILE,
+        FILE_FETCH,
         [],
     ),
     (
@@ -355,7 +355,7 @@ CASES: list[
             "a.org",
         ),
         [NO_ROW],
-        FETCHED_FILE,
+        FILE_FETCH,
         [],
     ),
     (
@@ -368,7 +368,7 @@ CASES: list[
             "huggingface.co",
         ),
         [HUGGINGFACE],
-        FETCHED_FILE,
+        FILE_FETCH,
         [],
     ),
     # Content piped to a command that shows none of it.
@@ -592,12 +592,12 @@ OTHER_ANSWER_CASES: list[
     (HOST_TARGET_RULE, SOCKET_CONNECTION, [], CONNECTIVITY_CHECK, []),
     (SAVED_FROM_PACKAGE_REGISTRY_RULE, WGET_WHEEL, [PYPI], PACKAGE, []),
     # Content piped to a command that shows none of it gets the category of saved content, which asks the rule about saved content only when a host is a package registry.
-    (PIPED_TO_CONSUMING_COMMAND_RULE, CURL_TO_TAR, [NO_ROW], FETCHED_FILE, []),
+    (PIPED_TO_CONSUMING_COMMAND_RULE, CURL_TO_TAR, [NO_ROW], FILE_FETCH, []),
     (
         PIPED_TO_CONSUMING_COMMAND_RULE,
         CURL_TO_TAR,
         [PYPI],
-        FETCHED_FILE,
+        FILE_FETCH,
         [SAVED_FROM_PACKAGE_REGISTRY_RULE],
     ),
     # Content piped to a command that shows it gets the category of shown content.

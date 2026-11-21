@@ -56,7 +56,7 @@ LOWER_AND_UPPER = MeasureBound.LOWER_AND_UPPER
 UPPER_ONLY = MeasureBound.UPPER_ONLY
 NEITHER = MeasureBound.NEITHER
 TASK_ENVIRONMENT = NetworkRequestSender.TASK_ENVIRONMENT
-FETCHED_FILE = NetworkRequestCategory.FETCHED_FILE
+FILE_FETCH = NetworkRequestCategory.FILE_FETCH
 
 # The commands of a made-up trial with requests, i.e. a request for a file that runs only when the file is missing, a package of a variable and a URL of a program without a row, then a script whose text the trial does not hold, which prints a download line that no request owns.
 _COMMANDS_WITH_REQUESTS = [
@@ -238,12 +238,12 @@ def _write_raw_trials(raw_trials_dir: Path, write_trial_folder) -> None:
 
 
 def test_counts_the_main_measure_of_a_task_from_a_trial_with_requests_one_without_and_one_unreadable():
-    # The trial with requests has a fetched file received and confirmed, a package of unknown internet use and a search of the provider server.
-    fetched_file_row = _network_request_row(
-        "t1", FETCHED_FILE, TASK_ENVIRONMENT, LOWER_AND_UPPER, LOWER_AND_UPPER
+    # The trial with requests has a file fetch received and confirmed, a package of unknown internet use and a search of the provider server.
+    file_fetch_row = _network_request_row(
+        "t1", FILE_FETCH, TASK_ENVIRONMENT, LOWER_AND_UPPER, LOWER_AND_UPPER
     )
     network_request_rows = (
-        fetched_file_row,
+        file_fetch_row,
         _network_request_row(
             "t1",
             NetworkRequestCategory.PACKAGE,
@@ -295,7 +295,7 @@ def test_counts_the_main_measure_of_a_task_from_a_trial_with_requests_one_withou
 
     lines_by_category_and_sender = {(line[2], line[3]): line[4:] for line in lines}
     # Trials, request lower and upper, received lower and upper, request rows.
-    assert lines_by_category_and_sender["fetched_file", "task_environment"] == (
+    assert lines_by_category_and_sender["file_fetch", "task_environment"] == (
         3,
         1,
         2,
@@ -344,7 +344,7 @@ def test_a_task_without_any_main_measure_row_has_no_line():
 def test_writes_none_as_a_blank_a_bool_as_true_or_false_and_an_enum_as_its_value():
     trial_row, _ = _rows_of_trial(_trial("t1"))
     network_request_row = _network_request_row(
-        "t1", FETCHED_FILE, TASK_ENVIRONMENT, LOWER_AND_UPPER, LOWER_AND_UPPER
+        "t1", FILE_FETCH, TASK_ENVIRONMENT, LOWER_AND_UPPER, LOWER_AND_UPPER
     )
 
     trial_cells = run_pipeline.csv_cells_of(trial_row)
@@ -362,7 +362,7 @@ def test_writes_none_as_a_blank_a_bool_as_true_or_false_and_an_enum_as_its_value
         request_cells["unknown_target_reason"],
         request_cells["category"],
         request_cells["step_id"],
-    ) == ("true", "", "fetched_file", 1)
+    ) == ("true", "", "file_fetch", 1)
 
 
 def test_main_writes_the_rows_sorted_by_trial_id_and_every_equation_holds(
@@ -735,7 +735,7 @@ def _equation_sides(
 
 
 _RECEIVED_ROW = _network_request_row(
-    "t1", FETCHED_FILE, TASK_ENVIRONMENT, LOWER_AND_UPPER, LOWER_AND_UPPER
+    "t1", FILE_FETCH, TASK_ENVIRONMENT, LOWER_AND_UPPER, LOWER_AND_UPPER
 )
 _UNREADABLE_TRIAL = _trial(
     "t1", unreadable_trajectory=UnreadableTrajectory(UnreadableTrajectoryReason.MISSING)

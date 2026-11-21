@@ -41,7 +41,7 @@ HARNESS_PROCESS = NetworkRequestSender.HARNESS_PROCESS
 PROVIDER_SERVER = NetworkRequestSender.PROVIDER_SERVER
 UNKNOWN_SENDER = NetworkRequestSender.UNKNOWN
 PACKAGE = NetworkRequestCategory.PACKAGE
-FETCHED_FILE = NetworkRequestCategory.FETCHED_FILE
+FILE_FETCH = NetworkRequestCategory.FILE_FETCH
 PAGE_READ = NetworkRequestCategory.PAGE_READ
 SEARCH = NetworkRequestCategory.SEARCH
 OTHER_WEB = NetworkRequestCategory.OTHER_WEB
@@ -258,7 +258,7 @@ NETWORK_REQUEST_ROWS = [
     _request_row(
         "t5",
         0,
-        FETCHED_FILE,
+        FILE_FETCH,
         LOWER_AND_UPPER,
         NEITHER,
         made_by="git clone",

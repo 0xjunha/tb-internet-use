@@ -36,7 +36,7 @@ from tb_internet_use.export.judgment_rules import (
     treat_repository_request_for_no_content_as_other_web,
     treat_request_without_host_name_as_sent_to_default_registry_host,
     treat_reserved_host_name_as_unknown_internet_use,
-    treat_saved_content_from_package_registry_host_as_fetched_file,
+    treat_saved_content_from_package_registry_host_as_file_fetch,
     treat_shown_content_from_search_engine_host_as_other_web,
     treat_single_label_host_name_as_not_internet_use,
     treat_templated_host_name_as_unknown_internet_use,
@@ -137,7 +137,7 @@ REPOSITORY_REQUEST_FOR_NO_CONTENT_RULE = (
 DISCARDED_CONTENT_RULE = treat_discarded_content_as_other_web.__name__
 HOST_TARGET_RULE = treat_host_target_that_may_receive_content_as_other_web.__name__
 SAVED_FROM_PACKAGE_REGISTRY_RULE = (
-    treat_saved_content_from_package_registry_host_as_fetched_file.__name__
+    treat_saved_content_from_package_registry_host_as_file_fetch.__name__
 )
 SHOWN_FROM_SEARCH_ENGINE_RULE = (
     treat_shown_content_from_search_engine_host_as_other_web.__name__
@@ -926,7 +926,7 @@ COLUMN_CASES: list[tuple[str, NetworkRequest, dict[str, object], dict[str, int]]
             "github.com",
         ),
         {
-            "category": NetworkRequestCategory.FETCHED_FILE,
+            "category": NetworkRequestCategory.FILE_FETCH,
             "host_scope": "public",
             "host_service": "code_hosting",
             "is_internet_use": True,
@@ -968,7 +968,7 @@ COLUMN_CASES: list[tuple[str, NetworkRequest, dict[str, object], dict[str, int]]
             "pypi.org",
         ),
         {
-            "category": NetworkRequestCategory.FETCHED_FILE,
+            "category": NetworkRequestCategory.FILE_FETCH,
             "host_service": "package_registry",
             "package_registry": "",
             "received_content_destination": "saved",
@@ -980,7 +980,7 @@ COLUMN_CASES: list[tuple[str, NetworkRequest, dict[str, object], dict[str, int]]
         _curl(
             "https://huggingface.co/m/model.bin", "huggingface.co", ContentSaved(None)
         ),
-        {"category": NetworkRequestCategory.FETCHED_FILE, "host_service": "model_hub"},
+        {"category": NetworkRequestCategory.FILE_FETCH, "host_service": "model_hub"},
         {DOTTED_HOST_RULE: 1},
     ),
     (

@@ -58,8 +58,8 @@ TRIAL_ROW_OF_READ_TRIAL_WITHOUT_REQUESTS = TrialRow(
 
 
 # Request rows of one trial that stand for made-up results by their category, sender and bounds alone, i.e. a confirmed receipt of a file, a receipt whose internet use is not known, a search sent from the provider server, a page read by a fetch tool of the harness and a page read by a web tool whose sender is not known.
-FETCHED_FILE_ROW = build_network_request_row(
-    NetworkRequestCategory.FETCHED_FILE,
+FILE_FETCH_ROW = build_network_request_row(
+    NetworkRequestCategory.FILE_FETCH,
     TASK_ENVIRONMENT,
     LOWER_AND_UPPER,
     LOWER_AND_UPPER,
@@ -118,7 +118,7 @@ def test_trial_row_of_an_unreadable_trajectory_keeps_the_reason_and_counts_only_
         (
             (
                 PACKAGE_ROW_WITH_UNKNOWN_INTERNET_USE,
-                FETCHED_FILE_ROW,
+                FILE_FETCH_ROW,
                 SEARCH_ROW_FROM_PROVIDER_SERVER,
             ),
             LOWER_AND_UPPER,
@@ -160,7 +160,7 @@ def test_trial_row_of_an_unreadable_trajectory_keeps_the_reason_and_counts_only_
             (
                 PAGE_READ_ROW_FROM_UNKNOWN_SENDER,
                 PACKAGE_ROW_WITH_UNKNOWN_INTERNET_USE,
-                FETCHED_FILE_ROW,
+                FILE_FETCH_ROW,
             ),
             LOWER_AND_UPPER,
             LOWER_AND_UPPER,
@@ -169,7 +169,7 @@ def test_trial_row_of_an_unreadable_trajectory_keeps_the_reason_and_counts_only_
         (
             (
                 build_network_request_row(
-                    NetworkRequestCategory.FETCHED_FILE,
+                    NetworkRequestCategory.FILE_FETCH,
                     TASK_ENVIRONMENT,
                     LOWER_AND_UPPER,
                     UPPER_ONLY,
@@ -199,12 +199,12 @@ def test_trial_row_takes_the_strongest_bounds_among_the_rows_of_the_task_environ
 
 
 def test_trial_row_refuses_request_rows_of_another_trial():
-    row_of_another_trial = dataclasses.replace(FETCHED_FILE_ROW, trial_id="t2")
+    row_of_another_trial = dataclasses.replace(FILE_FETCH_ROW, trial_id="t2")
 
     with pytest.raises(ValueError):
         export_trial_row(
             READ_TRIAL,
-            (FETCHED_FILE_ROW, row_of_another_trial),
+            (FILE_FETCH_ROW, row_of_another_trial),
             judgment_rule_use_counts=Counter(),
         )
 
@@ -221,7 +221,7 @@ def test_trial_row_asks_the_unknown_sender_rule_once_for_each_row_whose_sender_i
         READ_TRIAL,
         (
             PAGE_READ_ROW_FROM_UNKNOWN_SENDER,
-            FETCHED_FILE_ROW,
+            FILE_FETCH_ROW,
             SEARCH_ROW_FROM_PROVIDER_SERVER,
             PAGE_READ_ROW_FROM_UNKNOWN_SENDER,
         ),

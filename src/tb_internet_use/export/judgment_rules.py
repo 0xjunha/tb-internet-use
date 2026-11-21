@@ -47,7 +47,7 @@ def treat_repository_request_for_no_content_as_other_web(
 ) -> bool:
     """Put a request to a repository that asks for no content in the other web category, e.g. `git push origin main`.
 
-    Such a request sends to a repository and receives nothing, so it is neither a fetched file nor a plain check that a host answers.
+    Such a request sends to a repository and receives nothing, so it is neither a file fetch nor a plain check that a host answers.
     `export_network_request_category` asks it for a request whose target kind is `REPOSITORY_URL` and whose content destination is `NoContentRequested`.
     On `True` the category is `OTHER_WEB`. On `False` it is `CONNECTIVITY_CHECK`, as for any other request that asks for no content.
     A use is such a request.
@@ -90,21 +90,21 @@ def treat_host_target_that_may_receive_content_as_other_web(
     return True
 
 
-def treat_saved_content_from_package_registry_host_as_fetched_file(
+def treat_saved_content_from_package_registry_host_as_file_fetch(
     network_request: NetworkRequest, *, use_counts: Counter[str]
 ) -> bool:
-    """Put a request whose content from a package registry host is saved in the fetched file category, e.g. `wget https://pypi.org/.../x.whl`.
+    """Put a request whose content from a package registry host is saved in the file fetch category, e.g. `wget https://pypi.org/.../x.whl`.
 
     Saving a file from a registry may get a package without its installer, and the words do not say whether a mirror of the registry would replace it.
     `export_network_request_category` asks it for a request for a URL or a repository whose content is saved and one of whose public hosts the host catalog gives the service `PACKAGE_REGISTRY`.
     It is also asked for such a request whose content goes to a command that shows none of it, when `treat_content_piped_to_consuming_command_as_other_web` answers `False`.
-    On `True` the category is `FETCHED_FILE`, as for any saved content. On `False` it is `PACKAGE`.
+    On `True` the category is `FILE_FETCH`, as for any saved content. On `False` it is `PACKAGE`.
     A use is such a request.
 
     Provisional. No earlier code chose. It follows the category of saved content, whose replacement is to put the file in the image.
     """
     use_counts[
-        treat_saved_content_from_package_registry_host_as_fetched_file.__name__
+        treat_saved_content_from_package_registry_host_as_file_fetch.__name__
     ] += 1
     return True
 

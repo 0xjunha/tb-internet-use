@@ -95,7 +95,7 @@ def test_chart_data_holds_the_tables_of_the_three_charts_of_overview(
     assert _rows_from_header_of(spreadsheet_path, "Chart data", "Category") == [
         ["Category", "Trials", "% of trials"],
         ["package", 3, 3 / 8],
-        ["fetched_file", 1, 1 / 8],
+        ["file_fetch", 1, 1 / 8],
         ["page_read", 1, 1 / 8],
         ["other_web", 1, 1 / 8],
     ]
@@ -266,7 +266,7 @@ def test_tasks_has_a_line_per_task_sorted_by_version_and_then_by_the_lower_bound
         "Bounds",
         "Request, upper bound",
         "package",
-        "fetched_file",
+        "file_fetch",
         "page_read",
         "other_web",
         "Web tool from outside",
@@ -280,7 +280,7 @@ def test_tasks_has_a_line_per_task_sorted_by_version_and_then_by_the_lower_bound
         zip(header, ["4-0-0", "terminal-bench/0", 2, 1 / 2, None, 1])
     ) | {
         "package": 1 / 2,
-        "fetched_file": 1 / 2,
+        "file_fetch": 1 / 2,
         "page_read": 1 / 2,
         "other_web": 1 / 2,
         "Web tool from outside": 0,
@@ -326,7 +326,7 @@ def test_requested_items_join_versions_of_one_package_and_count_tasks_that_share
         [
             "4-0-0",
             "terminal-bench/0",
-            "fetched_file",
+            "file_fetch",
             "code_hosting",
             "github.com",
             1,
@@ -358,7 +358,7 @@ def test_registries_and_hosts_count_lower_bound_trials_tasks_and_distinct_items(
         label: line[2:6] for label, line in lines.items() if isinstance(line[2], int)
     } == {
         "package pypi": [3, None, 2, 2],
-        "fetched_file code_hosting": [1, None, 1, 1],
+        "file_fetch code_hosting": [1, None, 1, 1],
         "page_read code_hosting": [1, None, 1, 1],
         "other_web unknown": [1, None, 1, 1],
     }
