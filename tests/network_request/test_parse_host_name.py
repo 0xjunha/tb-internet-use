@@ -27,6 +27,14 @@ TEMPLATED = UnknownHostNameScope(UnknownHostNameScopeReason.TEMPLATED)
         ("10.0.0.5", HostNameScope.LOCAL),
         ("0.0.0.0", HostNameScope.LOCAL),
         ("0", HostNameScope.LOCAL),
+        # Short forms of IPv4 addresses read as `inet_aton` reads them, the last part filling the remaining bytes.
+        ("127.0.1", HostNameScope.LOCAL),
+        ("10.1", HostNameScope.LOCAL),
+        ("134744072", HostNameScope.PUBLIC),
+        ("8.8.2056", HostNameScope.PUBLIC),
+        # A part too large for its bytes makes no address.
+        ("8.8.65536", DOTTED_NAME),
+        ("4294967296", SINGLE_LABEL),
         ("[::1]", HostNameScope.LOCAL),
         # An address that is neither private nor global, such as the shared block of RFC 6598, is not public.
         ("100.64.0.1", HostNameScope.LOCAL),
