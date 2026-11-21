@@ -91,13 +91,32 @@ def treat_host_target_that_may_receive_content_as_other_web(
     return True
 
 
+def treat_url_request_without_path_or_query_to_package_registry_or_search_engine_host_as_connectivity_check(
+    network_request: NetworkRequest, *, use_counts: Counter[str]
+) -> bool:
+    """Put a request for a URL without a path or a query to a package registry or search engine host in the connectivity check category, e.g. `requests.get("https://pypi.org")` or `urllib.request.urlopen("https://www.google.com/")` in code.
+
+    The first page of a registry or a search engine holds no package and no search results, so asking for it shows only whether the host answers, as code does that checks whether the network works before it installs or searches.
+    `export_network_request_category` asks it for a request from a command or code whose target kind is `URL`, that asks for content it does not throw away, one of whose public hosts the host catalog gives the service `PACKAGE_REGISTRY` or `SEARCH_ENGINE`, and whose target URL `parse_url_path` reads with the path `/` or none and `parse_url_query` with no query.
+    A target whose URL cannot be read is not asked about, e.g. `requests.get(url)` whose `url` gets its value at run time, and neither is a URL with a query alone, e.g. `https://duckduckgo.com/?q=x`, which asks a search.
+    On `True` the category is `CONNECTIVITY_CHECK`. On `False` it is the category of the conditions after it, i.e. `PACKAGE` or `SEARCH` by the service of the host.
+    A use is such a request.
+
+    Decided. The user decided on 2026-11-21 that such a URL is a connectivity check, since a request that asks a registry or a search engine for nothing in particular only checks that the internet answers.
+    """
+    use_counts[
+        treat_url_request_without_path_or_query_to_package_registry_or_search_engine_host_as_connectivity_check.__name__
+    ] += 1
+    return True
+
+
 def treat_url_request_to_package_registry_host_as_package(
     network_request: NetworkRequest, *, use_counts: Counter[str]
 ) -> bool:
     """Put a request for a URL one of whose hosts is a package registry in the package category, e.g. `curl https://pypi.org/pypi/x/json` or `wget https://files.pythonhosted.org/.../x.whl`.
 
     A registry host gives packages and their metadata, also when no installer asks it, but a page of it may only be read as documentation, e.g. `curl https://pypi.org/project/requests/`, and the words do not say which.
-    `export_network_request_category` asks it for a request from a command or code whose target kind is `URL`, that asks for content it does not throw away, and one of whose public hosts the host catalog gives the service `PACKAGE_REGISTRY`.
+    `export_network_request_category` asks it for a request from a command or code whose target kind is `URL`, that asks for content it does not throw away, and one of whose public hosts the host catalog gives the service `PACKAGE_REGISTRY`, unless `treat_url_request_without_path_or_query_to_package_registry_or_search_engine_host_as_connectivity_check` took it.
     On `True` the category is `PACKAGE`. On `False` it is the category of the conditions after it, e.g. `CONTENT_FETCH` for saved content.
     A use is such a request.
 
@@ -113,7 +132,7 @@ def treat_url_request_to_search_engine_host_as_search(
     """Put a request for a URL one of whose hosts is a search engine in the search category, e.g. `curl 'https://html.duckduckgo.com/html?q=x'` or `curl 'https://api.github.com/search/code?q=x'`.
 
     A command can ask a search engine for its results or for any other page of it, and the words alone do not say which.
-    `export_network_request_category` asks it for a request from a command or code whose target kind is `URL`, that asks for content it does not throw away, none of whose public hosts is a package registry, or whose registry host `treat_url_request_to_package_registry_host_as_package` did not take, and one of which the host catalog gives the service `SEARCH_ENGINE` for the path of the target.
+    `export_network_request_category` asks it for a request from a command or code whose target kind is `URL`, that asks for content it does not throw away, none of whose public hosts is a package registry, or whose registry host `treat_url_request_to_package_registry_host_as_package` did not take, and one of which the host catalog gives the service `SEARCH_ENGINE` for the path of the target, unless `treat_url_request_without_path_or_query_to_package_registry_or_search_engine_host_as_connectivity_check` took it.
     On `True` the category is `SEARCH`. On `False` it is the category of the conditions after it.
     A use is such a request.
 

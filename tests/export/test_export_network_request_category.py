@@ -22,6 +22,7 @@ from tb_internet_use.export.judgment_rules import (
     treat_saved_content_from_unrecognized_url_as_content_fetch,
     treat_url_request_to_package_registry_host_as_package,
     treat_url_request_to_search_engine_host_as_search,
+    treat_url_request_without_path_or_query_to_package_registry_or_search_engine_host_as_connectivity_check,
 )
 from tb_internet_use.export.model import (
     HostService,
@@ -86,6 +87,7 @@ PACKAGE_REGISTRY_HOST_RULE = (
     treat_url_request_to_package_registry_host_as_package.__name__
 )
 SEARCH_ENGINE_HOST_RULE = treat_url_request_to_search_engine_host_as_search.__name__
+URL_WITHOUT_PATH_OR_QUERY_RULE = treat_url_request_without_path_or_query_to_package_registry_or_search_engine_host_as_connectivity_check.__name__
 SAVED_FROM_UNRECOGNIZED_URL_RULE = (
     treat_saved_content_from_unrecognized_url_as_content_fetch.__name__
 )
@@ -185,6 +187,10 @@ WGET_WHEEL = _request(
     ContentSaved("x.whl"),
     "https://files.pythonhosted.org/x.whl",
     "files.pythonhosted.org",
+)
+PYTHON_REGISTRY_FIRST_PAGE = _python_request("https://pypi.org", "pypi.org")
+PYTHON_SEARCH_ENGINE_FIRST_PAGE = _python_request(
+    "https://www.google.com/", "www.google.com"
 )
 CURL_SEARCH_PAGE = _curl("https://html.duckduckgo.com/html?q=x", "html.duckduckgo.com")
 CURL_SAVED_FROM_HOST_WITHOUT_ROW = _curl("https://a.org/x", "a.org", ContentSaved("x"))
@@ -373,6 +379,19 @@ CASES: list[
         CONTENT_FETCH,
         [],
     ),
+    (
+        "`WebFetch` of `https://www.google.com/`",
+        _request(
+            _web_tool("claude-code", "WebFetch"),
+            URL,
+            ContentShownInResult(),
+            "https://www.google.com/",
+            "www.google.com",
+        ),
+        [SEARCH_ENGINE],
+        CONTENT_FETCH,
+        [],
+    ),
     # A repository, saved or shown, also from a host without a row.
     (
         "`git clone https://github.com/a/b`",
@@ -412,6 +431,43 @@ CASES: list[
         [NO_ROW],
         CONTENT_FETCH,
         [],
+    ),
+    # A URL without a path or a query of a registry or search engine host, which a query alone, a path or a target that cannot be read leaves to the conditions after it.
+    (
+        'code `requests.get("https://pypi.org")`',
+        PYTHON_REGISTRY_FIRST_PAGE,
+        [PYPI],
+        CONNECTIVITY_CHECK,
+        [URL_WITHOUT_PATH_OR_QUERY_RULE],
+    ),
+    (
+        'code `requests.get("https://www.google.com/")`',
+        PYTHON_SEARCH_ENGINE_FIRST_PAGE,
+        [SEARCH_ENGINE],
+        CONNECTIVITY_CHECK,
+        [URL_WITHOUT_PATH_OR_QUERY_RULE],
+    ),
+    (
+        "`curl 'https://duckduckgo.com/?q=x'`",
+        _curl("https://duckduckgo.com/?q=x", "duckduckgo.com"),
+        [SEARCH_ENGINE],
+        SEARCH,
+        [SEARCH_ENGINE_HOST_RULE],
+    ),
+    (
+        "code `requests.get(url)` whose `url` names `pypi.org` at run time",
+        _request(
+            _python_code("requests.get"),
+            URL,
+            UnknownReceivedContentDestination(),
+            UnknownNetworkRequestTarget(
+                UnknownNetworkRequestTargetReason.VALUE_SET_AT_RUN_TIME
+            ),
+            "pypi.org",
+        ),
+        [PYPI],
+        PACKAGE,
+        [PACKAGE_REGISTRY_HOST_RULE],
     ),
     # A URL of a package registry host, shown or saved.
     (
@@ -650,6 +706,21 @@ OTHER_ANSWER_CASES: list[
     (REPOSITORY_REQUEST_FOR_NO_CONTENT_RULE, GIT_PUSH, [], CONNECTIVITY_CHECK, []),
     (DISCARDED_CONTENT_RULE, CURL_REGISTRY_TO_DEV_NULL, [PYPI], OTHER_WEB, []),
     (HOST_TARGET_RULE, SOCKET_CONNECTION, [], CONNECTIVITY_CHECK, []),
+    # A URL without a path or a query that the rule does not take goes by the service of its host.
+    (
+        URL_WITHOUT_PATH_OR_QUERY_RULE,
+        PYTHON_REGISTRY_FIRST_PAGE,
+        [PYPI],
+        PACKAGE,
+        [PACKAGE_REGISTRY_HOST_RULE],
+    ),
+    (
+        URL_WITHOUT_PATH_OR_QUERY_RULE,
+        PYTHON_SEARCH_ENGINE_FIRST_PAGE,
+        [SEARCH_ENGINE],
+        SEARCH,
+        [SEARCH_ENGINE_HOST_RULE],
+    ),
     # A registry host that the rule does not take leaves the conditions after it, i.e. a search engine host, saving and any other request.
     (PACKAGE_REGISTRY_HOST_RULE, CURL_PROJECT_PAGE, [PYPI], OTHER_WEB, []),
     (

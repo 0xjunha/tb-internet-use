@@ -13,6 +13,7 @@ A request gets its category from the first condition below that fits it.
 - A request for a host alone that may receive content is decided by a judgment rule.
 - A URL from a web tool gives `CONTENT_FETCH`.
 - A repository gives `CONTENT_FETCH`, e.g. `git clone u`.
+- A URL without a path or a query of a package registry or search engine host is decided by a judgment rule, e.g. `https://pypi.org` in code.
 - A URL of a package registry host is decided by a judgment rule.
 - A URL of a search engine host is decided by a judgment rule.
 - A URL of a web API host gives `REMOTE_API_CALL`.
@@ -34,6 +35,7 @@ from tb_internet_use.export.judgment_rules import (
     treat_saved_content_from_unrecognized_url_as_content_fetch,
     treat_url_request_to_package_registry_host_as_package,
     treat_url_request_to_search_engine_host_as_search,
+    treat_url_request_without_path_or_query_to_package_registry_or_search_engine_host_as_connectivity_check,
 )
 from tb_internet_use.export.model import (
     HostService,
@@ -41,6 +43,8 @@ from tb_internet_use.export.model import (
     PublicHost,
     UnknownPublicHost,
 )
+from tb_internet_use.export.parse_url_path import parse_url_path
+from tb_internet_use.export.parse_url_query import parse_url_query
 from tb_internet_use.network_request.model import (
     ContentDiscarded,
     ContentSaved,
@@ -120,11 +124,25 @@ def _category_for_url_request(
     *,
     judgment_rule_use_counts: Counter[str],
 ) -> NetworkRequestCategory:
-    """Give the category of a request for a URL or a repository that asks for content it does not throw away, by its source and target kind, then by the services of its hosts and last by whether its content is saved."""
+    """Give the category of a request for a URL or a repository that asks for content it does not throw away, by its source and target kind, then by the services of its hosts and last by whether its content is saved.
+
+    A registry or search engine host is read beside the path and the query of the target URL, since a URL without either asks for neither a package nor a search, e.g. `requests.get("https://www.google.com")` in code that checks the network.
+    """
     if isinstance(network_request.source, FromWebTool):
         return NetworkRequestCategory.CONTENT_FETCH
     if network_request.target_kind == NetworkRequestTargetKind.REPOSITORY_URL:
         return NetworkRequestCategory.CONTENT_FETCH
+    if (
+        (
+            _has_host_service(public_hosts, HostService.PACKAGE_REGISTRY)
+            or _has_host_service(public_hosts, HostService.SEARCH_ENGINE)
+        )
+        and _is_target_url_without_path_or_query(network_request)
+        and treat_url_request_without_path_or_query_to_package_registry_or_search_engine_host_as_connectivity_check(
+            network_request, use_counts=judgment_rule_use_counts
+        )
+    ):
+        return NetworkRequestCategory.CONNECTIVITY_CHECK
     if _has_host_service(
         public_hosts, HostService.PACKAGE_REGISTRY
     ) and treat_url_request_to_package_registry_host_as_package(
@@ -152,6 +170,22 @@ def _category_for_url_request(
         return NetworkRequestCategory.CONTENT_FETCH
     # Neither a host nor saving the content says what was asked for, e.g. `curl https://a.org/x | mytool` or code.
     return NetworkRequestCategory.OTHER_WEB
+
+
+def _is_target_url_without_path_or_query(network_request: NetworkRequest) -> bool:
+    """Answer whether the target of a request is a URL whose path is `/` or empty and that has no query, e.g. `https://pypi.org` or `https://www.google.com/`, but not `https://duckduckgo.com/?q=x`.
+
+    The path and the query are read for the host of the target URL among the host names of the request, so a target whose URL `parse_url_path` cannot read is not one, e.g. `git@github.com:a/b.git`.
+    A request that names hosts beside its target URL, e.g. two URLs in the words of one call, is read by its target URL alone.
+    """
+    target = network_request.target
+    if not isinstance(target, str):
+        return False
+    return any(
+        parse_url_path(target, host_name) in ("", "/")
+        and parse_url_query(target, host_name) == ""
+        for host_name in network_request.host_names
+    )
 
 
 def _has_host_service(
