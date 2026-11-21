@@ -44,6 +44,7 @@ from tb_internet_use.export.judgment_rules import (
     treat_url_query_value_and_fragment_as_credential,
     treat_url_request_to_package_registry_host_as_package,
     treat_url_request_to_search_engine_host_as_search,
+    treat_url_request_without_path_or_query_to_package_registry_or_search_engine_host_as_connectivity_check,
     treat_web_tool_request_without_host_name_as_internet_use,
 )
 from tb_internet_use.export.model import (
@@ -56,6 +57,8 @@ from tb_internet_use.export.model import (
     NetworkRequestSourceKind,
     PackageRegistry,
 )
+from tb_internet_use.export.parse_url_path import parse_url_path
+from tb_internet_use.export.parse_url_query import parse_url_query
 from tb_internet_use.knowledge.catalog import KnowledgeUses
 from tb_internet_use.knowledge.export_knowledge import (
     HARNESS_WEB_TOOLS_CSV,
@@ -121,7 +124,7 @@ EQUATIONS = (
     "rows_sent_from_outside_the_task_environment_by_no_web_tool",
     # `remote_api_call` rows that are not for a URL from a command or code with a `web_api` host, beside 0.
     "remote_api_call_rows_without_web_api_host",
-    # `connectivity_check` rows whose `received_content_destination` is neither `not_requested` nor `discarded` beside 0.
+    # `connectivity_check` rows whose `received_content_destination` is neither `not_requested` nor `discarded`, other than URL requests without a path or a query to a registry or search engine host, beside 0.
     "connectivity_check_rows_whose_content_is_kept",
     # `content_fetch` rows that are for a URL from a command or code, with no host of a service that gives content and no saved content, beside 0.
     "content_fetch_rows_without_content_host_or_saved_content",
@@ -351,6 +354,12 @@ def situation_counts_of(
         and not is_web_tool
         and row.received_content_destination not in ("not_requested", "discarded")
     )
+    # A URL request of a registry or search engine host whose target has neither a path nor a query, read from the target column and the host names of the request.
+    is_url_request_without_path_or_query_to_registry_or_search_engine = (
+        is_url_request_for_kept_content
+        and bool({"package_registry", "search_engine"} & set(host_services))
+        and _is_url_without_path_or_query(row.target, network_request.host_names)
+    )
     is_local_or_single_label = bool(host_scope_texts) and set(host_scope_texts) <= {
         "local",
         "unknown_single_label",
@@ -379,9 +388,12 @@ def situation_counts_of(
         treat_host_target_that_may_receive_content_as_other_web: row.target_kind
         == NetworkRequestTargetKind.HOST
         and row.received_content_destination not in ("not_requested", "discarded"),
+        treat_url_request_without_path_or_query_to_package_registry_or_search_engine_host_as_connectivity_check: is_url_request_without_path_or_query_to_registry_or_search_engine,
         treat_url_request_to_package_registry_host_as_package: is_url_request_for_kept_content
+        and not is_url_request_without_path_or_query_to_registry_or_search_engine
         and "package_registry" in host_services,
         treat_url_request_to_search_engine_host_as_search: is_url_request_for_kept_content
+        and not is_url_request_without_path_or_query_to_registry_or_search_engine
         and "package_registry" not in host_services
         and "search_engine" in host_services,
         treat_saved_content_from_unrecognized_url_as_content_fetch: is_url_request_for_kept_content
@@ -435,6 +447,7 @@ def situation_counts_of(
     counts["connectivity_check_rows_whose_content_is_kept"] = int(
         row.category == NetworkRequestCategory.CONNECTIVITY_CHECK
         and row.received_content_destination not in ("not_requested", "discarded")
+        and not is_url_request_without_path_or_query_to_registry_or_search_engine
     )
     counts["content_fetch_rows_without_content_host_or_saved_content"] = int(
         row.category == NetworkRequestCategory.CONTENT_FETCH
@@ -452,6 +465,18 @@ def situation_counts_of(
         and row.request_measure_bound != MeasureBound.LOWER_AND_UPPER
     )
     return counts
+
+
+def _is_url_without_path_or_query(target: str, host_names: Sequence[str]) -> bool:
+    """Answer whether a target cell is a URL of one of the host names whose path is `/` or empty and that has no query, e.g. `https://pypi.org`, as `export_network_request_category` reads the target.
+
+    Redaction keeps the path and whether a query is there, e.g. `https://a.org/?q=REDACTED`.
+    """
+    return any(
+        parse_url_path(target, host_name) in ("", "/")
+        and parse_url_query(target, host_name) == ""
+        for host_name in host_names
+    )
 
 
 def _default_registry_host_names_of(

@@ -48,6 +48,13 @@ _BASH_CALLS_OF_TRIAL = {
         ),
     ],
     "t3": [("ls", "notes.txt")],
+    # Code that asks the first page of a registry and a search of a search engine, which the rule for a URL without a path or a query takes and leaves.
+    "t7": [
+        (
+            "python3 -c 'import urllib.request as u; u.urlopen(\"https://pypi.org/\")'; curl 'https://html.duckduckgo.com/html?q=x'",
+            "",
+        )
+    ],
     "t4": None,
     # Two wget requests own one `saved` line, which only wget prints, so the trial counts in the lower bound of received content fetches although each request stays assumed.
     "t6": [
@@ -179,6 +186,8 @@ def test_every_equation_holds_on_the_rows_of_made_up_trials(
         "treat_url_query_value_and_fragment_as_credential",
         "treat_dotted_host_name_as_public",
         "treat_trial_with_success_line_shared_by_confirmed_requests_as_received",
+        "treat_url_request_without_path_or_query_to_package_registry_or_search_engine_host_as_connectivity_check",
+        "treat_url_request_to_search_engine_host_as_search",
     ):
         assert sides[f"{rule_name}_uses_equal_its_situations"][0] > 0, rule_name
     assert (
@@ -200,6 +209,8 @@ def test_every_equation_holds_on_the_rows_of_made_up_trials(
         ["program_package_registries.csv", '["pip", "install"]', "2", "2", "1"],
         ["harness_web_tools.csv", '["claude-code", "WebFetch"]', "1", "1", "1"],
         ["public_hosts.csv", '["github.com", ""]', "1", "1", "1"],
+        ["public_hosts.csv", '["html.duckduckgo.com", ""]', "1", "1", "1"],
+        ["public_hosts.csv", '["pypi.org", ""]', "1", "1", "1"],
     ]
     assert _csv_rows(out_dir / "trials_not_audited.csv") == [
         ["trial_id", "exception_type"]
