@@ -227,9 +227,11 @@ def test_overview_shows_both_bounds_of_every_key_number(spreadsheet_path: Path):
         ],
     }
     # t3 and t8 ran on different harnesses, so each harness has one of the two trials.
-    assert lines[
+    web_tool_note = lines[
         "Trials with a web tool request sent from outside the task environment"
-    ][3].endswith(" has 1 of the 2 trials of the lower bound.")
+    ][3]
+    assert isinstance(web_tool_note, str)
+    assert web_tool_note.endswith(" has 1 of the 2 trials of the lower bound.")
 
 
 def test_overview_counts_the_trials_whose_requests_all_go_to_three_registries(
