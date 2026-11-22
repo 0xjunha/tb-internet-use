@@ -35,7 +35,6 @@ from spreadsheet_result_tabs import TasksTab
 from spreadsheet_row_tabs import (
     KNOWN_OUTSIDE_SENDERS,
     LOWER_AND_UPPER,
-    NEITHER,
     OUTSIDE_SENDERS,
     TASK_ENVIRONMENT,
     UNKNOWN_SENDER,
@@ -324,20 +323,8 @@ def _add_key_numbers(
             ("request_measure_bound", equal_to(LOWER_AND_UPPER)),
         ],
     )
-    possible_other_category_formula = count_unique_ifs_formula(
-        measure_rows,
-        "trial_id",
-        [
-            (
-                "trial_rows.any_category_request_measure_bound",
-                equal_to(LOWER_AND_UPPER),
-            ),
-            *(("sender", not_equal_to(sender)) for sender in KNOWN_OUTSIDE_SENDERS),
-            ("category", not_equal_to(NetworkRequestCategory.PACKAGE)),
-            ("request_measure_bound", not_equal_to(NEITHER)),
-        ],
-    )
-    package_only_lower_formula = f"{lower_formula}-{possible_other_category_formula}"
+    # The trials left out of the lower column are counted by Python, since a formula would need the bound of each trial over all categories beside each row of `trial_category_measure_rows`.
+    package_only_lower_formula = f"{lower_formula}-{len(possible_other_category_ids)}"
     package_only_upper_formula = f"{lower_formula}-{certain_other_category_formula}"
     task_shares = {
         counted_bound: [counts.task_share_of(task, ids) for task in counts.tasks]

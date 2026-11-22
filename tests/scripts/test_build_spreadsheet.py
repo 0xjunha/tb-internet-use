@@ -456,22 +456,46 @@ def test_holds_only_the_request_rows_in_the_lower_bound_and_those_of_web_tools(
 ):
     sheet = load_workbook(spreadsheet_path, read_only=True)["network_request_rows"]
 
-    # The retries of t1 come first in the file, and the failure of t6 is only in the upper bound.
-    assert [row[:5:4] for row in sheet.iter_rows(min_row=2, values_only=True)] == [
-        ("t1", 3),
-        ("t1", 4),
-        ("t1", 0),
-        ("t3", 0),
-        ("t3", 1),
-        ("t5", 0),
-        ("t5", 1),
-        ("t5", 2),
-        ("t5", 3),
-        ("t6", 1),
-        ("t6", 2),
-        ("t6", 3),
-        ("t8", 0),
+    # The failure of t6 that is only in the upper bound is left out, and so are the rows of the other trials.
+    # The tab has no column `request_index`, so the rows are told by their trial.
+    assert [row[0] for row in sheet.iter_rows(min_row=2, values_only=True)] == [
+        *["t1"] * 3,
+        *["t3"] * 2,
+        *["t5"] * 4,
+        *["t6"] * 3,
+        "t8",
     ]
+
+
+def test_row_tabs_leave_out_columns_and_name_the_task_of_each_row(
+    spreadsheet_path: Path,
+):
+    workbook = load_workbook(spreadsheet_path, read_only=True)
+    headers = {
+        name: [cell.value for cell in next(workbook[name].iter_rows(max_row=1))]
+        for name in (
+            "trial_rows",
+            "trial_category_measure_rows",
+            "network_request_rows",
+        )
+    }
+
+    # The made-up run holds two benchmark versions, so each tab ends with `task_key`.
+    assert headers["trial_rows"][-2:] == ["unreadable_trajectory_reason", "task_key"]
+    assert headers["trial_category_measure_rows"][-3:] == [
+        "benchmark_version",
+        "task_name",
+        "task_key",
+    ]
+    assert headers["network_request_rows"][-4:] == [
+        "harness",
+        "benchmark_version",
+        "task_name",
+        "task_key",
+    ]
+    assert not {"request_index", "is_internet_use", "result_view"} & set(
+        headers["network_request_rows"]
+    )
 
 
 def _method_and_checks_texts_of(spreadsheet_path: Path) -> list[str]:
@@ -682,6 +706,18 @@ def test_with_one_version_every_formula_gives_the_value_python_counted_and_every
 
     assert [line for line in formula_check.lines if not line.agrees] == []
     assert formula_check.chart_count == 3
+
+
+def test_with_one_version_no_row_tab_has_the_column_task_key(
+    one_version_spreadsheet_path: Path,
+):
+    workbook = load_workbook(one_version_spreadsheet_path, read_only=True)
+
+    # The formulas then find a task by `task_name` alone, which the formula check above holds.
+    for name in ("trial_rows", "trial_category_measure_rows", "network_request_rows"):
+        header = [cell.value for cell in next(workbook[name].iter_rows(max_row=1))]
+        assert "task_name" in header
+        assert "task_key" not in header
 
 
 def test_with_one_version_tasks_and_requested_items_name_a_task_by_task_name_alone(

@@ -17,7 +17,6 @@ from spreadsheet_cells import (
     equal_to,
     equal_to_formula_value,
     equal_to_number,
-    formula_text_of,
     not_equal_to,
     refuse_keys_equal_apart_from_case,
     sparkline_bar_formula,
@@ -45,6 +44,7 @@ from spreadsheet_row_tabs import (
     UNKNOWN_SENDER,
     UPPER_ONLY,
     SpreadsheetRowTabs,
+    has_several_benchmark_versions,
     header_cells_of,
     request_trial_count_formula_of,
     shown_task_name_of,
@@ -162,7 +162,7 @@ def lay_out_tasks_tab(
     """
     grid = TabGrid(TASKS_TAB_NAME, tab_color=RESULTS_TAB_COLOR)
     columns = TasksColumns(
-        _has_several_benchmark_versions(counts),
+        has_several_benchmark_versions(counts),
         tuple(
             category.value
             for category in NetworkRequestCategory
@@ -236,13 +236,13 @@ def _tasks_line_cells_of(
     measure_rows = row_tabs.trial_category_measure_rows
     trial_ids = counts.trial_ids_of_task(task)
     task_name_cell = f"${get_column_letter(columns.task_name)}{row}"
-    # Without the column `benchmark_version`, the one version of the run stands in the formula.
-    version_formula = (
-        f"$A{row}" if columns.shows_benchmark_version else formula_text_of(task[0])
-    )
-    task_key = equal_to_formula_value(
-        f'{version_formula}&"{TASK_KEY_SEPARATOR}"&{task_name_cell}',
-        task_key_of(task),
+    # The criterion of the column that tells tasks apart in the row tabs, the task name alone in a run of one version.
+    task_criterion = (
+        equal_to_formula_value(
+            f'$A{row}&"{TASK_KEY_SEPARATOR}"&{task_name_cell}', task_key_of(task)
+        )
+        if columns.shows_benchmark_version
+        else equal_to_formula_value(task_name_cell, shown_task_name_of(task[1]))
     )
     trials_cell = f"${get_column_letter(columns.trials)}{row}"
     trial_count = len(trial_ids)
@@ -252,8 +252,8 @@ def _tasks_line_cells_of(
             count_formula, len(trial_ids & counted_ids), trials_cell, trial_count
         )
 
-    task_trial_conditions = [("task_key", task_key)]
-    task_measure_conditions = [("trial_rows.task_key", task_key)]
+    task_trial_conditions = [(row_tabs.task_column, task_criterion)]
+    task_measure_conditions = [(row_tabs.task_column, task_criterion)]
     cells: dict[int, TabCell] = {
         columns.task_name: TabCell(shown_task_name_of(task[1])),
         columns.trials: TabCell(
@@ -263,19 +263,19 @@ def _tasks_line_cells_of(
         ),
         columns.request: share(
             request_trial_count_formula_of(
-                row_tabs, CountedBound.LOWER, task_key=task_key
+                row_tabs, CountedBound.LOWER, task_criterion=task_criterion
             ),
             counts.any_category_trial_ids[MainMeasure.REQUEST, CountedBound.LOWER],
         ),
         columns.request_upper_bound: share(
             request_trial_count_formula_of(
-                row_tabs, CountedBound.UPPER, task_key=task_key
+                row_tabs, CountedBound.UPPER, task_criterion=task_criterion
             ),
             counts.any_category_trial_ids[MainMeasure.REQUEST, CountedBound.UPPER],
         ),
         columns.web_tool: share(
             web_tool_trial_count_formula_of(
-                row_tabs, CountedBound.LOWER, task_key=task_key
+                row_tabs, CountedBound.LOWER, task_criterion=task_criterion
             ),
             counts.request_trial_ids_of(
                 CountedBound.LOWER, senders=KNOWN_OUTSIDE_SENDERS
@@ -439,7 +439,7 @@ def lay_out_requested_items_tab(counts: SpreadsheetPythonCounts) -> RequestedIte
     The column `benchmark_version` comes first only when the run holds several versions, as in `Tasks`.
     """
     grid = TabGrid(REQUESTED_ITEMS_TAB_NAME, tab_color=RESULTS_TAB_COLOR)
-    columns = _RequestedItemsColumns(_has_several_benchmark_versions(counts))
+    columns = _RequestedItemsColumns(has_several_benchmark_versions(counts))
     _add_title_and_description(
         grid,
         "Packages and hosts that the trials of each task requested from the task environment.",
@@ -511,11 +511,6 @@ def lay_out_requested_items_tab(counts: SpreadsheetPythonCounts) -> RequestedIte
     )
 
 
-def _has_several_benchmark_versions(counts: SpreadsheetPythonCounts) -> bool:
-    """Tell whether the run holds tasks of more than one benchmark version, so that `Tasks` and `Requested items` show the column `benchmark_version`."""
-    return len({task[0] for task in counts.tasks}) > 1
-
-
 # 1-based columns of `Web tools`.
 _WEB_TOOLS_SENDER_COLUMN = 3
 _WEB_TOOLS_TRIALS_COLUMN = 5
@@ -572,7 +567,7 @@ def lay_out_web_tools_tab(
         line = counts.web_tool_lines[key]
         is_upper_bound = key.sender == UNKNOWN_SENDER
         conditions = [
-            ("trial_rows.harness", equal_to(key.harness)),
+            ("harness", equal_to(key.harness)),
             ("made_by", equal_to(key.made_by)),
             ("sender", equal_to(key.sender)),
             ("category", equal_to(key.category)),
@@ -595,7 +590,7 @@ def lay_out_web_tools_tab(
             TabCell(
                 len(counts.tasks_of(trial_ids)),
                 formula=count_unique_ifs_formula(
-                    request_rows, "trial_rows.task_key", conditions
+                    request_rows, row_tabs.task_column, conditions
                 ),
                 style=CellStyle.COUNT,
             ),
