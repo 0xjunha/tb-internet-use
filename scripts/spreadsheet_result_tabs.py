@@ -63,10 +63,6 @@ from spreadsheet_tabs import (
 )
 
 from tb_internet_use.export.model import NetworkRequestCategory
-from tb_internet_use.network_request_result.model import (
-    NetworkRequestResultLevel,
-    NetworkRequestResultStopReason,
-)
 
 # The examples of a cause in `Bounds`.
 _EXAMPLE_COUNT = 3
@@ -127,25 +123,21 @@ class TasksColumns:
         return self.task_name + 5 + len(self.categories)
 
     @property
-    def did_not_reach_server(self) -> int:
+    def passed(self) -> int:
         return self.web_tool + 1
 
     @property
-    def passed(self) -> int:
+    def passed_without_request(self) -> int:
         return self.web_tool + 2
 
     @property
-    def passed_without_request(self) -> int:
-        return self.web_tool + 3
-
-    @property
     def verdict(self) -> int:
-        return self.web_tool + 4
+        return self.web_tool + 3
 
     @property
     def bar_lower_bound(self) -> int:
         """Give the first of two hidden columns that the bar draws, the lower bound and the rest of the upper bound."""
-        return self.web_tool + 5
+        return self.web_tool + 4
 
 
 @dataclass(frozen=True, slots=True)
@@ -195,9 +187,8 @@ def lay_out_tasks_tab(
             "Request, upper bound",
             *columns.categories,
             "Web tool from outside",
-            "Did not reach a server",
-            "Passed",
-            "Passed without a request",
+            "Reward=1",
+            "Reward=1 without a request",
             "Solved without a request?",
             "Bar, lower bound",
             "Bar, upper bound only",
@@ -227,7 +218,7 @@ def lay_out_tasks_tab(
         f"{get_column_letter(first)}{first_line_row}:{get_column_letter(last)}{last_line_row}"
         for first, last in (
             (columns.request, columns.request),
-            (columns.request_upper_bound, columns.did_not_reach_server),
+            (columns.request_upper_bound, columns.web_tool),
         )
     ]
     return TasksTab(grid, first_line_row, last_line_row, columns)
@@ -243,7 +234,6 @@ def _tasks_line_cells_of(
     """Give the cells of the line of one task by 1-based column."""
     trial_rows = row_tabs.trial_rows
     measure_rows = row_tabs.trial_category_measure_rows
-    request_rows = row_tabs.network_request_rows
     trial_ids = counts.trial_ids_of_task(task)
     task_name_cell = f"${get_column_letter(columns.task_name)}{row}"
     # Without the column `benchmark_version`, the one version of the run stands in the formula.
@@ -290,20 +280,6 @@ def _tasks_line_cells_of(
             counts.request_trial_ids_of(
                 CountedBound.LOWER, senders=KNOWN_OUTSIDE_SENDERS
             ),
-        ),
-        columns.did_not_reach_server: share(
-            count_unique_ifs_formula(
-                request_rows,
-                "trial_id",
-                [
-                    *task_measure_conditions,
-                    ("sender", equal_to(TASK_ENVIRONMENT)),
-                    ("request_measure_bound", equal_to(LOWER_AND_UPPER)),
-                    ("level", equal_to(NetworkRequestResultLevel.EXECUTED)),
-                    ("stop_reason", equal_to(NetworkRequestResultStopReason.FAILED)),
-                ],
-            ),
-            counts.did_not_reach_server_trial_ids,
         ),
     }
     if columns.shows_benchmark_version:

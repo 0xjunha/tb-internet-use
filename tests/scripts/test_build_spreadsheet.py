@@ -262,7 +262,7 @@ def test_tasks_has_a_line_per_task_sorted_by_version_and_then_by_the_lower_bound
         "4-0-0 a",
         "4-0-0 0a",
     ]
-    assert header[2:15] == [
+    assert header[2:14] == [
         "Trials",
         "Request, lower bound",
         "Request bounds",
@@ -272,9 +272,8 @@ def test_tasks_has_a_line_per_task_sorted_by_version_and_then_by_the_lower_bound
         "remote_api_call",
         "other_web",
         "Web tool from outside",
-        "Did not reach a server",
-        "Passed",
-        "Passed without a request",
+        "Reward=1",
+        "Reward=1 without a request",
         "Solved without a request?",
     ]
     # t5 failed a clone. t4 passed, unreadable, and t5 did not.
@@ -286,9 +285,8 @@ def test_tasks_has_a_line_per_task_sorted_by_version_and_then_by_the_lower_bound
         "remote_api_call": 1 / 2,
         "other_web": 1 / 2,
         "Web tool from outside": 0,
-        "Did not reach a server": 1 / 2,
-        "Passed": 1,
-        "Passed without a request": 0,
+        "Reward=1": 1,
+        "Reward=1 without a request": 0,
         "Solved without a request?": "maybe",
         "Bar, lower bound": 1 / 2,
         "Bar, upper bound only": 1 / 2,
@@ -299,8 +297,8 @@ def test_tasks_has_a_line_per_task_sorted_by_version_and_then_by_the_lower_bound
         for column in (
             "Request, lower bound",
             "Web tool from outside",
-            "Passed",
-            "Passed without a request",
+            "Reward=1",
+            "Reward=1 without a request",
             "Solved without a request?",
         )
     ] == [2 / 3, 1 / 3, 2, 1, "yes"]
@@ -772,7 +770,7 @@ def test_frozen_panes_filters_hidden_columns_color_scales_and_bars_of_tasks_foll
     } == {column["Bar, lower bound"], column["Bar, upper bound only"]}
     assert [str(r.sqref) for r in sheet.conditional_formatting] == [
         f"{column['Request, lower bound']}{first_row}:{column['Request, lower bound']}{last_row}",
-        f"{column['Request, upper bound']}{first_row}:{column['Did not reach a server']}{last_row}",
+        f"{column['Request, upper bound']}{first_row}:{column['Web tool from outside']}{last_row}",
     ]
     assert sheet[f"{column['Request bounds']}{first_row}"].value.startswith(
         f"=SPARKLINE({column['Bar, lower bound']}{first_row}:{column['Bar, upper bound only']}{first_row},"

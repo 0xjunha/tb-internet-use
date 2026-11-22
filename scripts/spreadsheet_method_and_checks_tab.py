@@ -72,7 +72,7 @@ MISSING_CALLS_BY_HARNESS = {
 # What the numbers of the front tabs cannot say, one line each, before and after the lines of harnesses whose trajectories lack calls.
 _CANNOT_SAY_LINES_BEFORE_HARNESSES = (
     "Whether a trial without a visible request sent none, since a script or binary whose content the trajectory does not show may have.",
-    "Whether a request was needed to solve the task. Passed trials and requests are correlated only.",
+    "Whether a request was needed to solve the task. Trials with a reward of 1 and requests are correlated only.",
     "Requests outside the trajectory, e.g. of the image build or the verifier.",
 )
 _CANNOT_SAY_LINES_AFTER_HARNESSES = (
@@ -109,7 +109,7 @@ TERM_MEANINGS = (
         "remote_api_call",
         "A request to a web API host, also one that fetches one record by its ID, e.g. rest.uniprot.org/uniprotkb/P12345.fasta",
     ),
-    ("Passed", f"A reward of {PASSED_REWARD}"),
+    ("Reward=1", f"A trial whose reward is {PASSED_REWARD}"),
     (
         "Requests",
         "Rows of network_request_rows. Retries and loops inflate them, so the other numbers count trials",
@@ -351,13 +351,6 @@ def _add_sum_and_order_checks(
             f"SUMPRODUCT(({request_range}>{'+'.join(category_ranges) or '0'}+0.000000001)*1)",
         ],
         "Lower bounds",
-    )
-    method_and_checks.add_zero_check(
-        "Tasks: Did not reach a server above Request",
-        [
-            f"SUMPRODUCT(({tasks.column_range(columns.did_not_reach_server)}>{request_range})*1)"
-        ],
-        "A request that did not reach a server is a request",
     )
     category_range = chart_data.grid.range_of(
         1, chart_data.categories.first_row, chart_data.categories.last_row

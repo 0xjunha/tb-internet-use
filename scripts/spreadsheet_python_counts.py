@@ -224,8 +224,6 @@ class SpreadsheetPythonCounts:
         default_factory=dict
     )
     web_tool_lines: dict[WebToolLineKey, BoundSets] = field(default_factory=dict)
-    # Trials with a lower-bound row from the task environment of level `executed` and stop reason `failed`.
-    did_not_reach_server_trial_ids: set[str] = field(default_factory=set)
     best_request_result_by_trial_id: dict[str, BestRequestResult] = field(
         default_factory=dict
     )
@@ -584,11 +582,6 @@ def _count_network_request_row(
         ),
         set(),
     ).add(row["trial_id"])
-    if (
-        row["level"] == NetworkRequestResultLevel.EXECUTED
-        and row["stop_reason"] == NetworkRequestResultStopReason.FAILED
-    ):
-        counts.did_not_reach_server_trial_ids.add(row["trial_id"])
 
 
 def registry_or_host_service_column_of(category: str) -> str:

@@ -434,13 +434,6 @@ def test_gives_the_furthest_result_by_its_rule(
     )
 
 
-def test_counts_only_lower_bound_trials_whose_request_ran_and_did_not_reach_a_server(
-    made_up_run_dir: Path,
-):
-    # t5 failed a clone. t1 failed before running and after reaching the server, and t6 failed only in the upper bound.
-    assert _counts_of(made_up_run_dir).did_not_reach_server_trial_ids == {"t5"}
-
-
 @pytest.mark.parametrize(
     ("share", "band"),
     [
