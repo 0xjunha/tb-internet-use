@@ -174,7 +174,7 @@ def lay_out_tasks_tab(
     # The description wraps within the frozen columns, so that it stays whole while the others scroll.
     _add_title_and_description(
         grid,
-        "Share of trials per task with an internet request from the task environment, and whether the task was solved without one.",
+        "Share of trials with an internet request, per task.",
         columns.task_name,
     )
     header_row = grid.add_row(
