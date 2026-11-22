@@ -1,4 +1,4 @@
-"""Find the call sites of a Python or JavaScript code text and the names it gives one string to, reading only its names, strings, comments and brackets.
+"""Find the call sites of a Python or JavaScript code text and the names it gives one string or one call to, reading only its names, strings, comments and brackets.
 
 Code that a command runs can send a request that no word of the command shows, e.g. `requests.get(u)` in get.py run by `python get.py`.
 The code is read as text and never run, so a call is found by its form, a name right before `(`, and not by what the name is bound to.
@@ -16,12 +16,13 @@ Known limits
 import keyword
 import re
 from collections import Counter
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum
 
 from tb_internet_use.expanded_tool_call.model import CodeLanguage
 from tb_internet_use.network_request.model import (
     CodeCall,
+    CodeCallAssignment,
     CodeStringAssignment,
     ParsedCode,
     UnreadableCodeCallArguments,
@@ -32,6 +33,8 @@ _CLOSERS = frozenset(_CLOSER_OF_OPENER.values())
 _WHITESPACE = re.compile(r"\s+")
 # A number, with the letters and dots that can follow its first digit, e.g. `8000`, `0x1F` or `1.5`.
 _NUMBER = re.compile(r"\d[\w.]*")
+# The punctuation that reads from a name right after it, so that an argument that starts with the name does not start with its value, e.g. `[` of `urls[0] + path`.
+_PUNCTUATION_THAT_READS_FROM_A_NAME = frozenset({"(", ".", "["})
 # The words before a name that make it the name of a definition, so its parenthesis opens no call, e.g. `def fetch(url)`.
 _DEFINING_WORDS = frozenset({"def", "class", "function"})
 # The reserved words of JavaScript, e.g. `if` in `if (ok)`.
@@ -148,10 +151,12 @@ _SYNTAX_OF_LANGUAGE = {
 
 @dataclass(frozen=True, slots=True)
 class _ArgumentToken:
-    """Token of a call argument that `parse_code` keeps to tell whether the argument is one string or one bare name."""
+    """Token of a call argument that `parse_code` keeps to tell whether the argument is one string, one bare name or one call, or starts with a bare name."""
 
     argument_token_kind: _ArgumentTokenKind
     text: str
+    # The 0-based place of the call among the opened calls of the code, as `_OpenCall.code_call_index` counts it, for a token of kind `CALL` only.
+    code_call_index: int | None = None
 
 
 class _ArgumentTokenKind(Enum):
@@ -159,6 +164,7 @@ class _ArgumentTokenKind(Enum):
 
     STRING = "string"  # a string that closes
     NAME = "name"  # a bare name that is no keyword, e.g. `URL`
+    CALL = "call"  # the name of a call, e.g. `g` in `f(g(1))`
     OTHER = "other"  # anything else, e.g. `self.url`, `+` or `(`
 
 
@@ -178,9 +184,15 @@ class _OpenCall:
     argument_count: int = 0
     # The value of the first argument when it is positional and one token.
     first_positional_value: _ArgumentToken | None = None
+    # The bare name that the first argument starts with when it is positional and more of it follows the name.
+    first_positional_leading_name: str | None = None
     is_first_argument_keyword: bool = False
     # The value of the argument named `url` when it is one token.
     url_argument_value: _ArgumentToken | None = None
+    # The bare name that the value of the argument named `url` starts with when more of the value follows the name.
+    url_argument_leading_name: str | None = None
+    # The name that the call is assigned to when the call starts the value of an assignment, which holds only the call if nothing but the end of the statement follows its closing parenthesis.
+    assigned_name: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -206,6 +218,10 @@ class _CodeReadingState:
     # The calls in text order, None while a call is open and for a definition written like a call, e.g. `async fetch(url) {` in a JavaScript class body.
     code_calls: list[CodeCall | None] = field(default_factory=list)
     string_assignments: list[CodeStringAssignment] = field(default_factory=list)
+    # The assignments of one call, whose `code_call_index` is the place of the call among the opened calls until `_parsed_code_from` turns it into an index of `ParsedCode.code_calls`.
+    call_assignments: list[CodeCallAssignment] = field(default_factory=list)
+    # The names assigned by an assignment whose value starts with a call, by the 0-based position of the name of that call, e.g. `req` at the position of `Request` in `req = Request(u)`.
+    assigned_name_of_call_name_start: dict[int, str] = field(default_factory=dict)
     is_at_line_start: bool = True
     # The text of the token before the current one, e.g. `def` before `fetch` in `def fetch(url)`.
     previous_token_text: str = ""
@@ -213,7 +229,7 @@ class _CodeReadingState:
 
 
 def parse_code(code: str, code_language: CodeLanguage) -> ParsedCode:
-    """Find the calls of a code text with their strings and first argument, and the assignments of one string to a name at the start of a line.
+    """Find the calls of a code text with their strings and first argument, and the assignments of one string or one call to a name at the start of a line.
 
     A call is a name, bare or dotted, right before `(`, e.g. `requests.get(` or `fetch(`, outside strings and comments.
     A string belongs to the innermost call whose parentheses hold it, so in `print(requests.get("https://a.org/x"))` it belongs to `requests.get`.
@@ -228,11 +244,38 @@ def parse_code(code: str, code_language: CodeLanguage) -> ParsedCode:
     for open_bracket in reversed(state.open_brackets):
         if open_bracket.open_call is not None:
             _close_call_unreadable(state, open_bracket.open_call)
+    return _parsed_code_from(state)
+
+
+def _parsed_code_from(state: _CodeReadingState) -> ParsedCode:
+    """Build the reading of the code from the state at its end, turning the places of the opened calls into indexes of `ParsedCode.code_calls`, which leaves out the definitions written like calls."""
+    code_call_index_of_opened_call_index: dict[int, int] = {}
+    for opened_call_index, code_call in enumerate(state.code_calls):
+        if code_call is not None:
+            code_call_index_of_opened_call_index[opened_call_index] = len(
+                code_call_index_of_opened_call_index
+            )
     return ParsedCode(
         code_calls=tuple(
-            code_call for code_call in state.code_calls if code_call is not None
+            code_call
+            if code_call.first_argument_code_call_index is None
+            else replace(
+                code_call,
+                first_argument_code_call_index=code_call_index_of_opened_call_index.get(
+                    code_call.first_argument_code_call_index
+                ),
+            )
+            for code_call in state.code_calls
+            if code_call is not None
         ),
         string_assignments=tuple(state.string_assignments),
+        call_assignments=tuple(
+            CodeCallAssignment(
+                call_assignment.name,
+                code_call_index_of_opened_call_index[call_assignment.code_call_index],
+            )
+            for call_assignment in state.call_assignments
+        ),
         unreadable_text_start=state.unreadable_text_start,
     )
 
@@ -251,7 +294,7 @@ def _read_token(state: _CodeReadingState, position: int) -> int:
     if state.is_at_line_start:
         state.is_at_line_start = False
         if _may_assign_here(state):
-            _read_string_assignment(state, position)
+            _read_assignment(state, position)
     string_literal_end = _read_string_literal(state, position)
     if string_literal_end is not None:
         return string_literal_end
@@ -290,17 +333,22 @@ def _may_assign_here(state: _CodeReadingState) -> bool:
     return not state.open_brackets or state.open_brackets[-1].closer == "}"
 
 
-def _read_string_assignment(state: _CodeReadingState, position: int) -> None:
-    """Record the assignment of one string to a bare name that starts at a position, e.g. `URL = "https://a.org/x"`, when one starts there."""
+def _read_assignment(state: _CodeReadingState, position: int) -> None:
+    """Record the assignment of one string to a bare name that starts at a position, e.g. `URL = "https://a.org/x"`, when one starts there.
+
+    When the value starts with a call instead, e.g. `req = Request(u)`, the name is kept for that call, and `_close_call` records the assignment if the call is all of the value.
+    """
     code_syntax = state.code_syntax
     assignment_start_match = code_syntax.assignment_start.match(state.code, position)
     if assignment_start_match is None:
         return
     name = assignment_start_match.group(1)
-    string_literal = _string_literal_from(
-        state.code, assignment_start_match.end(), code_syntax
-    )
-    if string_literal is None or name in code_syntax.keywords:
+    if name in code_syntax.keywords:
+        return
+    value_start = assignment_start_match.end()
+    string_literal = _string_literal_from(state.code, value_start, code_syntax)
+    if string_literal is None:
+        state.assigned_name_of_call_name_start[value_start] = name
         return
     if string_literal.value is not None and code_syntax.assignment_end.match(
         state.code, string_literal.end
@@ -384,18 +432,27 @@ def _read_name(state: _CodeReadingState, name: str, name_end: int) -> int:
         and name not in code_syntax.keywords
         and state.previous_token_text not in _DEFINING_WORDS
     )
-    # A call is no bare name, e.g. `g` in `f(g(1))`.
-    is_bare_name = not is_call and "." not in name and name not in code_syntax.keywords
-    _add_argument_token(
-        state,
-        _ArgumentToken(
-            _ArgumentTokenKind.NAME if is_bare_name else _ArgumentTokenKind.OTHER, name
-        ),
-    )
     state.previous_token_text = name
     if not is_call:
+        is_bare_name = "." not in name and name not in code_syntax.keywords
+        _add_argument_token(
+            state,
+            _ArgumentToken(
+                _ArgumentTokenKind.NAME if is_bare_name else _ArgumentTokenKind.OTHER,
+                name,
+            ),
+        )
         return name_end
-    open_call = _OpenCall(name, len(state.code_calls), name_end + 1)
+    code_call_index = len(state.code_calls)
+    _add_argument_token(
+        state, _ArgumentToken(_ArgumentTokenKind.CALL, name, code_call_index)
+    )
+    open_call = _OpenCall(
+        name,
+        code_call_index,
+        name_end + 1,
+        assigned_name=state.assigned_name_of_call_name_start.get(name_end - len(name)),
+    )
     state.code_calls.append(None)
     _open_bracket(state, "(", open_call)
     return name_end + 1
@@ -454,11 +511,12 @@ def _close_call(state: _CodeReadingState, open_call: _OpenCall, position: int) -
     ):
         return
     _finish_argument(open_call)
-    first_argument_value = (
-        open_call.url_argument_value
-        if open_call.is_first_argument_keyword
-        else open_call.first_positional_value
-    )
+    if open_call.is_first_argument_keyword:
+        first_argument_value = open_call.url_argument_value
+        first_argument_leading_name = open_call.url_argument_leading_name
+    else:
+        first_argument_value = open_call.first_positional_value
+        first_argument_leading_name = open_call.first_positional_leading_name
     state.code_calls[open_call.code_call_index] = CodeCall(
         name=open_call.name,
         argument_text=state.code[open_call.argument_start : position],
@@ -469,7 +527,18 @@ def _close_call(state: _CodeReadingState, open_call: _OpenCall, position: int) -
         first_argument_name=_token_text_of_kind(
             first_argument_value, _ArgumentTokenKind.NAME
         ),
+        first_argument_leading_name=first_argument_leading_name,
+        first_argument_code_call_index=None
+        if first_argument_value is None
+        or first_argument_value.argument_token_kind != _ArgumentTokenKind.CALL
+        else first_argument_value.code_call_index,
     )
+    if open_call.assigned_name is not None and state.code_syntax.assignment_end.match(
+        state.code, position + 1
+    ):
+        state.call_assignments.append(
+            CodeCallAssignment(open_call.assigned_name, open_call.code_call_index)
+        )
 
 
 def _close_call_unreadable(state: _CodeReadingState, open_call: _OpenCall) -> None:
@@ -480,6 +549,8 @@ def _close_call_unreadable(state: _CodeReadingState, open_call: _OpenCall) -> No
         string_literals=(),
         first_argument_string=None,
         first_argument_name=None,
+        first_argument_leading_name=None,
+        first_argument_code_call_index=None,
     )
 
 
@@ -505,17 +576,17 @@ def _innermost_open_call_of(state: _CodeReadingState) -> _OpenCall | None:
 def _add_argument_token(
     state: _CodeReadingState, argument_token: _ArgumentToken
 ) -> None:
-    """Add a token to the argument being read when the innermost open bracket is a call, keeping only the first three that tell `url="x"` from one string."""
+    """Add a token to the argument being read when the innermost open bracket is a call, keeping only the first four, which tell `url="x"` from one string and `url=BASE + p` from `url=urls[0]`."""
     open_call = _innermost_open_call_of(state)
     if open_call is None:
         return
-    if open_call.argument_token_count < 3:
+    if open_call.argument_token_count < 4:
         open_call.argument_tokens.append(argument_token)
     open_call.argument_token_count += 1
 
 
 def _finish_argument(open_call: _OpenCall) -> None:
-    """End the argument being read at a comma or the closing parenthesis, keeping the first argument and the argument named `url` when each is one token."""
+    """End the argument being read at a comma or the closing parenthesis, keeping the first argument and the argument named `url` when each is one token, or else the bare name that each starts with."""
     argument_tokens = open_call.argument_tokens
     argument_token_count = open_call.argument_token_count
     open_call.argument_tokens = []
@@ -531,10 +602,35 @@ def _finish_argument(open_call: _OpenCall) -> None:
         open_call.is_first_argument_keyword = is_keyword_argument
         if not is_keyword_argument and argument_token_count == 1:
             open_call.first_positional_value = argument_tokens[0]
-    if (
-        is_keyword_argument
-        and argument_tokens[0].text == "url"
-        and argument_token_count == 3
-    ):
-        open_call.url_argument_value = argument_tokens[2]
+        if not is_keyword_argument:
+            open_call.first_positional_leading_name = _leading_name_of(
+                argument_tokens, argument_token_count, value_start=0
+            )
+    if is_keyword_argument and argument_tokens[0].text == "url":
+        if argument_token_count == 3:
+            open_call.url_argument_value = argument_tokens[2]
+        open_call.url_argument_leading_name = _leading_name_of(
+            argument_tokens, argument_token_count, value_start=2
+        )
     open_call.argument_count += 1
+
+
+def _leading_name_of(
+    argument_tokens: list[_ArgumentToken],
+    argument_token_count: int,
+    *,
+    value_start: int,
+) -> str | None:
+    """Find the bare name that the value of an argument starts with when more of the value follows the name, e.g. `BASE` of `BASE + path`, or None, e.g. for `BASE` alone or `urls[0] + path`.
+
+    The value starts at a 0-based index of the tokens of the argument, 0 for a positional argument and 2 after `url=`.
+    """
+    if argument_token_count < value_start + 2:
+        return None
+    leading_token, next_token = argument_tokens[value_start : value_start + 2]
+    if leading_token.argument_token_kind != _ArgumentTokenKind.NAME or (
+        next_token.argument_token_kind == _ArgumentTokenKind.OTHER
+        and next_token.text in _PUNCTUATION_THAT_READS_FROM_A_NAME
+    ):
+        return None
+    return leading_token.text

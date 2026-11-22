@@ -10,6 +10,7 @@ import pytest
 from tb_internet_use.expanded_tool_call.model import CodeLanguage
 from tb_internet_use.network_request.model import (
     CodeCall,
+    CodeCallAssignment,
     CodeStringAssignment,
     UnreadableCodeCallArguments,
 )
@@ -26,14 +27,22 @@ def _call(
     *,
     first_argument_string: str | None = None,
     first_argument_name: str | None = None,
+    first_argument_leading_name: str | None = None,
+    first_argument_code_call_index: int | None = None,
 ) -> CodeCall:
     return CodeCall(
-        name, argument_text, string_literals, first_argument_string, first_argument_name
+        name,
+        argument_text,
+        string_literals,
+        first_argument_string,
+        first_argument_name,
+        first_argument_leading_name,
+        first_argument_code_call_index,
     )
 
 
 def _unreadable_call(name: str) -> CodeCall:
-    return CodeCall(name, UnreadableCodeCallArguments(), (), None, None)
+    return CodeCall(name, UnreadableCodeCallArguments(), (), None, None, None, None)
 
 
 def _names(code: str, code_language: CodeLanguage) -> tuple[str, ...]:
@@ -147,11 +156,54 @@ def _failing_after(seconds: int) -> Iterator[None]:
         ),
         # A dotted name is no bare name.
         ("requests.get(self.url)", PYTHON, (_call("requests.get", "self.url"),)),
-        # A built URL is neither one string nor one name.
+        # A built URL is neither one string nor one name, but may start with a bare name.
         (
             "requests.get(base + path)",
             PYTHON,
-            (_call("requests.get", "base + path"),),
+            (_call("requests.get", "base + path", first_argument_leading_name="base"),),
+        ),
+        (
+            "requests.get(url=BASE + path, timeout=3)",
+            PYTHON,
+            (
+                _call(
+                    "requests.get",
+                    "url=BASE + path, timeout=3",
+                    first_argument_leading_name="BASE",
+                ),
+            ),
+        ),
+        (
+            'fetch(BASE + "/x")',
+            JAVASCRIPT,
+            (
+                _call(
+                    "fetch", 'BASE + "/x"', ("/x",), first_argument_leading_name="BASE"
+                ),
+            ),
+        ),
+        # A name that `(`, `.` or `[` reads from, a dotted name, a call or a later argument starts no first argument.
+        ("requests.get(base (p))", PYTHON, (_call("requests.get", "base (p)"),)),
+        (
+            "requests.get(cfg .base + p)",
+            PYTHON,
+            (_call("requests.get", "cfg .base + p"),),
+        ),
+        ("requests.get(urls[0] + p)", PYTHON, (_call("requests.get", "urls[0] + p"),)),
+        (
+            "requests.get(cfg.base + p)",
+            PYTHON,
+            (_call("requests.get", "cfg.base + p"),),
+        ),
+        (
+            "requests.get(base() + p)",
+            PYTHON,
+            (_call("requests.get", "base() + p"), _call("base", "")),
+        ),
+        (
+            'f("x", base + p)',
+            PYTHON,
+            (_call("f", '"x", base + p', ("x",), first_argument_string="x"),),
         ),
         (
             'requests.get("https://a.org/" + path)',
@@ -294,6 +346,48 @@ def _failing_after(seconds: int) -> Iterator[None]:
                 _call("r.json", ""),
             ),
         ),
+        # A first argument that is one call points to that call.
+        (
+            "urlopen(Request(u))",
+            PYTHON,
+            (
+                _call("urlopen", "Request(u)", first_argument_code_call_index=1),
+                _call("Request", "u", first_argument_name="u"),
+            ),
+        ),
+        (
+            "urlopen(url=Request(u))",
+            PYTHON,
+            (
+                _call("urlopen", "url=Request(u)", first_argument_code_call_index=1),
+                _call("Request", "u", first_argument_name="u"),
+            ),
+        ),
+        (
+            "urlopen(Request(u).x)",
+            PYTHON,
+            (
+                _call("urlopen", "Request(u).x"),
+                _call("Request", "u", first_argument_name="u"),
+            ),
+        ),
+        (
+            "urlopen(u, Request(v))",
+            PYTHON,
+            (
+                _call("urlopen", "u, Request(v)", first_argument_name="u"),
+                _call("Request", "v", first_argument_name="v"),
+            ),
+        ),
+        # The index leaves out a definition written like a call, e.g. `get(url)`.
+        (
+            "x = { get(url) {} }\nfetch(make(u))",
+            JAVASCRIPT,
+            (
+                _call("fetch", "make(u)", first_argument_code_call_index=1),
+                _call("make", "u", first_argument_name="u"),
+            ),
+        ),
         (
             "https.get(u, cb)",
             JAVASCRIPT,
@@ -428,6 +522,48 @@ def test_string_assignments_are_one_string_given_to_a_bare_name_at_the_start_of_
 
 
 @pytest.mark.parametrize(
+    ("code", "code_language", "call_assignments"),
+    [
+        (
+            "req = urllib.request.Request(u)\nurlopen(req)",
+            PYTHON,
+            (CodeCallAssignment("req", 0),),
+        ),
+        ("x = 1\nreq = Request(u)  # r", PYTHON, (CodeCallAssignment("req", 0),)),
+        ("req = Request(u); urlopen(req)", PYTHON, (CodeCallAssignment("req", 0),)),
+        ("const req = make(u);", JAVASCRIPT, (CodeCallAssignment("req", 0),)),
+        # The index leaves out a definition written like a call, e.g. `get(url)`.
+        (
+            "x = { get(url) {} }\nconst r = make(u)",
+            JAVASCRIPT,
+            (CodeCallAssignment("r", 0),),
+        ),
+        # Each assignment is kept, so a later reader can tell a name given two calls.
+        (
+            "r = f(u)\nr = g(v)",
+            PYTHON,
+            (CodeCallAssignment("r", 0), CodeCallAssignment("r", 1)),
+        ),
+        # The call must be all of the value.
+        ("req = Request(u).read()", PYTHON, ()),
+        ("req = Request(u) + x", PYTHON, ()),
+        ("req = (Request(u))", PYTHON, ()),
+        ("req = x or Request(u)", PYTHON, ()),
+        ("req == Request(u)", PYTHON, ()),
+        ("req = Request(u", PYTHON, ()),
+        ("f(\n    req=Request(u)\n)", PYTHON, ()),
+        ("import x; req = Request(u)", PYTHON, ()),
+    ],
+)
+def test_call_assignments_are_one_call_given_to_a_bare_name_at_the_start_of_a_line(
+    code: str,
+    code_language: CodeLanguage,
+    call_assignments: tuple[CodeCallAssignment, ...],
+):
+    assert parse_code(code, code_language).call_assignments == call_assignments
+
+
+@pytest.mark.parametrize(
     ("code", "code_language", "code_calls"),
     [
         # Code cut short after the URL or inside it.
@@ -469,7 +605,11 @@ def test_string_assignments_are_one_string_given_to_a_bare_name_at_the_start_of_
             ),
         ),
         # A closer without an opener is passed over.
-        ("f(g(1)))", PYTHON, (_call("f", "g(1)"), _call("g", "1"))),
+        (
+            "f(g(1)))",
+            PYTHON,
+            (_call("f", "g(1)", first_argument_code_call_index=1), _call("g", "1")),
+        ),
         ("x = [f(1))]", PYTHON, (_call("f", "1"),)),
     ],
 )

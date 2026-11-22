@@ -218,34 +218,28 @@ def test_code_call_label_has_a_target_notation_and_kind_exactly_when_the_call_se
 
 
 @pytest.mark.parametrize(
-    ("string_literals", "first_argument_string", "first_argument_name"),
+    "values_read_from_arguments",
     [
-        (("https://a.org/x",), None, None),
-        ((), "https://a.org/x", None),
-        ((), None, "URL"),
+        (("https://a.org/x",), None, None, None, None),
+        ((), "https://a.org/x", None, None, None),
+        ((), None, "URL", None, None),
+        ((), None, None, "BASE", None),
+        ((), None, None, None, 1),
     ],
 )
 def test_code_call_with_unreadable_arguments_holds_no_values_read_from_them(
-    string_literals: tuple[str, ...],
-    first_argument_string: str | None,
-    first_argument_name: str | None,
+    values_read_from_arguments: tuple[
+        tuple[str, ...], str | None, str | None, str | None, int | None
+    ],
 ):
-    empty_call = CodeCall("requests.get", UnreadableCodeCallArguments(), (), None, None)
+    empty_call = CodeCall(
+        "requests.get", UnreadableCodeCallArguments(), (), None, None, None, None
+    )
     assert empty_call.string_literals == ()
     with pytest.raises(ValueError):
         CodeCall(
-            "requests.get",
-            UnreadableCodeCallArguments(),
-            string_literals,
-            first_argument_string,
-            first_argument_name,
+            "requests.get", UnreadableCodeCallArguments(), *values_read_from_arguments
         )
     # The same values are kept when the arguments could be read.
-    call = CodeCall(
-        "requests.get",
-        '"https://a.org/x"',
-        string_literals,
-        first_argument_string,
-        first_argument_name,
-    )
-    assert call.string_literals == string_literals
+    call = CodeCall("requests.get", '"https://a.org/x"', *values_read_from_arguments)
+    assert call.string_literals == values_read_from_arguments[0]

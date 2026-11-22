@@ -421,11 +421,12 @@ class UnknownCodeCallLabel:
 
 @dataclass(frozen=True, slots=True)
 class ParsedCode:
-    """Reading of one code text by `parse_code`, with its call sites and the names it gives one string to."""
+    """Reading of one code text by `parse_code`, with its call sites and the names it gives one string or one call to."""
 
     # The calls in text order, a nested call after the call that holds it.
     code_calls: tuple[CodeCall, ...]
     string_assignments: tuple[CodeStringAssignment, ...]
+    call_assignments: tuple[CodeCallAssignment, ...]
     # The 0-based index of the code from which the text was not read, None when all of it was read.
     # It exists because a multi-line string, template string or block comment that never closes hides every call after it, e.g. `fetch(u)` after the backtick of `/`/` in JavaScript.
     unreadable_text_start: int | None
@@ -445,6 +446,11 @@ class CodeCall:
     first_argument_string: str | None
     # The same argument when it is one bare name, e.g. `URL` in `requests.get(URL)`.
     first_argument_name: str | None
+    # The bare name that the same argument starts with when more of the argument follows it, e.g. `BASE` in `requests.get(BASE + path)`.
+    # None when `(`, `.` or `[` follows the name, since the argument then reads from the name and does not start with its value, e.g. `urls[0] + path`.
+    first_argument_leading_name: str | None
+    # The 0-based index in `ParsedCode.code_calls` of the call that the same argument is as a whole, e.g. of `Request` in `urlopen(Request(u))`.
+    first_argument_code_call_index: int | None
 
     def __post_init__(self) -> None:
         """Refuse strings or a first argument for a call whose arguments could not be read."""
@@ -452,6 +458,8 @@ class CodeCall:
             self.string_literals
             or self.first_argument_string is not None
             or self.first_argument_name is not None
+            or self.first_argument_leading_name is not None
+            or self.first_argument_code_call_index is not None
         ):
             raise ValueError(f"unreadable arguments of {self.name} with values")
 
@@ -467,6 +475,15 @@ class CodeStringAssignment:
 
     name: str
     value: str
+
+
+@dataclass(frozen=True, slots=True)
+class CodeCallAssignment:
+    """Assignment of one call to a bare name in code, e.g. `req = urllib.request.Request(u)`, so that a call given the name can be read through it."""
+
+    name: str
+    # The 0-based index in `ParsedCode.code_calls` of the call.
+    code_call_index: int
 
 
 class NoNetworkRequestReason(StrEnum):
