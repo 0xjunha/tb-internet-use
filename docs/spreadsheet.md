@@ -12,7 +12,7 @@ nice -n 10 uv run python -I scripts/build_spreadsheet.py <run_dir>
 
 It writes `internet_use.xlsx` under `<run_dir>/spreadsheet/` (or `--out-dir`), with `formula_check.csv`, which holds each formula cell and chart with the value computed from the file and that of its Python copy.
 
-Each tab of results opens with its title and a sentence that says what its table holds. A table shows one number per fact, the lower bound. The upper bound shows only in the key numbers of `Overview`, in the column `Request, upper bound` of `Tasks`, in the lines of sender `unknown` of `Web tools` and in `Bounds`, which splits the difference by cause.
+Each tab of results opens with its title and a sentence that says what its table holds. `Web tools` has a second sentence under it, which says that its requests are the ones seen in the trajectories and what each sender means for a network that is turned off. A table shows one number per fact, the lower bound. The upper bound shows only in the key numbers of `Overview`, in the column `Request, upper bound` of `Tasks`, in the lines of sender `unknown` of `Web tools` and in `Bounds`, which splits the difference by cause.
 
 | Tab | What it holds |
 |---|---|

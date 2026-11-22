@@ -532,7 +532,11 @@ def lay_out_web_tools_tab(
     grid = TabGrid(WEB_TOOLS_TAB_NAME, tab_color=RESULTS_TAB_COLOR)
     _add_title_and_description(
         grid,
-        "Requests of the web tools of harnesses, by where they are sent from. (lines of sender unknown count the upper bound)",
+        "Requests of the web tools of harnesses, by where they are sent from.",
+        _WEB_TOOLS_LAST_COLUMN,
+    )
+    grid.add_note(
+        "Web tool requests seen in the trajectories. A sender of harness_process or provider_server is outside the task environment, so turning off its network does not block the request. For sender unknown, no fact says where the tool runs, so its lines count the upper bound.",
         _WEB_TOOLS_LAST_COLUMN,
     )
     header_row = grid.add_row(
