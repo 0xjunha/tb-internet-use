@@ -110,10 +110,10 @@ class _CodeSyntax:
     # The letters that may come right before a quote and are no part of the string value, e.g. `f` of `f"x"`.
     string_prefix: re.Pattern[str] | None
     string_delimiters: tuple[str, ...]
-    # An assignment of a string to a name at the start of a line, up to the string, e.g. `const URL = `.
-    string_assignment_start: re.Pattern[str]
-    # What may follow the string of such an assignment, e.g. a line break or `;`.
-    string_assignment_end: re.Pattern[str]
+    # An assignment to a bare name at the start of a line, up to the value, e.g. `const URL = `.
+    assignment_start: re.Pattern[str]
+    # What may follow the value of such an assignment, e.g. a line break or `;`.
+    assignment_end: re.Pattern[str]
 
 
 _PYTHON_NAME = r"[^\W\d]\w*"
@@ -127,10 +127,8 @@ _SYNTAX_OF_LANGUAGE = {
         has_block_comments=False,
         string_prefix=re.compile(r"(?:[rR][fFbB]?|[fFbB][rR]?|[uU])(?=['\"])"),
         string_delimiters=('"""', "'''", '"', "'"),
-        string_assignment_start=re.compile(
-            rf"({_PYTHON_NAME})[ \t]*(?::[^=\n#]*)?=[ \t]*"
-        ),
-        string_assignment_end=re.compile(r"[ \t]*(?:;|#|\n|\Z)"),
+        assignment_start=re.compile(rf"({_PYTHON_NAME})[ \t]*(?::[^=\n#]*)?=[ \t]*"),
+        assignment_end=re.compile(r"[ \t]*(?:;|#|\n|\Z)"),
     ),
     CodeLanguage.JAVASCRIPT: _CodeSyntax(
         dotted_name=re.compile(rf"{_JAVASCRIPT_NAME}(?:\.{_JAVASCRIPT_NAME})*"),
@@ -140,10 +138,10 @@ _SYNTAX_OF_LANGUAGE = {
         has_block_comments=True,
         string_prefix=None,
         string_delimiters=("`", '"', "'"),
-        string_assignment_start=re.compile(
+        assignment_start=re.compile(
             rf"(?:export[ \t]+)?(?:(?:const|let|var)[ \t]+)?({_JAVASCRIPT_NAME})[ \t]*=[ \t]*"
         ),
-        string_assignment_end=re.compile(r"[ \t]*(?:;|//|\n|\Z)"),
+        assignment_end=re.compile(r"[ \t]*(?:;|//|\n|\Z)"),
     ),
 }
 
@@ -295,9 +293,7 @@ def _may_assign_here(state: _CodeReadingState) -> bool:
 def _read_string_assignment(state: _CodeReadingState, position: int) -> None:
     """Record the assignment of one string to a bare name that starts at a position, e.g. `URL = "https://a.org/x"`, when one starts there."""
     code_syntax = state.code_syntax
-    assignment_start_match = code_syntax.string_assignment_start.match(
-        state.code, position
-    )
+    assignment_start_match = code_syntax.assignment_start.match(state.code, position)
     if assignment_start_match is None:
         return
     name = assignment_start_match.group(1)
@@ -306,7 +302,7 @@ def _read_string_assignment(state: _CodeReadingState, position: int) -> None:
     )
     if string_literal is None or name in code_syntax.keywords:
         return
-    if string_literal.value is not None and code_syntax.string_assignment_end.match(
+    if string_literal.value is not None and code_syntax.assignment_end.match(
         state.code, string_literal.end
     ):
         state.string_assignments.append(
