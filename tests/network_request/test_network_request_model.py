@@ -217,11 +217,15 @@ def test_code_call_label_has_a_target_notation_and_kind_exactly_when_the_call_se
     is_accepted: bool,
 ):
     if is_accepted:
-        label = CodeCallLabel("requests.get", effect, target_notation, target_kind)
+        label = CodeCallLabel(
+            "requests.get", effect, target_notation, target_kind, "requests"
+        )
         assert label.target_kind == target_kind
     else:
         with pytest.raises(ValueError):
-            CodeCallLabel("requests.get", effect, target_notation, target_kind)
+            CodeCallLabel(
+                "requests.get", effect, target_notation, target_kind, "requests"
+            )
 
 
 @pytest.mark.parametrize(

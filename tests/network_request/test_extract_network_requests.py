@@ -281,6 +281,7 @@ _CODE_CALL_DEFAULTS = {
     "code_language": "python",
     "target_notation": "",
     "target_kind": "",
+    "module_name": "",
 }
 # The cells that every made-up row shares.
 _REVIEW_DEFAULTS = {"checked_against": "made up", "reviewed": "", "note": ""}

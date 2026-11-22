@@ -391,6 +391,9 @@ class CodeCallLabel:
     target_notation: TargetNotation | None
     # None unless the call sends a request or holds the target of one. An `UnknownNetworkRequestTargetKind` when the row of such a call leaves it blank.
     target_kind: NetworkRequestTargetKind | UnknownNetworkRequestTargetKind | None
+    # The Python module that the name starts with when code writes the call through that module, e.g. `requests` for `requests.get`.
+    # None for a name that is not written through a module, e.g. `urlopen` or `page.goto`, where `page` is an object, so that a call written without an import of the module can be told apart, e.g. `requests.get(rid)` where `requests` is a dict.
+    module_name: str | None
 
     def __post_init__(self) -> None:
         """Refuse a target notation or kind for a call that neither sends a request nor holds the target of one, and such a call without both."""

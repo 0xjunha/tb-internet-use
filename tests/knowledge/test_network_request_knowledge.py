@@ -102,6 +102,7 @@ _CODE_CALL_COLUMNS = [
     "effect",
     "target_notation",
     "target_kind",
+    "module_name",
     "checked_against",
     "reviewed",
     "note",
@@ -121,6 +122,7 @@ _RUNNING_CODE_CALL_ROW_CELLS = {
     "code_language": "python",
     "call_name": "os.system",
     "effect": "runs_program",
+    "module_name": "os",
     "checked_against": "a manual",
 }
 # (rows of the code call catalog, a part of the error message) of catalogs that fail the load.
@@ -158,6 +160,18 @@ _CODE_CALL_CATALOGS_THAT_CANNOT_LOAD = [
         "checked_against is empty",
     ),
     ([{**_SENDING_CODE_CALL_ROW_CELLS, "reviewed": "no"}], "not empty or yes"),
+    (
+        [{**_RUNNING_CODE_CALL_ROW_CELLS, "module_name": "subprocess"}],
+        "is not the first dotted part of 'os.system'",
+    ),
+    (
+        [{**_RUNNING_CODE_CALL_ROW_CELLS, "call_name": "os", "module_name": "os"}],
+        "is not the first dotted part of 'os'",
+    ),
+    (
+        [{**_SENDING_CODE_CALL_ROW_CELLS, "module_name": "mylib"}],
+        "is filled in a javascript row",
+    ),
     (
         [_SENDING_CODE_CALL_ROW_CELLS, _SENDING_CODE_CALL_ROW_CELLS],
         "two rows have the key",
@@ -1009,6 +1023,7 @@ def test_code_call_row_is_read_into_every_field_and_counted(tmp_path):
         CodeCallEffect.SENDS_NETWORK_REQUEST,
         TargetNotation.HOST_AND_PORT_TUPLE,
         NetworkRequestTargetKind.HOST,
+        None,
     )
     assert knowledge.uses == KnowledgeUses(
         row_use_counts=_code_call_uses(("javascript", "mylib.connect"))
@@ -1064,6 +1079,7 @@ def test_code_call_that_holds_a_target_is_read_with_its_target_notation_and_kind
         CodeCallEffect.HOLDS_NETWORK_REQUEST_TARGET,
         TargetNotation.HOST_AND_PORT_TUPLE,
         NetworkRequestTargetKind.HOST,
+        None,
     )
 
 
@@ -1071,7 +1087,7 @@ def test_code_call_that_runs_a_program_has_no_target_notation_or_kind(tmp_path):
     knowledge = _knowledge(tmp_path, [], [_RUNNING_CODE_CALL_ROW_CELLS])
 
     assert knowledge.code_call_label(CodeLanguage.PYTHON, "os.system") == (
-        CodeCallLabel("os.system", CodeCallEffect.RUNS_PROGRAM, None, None)
+        CodeCallLabel("os.system", CodeCallEffect.RUNS_PROGRAM, None, None, "os")
     )
 
 
@@ -1131,6 +1147,7 @@ def test_real_code_call_rows_are_carried_from_the_old_tables_or_name_a_documenta
                 CodeCallEffect.SENDS_NETWORK_REQUEST,
                 TargetNotation.URL,
                 NetworkRequestTargetKind.URL,
+                "requests",
             ),
         ),
         (
@@ -1141,6 +1158,7 @@ def test_real_code_call_rows_are_carried_from_the_old_tables_or_name_a_documenta
                 CodeCallEffect.SENDS_NETWORK_REQUEST,
                 TargetNotation.NAME,
                 UnknownNetworkRequestTargetKind(),
+                None,
             ),
         ),
         (
@@ -1151,12 +1169,15 @@ def test_real_code_call_rows_are_carried_from_the_old_tables_or_name_a_documenta
                 CodeCallEffect.SENDS_NETWORK_REQUEST,
                 TargetNotation.HOST_AND_PORT_TUPLE,
                 NetworkRequestTargetKind.HOST,
+                "socket",
             ),
         ),
         (
             CodeLanguage.PYTHON,
             "subprocess.run",
-            CodeCallLabel("subprocess.run", CodeCallEffect.RUNS_PROGRAM, None, None),
+            CodeCallLabel(
+                "subprocess.run", CodeCallEffect.RUNS_PROGRAM, None, None, "subprocess"
+            ),
         ),
         (
             CodeLanguage.JAVASCRIPT,
@@ -1166,6 +1187,7 @@ def test_real_code_call_rows_are_carried_from_the_old_tables_or_name_a_documenta
                 CodeCallEffect.SENDS_NETWORK_REQUEST,
                 TargetNotation.URL,
                 NetworkRequestTargetKind.URL,
+                None,
             ),
         ),
     ],

@@ -572,6 +572,7 @@ def _knowledge_with_code_call_rows(
         "effect",
         "target_notation",
         "target_kind",
+        "module_name",
         "checked_against",
         "reviewed",
         "note",

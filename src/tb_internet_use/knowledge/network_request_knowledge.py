@@ -1,6 +1,6 @@
 """Answer the questions of `extract_network_requests` about which programs and code calls fetch, which of their words are targets and where the content goes, from the program request catalog and the code call catalog, counting every use of a row and every input without one.
 
-A blank cell is unknown only in `content_route` of the program request catalog and in `target_kind` of the code call catalog. Every other fact cell of a row of its kind says what it means in a word, e.g. `none` or `no_request`, and a blank there fails the load, so that `NetworkRequestKnowledge` never reads a missing fact as a default.
+A blank cell is unknown only in `content_route` of the program request catalog and in `target_kind` of the code call catalog. A blank `module_name` of the code call catalog says that the call is not written through a module, e.g. `urlopen`. Every other fact cell of a row of its kind says what it means in a word, e.g. `none` or `no_request`, and a blank there fails the load, so that `NetworkRequestKnowledge` never reads a missing fact as a default.
 """
 
 import functools
@@ -306,9 +306,11 @@ def _program_option_effect_from_columns(
 def _code_call_label_from_columns(columns: Mapping[str, str]) -> CodeCallLabel:
     """Read one row of `code_calls.csv`, in which a call that sends a request or holds the target of one names its target notation and may leave its target kind blank, and any other call leaves both blank."""
     _check_review_columns(columns)
-    CodeLanguage(columns["code_language"])
-    if not columns["call_name"]:
+    code_language = CodeLanguage(columns["code_language"])
+    call_name = columns["call_name"]
+    if not call_name:
         raise ValueError("call_name is empty")
+    module_name = _module_name_from_columns(columns, code_language)
     effect = CodeCallEffect(columns["effect"])
     if effect not in CODE_CALL_EFFECTS_WITH_TARGET:
         _check_blank(
@@ -316,16 +318,39 @@ def _code_call_label_from_columns(columns: Mapping[str, str]) -> CodeCallLabel:
             ("target_notation", "target_kind"),
             row_kind="a row that neither sends a request nor holds its target",
         )
-        return CodeCallLabel(columns["call_name"], effect, None, None)
+        return CodeCallLabel(call_name, effect, None, None, module_name)
     target_kind = columns["target_kind"]
     return CodeCallLabel(
-        call_name=columns["call_name"],
+        call_name=call_name,
         effect=effect,
         target_notation=TargetNotation(columns["target_notation"]),
         target_kind=UnknownNetworkRequestTargetKind()
         if target_kind == ""
         else NetworkRequestTargetKind(target_kind),
+        module_name=module_name,
     )
+
+
+def _module_name_from_columns(
+    columns: Mapping[str, str], code_language: CodeLanguage
+) -> str | None:
+    """Read `module_name` of a row, None when it is blank, raising ValueError on a module that is not the first dotted part of `call_name`, e.g. `os` for `subprocess.run`, or on a module of a JavaScript row.
+
+    A JavaScript row leaves it blank, since `parse_code` reads no import of JavaScript.
+    """
+    module_name = columns["module_name"]
+    if not module_name:
+        return None
+    if code_language != CodeLanguage.PYTHON:
+        raise ValueError(
+            f"module_name {module_name!r} is filled in a {code_language} row"
+        )
+    call_name_parts = columns["call_name"].split(".")
+    if len(call_name_parts) < 2 or call_name_parts[0] != module_name:
+        raise ValueError(
+            f"module_name {module_name!r} is not the first dotted part of {columns['call_name']!r}"
+        )
+    return module_name
 
 
 def _check_blank(
