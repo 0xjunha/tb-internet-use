@@ -475,10 +475,11 @@ def share_band_of(share: float) -> int:
     return next(band for band in range(9, -1, -1) if share >= band / 10)
 
 
-def requested_item_of(row: dict[str, str]) -> str:
-    """Give what a request row asked for, as a line of the tab `Requested items` shows it.
+def requested_item_of(row: dict[str, str]) -> str | None:
+    """Give what a request row asked for, as a line of the tab `Requested items` shows it, or None for a row that gets no line.
 
-    A package gives its name as `package_name_of` shows it, or what the row says of its missing target, e.g. `(named_in_file)`. Another request gives its host name. So does a package whose target is a URL, e.g. `https://pypi.org/pypi/x/json` gives `pypi.org`, since the URL names no package that `package_name_of` can read. A URL of a wheel file of pip still gives the name of the wheel, e.g. `numpy` of `https://files.pythonhosted.org/.../numpy-2.1.0-py3-none-any.whl`.
+    A package gives its name as `package_name_of` shows it. Another request gives its host name. So does a package whose target is a URL, e.g. `https://pypi.org/pypi/x/json` gives `pypi.org`, since the URL names no package that `package_name_of` can read. A URL of a wheel file of pip still gives the name of the wheel, e.g. `numpy` of `https://files.pythonhosted.org/.../numpy-2.1.0-py3-none-any.whl`.
+    A package request without a target gives a text in parentheses that says where the names are, as `_item_of_package_request_without_target` gives it.
     """
     if row["category"] != NetworkRequestCategory.PACKAGE:
         return _host_names_of(row)
@@ -488,10 +489,42 @@ def requested_item_of(row: dict[str, str]) -> str:
         return _host_names_of(row)
     if row["target"]:
         return package_name_of(row["target"], row["package_registry"])
-    if row["unknown_target_reason"]:
-        return f"({row['unknown_target_reason']})"
-    # e.g. `apt-get update`, which reads the index of the registry.
-    return "(no package named)"
+    return _item_of_package_request_without_target(row)
+
+
+PACKAGE_INDEX_UPDATE_ITEM = "(package index update)"
+PACKAGE_REGISTRY_PING_ITEM = "(package registry ping)"
+PACKAGES_FROM_DEPENDENCY_FILE_ITEM = "(packages from dependency file)"
+PACKAGE_NAME_IN_VARIABLE_ITEM = "(package name in variable)"
+# The commands that ask a registry for no package, by what the request row shows in `made_by`.
+_ITEM_OF_COMMAND_THAT_ASKS_FOR_NO_PACKAGE = {
+    "apt-get update": PACKAGE_INDEX_UPDATE_ITEM,
+    "apt update": PACKAGE_INDEX_UPDATE_ITEM,
+    "npm ping": PACKAGE_REGISTRY_PING_ITEM,
+}
+
+
+def _item_of_package_request_without_target(row: dict[str, str]) -> str | None:
+    """Give the text in parentheses of a package request whose row shows no target, by where the package names are.
+
+    A command that asks for no package gives its own text, e.g. `apt-get update`, which reads the index of the registry.
+    A name that is set when the command runs gives one text, e.g. `pip install $PKG`.
+    A target that is a path on the machine gives no line, e.g. `pip install ./dist/x.whl`, since the file is not asked of a registry and its dependencies are not in the command.
+    A request whose words were not read keeps the reason of its row, e.g. `(unread_words)`.
+    Every other request takes its names from outside the command, from a file of the project, e.g. `npm ci` or `pip install -r reqs.txt`, or from a list that the program holds, e.g. `playwright install-deps`.
+    """
+    match row["unknown_target_reason"]:
+        case UnknownNetworkRequestTargetReason.LOCAL_PATH:
+            return None
+        case UnknownNetworkRequestTargetReason.VALUE_SET_AT_RUN_TIME:
+            return PACKAGE_NAME_IN_VARIABLE_ITEM
+        case UnknownNetworkRequestTargetReason.NAMED_IN_FILE | "":
+            return _ITEM_OF_COMMAND_THAT_ASKS_FOR_NO_PACKAGE.get(
+                row["made_by"], PACKAGES_FROM_DEPENDENCY_FILE_ITEM
+            )
+        case unknown_target_reason:
+            # Words that were not read, e.g. `pip install --foo x`, keep the reason of the row.
+            return f"({unknown_target_reason})"
 
 
 def _host_names_of(row: dict[str, str]) -> str:
@@ -560,6 +593,8 @@ def _count_network_request_row(
         row["category"], row[registry_or_host_service_column_of(row["category"])]
     )
     requested_item = requested_item_of(row)
+    if requested_item is None:
+        return
     counts.requested_item_trial_ids.setdefault(
         RequestedItemLineKey(
             counts.task_by_trial_id[row["trial_id"]], line_key, requested_item

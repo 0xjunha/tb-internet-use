@@ -45,7 +45,9 @@ def test_counts_requested_items_from_lower_bound_rows_of_the_task_environment(
     # `requests` of t1 and `Requests` of t3 are one item. npm of t6 is only in the upper bound.
     assert counts.requested_item_trial_ids == {
         item_key(TASK_A_4, line_key("package", "pypi"), "requests"): {"t1", "t3"},
-        item_key(TASK_0_4, line_key("package", "pypi"), "(named_in_file)"): {"t5"},
+        item_key(
+            TASK_0_4, line_key("package", "pypi"), "(packages from dependency file)"
+        ): {"t5"},
         item_key(TASK_0_4, line_key("content_fetch", "code_hosting"), "github.com"): {
             "t5"
         },
@@ -110,24 +112,34 @@ def test_gives_the_host_of_a_request_that_is_no_package():
     )
 
 
-def test_gives_what_a_package_request_without_a_target_says_of_it():
+@pytest.mark.parametrize(
+    ("made_by", "unknown_target_reason", "requested_item"),
+    [
+        ("apt-get update", "", "(package index update)"),
+        ("npm ping", "", "(package registry ping)"),
+        # Its names are in a list that the program holds.
+        ("playwright install-deps", "", "(packages from dependency file)"),
+        ("npm ci", "named_in_file", "(packages from dependency file)"),
+        ("pip install", "value_set_at_run_time", "(package name in variable)"),
+        ("pip install", "unread_words", "(unread_words)"),
+        # A file on the machine is not asked of a registry.
+        ("pip install", "local_path", None),
+    ],
+)
+def test_gives_where_the_names_of_a_package_request_without_a_target_are(
+    made_by: str, unknown_target_reason: str, requested_item: str | None
+):
     row = {
         "category": "package",
+        "made_by": made_by,
         "target": "",
         "target_kind": "",
         "package_registry": "apt",
         "host_names": "",
-        "unknown_target_reason": "",
+        "unknown_target_reason": unknown_target_reason,
     }
 
-    # e.g. `apt-get update`.
-    assert spreadsheet_python_counts.requested_item_of(row) == "(no package named)"
-    assert (
-        spreadsheet_python_counts.requested_item_of(
-            row | {"unknown_target_reason": "value_set_at_run_time"}
-        )
-        == "(value_set_at_run_time)"
-    )
+    assert spreadsheet_python_counts.requested_item_of(row) == requested_item
 
 
 @pytest.mark.parametrize(

@@ -316,16 +316,6 @@ def test_requested_items_join_versions_of_one_package_and_count_tasks_that_share
         [
             "4-0-0",
             "0a",
-            "package",
-            "pypi",
-            "(named_in_file)",
-            1,
-            1 / 2,
-            1,
-        ],
-        [
-            "4-0-0",
-            "0a",
             "content_fetch",
             "code_hosting",
             "github.com",
@@ -344,6 +334,17 @@ def test_requested_items_join_versions_of_one_package_and_count_tasks_that_share
             1,
         ],
         ["4-0-0", "0a", "other_web", "unknown", "b.org", 1, 1 / 2, 1],
+        # A text in parentheses comes after the names of its task.
+        [
+            "4-0-0",
+            "0a",
+            "package",
+            "pypi",
+            "(packages from dependency file)",
+            1,
+            1 / 2,
+            1,
+        ],
         ["4-0-0", "a", "package", "pypi", "requests", 2, 2 / 3, 1],
     ]
 

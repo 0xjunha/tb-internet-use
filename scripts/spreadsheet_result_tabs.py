@@ -463,6 +463,8 @@ def lay_out_requested_items_tab(counts: SpreadsheetPythonCounts) -> RequestedIte
         counts.requested_item_trial_ids,
         key=lambda key: (
             key.task,
+            # A text in parentheses names no package or host, so it comes after the names.
+            key.requested_item.startswith("("),
             -len(counts.requested_item_trial_ids[key]),
             _CATEGORY_ORDER[key.registry_or_host_service_line_key.category],
             key.registry_or_host_service_line_key.registry_or_host_service,
