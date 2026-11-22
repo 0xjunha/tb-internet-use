@@ -1,13 +1,14 @@
 """Decide what the trajectory and the output catalogs do not settle about how far a network request got, one named rule per situation, e.g. whether `curl` that ended with exit 0 and printed nothing reached a server.
 
 Each rule is a judgment, not a reading of the trajectory or a fact of a catalog, so it lives here where it can be found and changed.
-For example, `pip install x` that prints only `Successfully installed x-1.0` may have taken x from a cache, and only a rule says whether that line shows that the content arrived.
+For example, `uv pip install x` that prints only ` + x==1.0` may have taken x from a cache, and only a rule says whether that line shows that the content arrived.
 
 Each rule adds one to `use_counts` under its own function name every time it decides something, so that audits can show how much of the output leans on each rule.
 The counts are for tracking and never go into a `NetworkRequestResult`.
 
 Where the choice that claims least would contradict what the trajectory shows, e.g. a page text that a web fetch returned, a rule gives the level that the trajectory shows and marks it as resting on the rule.
 `decide_network_request_results` then gives such a result the certainty ASSUMED, so it counts toward no lower bound of the trials that received something.
+A rule that the user decided on the evidence of the trajectories may give a level that does not rest on it, as each such docstring says.
 
 A rule is provisional until the user decides it. The last paragraph of each docstring marks it `Provisional.` or `Decided.`
 """
@@ -50,17 +51,37 @@ def treat_exit_code_meaning_as_assumed_level(
     return True
 
 
+def treat_pip_or_apt_installed_line_of_named_package_as_received(
+    *, use_counts: Counter[str]
+) -> bool:
+    """Read a line of pip or apt that says a package was installed as showing that the content arrived when the request names the package, e.g. `Successfully installed x-1.0` as the only line of `pip install x`, or `Setting up curl (7.88)` under `apt-get install -y curl`.
+
+    pip prints the same line when it installs x from its cache, so the line alone does not say whether the content came over the network.
+    In the trajectories pip and apt downloaded what such a command installed. On all 21,450 Terminal-Bench 4.1 trajectories, 564 of 564 calls whose whole shell text is one `pip install` of named packages without `-q` and whose result shows `Successfully installed` also show a `Downloading` line of a package file, in 327 trials of 29 tasks, and none shows only `Using cached`.
+    The same count for `apt-get install` found a `Get:` line of a package beside `Setting up` in 132 calls, and none without it in a result that the harness did not cut, while 27 results were cut.
+    A local install prints the line without a download, e.g. `pip install -e /app` in 4 calls, so the rule holds only for a request whose target is a named package.
+    `_level_and_stop_reason_from_output_line` asks it for each line of the kind INSTALLED that only pip or only apt prints and that a request owns, when the request's target is a named package, unless `treat_line_naming_another_target_as_no_evidence_of_answer` has taken the line.
+    On `True` the line shows RECEIVED with no stop reason, or REACHED for a request that asks for no content, and the level does not rest on this rule. On `False` it shows only that the program ran, EXECUTED with NOT_VISIBLE.
+    A use is such a line of a request.
+
+    Decided. The user decided on 2026-11-22 from the counts above, so that such a trial counts in the lower bound of the trials that received something.
+    """
+    use_counts[treat_pip_or_apt_installed_line_of_named_package_as_received.__name__] += 1
+    return True
+
+
 def treat_installed_line_as_no_evidence_of_download(
     *, use_counts: Counter[str]
 ) -> bool:
-    """Read a line that says a package was installed as no evidence that it was downloaded, e.g. `Successfully installed x-1.0` as the only line of `pip install x`.
+    """Read a line that says a package was installed as no evidence that it was downloaded, e.g. ` + x==1.0` as the only line of `uv pip install x`, or `Successfully installed app-0.1` under `pip install -e /app`.
 
-    pip prints the same line when it installs x from its cache, so the line does not say whether the content came over the network.
-    `_level_and_stop_reason_from_output_line` asks it for each line of the kind INSTALLED that a request owns, unless `treat_line_naming_another_target_as_no_evidence_of_answer` has taken the line.
+    The program may have installed the package from its cache or from a local folder, so the line does not say whether the content came over the network.
+    `_level_and_stop_reason_from_output_line` asks it for each line of the kind INSTALLED that a request owns, unless `treat_line_naming_another_target_as_no_evidence_of_answer` has taken the line or `treat_pip_or_apt_installed_line_of_named_package_as_received` is asked instead, i.e. for a line of another program such as uv or npm, and for a line of pip or apt under a request whose target is no named package, e.g. a local path or a file of requirements.
+    A line beside a download line of a package file that the request owns never asks it, since the two show that the content arrived.
     On `True` the line shows only that the program ran, EXECUTED with NOT_VISIBLE. On `False` it shows that the content arrived, RECEIVED with no stop reason.
     A use is such a line of a request.
 
-    Provisional. No earlier code chose, and no evidence of a download claims least.
+    Provisional. No earlier code chose, and no evidence of a download claims least. The installed lines of programs other than pip and apt were not counted in the trajectories.
     """
     use_counts[treat_installed_line_as_no_evidence_of_download.__name__] += 1
     return True

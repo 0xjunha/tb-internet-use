@@ -118,6 +118,9 @@ SHOWN_IN_RESULT = ContentShownInResult()
 
 RULE_1 = judgment_rules.treat_exit_code_meaning_as_assumed_level.__name__
 RULE_2 = judgment_rules.treat_installed_line_as_no_evidence_of_download.__name__
+RULE_23 = (
+    judgment_rules.treat_pip_or_apt_installed_line_of_named_package_as_received.__name__
+)
 RULE_3 = judgment_rules.treat_version_notice_line_as_no_evidence_of_answer.__name__
 RULE_4 = judgment_rules.treat_shown_result_text_as_assumed_content.__name__
 RULE_5 = (
@@ -659,9 +662,38 @@ LINE_CASES = {
         "Successfully installed A-1.0",
         PIP_INSTALL,
         "pip install A",
+        line_evidence(K.INSTALLED, RECEIVED, None),
+        (RULE_23,),
+        target="A",
+        target_kind=PACKAGE_NAME,
+    ),
+    "apt installed": LineCase(
+        "Setting up curl (7.88.1-10+deb12u8) ...",
+        program("apt-get", "install"),
+        "apt-get install -y curl",
+        line_evidence(K.INSTALLED, RECEIVED, None),
+        (RULE_23,),
+        target="curl",
+        target_kind=PACKAGE_NAME,
+    ),
+    "installed from a local path": LineCase(
+        "Successfully installed app-0.1",
+        PIP_INSTALL,
+        "pip install -e /app",
         line_evidence(K.INSTALLED, EXECUTED, NOT_VISIBLE),
         (RULE_2,),
-        target="A",
+        target=UnknownNetworkRequestTarget(
+            UnknownNetworkRequestTargetReason.LOCAL_PATH
+        ),
+        target_kind=PACKAGE_NAME,
+    ),
+    "uv installed": LineCase(
+        " + x==1.0",
+        program("uv", "pip", "install"),
+        "uv pip install x",
+        line_evidence(K.INSTALLED, EXECUTED, NOT_VISIBLE),
+        (RULE_2,),
+        target="x",
         target_kind=PACKAGE_NAME,
     ),
     "version notice": LineCase(
@@ -782,7 +814,8 @@ def test_line_that_a_request_owns_gives_the_level_of_its_kind(line_case: LineCas
 @pytest.mark.parametrize(
     ("case_name", "rule_name", "level", "stop_reason", "rests_on_judgment_rule"),
     [
-        ("installed", RULE_2, RECEIVED, None, True),
+        ("installed", RULE_23, EXECUTED, NOT_VISIBLE, False),
+        ("uv installed", RULE_2, RECEIVED, None, True),
         ("version notice", RULE_3, REACHED, NOT_VISIBLE, True),
         ("tls failed", RULE_16, REACHED, FAILED, True),
         ("connected", RULE_19, EXECUTED, NOT_VISIBLE, False),
@@ -869,6 +902,39 @@ def test_line_naming_another_target_taken_as_the_requests_rests_on_the_rule(
         line_evidence(
             K.DOWNLOAD_STARTED, REACHED, NOT_VISIBLE, rests_on_judgment_rule=True
         ),
+    )
+
+
+@pytest.mark.parametrize("is_taken_as_the_requests", [False, True])
+def test_install_line_naming_another_package_asks_the_rule_about_another_target_first(
+    monkeypatch: pytest.MonkeyPatch, is_taken_as_the_requests: bool
+):
+    if is_taken_as_the_requests:
+        answer_false(monkeypatch, RULE_10)
+    ran_command = command(0, "pip install A", PIP_INSTALL)
+    network_request = request(
+        K1, from_command(ran_command), "A", target_kind=PACKAGE_NAME
+    )
+    decided = decide(
+        network_request,
+        [call(K1, ran_command)],
+        places=(place(K1, (K1, (0,))),),
+        output_line_owners=(
+            owned(
+                K1,
+                "Successfully installed B-1.0",
+                network_request,
+                names_another_target=True,
+            ),
+        ),
+    )
+    assert decided.evidence_with_levels == (
+        line_evidence(K.INSTALLED, RECEIVED, None, rests_on_judgment_rule=True)
+        if is_taken_as_the_requests
+        else line_evidence(K.INSTALLED, EXECUTED, NOT_VISIBLE),
+    )
+    assert decided.judgment_rule_use_counts == Counter(
+        {RULE_10: 1, RULE_11: 1, **({RULE_23: 1} if is_taken_as_the_requests else {})}
     )
 
 
@@ -996,11 +1062,11 @@ def pip_install_a_b(
     [
         ("bash: pip: command not found", K.PROGRAM_MISSING, ATTEMPTED, FAILED, ()),
         (
-            "Successfully installed a-1 b-2",
-            K.INSTALLED,
+            "[notice] A new release of pip is available: 23.0 -> 24.0",
+            K.VERSION_NOTICE,
             EXECUTED,
             NOT_VISIBLE,
-            (RULE_2,),
+            (RULE_3,),
         ),
     ],
     ids=["missing program", "run without visible output"],
@@ -1031,10 +1097,7 @@ def test_line_that_shows_only_a_fact_of_one_command_holds_for_each_of_its_reques
         )
 
 
-def test_line_naming_both_packages_of_one_command_is_shared_when_it_shows_more_than_the_run(
-    monkeypatch: pytest.MonkeyPatch,
-):
-    answer_false(monkeypatch, RULE_2)
+def test_line_naming_both_packages_of_one_command_is_shared_when_it_shows_more_than_the_run():
     network_request_a, network_request_b, expanded_tool_call, output_place_sources = (
         pip_install_a_b(in_two_commands=False)
     )
@@ -1059,9 +1122,9 @@ def test_line_naming_both_packages_of_one_command_is_shared_when_it_shows_more_t
             None,
             is_shared_with_other_requests=True,
             may_belong_to_another_request_reason=SHARED_LINE_REASON,
-            rests_on_judgment_rule=True,
         ),
     )
+    assert decided.judgment_rule_use_counts == Counter({RULE_23: 1, RULE_11: 1})
 
 
 def test_line_that_shows_the_run_of_one_of_two_commands_may_belong_to_the_other():
@@ -1076,7 +1139,7 @@ def test_line_that_shows_the_run_of_one_of_two_commands_may_belong_to_the_other(
         output_line_owners=(
             owned(
                 K1,
-                "Successfully installed a-1 b-2",
+                "[notice] A new release of pip is available: 23.0 -> 24.0",
                 network_request_a,
                 network_request_b,
             ),
@@ -1084,7 +1147,7 @@ def test_line_that_shows_the_run_of_one_of_two_commands_may_belong_to_the_other(
     )
     assert decided.evidence_with_levels == (
         line_evidence(
-            K.INSTALLED,
+            K.VERSION_NOTICE,
             EXECUTED,
             NOT_VISIBLE,
             is_shared_with_other_requests=True,
@@ -1602,8 +1665,8 @@ def test_install_line_that_a_request_of_another_command_owns_too_makes_no_pair()
         line_evidence(K.DOWNLOAD_STARTED, REACHED, NOT_VISIBLE),
         line_evidence(
             K.INSTALLED,
-            EXECUTED,
-            NOT_VISIBLE,
+            RECEIVED,
+            None,
             line_index=1,
             is_shared_with_other_requests=True,
             may_belong_to_another_request_reason=SharedOutputLineAssumptionReason(
@@ -1611,7 +1674,7 @@ def test_install_line_that_a_request_of_another_command_owns_too_makes_no_pair()
             ),
         ),
     )
-    assert decided.judgment_rule_use_counts == Counter({RULE_2: 1, RULE_11: 1})
+    assert decided.judgment_rule_use_counts == Counter({RULE_23: 1, RULE_11: 1})
 
 
 def test_download_line_that_a_run_which_is_not_read_may_have_printed_makes_no_pair():
@@ -1634,10 +1697,10 @@ def test_download_line_that_a_run_which_is_not_read_may_have_printed_makes_no_pa
             NOT_VISIBLE,
             may_belong_to_another_request_reason=UnknownRunBesideAssumptionReason(),
         ),
-        line_evidence(K.INSTALLED, EXECUTED, NOT_VISIBLE, line_index=1),
+        line_evidence(K.INSTALLED, RECEIVED, None, line_index=1),
     )
     assert decided.judgment_rule_use_counts == Counter(
-        {RULE_20: 1, RULE_2: 1, RULE_11: 1}
+        {RULE_20: 1, RULE_23: 1, RULE_11: 1}
     )
 
 
@@ -1659,14 +1722,14 @@ def test_download_line_beside_shown_file_text_makes_no_pair():
         ),
         line_evidence(
             K.INSTALLED,
-            EXECUTED,
-            NOT_VISIBLE,
+            RECEIVED,
+            None,
             line_index=1,
             rests_on_judgment_rule=True,
         ),
     )
     assert decided.judgment_rule_use_counts == Counter(
-        {RULE_13: 2, RULE_2: 1, RULE_11: 1}
+        {RULE_13: 2, RULE_23: 1, RULE_11: 1}
     )
 
 

@@ -862,7 +862,7 @@ def test_adds_to_the_counters_it_is_given_without_clearing_them():
         _bash_call(2, "./setup.sh", "Downloading torch-2.3.0.whl"),
     )
     judgment_rule_use_counts = Counter(
-        {"treat_installed_line_as_no_evidence_of_download": 5}
+        {"treat_pip_or_apt_installed_line_of_named_package_as_received": 5}
     )
     unused_output_line_reason_and_kind: tuple[
         UnusedOutputLineReason, OutputLineKind
@@ -887,7 +887,7 @@ def test_adds_to_the_counters_it_is_given_without_clearing_them():
     )
 
     assert judgment_rule_use_counts == Counter(
-        {"treat_installed_line_as_no_evidence_of_download": 6}
+        {"treat_pip_or_apt_installed_line_of_named_package_as_received": 6}
     )
     assert unused_output_line_counts == Counter({unused_output_line_reason_and_kind: 6})
     assert program_counts_of_unowned_output_lines == Counter(

@@ -54,6 +54,7 @@ from tb_internet_use.network_request_result.model import (
     OutputLineMeaning,
     OutputLineOwners,
     OutputPlaceSources,
+    PrintingProgram,
     ProgramExitCodeMeaning,
     SharedFileUseAssumptionReason,
     SharedHttpStatusAssumptionReason,
@@ -418,6 +419,7 @@ def _level_and_stop_reason_from_output_line(
 
     A line that names another target than the request asks `treat_line_naming_another_target_as_no_evidence_of_answer` first, e.g. `Downloading B-1.0.whl` under `pip install A`.
     A line other than one of a missing program shows at least that the program ran, so EXECUTED with NOT_VISIBLE never rests on a rule, also when a rule chose it.
+    An install line of pip or apt under a request of a named package asks `treat_pip_or_apt_installed_line_of_named_package_as_received`, whose level rests on no rule, and any other install line asks `treat_installed_line_as_no_evidence_of_download`.
     """
     output_line_meaning = (
         output_line_owners.output_line_with_meaning.output_line_meaning
@@ -501,6 +503,17 @@ def _level_and_stop_reason_from_output_line(
                 f"a line of the kind {kind} with status code {status_code}"
             )
         level_and_stop_reason = level_and_stop_reason_of_status_code
+    elif kind == OutputLineKind.INSTALLED and (
+        _is_line_of_pip_or_apt_alone(output_line_meaning)
+        and _has_package_name_target(network_request)
+    ):
+        level_and_stop_reason = (
+            (_success_level_of(network_request), None)
+            if judgment_rules.treat_pip_or_apt_installed_line_of_named_package_as_received(
+                use_counts=judgment_rule_use_counts
+            )
+            else (_EXECUTED, _NOT_VISIBLE)
+        )
     elif kind == OutputLineKind.INSTALLED:
         is_given_by_judgment_rule = True
         level_and_stop_reason = (
@@ -1242,8 +1255,7 @@ def _is_target_named_by_package_names_text(
     target = network_request.target
     if (
         package_names_text is None
-        or not isinstance(network_request.target_kind, NetworkRequestTargetKind)
-        or network_request.target_kind != NetworkRequestTargetKind.PACKAGE_NAME
+        or not _has_package_name_target(network_request)
         or not isinstance(target, str)
     ):
         return False
@@ -1253,6 +1265,23 @@ def _is_target_named_by_package_names_text(
         not isinstance(line_package_names, UnreadablePackageNamesText)
         and not isinstance(target_package_names, UnreadablePackageNamesText)
         and not line_package_names.isdisjoint(target_package_names)
+    )
+
+
+def _has_package_name_target(network_request: NetworkRequest) -> bool:
+    """Tell whether a request asks for a package that its words name, e.g. `requests` of `pip install requests`, and not for a local path or the packages of a file, e.g. `pip install -e /app` or `pip install -r reqs.txt`."""
+    return (
+        isinstance(network_request.target_kind, NetworkRequestTargetKind)
+        and network_request.target_kind == NetworkRequestTargetKind.PACKAGE_NAME
+        and isinstance(network_request.target, str)
+    )
+
+
+def _is_line_of_pip_or_apt_alone(output_line_meaning: OutputLineMeaning) -> bool:
+    """Tell whether only pip or only apt prints a line, e.g. `Successfully installed x-1.0` or `Setting up curl (7.88)`, as its pattern says."""
+    return not output_line_meaning.is_printed_by_other_programs_too and (
+        output_line_meaning.printing_programs
+        in (frozenset({PrintingProgram.PIP}), frozenset({PrintingProgram.APT}))
     )
 
 

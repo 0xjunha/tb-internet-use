@@ -44,6 +44,7 @@ from tb_internet_use.network_request.model import (
     FromWebTool,
     NetworkRequest,
     NetworkRequestCertainty,
+    NetworkRequestTargetKind,
     NoContentRequested,
 )
 from tb_internet_use.network_request_result import (
@@ -63,6 +64,7 @@ from tb_internet_use.network_request_result.model import (
     OutputLineEvidence,
     OutputLineKind,
     OutputLineMeaning,
+    PrintingProgram,
     ProgramExitCodeMeaning,
     SharedOutputLineAssumptionReason,
     ShownContentEvidence,
@@ -119,7 +121,7 @@ EQUATIONS = (
     "not_run_requests_equal_not_run_failed_results",
     # Results whose level and stop reason are none of the eight rows of the result table, with `REACHED` without a stop reason in place of `RECEIVED` without one for a request that asks for no content, beside 0.
     "results_outside_the_result_table",
-    # Confirmed `RECEIVED` results without a `DOWNLOADED` line of their own, without a `DOWNLOAD_STARTED` or `INSTALLED` line of their own beside lines of both kinds, and without an `USES_CONTENT` file use that fits one written file beside 0.
+    # Confirmed `RECEIVED` results without a `DOWNLOADED` line of their own, without a `DOWNLOAD_STARTED` or `INSTALLED` line of their own beside lines of both kinds, without an `INSTALLED` line of their own that only pip or only apt prints under a request of a named package, and without an `USES_CONTENT` file use that fits one written file beside 0.
     "confirmed_received_results_without_own_download_install_or_content_use",
     # Confirmed `REACHED` results without a stop reason whose request asks for content, or that have neither a status line 100 to 399 of their own nor the status of a web fetch with one request, beside 0.
     "confirmed_reached_successes_without_own_status",
@@ -176,7 +178,7 @@ _REPORT_VIEW_BY_STOP_REASON = {
 }
 # The levels from the lowest, to rank the evidence of a result in `_strongest_evidence_of`.
 _LEVELS_IN_ORDER = (_ATTEMPTED, _EXECUTED, _REACHED, _RECEIVED)
-# The level and stop reason that a line of each kind shows, with the provisional choice of each judgment rule, read again here since a result keeps no level of its evidence. Lines of status codes, of content received and of a download beside an install are read in `_level_and_stop_reason_of_evidence`.
+# The level and stop reason that a line of each kind shows, with the provisional choice of each judgment rule, read again here since a result keeps no level of its evidence. Lines of status codes, of content received, of a download beside an install and of an install by pip or apt of a named package are read in `_level_and_stop_reason_of_evidence`.
 _LEVEL_AND_STOP_REASON_BY_OUTPUT_LINE_KIND = {
     OutputLineKind.PROGRAM_MISSING: (_ATTEMPTED, _FAILED),
     OutputLineKind.NAME_NOT_RESOLVED: (_EXECUTED, _FAILED),
@@ -1070,11 +1072,36 @@ class TrialChecker:
                 evidence.kind == OutputLineKind.DOWNLOADED
                 or shows_download_and_install
                 and evidence.kind in _DOWNLOAD_AND_INSTALL_KINDS
+                or self._is_install_line_of_pip_or_apt_for_named_package(
+                    result, evidence
+                )
             )
             or isinstance(evidence, FileUseEvidence)
             and evidence.file_use.kind == FileUseKind.USES_CONTENT
             and not evidence.file_use.fits_several_written_files
             for evidence in result.evidence
+        )
+
+    def _is_install_line_of_pip_or_apt_for_named_package(
+        self, result: NetworkRequestResult, evidence: OutputLineEvidence
+    ) -> bool:
+        """Tell whether a line is an install line that only pip or only apt prints, as the own `NetworkRequestResultKnowledge` reads it, under a request whose target is a named package, e.g. `Successfully installed x-1.0` under `pip install x`."""
+        output_line_meaning = self.output_line_meaning_by_place.get(
+            (
+                evidence.showing_tool_call_key,
+                evidence.line_index,
+                evidence.line_index_in_json_string,
+            )
+        )
+        network_request = result.network_request
+        return (
+            evidence.kind == OutputLineKind.INSTALLED
+            and output_line_meaning is not None
+            and not output_line_meaning.is_printed_by_other_programs_too
+            and output_line_meaning.printing_programs
+            in (frozenset({PrintingProgram.PIP}), frozenset({PrintingProgram.APT}))
+            and network_request.target_kind == NetworkRequestTargetKind.PACKAGE_NAME
+            and isinstance(network_request.target, str)
         )
 
     def _has_own_success_status(self, result: NetworkRequestResult) -> bool:
@@ -1314,7 +1341,7 @@ class TrialChecker:
             evidence.kind in _DOWNLOAD_AND_INSTALL_KINDS
             and (result.level, result.stop_reason) == (success_level, None)
             and _shows_download_and_install(result)
-        ):
+        ) or self._is_install_line_of_pip_or_apt_for_named_package(result, evidence):
             return success_level, None
         return _LEVEL_AND_STOP_REASON_BY_OUTPUT_LINE_KIND[evidence.kind]
 

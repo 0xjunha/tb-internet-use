@@ -38,7 +38,6 @@ from tb_internet_use.network_request_result import (
 from tb_internet_use.network_request_result.model import (
     NetworkRequestResultCertainty,
     NetworkRequestResultLevel,
-    NetworkRequestResultStopReason,
     OutputLineKind,
     UnusedOutputLineReason,
 )
@@ -470,8 +469,8 @@ def test_runs_the_decision_of_request_results_after_the_extraction_with_its_own_
         network_request_result.stop_reason,
         network_request_result.level_certainty,
     ) == (
-        NetworkRequestResultLevel.EXECUTED,
-        NetworkRequestResultStopReason.NOT_VISIBLE,
+        NetworkRequestResultLevel.RECEIVED,
+        None,
         NetworkRequestResultCertainty.CONFIRMED,
     )
     assert (
@@ -483,7 +482,7 @@ def test_runs_the_decision_of_request_results_after_the_extraction_with_its_own_
     # The results of these Claude Code `Bash` calls have neither an `Exit code` line nor a structured result, so they give no exit code and no evidence shows that pip or mytool ran beyond the line of pip.
     assert network_request_result_judgment_rule_use_counts == Counter(
         {
-            "treat_installed_line_as_no_evidence_of_download": 1,
+            "treat_pip_or_apt_installed_line_of_named_package_as_received": 1,
             "treat_command_without_own_evidence_as_no_evidence_of_run": 2,
         }
     )
@@ -574,7 +573,7 @@ def _antigravity_cli_trajectory_text_of_background_install(
 @pytest.mark.parametrize(
     ("has_end_message", "expected_level"),
     [
-        pytest.param(True, NetworkRequestResultLevel.EXECUTED, id="with the end"),
+        pytest.param(True, NetworkRequestResultLevel.RECEIVED, id="with the end"),
         pytest.param(False, NetworkRequestResultLevel.ATTEMPTED, id="without it"),
     ],
 )

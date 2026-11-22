@@ -205,7 +205,7 @@ EXIT_CODE_0_RAN = with_level(EXIT_CODE_0, EXECUTED, NOT_VISIBLE)
 EXIT_CODE_0_READ_AS_ANSWER = with_level(
     EXIT_CODE_0, REACHED, NOT_VISIBLE, rests_on_judgment_rule=True
 )
-# `Successfully installed x-1.0`, which `treat_installed_line_as_no_evidence_of_download` reads as a run only.
+# ` + x==1.0` of `uv pip install x`, which `treat_installed_line_as_no_evidence_of_download` reads as a run only.
 INSTALLED = with_level(
     output_line(OutputLineKind.INSTALLED, line_index=2), EXECUTED, NOT_VISIBLE
 )
@@ -421,7 +421,7 @@ RESULT_CASES = [
         ],
         (REACHED, NOT_VISIBLE, CONFIRMED),
         {},
-        id="`Downloading x.whl` and `Successfully installed x-1.0` without a downloaded line",
+        id="a download that began and an install line read as a run only, without a downloaded line",
     ),
     pytest.param(
         REQUEST_FOR_CONTENT,
@@ -468,7 +468,7 @@ RESULT_CASES = [
         [CONNECTION_REFUSED, INSTALLED],
         (EXECUTED, FAILED, ASSUMED),
         {RULE_17: 1},
-        id="`Connection refused` and `Successfully installed x-1.0`",
+        id="`Connection refused` and ` + x==1.0` of uv",
     ),
     pytest.param(
         REQUEST_FOR_CONTENT,

@@ -915,10 +915,10 @@ def test_audit_trial_decides_and_checks_a_trial_folder(tmp_path):
     assert trial_audit.harness == "claude-code"
     assert trial_audit.task == "4-0-0 terminal-bench/fix-git"
     assert _differing_equations(trial_audit) == set()
-    assert trial_audit.counts["all", "results executed not_visible confirmed"] == 1
+    assert trial_audit.counts["all", "results received none confirmed"] == 1
     assert (
         trial_audit.judgment_rule_use_counts[
-            "treat_installed_line_as_no_evidence_of_download"
+            "treat_pip_or_apt_installed_line_of_named_package_as_received"
         ]
         == 1
     )
