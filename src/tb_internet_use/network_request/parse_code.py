@@ -4,6 +4,8 @@ Code that a command runs can send a request that no word of the command shows, e
 The code is read as text and never run, so a call is found by its form, a name right before `(`, and not by what the name is bound to.
 For example `r.get(u)` stays `r.get` after `import requests as r`.
 Whether a call sends a request is a fact of the code call catalog, so the reading knows no library.
+The one exception is the names that a Python `import` binds to a module, which the reading records although they say nothing of a call on their own.
+A call such as `requests.get(rid)` has the form of a call of the library `requests` also where `requests` is a dict, and only the import tells the two apart, e.g. `import requests` at the top of the text.
 
 Text after a multi-line string, a template string or a block comment that never closes is not read, and `ParsedCode.unreadable_text_start` says from where.
 
@@ -126,6 +128,12 @@ BARE_NAME_PATTERN_OF_LANGUAGE = {
     CodeLanguage.PYTHON: _PYTHON_NAME,
     CodeLanguage.JAVASCRIPT: _JAVASCRIPT_NAME,
 }
+# A Python `import` statement at the start of a line, after optional indentation, up to the end of the statement, e.g. `import os, sys` in `    import os, sys  # x`.
+_PYTHON_IMPORT_STATEMENT = re.compile(r"^[ \t]*import[ \t]+([^#;\n]*)", re.MULTILINE)
+# One module of an import statement with its first dotted part and an optional `as` name, e.g. `urllib.request` or `requests as rq`.
+_PYTHON_IMPORTED_MODULE = re.compile(
+    rf"\s*({_PYTHON_NAME})(?:\.{_PYTHON_NAME})*(\s+as\s+{_PYTHON_NAME})?\s*"
+)
 _SYNTAX_OF_LANGUAGE = {
     CodeLanguage.PYTHON: _CodeSyntax(
         dotted_name=re.compile(rf"{_PYTHON_NAME}(?:\.{_PYTHON_NAME})*"),
@@ -234,7 +242,7 @@ class _CodeReadingState:
 
 
 def parse_code(code: str, code_language: CodeLanguage) -> ParsedCode:
-    """Find the calls of a code text with their strings and first argument, and the assignments of one string or one call to a name at the start of a line.
+    """Find the calls of a code text with their strings and first argument, the assignments of one string or one call to a name at the start of a line, and the modules that Python imports under their own name.
 
     A call is a name, bare or dotted, right before `(`, e.g. `requests.get(` or `fetch(`, outside strings and comments.
     A string belongs to the innermost call whose parentheses hold it, so in `print(requests.get("https://a.org/x"))` it belongs to `requests.get`.
@@ -249,10 +257,38 @@ def parse_code(code: str, code_language: CodeLanguage) -> ParsedCode:
     for open_bracket in reversed(state.open_brackets):
         if open_bracket.open_call is not None:
             _close_call_unreadable(state, open_bracket.open_call)
-    return _parsed_code_from(state)
+    return _parsed_code_from(
+        state,
+        _imported_module_names_of(code)
+        if code_language == CodeLanguage.PYTHON
+        else frozenset(),
+    )
 
 
-def _parsed_code_from(state: _CodeReadingState) -> ParsedCode:
+def _imported_module_names_of(code: str) -> frozenset[str]:
+    """Find the names that the `import` statements of a Python text bind to the module of the same name, e.g. `os` and `sys` for `import os, sys` and `urllib` for `import urllib.request`.
+
+    A statement counts on any line that starts with it after optional indentation, so an import inside a function or a `try` counts too, and so does a line of a multi-line string that starts with `import`.
+    A module imported under another name binds no name of its own, e.g. `requests` of `import requests as rq`, and neither does `from requests import get`.
+    A statement after `;` on its line is not read, e.g. `import sys` of `import os; import sys`.
+    """
+    imported_module_names: set[str] = set()
+    for import_statement_match in _PYTHON_IMPORT_STATEMENT.finditer(code):
+        for imported_module_text in import_statement_match.group(1).split(","):
+            imported_module_match = _PYTHON_IMPORTED_MODULE.fullmatch(
+                imported_module_text
+            )
+            if (
+                imported_module_match is not None
+                and imported_module_match.group(2) is None
+            ):
+                imported_module_names.add(imported_module_match.group(1))
+    return frozenset(imported_module_names)
+
+
+def _parsed_code_from(
+    state: _CodeReadingState, imported_module_names: frozenset[str]
+) -> ParsedCode:
     """Build the reading of the code from the state at its end, turning the places of the opened calls into indexes of `ParsedCode.code_calls`, which leaves out the definitions written like calls."""
     code_call_index_of_opened_call_index: dict[int, int] = {}
     for opened_call_index, code_call in enumerate(state.code_calls):
@@ -281,6 +317,7 @@ def _parsed_code_from(state: _CodeReadingState) -> ParsedCode:
             )
             for call_assignment in state.call_assignments
         ),
+        imported_module_names=imported_module_names,
         unreadable_text_start=state.unreadable_text_start,
     )
 

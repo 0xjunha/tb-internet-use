@@ -642,6 +642,40 @@ def test_text_after_a_multi_line_string_or_block_comment_that_never_closes_is_un
 
 
 @pytest.mark.parametrize(
+    ("code", "code_language", "imported_module_names"),
+    [
+        ("import requests\nrequests.get(u)", PYTHON, {"requests"}),
+        ("import os, sys", PYTHON, {"os", "sys"}),
+        ("import urllib.request", PYTHON, {"urllib"}),
+        ("import requests as rq", PYTHON, set()),
+        ("import os, requests as rq", PYTHON, {"os"}),
+        ("import urllib.request as ur", PYTHON, set()),
+        ("from requests import get", PYTHON, set()),
+        (
+            "def f():\n    import requests\n    return requests.get(u)",
+            PYTHON,
+            {"requests"},
+        ),
+        ("try:\n\timport httpx\nexcept ImportError:\n    pass", PYTHON, {"httpx"}),
+        ("import socket  # for the port check", PYTHON, {"socket"}),
+        # Only the statement that starts the line is read.
+        ("import os; import sys", PYTHON, {"os"}),
+        # A word that only starts with `import` is no statement.
+        ("importlib.import_module('requests')", PYTHON, set()),
+        ("x = 1  # import requests", PYTHON, set()),
+        ("import requests from 'requests'", JAVASCRIPT, set()),
+        ("const requests = require('requests')", JAVASCRIPT, set()),
+    ],
+)
+def test_imported_module_names_are_the_names_that_python_imports_bind_to_their_module(
+    code: str, code_language: CodeLanguage, imported_module_names: set[str]
+):
+    assert parse_code(code, code_language).imported_module_names == frozenset(
+        imported_module_names
+    )
+
+
+@pytest.mark.parametrize(
     ("code", "code_language", "code_call_count"),
     [
         (
@@ -653,6 +687,8 @@ def test_text_after_a_multi_line_string_or_block_comment_that_never_closes_is_un
         ("f(" * 100_000, PYTHON, 100_000),
         ('"' + 'a\\"' * 300_000, PYTHON, 0),
         ("/*" + "x" * 1_000_000, JAVASCRIPT, 0),
+        ("import " + "a" * 1_000_000 + " !", PYTHON, 0),
+        ("import " + "a." * 300_000 + " !", PYTHON, 0),
         ("`" + "${a}" * 300_000, JAVASCRIPT, 0),
     ],
 )

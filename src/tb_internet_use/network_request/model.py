@@ -437,6 +437,9 @@ class ParsedCode:
     code_calls: tuple[CodeCall, ...]
     string_assignments: tuple[CodeStringAssignment, ...]
     call_assignments: tuple[CodeCallAssignment, ...]
+    # The names that an `import` statement of Python binds to the module of the same name, e.g. `os` and `sys` for `import os, sys` or `urllib` for `import urllib.request`, but none for `import requests as rq`. Empty for JavaScript.
+    # It exists because a call is found by its form, so `requests.get(rid)` is a call of the library only when the text imports `requests` and not when `requests` is a dict.
+    imported_module_names: frozenset[str]
     # The 0-based index of the code from which the text was not read, None when all of it was read.
     # It exists because a multi-line string, template string or block comment that never closes hides every call after it, e.g. `fetch(u)` after the backtick of `/`/` in JavaScript.
     unreadable_text_start: int | None
