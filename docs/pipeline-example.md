@@ -349,7 +349,7 @@ The entry function `decide_network_request_results` calls these pieces in order.
 | `decide_network_request_result_evidence` | For each request, its evidence with the level and stop reason each piece shows |
 | `decide_one_network_request_result` | For each request, the result from its evidence |
 
-Some results need a choice that facts alone do not settle, e.g. whether a line that a run of unknown output may have printed is shared. Such choices are the provisional judgment rules of `network_request_result/judgment_rules.py`, and each use of one is counted.
+Some results need a choice that facts alone do not settle, e.g. whether a line that a run of unknown output may have printed is shared. Such choices are the judgment rules of `network_request_result/judgment_rules.py`, each marked provisional or decided, and each use of one is counted.
 
 ## Step 5: export rows
 
