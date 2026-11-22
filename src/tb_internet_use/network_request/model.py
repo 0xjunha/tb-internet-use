@@ -268,7 +268,7 @@ class NetworkRequestUncertaintyReason(StrEnum):
     URL_OUTSIDE_CODE_CALL = "url_outside_code_call"
     # Code runs a program that may fetch, and its words are not read, e.g. `subprocess.run(["pip", "install", "x"])`.
     PROGRAM_RUN_BY_CODE = "program_run_by_code"
-    # The program fetches only what is missing, e.g. `npx tsc`. No added fact settles it.
+    # The program fetches only what is missing, e.g. `npx tsc`. A line of its output that shows a download settles that it fetched, e.g. `info: mathlib: cloning https://github.com/x/y` of `lake build`, and nothing settles that it did not.
     FETCHES_ONLY_WHAT_IS_MISSING = "fetches_only_what_is_missing"
 
 

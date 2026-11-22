@@ -32,7 +32,7 @@ The lower bound counts the trials that the trajectory confirms.
 The upper bound adds the trials that the trajectory cannot rule out.
 
 - Request
-  - The program downloads only what is missing, e.g. `npx tool`.
+  - The program downloads only what is missing and no line of its output shows that it sent a request, e.g. `npx tool`.
   - The program is not in the catalogs but has a URL among its words, e.g. `mytool https://a.org/x`.
   - The target does not show whether it is on the internet, e.g. `git fetch origin` or `curl "$URL"`.
 - Received
