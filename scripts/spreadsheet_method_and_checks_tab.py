@@ -20,6 +20,7 @@ from spreadsheet_cells import (
     count_ifs_formula,
     count_unique_ifs_formula,
     equal_to,
+    not_equal_to,
     tab_range_of,
 )
 from spreadsheet_overview_tab import ChartDataTab
@@ -31,13 +32,12 @@ from spreadsheet_python_counts import (
     SpreadsheetPythonCounts,
     differing_task_category_measure_line_count_of,
 )
+from spreadsheet_registries_and_hosts_tab import RegistriesAndHostsTab
 from spreadsheet_result_tabs import (
     BoundsTab,
-    RegistriesAndHostsTab,
     RequestedItemsTab,
     TasksTab,
     TrialCountLinesTab,
-    registry_or_host_service_label_of,
 )
 from spreadsheet_row_tabs import (
     KNOWN_OUTSIDE_SENDERS,
@@ -54,7 +54,7 @@ from spreadsheet_tabs import (
     METHOD_AND_CHECKS_TAB_NAME,
 )
 
-from tb_internet_use.export.model import MeasureBound
+from tb_internet_use.export.model import MeasureBound, NetworkRequestCategory
 
 # What the trajectory of each harness lacks, as a phrase that completes "lacks …", measured on the raw trajectories.
 # In antigravity-cli, 15 of 1,306 readable TB 4.1 trials call `invoke_subagent` (22 calls), and the trajectory holds only the launch and its result.
@@ -141,7 +141,7 @@ class CheckedTabs:
             self.overview,
             self.tasks.grid,
             self.requested_items.lines_tab.grid,
-            self.registries_and_hosts.lines_tab.grid,
+            self.registries_and_hosts.grid,
             self.web_tools.grid,
             self.bounds.grid,
         ]
@@ -362,21 +362,27 @@ def _add_sum_and_order_checks(
     def category_count_formula_of(category: str) -> str:
         return f"SUMIFS({category_trials_range},{category_range},{equal_to(category)})"
 
-    registries = checked_tabs.registries_and_hosts
-    method_and_checks.add_zero_check(
-        "Registries and hosts: categories whose lines sum below Chart data or have a line above it",
-        _group_line_violation_terms_of(
-            registries.lines_tab,
-            {key.category for key in registries.row_by_line_key}
-            | set(chart_data.category_trial_cells),
-            category_count_formula_of,
+    registries_and_hosts_trial_count = len(checked_tabs.registries_and_hosts.trial_ids)
+    method_and_checks.add_check(
+        "Registries and hosts: trials of all lines (Python) = network_request_rows",
+        TabCell(registries_and_hosts_trial_count, style=CellStyle.PYTHON_COUNT),
+        TabCell(
+            registries_and_hosts_trial_count,
+            formula=count_unique_ifs_formula(
+                row_tabs.network_request_rows,
+                "trial_id",
+                [
+                    ("sender", equal_to(TASK_ENVIRONMENT)),
+                    ("request_measure_bound", equal_to(LOWER_AND_UPPER)),
+                    (
+                        "category",
+                        not_equal_to(NetworkRequestCategory.CONNECTIVITY_CHECK),
+                    ),
+                ],
+            ),
+            style=CellStyle.COUNT,
         ),
-        "Lower bounds. A trial may be in two lines. A category on one side only fails",
-    )
-    method_and_checks.add_zero_check(
-        "Requested items: lines above their line of Registries and hosts, or lines that sum below it",
-        _requested_item_violation_terms_of(counts, checked_tabs),
-        "A line on one side only fails",
+        "Lower-bound requests from the task environment that are no connectivity checks",
     )
     requested_item_trial_ids_by_category: dict[str, set[str]] = {}
     for key, trial_ids in counts.requested_item_trial_ids.items():
@@ -457,58 +463,6 @@ def _group_line_violation_terms_of(
         f"+(MAXIFS({trials_range},{group_range},{equal_to(group)})>{count_formula_of(group)})"
         for group in sorted(groups)
     ]
-
-
-def _requested_item_violation_terms_of(
-    counts: SpreadsheetPythonCounts, checked_tabs: CheckedTabs
-) -> list[str]:
-    """Give a term per category and registry or host service that is above 0 when a line of `Requested items` has more trials than the line of `Registries and hosts`, or the lines sum below it.
-
-    The keys come from both tabs, so a key on one side only fails.
-    """
-    requested_items = checked_tabs.requested_items
-    item_lines = requested_items.lines_tab
-    registries_and_hosts = checked_tabs.registries_and_hosts
-    registries = registries_and_hosts.lines_tab
-    item_trials_range = item_lines.column_range(item_lines.trials_column)
-    item_criteria_ranges = (
-        item_lines.column_range(item_lines.category_or_sender_column),
-        item_lines.column_range(requested_items.registry_or_host_service_column),
-    )
-    registry_trials_range = registries.column_range(registries.trials_column)
-    registry_criteria_ranges = (
-        registries.column_range(registries.category_or_sender_column),
-        registries.column_range(registries_and_hosts.registry_or_host_service_column),
-    )
-    line_keys = {
-        key.registry_or_host_service_line_key for key in counts.requested_item_trial_ids
-    } | set(registries_and_hosts.row_by_line_key)
-    terms: list[str] = []
-    for line_key in sorted(
-        line_keys, key=lambda key: (key.category, key.registry_or_host_service)
-    ):
-        values = (
-            equal_to(line_key.category),
-            equal_to(registry_or_host_service_label_of(line_key)),
-        )
-        item_criteria = ",".join(
-            f"{criteria_range},{value}"
-            for criteria_range, value in zip(item_criteria_ranges, values, strict=True)
-        )
-        registry_count = "SUMIFS({},{})".format(
-            registry_trials_range,
-            ",".join(
-                f"{criteria_range},{value}"
-                for criteria_range, value in zip(
-                    registry_criteria_ranges, values, strict=True
-                )
-            ),
-        )
-        terms.append(
-            f"(MAXIFS({item_trials_range},{item_criteria})>{registry_count})"
-            f"+(SUMIFS({item_trials_range},{item_criteria})<{registry_count})"
-        )
-    return terms
 
 
 def _add_python_checks(

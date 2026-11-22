@@ -8,7 +8,6 @@ from dataclasses import dataclass
 
 from openpyxl.utils import get_column_letter
 from spreadsheet_cells import (
-    BLANK,
     EMPTY_CELL,
     CellStyle,
     TabCell,
@@ -55,7 +54,6 @@ from spreadsheet_row_tabs import (
 )
 from spreadsheet_tabs import (
     BOUNDS_TAB_NAME,
-    REGISTRIES_AND_HOSTS_TAB_NAME,
     REQUESTED_ITEMS_TAB_NAME,
     RESULTS_TAB_COLOR,
     TASKS_TAB_NAME,
@@ -385,7 +383,7 @@ class TrialCountLinesTab:
     grid: TabGrid
     first_line_row: int
     last_line_row: int
-    # 1-based, the category in `Registries and hosts` and `Requested items`, the sender in `Web tools`.
+    # 1-based, the category in `Requested items`, the sender in `Web tools`.
     category_or_sender_column: int
     trials_column: int
 
@@ -435,7 +433,7 @@ class RequestedItemsTab:
 def lay_out_requested_items_tab(counts: SpreadsheetPythonCounts) -> RequestedItemsTab:
     """Lay out one line per task and item that its lower-bound requests from the task environment asked for, counted by Python.
 
-    About four thousand lines of `COUNTUNIQUEIFS` over the request rows would make Google Sheets slow, so the counts are plain numbers that `Method & checks` holds against the formulas of `Registries and hosts`.
+    About four thousand lines of `COUNTUNIQUEIFS` over the request rows would make Google Sheets slow, so the counts are plain numbers, and `Method & checks` holds the trials of each category against `Chart data`.
     The column `benchmark_version` comes first only when the run holds several versions, as in `Tasks`.
     """
     grid = TabGrid(REQUESTED_ITEMS_TAB_NAME, tab_color=RESULTS_TAB_COLOR)
@@ -512,116 +510,6 @@ def lay_out_requested_items_tab(counts: SpreadsheetPythonCounts) -> RequestedIte
 def _has_several_benchmark_versions(counts: SpreadsheetPythonCounts) -> bool:
     """Tell whether the run holds tasks of more than one benchmark version, so that `Tasks` and `Requested items` show the column `benchmark_version`."""
     return len({task[0] for task in counts.tasks}) > 1
-
-
-# 1-based columns of `Registries and hosts`.
-_REGISTRIES_AND_HOSTS_TRIALS_COLUMN = 3
-_REGISTRIES_AND_HOSTS_LAST_COLUMN = 6
-
-
-@dataclass(frozen=True, slots=True)
-class RegistriesAndHostsTab:
-    """`Registries and hosts` tab with the line of each key, which `Method & checks` reads."""
-
-    lines_tab: TrialCountLinesTab
-    registry_or_host_service_column: int
-    row_by_line_key: dict[RegistryOrHostServiceLineKey, int]
-
-
-def lay_out_registries_and_hosts_tab(
-    counts: SpreadsheetPythonCounts, row_tabs: SpreadsheetRowTabs
-) -> RegistriesAndHostsTab:
-    """Lay out one line per category and registry or host service of lower-bound requests from the task environment.
-
-    The bars sit in the lines rather than in a chart, since Google Sheets cuts a chart label as long as `connectivity_check package_registry` to its first word.
-    """
-    grid = TabGrid(REGISTRIES_AND_HOSTS_TAB_NAME, tab_color=RESULTS_TAB_COLOR)
-    _add_title_and_question(
-        grid,
-        "What would a mirror or the image have to serve, by package registry or host service?",
-        _REGISTRIES_AND_HOSTS_LAST_COLUMN,
-    )
-    header_row = grid.add_row(
-        *header_cells_of(
-            "Category",
-            "Registry or host service",
-            "Trials",
-            "",
-            "Tasks",
-            "Distinct items",
-        )
-    )
-    request_rows = row_tabs.network_request_rows
-    line_keys = sorted(
-        counts.registry_or_host_service_lines,
-        key=lambda key: (
-            _CATEGORY_ORDER[key.category],
-            -len(counts.registry_or_host_service_lines[key].trial_ids),
-            key.registry_or_host_service,
-        ),
-    )
-    refuse_keys_equal_apart_from_case(
-        [(key.category, key.registry_or_host_service) for key in line_keys]
-    )
-    first_line_row = header_row + 1
-    last_line_row = max(first_line_row + len(line_keys) - 1, first_line_row)
-    trials_letter = get_column_letter(_REGISTRIES_AND_HOSTS_TRIALS_COLUMN)
-    bar_scale_maximum = (
-        f"MAX(${trials_letter}${first_line_row}:${trials_letter}${last_line_row})"
-    )
-    row_by_line_key: dict[RegistryOrHostServiceLineKey, int] = {}
-    for key in line_keys:
-        row = grid.next_row
-        row_by_line_key[key] = row
-        line = counts.registry_or_host_service_lines[key]
-        conditions = [
-            ("sender", equal_to(TASK_ENVIRONMENT)),
-            ("request_measure_bound", equal_to(LOWER_AND_UPPER)),
-            ("category", equal_to(key.category)),
-            (
-                registry_or_host_service_column_of(key.category),
-                equal_to(key.registry_or_host_service)
-                if key.registry_or_host_service
-                else BLANK,
-            ),
-        ]
-        grid.add_row(
-            TabCell(key.category),
-            TabCell(registry_or_host_service_label_of(key)),
-            TabCell(
-                len(line.trial_ids),
-                formula=count_unique_ifs_formula(request_rows, "trial_id", conditions),
-                style=CellStyle.COUNT,
-            ),
-            TabCell(
-                None,
-                formula=sparkline_bar_formula(
-                    f"{trials_letter}{row}", scale_maximum=bar_scale_maximum
-                ),
-                style=CellStyle.BAR,
-            ),
-            TabCell(
-                len(counts.tasks_of(line.trial_ids)),
-                formula=count_unique_ifs_formula(
-                    request_rows, "trial_rows.task_key", conditions
-                ),
-                style=CellStyle.COUNT,
-            ),
-            TabCell(len(line.requested_items), style=CellStyle.PYTHON_COUNT),
-        )
-    grid.frozen_cell = f"A{first_line_row}"
-    grid.fixed_column_widths = {_REGISTRIES_AND_HOSTS_TRIALS_COLUMN + 1: 16}
-    return RegistriesAndHostsTab(
-        TrialCountLinesTab(
-            grid,
-            first_line_row,
-            last_line_row,
-            category_or_sender_column=1,
-            trials_column=_REGISTRIES_AND_HOSTS_TRIALS_COLUMN,
-        ),
-        registry_or_host_service_column=2,
-        row_by_line_key=row_by_line_key,
-    )
 
 
 # 1-based columns of `Web tools`.

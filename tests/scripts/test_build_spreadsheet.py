@@ -348,38 +348,48 @@ def test_requested_items_join_versions_of_one_package_and_count_tasks_that_share
     ]
 
 
-def test_registries_and_hosts_count_lower_bound_trials_tasks_and_distinct_items(
+def test_registries_and_hosts_count_tasks_and_trials_per_host_service_and_per_registry_or_host(
     spreadsheet_path: Path,
 ):
-    lines = _lines_by_label(spreadsheet_path, "Registries and hosts", label_columns=2)
+    lines = _lines_by_label(spreadsheet_path, "Registries and hosts")
 
-    # Trials, the bar and tasks, then the items Python counted.
+    # Tasks and trials of the lower-bound requests from the task environment. pypi is asked by t1 and t3 of one task and t5 of another.
     assert {
-        label: line[2:6] for label, line in lines.items() if isinstance(line[2], int)
+        label: line[1:3] for label, line in lines.items() if isinstance(line[2], int)
     } == {
-        "package pypi": [3, None, 2, 2],
-        "content_fetch code_hosting": [1, None, 1, 1],
-        "remote_api_call web_api": [1, None, 1, 1],
-        "other_web unknown": [1, None, 1, 1],
+        "package_registry": [2, 3],
+        "pypi": [2, 3],
+        "code_hosting": [1, 1],
+        "github.com": [1, 1],
+        "web_api": [1, 1],
+        "api.github.com": [1, 1],
+        "unknown": [1, 1],
+        "b.org": [1, 1],
     }
 
 
-def test_registries_and_hosts_draw_the_bar_of_each_line_from_its_own_row_on_one_scale(
+def test_registries_and_hosts_draw_the_bar_of_each_line_from_its_own_row_on_the_scale_of_its_table(
     spreadsheet_path: Path,
 ):
     sheet = load_workbook(spreadsheet_path)["Registries and hosts"]
     bar_formulas_by_row = {
         row_number: row[3].value
         for row_number, row in enumerate(sheet.iter_rows(), start=1)
-        if isinstance(row[3].value, str) and "SPARKLINE" in row[3].value
+        if len(row) > 3
+        and isinstance(row[3].value, str)
+        and "SPARKLINE" in row[3].value
     }
-    first_row, last_row = min(bar_formulas_by_row), max(bar_formulas_by_row)
 
-    assert len(bar_formulas_by_row) == 4
+    # Four lines of host services, then one line in the table of each service.
+    first_row = min(bar_formulas_by_row)
+    assert len(bar_formulas_by_row) == 8
     for row, bar_formula in bar_formulas_by_row.items():
-        assert (
-            f'SPARKLINE(C{row},{{"charttype","bar";"max",MAX($C${first_row}:$C${last_row});'
-        ) in bar_formula
+        scale = (
+            f"MAX($C${first_row}:$C${first_row + 3})"
+            if row < first_row + 4
+            else f"MAX($C${row}:$C${row})"
+        )
+        assert f'SPARKLINE(C{row},{{"charttype","bar";"max",{scale};' in bar_formula
 
 
 def test_bounds_draw_a_bar_per_line_on_the_scale_of_its_table_and_none_for_the_total(
@@ -557,40 +567,24 @@ def _failing_checks_of(spreadsheet_path: Path) -> list[str]:
     ).failing_checks
 
 
-@pytest.mark.parametrize(
-    "line_trials",
-    [
-        pytest.param(0, id="lines of a category sum below Chart data"),
-        pytest.param(99, id="a line above Chart data"),
-    ],
-)
-def test_a_check_fails_when_the_lines_of_registries_and_hosts_disagree_with_chart_data(
-    spreadsheet_path: Path, line_trials: int
-):
-    _set_cell_in_tab_and_copy(
-        spreadsheet_path, "Registries and hosts", ("package", "pypi"), 3, line_trials
-    )
-
-    assert (
-        "Registries and hosts: categories whose lines sum below Chart data or have a line above it"
-        in _failing_checks_of(spreadsheet_path)
-    )
-
-
-def test_a_check_fails_when_a_requested_item_has_more_trials_than_its_registry(
+def test_a_check_fails_when_the_request_rows_of_a_trial_of_registries_and_hosts_become_connectivity_checks(
     spreadsheet_path: Path,
 ):
-    _set_cell_in_tab_and_copy(
-        spreadsheet_path,
-        "Requested items",
-        ("4-0-0", "a", "package", "pypi", "requests"),
-        6,
-        4,
-    )
+    workbook = load_workbook(spreadsheet_path)
+    sheet = workbook["network_request_rows"]
+    columns = [cell.value for cell in sheet[1]]
+    # t3 has only package requests, so without them it is in no line of the tab.
+    for row in sheet.iter_rows(min_row=2):
+        if row[columns.index("trial_id")].value == "t3":
+            category_cell = row[columns.index("category")]
+            assert isinstance(category_cell, Cell)
+            category_cell.value = "connectivity_check"
+    workbook.save(spreadsheet_path)
 
-    assert _failing_checks_of(spreadsheet_path) == [
-        "Requested items: lines above their line of Registries and hosts, or lines that sum below it"
-    ]
+    assert (
+        "Registries and hosts: trials of all lines (Python) = network_request_rows"
+        in _failing_checks_of(spreadsheet_path)
+    )
 
 
 def test_a_check_fails_when_a_cause_of_bounds_changes(spreadsheet_path: Path):

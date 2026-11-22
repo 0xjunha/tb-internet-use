@@ -83,19 +83,11 @@ class RowFiles:
 
 @dataclass(frozen=True, slots=True)
 class RegistryOrHostServiceLineKey:
-    """Line of the tab `Registries and hosts`, for lower-bound requests from the task environment."""
+    """Category and registry or host service of a line of the tab `Requested items`, for lower-bound requests from the task environment."""
 
     category: str
     # The `package_registry` of a package request, the `host_service` of another, e.g. `pypi` or `code_hosting`.
     registry_or_host_service: str
-
-
-@dataclass(slots=True)
-class RegistryOrHostServiceLine:
-    """Trials and requested items of one line of `Registries and hosts`."""
-
-    trial_ids: set[str] = field(default_factory=set)
-    requested_items: set[str] = field(default_factory=set)
 
 
 @dataclass(frozen=True, slots=True)
@@ -217,9 +209,6 @@ class SpreadsheetPythonCounts:
     # From `trial_category_measure_rows.csv`, by category, sender and bound.
     request_trial_ids: dict[tuple[str, str, CountedBound], set[str]]
     # The rest is from `network_request_rows.csv`.
-    registry_or_host_service_lines: dict[
-        RegistryOrHostServiceLineKey, RegistryOrHostServiceLine
-    ] = field(default_factory=dict)
     requested_item_trial_ids: dict[RequestedItemLineKey, set[str]] = field(
         default_factory=dict
     )
@@ -571,11 +560,6 @@ def _count_network_request_row(
         row["category"], row[registry_or_host_service_column_of(row["category"])]
     )
     requested_item = requested_item_of(row)
-    line = counts.registry_or_host_service_lines.setdefault(
-        line_key, RegistryOrHostServiceLine()
-    )
-    line.trial_ids.add(row["trial_id"])
-    line.requested_items.add(requested_item)
     counts.requested_item_trial_ids.setdefault(
         RequestedItemLineKey(
             counts.task_by_trial_id[row["trial_id"]], line_key, requested_item
@@ -585,7 +569,7 @@ def _count_network_request_row(
 
 
 def registry_or_host_service_column_of(category: str) -> str:
-    """Give the column that splits a category in `Registries and hosts`, the registry for packages since a mirror serves one registry."""
+    """Give the column that splits a category in `Requested items`, the registry for packages, since a package is asked of a registry, and the host service for the rest."""
     if category == NetworkRequestCategory.PACKAGE:
         return "package_registry"
     return "host_service"

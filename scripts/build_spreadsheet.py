@@ -18,9 +18,9 @@ from spreadsheet_method_and_checks_tab import (
 )
 from spreadsheet_overview_tab import lay_out_chart_data_tab, lay_out_overview_tab
 from spreadsheet_python_counts import RowFiles, count_spreadsheet_values
+from spreadsheet_registries_and_hosts_tab import lay_out_registries_and_hosts_tab
 from spreadsheet_result_tabs import (
     lay_out_bounds_tab,
-    lay_out_registries_and_hosts_tab,
     lay_out_requested_items_tab,
     lay_out_tasks_tab,
     lay_out_web_tools_tab,
@@ -66,7 +66,7 @@ def build_spreadsheet(row_files: RowFiles, spreadsheet_path: Path) -> None:
         overview=lay_out_overview_tab(counts, row_tabs, tasks, chart_data),
         tasks=tasks,
         requested_items=lay_out_requested_items_tab(counts),
-        registries_and_hosts=lay_out_registries_and_hosts_tab(counts, row_tabs),
+        registries_and_hosts=lay_out_registries_and_hosts_tab(row_files, counts),
         web_tools=lay_out_web_tools_tab(counts, row_tabs),
         bounds=lay_out_bounds_tab(counts, row_tabs),
         chart_data=chart_data,

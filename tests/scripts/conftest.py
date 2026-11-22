@@ -67,7 +67,7 @@ def script_module(name: str) -> ModuleType:
     return module
 
 
-def _trial_row(
+def made_up_trial_row(
     trial_id: str,
     task: tuple[str, str],
     harness: str,
@@ -94,7 +94,7 @@ def _trial_row(
     )
 
 
-def _request_row(
+def made_up_request_row(
     trial_id: str,
     request_index: int,
     category: NetworkRequestCategory,
@@ -171,20 +171,24 @@ TASK_0_4 = ("4-0-0", "terminal-bench/0a")
 # t7 has no reward and no request.
 # t8 of Cursor passes with only a search through the provider, as t3.
 TRIAL_ROWS = [
-    _trial_row("t1", TASK_A_4, "claude-code", 1.0, LOWER_AND_UPPER, LOWER_AND_UPPER),
-    _trial_row("t2", TASK_A_4, "devin", 1.0, NEITHER, NEITHER),
-    _trial_row("t3", TASK_A_4, "codex", 0.0, LOWER_AND_UPPER, UPPER_ONLY),
-    _trial_row(
+    made_up_trial_row(
+        "t1", TASK_A_4, "claude-code", 1.0, LOWER_AND_UPPER, LOWER_AND_UPPER
+    ),
+    made_up_trial_row("t2", TASK_A_4, "devin", 1.0, NEITHER, NEITHER),
+    made_up_trial_row("t3", TASK_A_4, "codex", 0.0, LOWER_AND_UPPER, UPPER_ONLY),
+    made_up_trial_row(
         "t4", TASK_0_4, "claude-code", 1.0, UPPER_ONLY, UPPER_ONLY, unreadable=True
     ),
-    _trial_row("t5", TASK_0_4, "claude-code", 0.9957, LOWER_AND_UPPER, UPPER_ONLY),
-    _trial_row("t6", TASK_A_3, "codex", 1.0, UPPER_ONLY, UPPER_ONLY),
-    _trial_row("t7", TASK_A_3, "codex", None, NEITHER, NEITHER),
-    _trial_row("t8", TASK_B_3, "cursor-cli", 1.0, NEITHER, NEITHER),
+    made_up_trial_row(
+        "t5", TASK_0_4, "claude-code", 0.9957, LOWER_AND_UPPER, UPPER_ONLY
+    ),
+    made_up_trial_row("t6", TASK_A_3, "codex", 1.0, UPPER_ONLY, UPPER_ONLY),
+    made_up_trial_row("t7", TASK_A_3, "codex", None, NEITHER, NEITHER),
+    made_up_trial_row("t8", TASK_B_3, "cursor-cli", 1.0, NEITHER, NEITHER),
 ]
 NETWORK_REQUEST_ROWS = [
     *(
-        _request_row(
+        made_up_request_row(
             "t1",
             request_index,
             PACKAGE,
@@ -198,7 +202,7 @@ NETWORK_REQUEST_ROWS = [
         )
         for request_index, level in ((3, ATTEMPTED), (4, REACHED))
     ),
-    _request_row(
+    made_up_request_row(
         "t6",
         4,
         PACKAGE,
@@ -212,7 +216,7 @@ NETWORK_REQUEST_ROWS = [
         level=EXECUTED,
         stop_reason=FAILED,
     ),
-    _request_row(
+    made_up_request_row(
         "t1",
         0,
         PACKAGE,
@@ -224,7 +228,7 @@ NETWORK_REQUEST_ROWS = [
         level=RECEIVED,
         stop_reason=None,
     ),
-    _request_row(
+    made_up_request_row(
         "t1",
         1,
         OTHER_WEB,
@@ -235,10 +239,10 @@ NETWORK_REQUEST_ROWS = [
         host_names="a.org",
         host_service="unknown",
     ),
-    _request_row(
+    made_up_request_row(
         "t1", 2, OTHER_WEB, UPPER_ONLY, UPPER_ONLY, made_by="python requests.get"
     ),
-    _request_row(
+    made_up_request_row(
         "t3",
         0,
         SEARCH,
@@ -248,7 +252,7 @@ NETWORK_REQUEST_ROWS = [
         made_by="web_search_call",
         target="how to x",
     ),
-    _request_row(
+    made_up_request_row(
         "t3",
         1,
         PACKAGE,
@@ -258,7 +262,7 @@ NETWORK_REQUEST_ROWS = [
         host_service="package_registry",
         package_registry="pypi",
     ),
-    _request_row(
+    made_up_request_row(
         "t5",
         0,
         CONTENT_FETCH,
@@ -271,7 +275,7 @@ NETWORK_REQUEST_ROWS = [
         level=EXECUTED,
         stop_reason=FAILED,
     ),
-    _request_row(
+    made_up_request_row(
         "t5",
         1,
         PACKAGE,
@@ -282,7 +286,7 @@ NETWORK_REQUEST_ROWS = [
         package_registry="pypi",
         level=EXECUTED,
     ),
-    _request_row(
+    made_up_request_row(
         "t5",
         2,
         REMOTE_API_CALL,
@@ -294,7 +298,7 @@ NETWORK_REQUEST_ROWS = [
         host_service="web_api",
         level=REACHED,
     ),
-    _request_row(
+    made_up_request_row(
         "t5",
         3,
         OTHER_WEB,
@@ -305,7 +309,7 @@ NETWORK_REQUEST_ROWS = [
         host_names="b.org",
         host_service="unknown",
     ),
-    _request_row(
+    made_up_request_row(
         "t6",
         0,
         PACKAGE,
@@ -317,7 +321,7 @@ NETWORK_REQUEST_ROWS = [
         request_certainty=NetworkRequestCertainty.UNCERTAIN,
         request_uncertainty_reason=NetworkRequestUncertaintyReason.FETCHES_ONLY_WHAT_IS_MISSING,
     ),
-    _request_row(
+    made_up_request_row(
         "t6",
         1,
         CONTENT_FETCH,
@@ -328,7 +332,7 @@ NETWORK_REQUEST_ROWS = [
         target="https://docs.a.org/x",
         host_service="code_hosting",
     ),
-    _request_row(
+    made_up_request_row(
         "t6",
         2,
         SEARCH,
@@ -338,7 +342,7 @@ NETWORK_REQUEST_ROWS = [
         made_by="exec",
         target="how to y",
     ),
-    _request_row(
+    made_up_request_row(
         "t6",
         3,
         CONTENT_FETCH,
@@ -349,7 +353,7 @@ NETWORK_REQUEST_ROWS = [
         target="https://github.com/c/d",
         host_service="code_hosting",
     ),
-    _request_row(
+    made_up_request_row(
         "t8",
         0,
         SEARCH,
@@ -407,7 +411,7 @@ _ONE_VERSION_TASK_BY_TASK = {
 @pytest.fixture
 def made_up_run_dir(tmp_path: Path) -> Path:
     """Write the row files of the made-up run, whose tasks come in two benchmark versions."""
-    return _write_made_up_run(tmp_path / "run", TRIAL_ROWS)
+    return write_made_up_run(tmp_path / "run", TRIAL_ROWS)
 
 
 @pytest.fixture
@@ -422,17 +426,21 @@ def one_version_run_dir(tmp_path: Path) -> Path:
         trial_rows.append(
             dataclasses.replace(row, benchmark_version=version, task_name=task_name)
         )
-    return _write_made_up_run(tmp_path / "one_version_run", trial_rows)
+    return write_made_up_run(tmp_path / "one_version_run", trial_rows)
 
 
-def _write_made_up_run(run_dir: Path, trial_rows: Sequence[TrialRow]) -> Path:
-    """Write the row files of a run as `run_pipeline.py` does."""
+def write_made_up_run(
+    run_dir: Path,
+    trial_rows: Sequence[TrialRow],
+    network_request_rows: Sequence[NetworkRequestRow] = NETWORK_REQUEST_ROWS,
+) -> Path:
+    """Write the row files of a run as `run_pipeline.py` does, with the request rows of the made-up run unless others are given."""
     run_pipeline = script_module("run_pipeline")
     run_dir.mkdir()
-    measure_rows = _trial_category_measure_rows_of(trial_rows, NETWORK_REQUEST_ROWS)
+    measure_rows = _trial_category_measure_rows_of(trial_rows, network_request_rows)
     for file_name, rows in (
         ("trial_rows.csv", trial_rows),
-        ("network_request_rows.csv", NETWORK_REQUEST_ROWS),
+        ("network_request_rows.csv", network_request_rows),
         ("trial_category_measure_rows.csv", measure_rows),
     ):
         run_pipeline.write_csv(
@@ -444,7 +452,7 @@ def _write_made_up_run(run_dir: Path, trial_rows: Sequence[TrialRow]) -> Path:
         run_dir / "task_category_measures.csv",
         run_pipeline.TASK_CATEGORY_MEASURE_COLUMNS,
         run_pipeline.count_task_category_measures(
-            trial_rows, NETWORK_REQUEST_ROWS, measure_rows
+            trial_rows, network_request_rows, measure_rows
         ),
     )
     run_pipeline.write_csv(

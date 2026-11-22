@@ -35,7 +35,7 @@ def test_a_trial_passed_only_with_a_reward_of_one(made_up_run_dir: Path):
     }
 
 
-def test_counts_registries_and_hosts_and_requested_items_from_lower_bound_rows_of_the_task_environment(
+def test_counts_requested_items_from_lower_bound_rows_of_the_task_environment(
     made_up_run_dir: Path,
 ):
     counts = _counts_of(made_up_run_dir)
@@ -43,18 +43,6 @@ def test_counts_registries_and_hosts_and_requested_items_from_lower_bound_rows_o
     item_key = spreadsheet_python_counts.RequestedItemLineKey
 
     # `requests` of t1 and `Requests` of t3 are one item. npm of t6 is only in the upper bound.
-    assert {
-        key: (line.trial_ids, line.requested_items)
-        for key, line in counts.registry_or_host_service_lines.items()
-    } == {
-        line_key("package", "pypi"): (
-            {"t1", "t3", "t5"},
-            {"requests", "(named_in_file)"},
-        ),
-        line_key("content_fetch", "code_hosting"): ({"t5"}, {"github.com"}),
-        line_key("remote_api_call", "web_api"): ({"t5"}, {"api.github.com"}),
-        line_key("other_web", "unknown"): ({"t5"}, {"b.org"}),
-    }
     assert counts.requested_item_trial_ids == {
         item_key(TASK_A_4, line_key("package", "pypi"), "requests"): {"t1", "t3"},
         item_key(TASK_0_4, line_key("package", "pypi"), "(named_in_file)"): {"t5"},
