@@ -147,3 +147,31 @@ def treat_call_name_that_ends_with_catalog_name_as_that_call(
             ] += 1
             return shorter_call_name
     return None
+
+
+def treat_call_of_module_name_that_code_binds_without_import_as_call_without_row(
+    module_name: str,
+    imported_module_names: frozenset[str],
+    names_bound_by_assignment_parameter_or_loop: frozenset[str],
+    *,
+    use_counts: Counter[str],
+) -> bool:
+    """Read a Python call whose row of the code call catalog names a module that the code text binds to something else and does not import as a call without a row, e.g. `requests.get(rid)` after `requests = {}`.
+
+    `extract_code_network_requests` asks it for every Python call whose row names a module in `module_name`, whatever the effect of the row, with the names that `parse_code` found imported as a module and those it found bound by an assignment, a parameter or a loop.
+    On `True` the call takes `UnknownCodeCallLabel`, so a URL in its strings that may be public gives an uncertain request, and a call without such a URL gives none, e.g. `prev = requests.get(rid)`.
+    On `False` the call keeps its row, e.g. `requests.get(u)` after `import requests`, or `subprocess.run(cmd)` after `from helpers import *`, whose text neither imports nor binds `subprocess`.
+    Were it to return `False` always, a dict named `requests` would give confirmed requests of the library with a target built in code. Were it to set aside every call whose module is not imported, it would also drop real calls of a module that comes from a star import, from `__import__` in another file or from a part of a file, and lower the upper bound.
+    A use is such a call of a bound name without the import.
+
+    Decided. The user decided it on 2026-11-22 and narrowed it the same day to names that the text binds, since a call of a module name that the text binds to something else is no call of the library, while one that the text neither imports nor binds may still be.
+    """
+    if (
+        module_name in imported_module_names
+        or module_name not in names_bound_by_assignment_parameter_or_loop
+    ):
+        return False
+    use_counts[
+        treat_call_of_module_name_that_code_binds_without_import_as_call_without_row.__name__
+    ] += 1
+    return True

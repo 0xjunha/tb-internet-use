@@ -663,6 +663,9 @@ def test_text_after_a_multi_line_string_or_block_comment_that_never_closes_is_un
         # A word that only starts with `import` is no statement.
         ("importlib.import_module('requests')", PYTHON, set()),
         ("x = 1  # import requests", PYTHON, set()),
+        ('subprocess = __import__("subprocess")', PYTHON, {"subprocess"}),
+        ('requests = importlib.import_module("requests")', PYTHON, {"requests"}),
+        ('requests = __import__("httpx")', PYTHON, set()),
         ("import requests from 'requests'", JAVASCRIPT, set()),
         ("const requests = require('requests')", JAVASCRIPT, set()),
     ],
@@ -673,6 +676,47 @@ def test_imported_module_names_are_the_names_that_python_imports_bind_to_their_m
     assert parse_code(code, code_language).imported_module_names == frozenset(
         imported_module_names
     )
+
+
+@pytest.mark.parametrize(
+    ("code", "code_language", "bound_names"),
+    [
+        ("requests = {}", PYTHON, {"requests"}),
+        ("requests: Dict[str, int] = {}", PYTHON, {"requests"}),
+        ("    requests = load()", PYTHON, {"requests"}),
+        ("requests == x", PYTHON, set()),
+        ("requests += 1", PYTHON, set()),
+        ("def plan(requests, pk):\n    pass", PYTHON, {"requests", "pk"}),
+        ("async def plan(*args, **requests):\n    pass", PYTHON, {"args", "requests"}),
+        (
+            "def plan(\n    requests: dict,\n    pk=d.get(a, b),\n):\n    pass",
+            PYTHON,
+            {"requests", "pk"},
+        ),
+        ("def f(a=requests):\n    pass", PYTHON, {"a"}),
+        ("class C(requests):\n    pass", PYTHON, set()),
+        ("plan(requests, pk)", PYTHON, set()),
+        ("f = lambda requests, pk: requests.get(pk)", PYTHON, {"f", "requests", "pk"}),
+        ("sorted(xs, key=lambda requests: 0)", PYTHON, {"requests"}),
+        ("for requests in batches:\n    pass", PYTHON, {"requests"}),
+        ("x = 1\nimport requests", PYTHON, {"x"}),
+        ('subprocess = __import__("subprocess")', PYTHON, {"subprocess"}),
+        # Tuple targets, `with … as`, `except … as`, comprehension variables and attributes are not read.
+        ("requests, n = load()", PYTHON, set()),
+        ("with open(p) as requests:\n    pass", PYTHON, set()),
+        ("try:\n    pass\nexcept E as requests:\n    pass", PYTHON, set()),
+        ("xs = [r for requests in batches]", PYTHON, {"xs"}),
+        ("self.requests = {}", PYTHON, set()),
+        ("const requests = {}", JAVASCRIPT, set()),
+        ("function plan(requests) {}", JAVASCRIPT, set()),
+    ],
+)
+def test_bound_names_are_the_bare_names_of_python_assignments_parameters_and_loops(
+    code: str, code_language: CodeLanguage, bound_names: set[str]
+):
+    assert parse_code(
+        code, code_language
+    ).names_bound_by_assignment_parameter_or_loop == frozenset(bound_names)
 
 
 @pytest.mark.parametrize(

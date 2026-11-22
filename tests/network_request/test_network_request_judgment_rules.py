@@ -7,6 +7,7 @@ import pytest
 from tb_internet_use.expanded_tool_call.model import VariableValues
 from tb_internet_use.network_request.judgment_rules import (
     treat_call_name_that_ends_with_catalog_name_as_that_call,
+    treat_call_of_module_name_that_code_binds_without_import_as_call_without_row,
     treat_dotted_host_name_as_public,
     treat_single_label_or_templated_host_name_as_possibly_public,
     treat_url_of_namespace_host_as_no_target,
@@ -138,4 +139,36 @@ def test_call_name_is_read_as_its_longest_end_with_a_row_and_counted_when_found(
         {}
         if expected is None
         else {"treat_call_name_that_ends_with_catalog_name_as_that_call": 1}
+    )
+
+
+@pytest.mark.parametrize(
+    ("module_name", "imported_module_names", "bound_names", "expected"),
+    [
+        ("requests", frozenset(), frozenset({"requests"}), True),
+        ("requests", frozenset({"os"}), frozenset({"requests", "x"}), True),
+        # An import wins over a binding, e.g. `import requests` then `requests = requests.Session()`.
+        ("requests", frozenset({"requests"}), frozenset({"requests"}), False),
+        # A name that is neither imported nor bound may come from a star import.
+        ("subprocess", frozenset(), frozenset(), False),
+        ("requests", frozenset({"requests"}), frozenset(), False),
+    ],
+)
+def test_call_of_a_module_name_bound_without_import_is_a_call_without_row_and_counted(
+    module_name, imported_module_names, bound_names, expected
+):
+    use_counts: Counter[str] = Counter()
+
+    assert (
+        treat_call_of_module_name_that_code_binds_without_import_as_call_without_row(
+            module_name, imported_module_names, bound_names, use_counts=use_counts
+        )
+        is expected
+    )
+    assert use_counts == Counter(
+        {
+            "treat_call_of_module_name_that_code_binds_without_import_as_call_without_row": 1
+        }
+        if expected
+        else {}
     )

@@ -4,14 +4,15 @@ Code that a command runs can send a request that no word of the command shows, e
 The code is read as text and never run, so a call is found by its form, a name right before `(`, and not by what the name is bound to.
 For example `r.get(u)` stays `r.get` after `import requests as r`.
 Whether a call sends a request is a fact of the code call catalog, so the reading knows no library.
-The one exception is the names that a Python `import` binds to a module, which the reading records although they say nothing of a call on their own.
-A call such as `requests.get(rid)` has the form of a call of the library `requests` also where `requests` is a dict, and only the import tells the two apart, e.g. `import requests` at the top of the text.
+The one exception is the names that a Python text imports as a module and the bare names it binds to something else, which the reading records although they say nothing of a call on their own.
+A call such as `requests.get(rid)` has the form of a call of the library `requests` also where `requests` is a dict, and only these names tell the two apart, e.g. `requests = {}` and no `import requests` in the text.
 
 Text after a multi-line string, a template string or a block comment that never closes is not read, and `ParsedCode.unreadable_text_start` says from where.
 
 Known limits
 - A JavaScript regular expression literal is read as code, since only a parser tells it from a division. So `//` in it starts a comment and a quote or backtick in it starts a string, e.g. in `/https?:\\/\\//` or `/`/`. A backtick that never closes sets `unreadable_text_start`.
 - A quote `'` or `"` that does not close ends at the line break, so the rest of its line is not read, e.g. `fetch(u)` in `x = /'/; fetch(u)`.
+- Python binds a name also as a tuple target, by `with … as` or `except … as`, as the variable of a comprehension or of a `for` that does not start its line, and after `;`, none of which is read, e.g. `requests` of `requests, n = load()`. An attribute such as `self.requests = {}` binds no bare name. A call through such a name stays the call of the module, e.g. `self.requests.get(rid)`.
 - A Python f-string that holds its own quote inside braces, e.g. `f"{d["k"]}"`, ends at that quote. A JavaScript template literal nested in `${}` ends the same way.
 """
 
@@ -37,6 +38,12 @@ _WHITESPACE = re.compile(r"\s+")
 _NUMBER = re.compile(r"\d[\w.]*")
 # The punctuation that reads from a name right after it, so that an argument that starts with the name does not start with its value, e.g. `[` of `urls[0] + path`.
 _PUNCTUATION_THAT_READS_FROM_A_NAME = frozenset({"(", ".", "["})
+# The calls whose value is the module that their first string names, e.g. `__import__("subprocess")`.
+_IMPORTING_CALL_NAMES = frozenset({"__import__", "importlib.import_module"})
+# The tokens right before a parameter of a `def` or `lambda`, e.g. `,` before `pk` in `def plan(requests, pk)`.
+_TOKENS_BEFORE_A_PARAMETER = frozenset({"(", ",", "*"})
+# What follows the variable of a `for` loop that is one bare name, e.g. ` in` of `for requests in batches:`.
+_LOOP_VARIABLE_END = re.compile(r"[ \t]+in\b")
 # The words before a name that make it the name of a definition, so its parenthesis opens no call, e.g. `def fetch(url)`.
 _DEFINING_WORDS = frozenset({"def", "class", "function"})
 # The reserved words of JavaScript, e.g. `if` in `if (ok)`.
@@ -119,6 +126,8 @@ class _CodeSyntax:
     assignment_start: re.Pattern[str]
     # What may follow the value of such an assignment, e.g. a line break or `;`.
     assignment_end: re.Pattern[str]
+    # Whether the bare names that an assignment, a parameter or a loop binds are recorded, only for Python.
+    records_bound_names: bool
 
 
 _PYTHON_NAME = r"[^\W\d]\w*"
@@ -145,6 +154,7 @@ _SYNTAX_OF_LANGUAGE = {
         string_delimiters=('"""', "'''", '"', "'"),
         assignment_start=re.compile(rf"({_PYTHON_NAME})[ \t]*(?::[^=\n#]*)?=[ \t]*"),
         assignment_end=re.compile(r"[ \t]*(?:;|#|\n|\Z)"),
+        records_bound_names=True,
     ),
     CodeLanguage.JAVASCRIPT: _CodeSyntax(
         dotted_name=re.compile(rf"{_JAVASCRIPT_NAME}(?:\.{_JAVASCRIPT_NAME})*"),
@@ -158,6 +168,7 @@ _SYNTAX_OF_LANGUAGE = {
             rf"(?:export[ \t]+)?(?:(?:const|let|var)[ \t]+)?({_JAVASCRIPT_NAME})[ \t]*=[ \t]*"
         ),
         assignment_end=re.compile(r"[ \t]*(?:;|//|\n|\Z)"),
+        records_bound_names=False,
     ),
 }
 
@@ -217,6 +228,8 @@ class _OpenBracket:
     open_call: _OpenCall | None
     # The innermost call around the bracket, which owns the strings in it.
     string_owner: _OpenCall | None
+    # Whether the bracket holds the parameters of a Python `def`, e.g. `(requests, pk)` of `def plan(requests, pk):`.
+    is_parameter_list: bool = False
 
 
 @dataclass(slots=True)
@@ -236,13 +249,23 @@ class _CodeReadingState:
     # The names assigned by an assignment whose value starts with a call, by the 0-based position of the name of that call, e.g. `req` at the position of `Request` in `req = Request(u)`.
     assigned_name_of_call_name_start: dict[int, str] = field(default_factory=dict)
     is_at_line_start: bool = True
+    # The 0-based position of the token that starts the current line, e.g. of `for` in `for requests in batches:`.
+    line_start_token_position: int | None = None
     # The text of the token before the current one, e.g. `def` before `fetch` in `def fetch(url)`.
     previous_token_text: str = ""
+    # Whether the next `(` opens the parameters of a `def`, set by the name after `def`.
+    is_next_bracket_parameter_list: bool = False
+    # The 0-based position after a `for` that starts a line, so that the name right after it is read as the loop variable.
+    line_start_for_end: int | None = None
+    # The number of open brackets around a `lambda` whose parameters are being read, None outside them, e.g. 1 inside `sorted(xs, key=lambda requests, ` before its `:`.
+    lambda_parameter_bracket_count: int | None = None
+    # The bare names that an assignment at the start of a line, a parameter of a `def` or `lambda` or the variable of a `for` loop binds, e.g. `requests` of `requests = {}`.
+    names_bound_by_assignment_parameter_or_loop: set[str] = field(default_factory=set)
     unreadable_text_start: int | None = None
 
 
 def parse_code(code: str, code_language: CodeLanguage) -> ParsedCode:
-    """Find the calls of a code text with their strings and first argument, the assignments of one string or one call to a name at the start of a line, and the modules that Python imports under their own name.
+    """Find the calls of a code text with their strings and first argument, the assignments of one string or one call to a name at the start of a line, the modules that Python imports under their own name and the bare names that Python binds otherwise.
 
     A call is a name, bare or dotted, right before `(`, e.g. `requests.get(` or `fetch(`, outside strings and comments.
     A string belongs to the innermost call whose parentheses hold it, so in `print(requests.get("https://a.org/x"))` it belongs to `requests.get`.
@@ -296,6 +319,7 @@ def _parsed_code_from(
             code_call_index_of_opened_call_index[opened_call_index] = len(
                 code_call_index_of_opened_call_index
             )
+    imported_module_names |= _module_names_imported_by_calls_of(state)
     return ParsedCode(
         code_calls=tuple(
             code_call
@@ -318,8 +342,27 @@ def _parsed_code_from(
             for call_assignment in state.call_assignments
         ),
         imported_module_names=imported_module_names,
+        names_bound_by_assignment_parameter_or_loop=frozenset(
+            state.names_bound_by_assignment_parameter_or_loop
+        ),
         unreadable_text_start=state.unreadable_text_start,
     )
+
+
+def _module_names_imported_by_calls_of(state: _CodeReadingState) -> frozenset[str]:
+    """Find the names that a Python text assigns the module of the same name to by a call, e.g. `subprocess` of `subprocess = __import__("subprocess")` or of `subprocess = importlib.import_module("subprocess")`."""
+    if not state.code_syntax.records_bound_names:
+        return frozenset()
+    imported_module_names: set[str] = set()
+    for call_assignment in state.call_assignments:
+        code_call = state.code_calls[call_assignment.code_call_index]
+        if (
+            code_call is not None
+            and code_call.name in _IMPORTING_CALL_NAMES
+            and code_call.first_argument_string == call_assignment.name
+        ):
+            imported_module_names.add(call_assignment.name)
+    return frozenset(imported_module_names)
 
 
 def _read_token(state: _CodeReadingState, position: int) -> int:
@@ -329,12 +372,15 @@ def _read_token(state: _CodeReadingState, position: int) -> int:
     if whitespace_match is not None:
         if "\n" in whitespace_match.group():
             state.is_at_line_start = True
+            if not state.open_brackets:
+                state.lambda_parameter_bracket_count = None
         return whitespace_match.end()
     comment_end = _comment_end_of(state, position)
     if comment_end is not None:
         return comment_end
     if state.is_at_line_start:
         state.is_at_line_start = False
+        state.line_start_token_position = position
         if _may_assign_here(state):
             _read_assignment(state, position)
     string_literal_end = _read_string_literal(state, position)
@@ -388,6 +434,9 @@ def _read_assignment(state: _CodeReadingState, position: int) -> None:
     if name in code_syntax.keywords:
         return
     value_start = assignment_start_match.end()
+    # `requests == x` compares and binds nothing.
+    if code_syntax.records_bound_names and not state.code.startswith("=", value_start):
+        state.names_bound_by_assignment_parameter_or_loop.add(name)
     string_literal = _string_literal_from(state.code, value_start, code_syntax)
     if string_literal is None:
         state.assigned_name_of_call_name_start[value_start] = name
@@ -474,6 +523,8 @@ def _read_name(state: _CodeReadingState, name: str, name_end: int) -> int:
         and name not in code_syntax.keywords
         and state.previous_token_text not in _DEFINING_WORDS
     )
+    if code_syntax.records_bound_names:
+        _read_bound_name(state, name, name_end, is_call=is_call)
     state.previous_token_text = name
     if not is_call:
         is_bare_name = "." not in name and name not in code_syntax.keywords
@@ -500,6 +551,48 @@ def _read_name(state: _CodeReadingState, name: str, name_end: int) -> int:
     return name_end + 1
 
 
+def _read_bound_name(
+    state: _CodeReadingState, name: str, name_end: int, *, is_call: bool
+) -> None:
+    """Record a bare name that a parameter of a Python `def` or `lambda` or the variable of a `for` loop that starts a line binds, e.g. `requests` of `def plan(requests, pk):`, `lambda requests: 0` or `for requests in batches:`, and note where such parameters start.
+
+    A parameter is a bare name right after the `(` of a `def`, after a `,` or after `*` in it, or the same after `lambda` up to its `:`, so a default value or a type is not read as one, e.g. `b` of `def f(a=b)`.
+    """
+    previous_token_text = state.previous_token_text
+    if name == "for" and state.line_start_token_position == name_end - len(name):
+        state.line_start_for_end = name_end
+        return
+    if (
+        previous_token_text == "def"
+        and not is_call
+        and state.code.startswith("(", name_end)
+    ):
+        state.is_next_bracket_parameter_list = True
+        return
+    if name == "lambda":
+        state.lambda_parameter_bracket_count = len(state.open_brackets)
+        return
+    if "." in name or name in state.code_syntax.keywords or is_call:
+        return
+    open_brackets = state.open_brackets
+    is_def_parameter = (
+        bool(open_brackets)
+        and open_brackets[-1].is_parameter_list
+        and previous_token_text in _TOKENS_BEFORE_A_PARAMETER
+    )
+    is_lambda_parameter = state.lambda_parameter_bracket_count == len(
+        open_brackets
+    ) and previous_token_text in (*_TOKENS_BEFORE_A_PARAMETER, "lambda")
+    is_loop_variable = (
+        previous_token_text == "for"
+        and state.line_start_for_end is not None
+        and not state.code[state.line_start_for_end : name_end - len(name)].strip()
+        and _LOOP_VARIABLE_END.match(state.code, name_end) is not None
+    )
+    if is_def_parameter or is_lambda_parameter or is_loop_variable:
+        state.names_bound_by_assignment_parameter_or_loop.add(name)
+
+
 def _read_punctuation(state: _CodeReadingState, position: int) -> None:
     """Read one character that is no name, number, string or comment, e.g. a bracket, a comma or `=`."""
     character = state.code[position]
@@ -508,22 +601,38 @@ def _read_punctuation(state: _CodeReadingState, position: int) -> None:
         state.previous_token_text = character
     if character in _CLOSER_OF_OPENER:
         _add_argument_token(state, _ArgumentToken(_ArgumentTokenKind.OTHER, character))
-        _open_bracket(state, character, None)
+        _open_bracket(
+            state,
+            character,
+            None,
+            is_parameter_list=character == "(" and state.is_next_bracket_parameter_list,
+        )
+        state.is_next_bracket_parameter_list = False
     elif character in _CLOSERS:
         _close_bracket(state, character, position)
     elif character == "," and (open_call := _innermost_open_call_of(state)) is not None:
         _finish_argument(open_call)
     else:
+        if character == ":" and state.lambda_parameter_bracket_count == len(
+            state.open_brackets
+        ):
+            state.lambda_parameter_bracket_count = None
         _add_argument_token(state, _ArgumentToken(_ArgumentTokenKind.OTHER, character))
 
 
 def _open_bracket(
-    state: _CodeReadingState, opener: str, open_call: _OpenCall | None
+    state: _CodeReadingState,
+    opener: str,
+    open_call: _OpenCall | None,
+    *,
+    is_parameter_list: bool = False,
 ) -> None:
     """Push a bracket, which a call opens or which follows no name, with the call that owns the strings in it."""
     string_owner = open_call if open_call is not None else _string_owner_of(state)
     closer = _CLOSER_OF_OPENER[opener]
-    state.open_brackets.append(_OpenBracket(closer, open_call, string_owner))
+    state.open_brackets.append(
+        _OpenBracket(closer, open_call, string_owner, is_parameter_list)
+    )
     state.open_closer_counts[closer] += 1
 
 
@@ -543,6 +652,12 @@ def _close_bracket(state: _CodeReadingState, closer: str, position: int) -> None
             _close_call_unreadable(state, open_bracket.open_call)
     if open_bracket.open_call is not None:
         _close_call(state, open_bracket.open_call, position)
+    lambda_parameter_bracket_count = state.lambda_parameter_bracket_count
+    if (
+        lambda_parameter_bracket_count is not None
+        and len(state.open_brackets) < lambda_parameter_bracket_count
+    ):
+        state.lambda_parameter_bracket_count = None
 
 
 def _close_call(state: _CodeReadingState, open_call: _OpenCall, position: int) -> None:

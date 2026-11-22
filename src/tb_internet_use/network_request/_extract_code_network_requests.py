@@ -20,6 +20,7 @@ from tb_internet_use.network_request._extract_command_network_requests import (
 )
 from tb_internet_use.network_request.judgment_rules import (
     treat_call_name_that_ends_with_catalog_name_as_that_call,
+    treat_call_of_module_name_that_code_binds_without_import_as_call_without_row,
     treat_url_of_namespace_host_as_no_target,
 )
 from tb_internet_use.network_request.model import (
@@ -85,7 +86,7 @@ def extract_code_network_requests(
 
     A call that sends a request gives one confirmed request per call when its target is in the text, and one per call name and hosts when it is not, e.g. one for all the calls `requests.get(base + path)` and another for `requests.get('http://name:8069' + path)`.
     A call that holds the target of a request gives no request when a sending call reads the target from it, e.g. `Request` of `urlopen(Request(u))`.
-    A call without a row, or one that holds a target that no sending call reads, gives one uncertain request per URL that may be public or whose host cannot be read, and the text outside every call one per URL that may be public.
+    A call without a row, a Python call whose row names a module that the text binds to something else and does not import, e.g. `requests.get(rid)` after `requests = {}`, or one that holds a target that no sending call reads, gives one uncertain request per URL that may be public or whose host cannot be read, and the text outside every call one per URL that may be public.
     Text that `parse_code` could not read to its end holds no call that it read, so its URLs give requests as URLs outside every call, e.g. the URL after an unclosed backtick in ``x = `; fetch("https://a.org/x")``.
     Every request gets `UnknownReceivedContentDestination`, since what code does with the content is not read.
     """
@@ -95,11 +96,12 @@ def extract_code_network_requests(
         tool_call_key, ran_code_text, first_index_in_tool_call
     )
     code_call_labels = tuple(
-        knowledge.code_call_label(
+        _code_call_label_of(
+            code_call,
             code_language,
-            _code_call_name_with_row(
-                code_call, code_language, knowledge, judgment_rule_use_counts
-            ),
+            parsed_code,
+            knowledge,
+            judgment_rule_use_counts,
         )
         for code_call in parsed_code.code_calls
     )
@@ -244,6 +246,37 @@ class _CodeTextRequests:
                 uncertainty_reason=uncertainty_reason,
             )
         )
+
+
+def _code_call_label_of(
+    code_call: CodeCall,
+    code_language: CodeLanguage,
+    parsed_code: ParsedCode,
+    knowledge: NetworkRequestKnowledge,
+    judgment_rule_use_counts: Counter[str],
+) -> CodeCallLabel | UnknownCodeCallLabel:
+    """Find the label of a call, from the row of the name that `_code_call_name_with_row` gives, or `UnknownCodeCallLabel` when it has no row or when the judgment rule sets aside a row whose module name the code binds to something else and does not import, e.g. for `requests.get(rid)` after `requests = {}`.
+
+    A row that the rule sets aside still counts as a use of the row, since its `module_name` decided the call.
+    """
+    code_call_label = knowledge.code_call_label(
+        code_language,
+        _code_call_name_with_row(
+            code_call, code_language, knowledge, judgment_rule_use_counts
+        ),
+    )
+    if (
+        isinstance(code_call_label, CodeCallLabel)
+        and code_call_label.module_name is not None
+        and treat_call_of_module_name_that_code_binds_without_import_as_call_without_row(
+            code_call_label.module_name,
+            parsed_code.imported_module_names,
+            parsed_code.names_bound_by_assignment_parameter_or_loop,
+            use_counts=judgment_rule_use_counts,
+        )
+    ):
+        return UnknownCodeCallLabel()
+    return code_call_label
 
 
 def _code_call_name_with_row(

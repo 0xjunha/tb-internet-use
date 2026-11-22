@@ -65,8 +65,13 @@ URLOPEN_U = ("urlopen", U, URL, ("a.org",), None)
 OUTSIDE_U = (UNKNOWN_CALL, U, URL, ("a.org",), URL_OUTSIDE_CODE_CALL)
 NAMESPACE_RULE = "treat_url_of_namespace_host_as_no_target"
 CALL_NAME_RULE = "treat_call_name_that_ends_with_catalog_name_as_that_call"
+MODULE_IMPORT_RULE = (
+    "treat_call_of_module_name_that_code_binds_without_import_as_call_without_row"
+)
 POSSIBLY_PUBLIC_RULE = "treat_single_label_or_templated_host_name_as_possibly_public"
 
+# The imports that every Python code of `_CASES` runs after, so that a call of a module keeps its row.
+_PYTHON_IMPORTS = "import os, requests, socket, subprocess\n"
 # (case, code, language, requests as (call name, target, target kind, hosts, uncertainty reason))
 _CASES = [
     # A known call with a literal URL.
@@ -560,6 +565,96 @@ _CASES = [
 ]
 
 
+# (case, code, requests as in `_CASES`) of Python code that runs without `_PYTHON_IMPORTS`, so that a call of a module loses its row only when the code binds the module name to something else and does not import it.
+_IMPORT_CASES = [
+    ("dict named after a module", "requests = {}\nprev = requests.get(rid)", []),
+    (
+        "dict with a type named after a module",
+        "requests: dict[str, int] = {}\nprev = requests.get(rid)",
+        [],
+    ),
+    (
+        "dict named after a module with a public url",
+        f'requests = {{}}\nrequests.get("{U}")',
+        [(UNKNOWN_CALL, U, URL, ("a.org",), UNKNOWN_CODE_CALL)],
+    ),
+    (
+        "name of an imported module bound again",
+        "import requests\nrequests = {}\nprev = requests.get(rid)",
+        [("requests.get", BUILT_IN_CODE, URL, (), None)],
+    ),
+    (
+        "parameter named after a module",
+        "def plan(requests, pk):\n    return requests.get(pk)",
+        [],
+    ),
+    (
+        "parameter of a lambda named after a module",
+        "f = lambda requests: requests.get(1)",
+        [],
+    ),
+    (
+        "loop variable named after a module",
+        "for requests in batches:\n    requests.get(rid)",
+        [],
+    ),
+    # A comparison binds nothing.
+    (
+        "comparison of a module name",
+        "requests == x\nrequests.get(u)",
+        [("requests.get", BUILT_IN_CODE, URL, (), None)],
+    ),
+    # A default value binds nothing.
+    (
+        "default value named after a module",
+        "def f(session=requests):\n    requests.get(u)",
+        [("requests.get", BUILT_IN_CODE, URL, (), None)],
+    ),
+    # A module that the text neither imports nor binds may come from a star import or another part of the file, so the call keeps its row.
+    (
+        "call of a module from a star import",
+        'from helpers import *\nsubprocess.run(["pip", "install", "x"])',
+        [("subprocess.run", BUILT_IN_CODE, UNKNOWN_KIND, (), PROGRAM_RUN_BY_CODE)],
+    ),
+    (
+        "call of a module imported by __import__",
+        'subprocess = __import__("subprocess")\nsubprocess.run(["pip", "install", "x"])',
+        [("subprocess.run", BUILT_IN_CODE, UNKNOWN_KIND, (), PROGRAM_RUN_BY_CODE)],
+    ),
+    (
+        "call of a module imported by importlib",
+        'requests = importlib.import_module("requests")\nrequests.get(u)',
+        [("requests.get", BUILT_IN_CODE, URL, (), None)],
+    ),
+    (
+        "call of a module that is neither imported nor bound",
+        f'requests.get("{U}")',
+        [REQUESTS_GET_U],
+    ),
+    # Known limit. An attribute binds no bare name, so the call keeps the row of `requests.get`.
+    (
+        "attribute named after a module",
+        "self.requests = {}\nself.requests.get(rid)",
+        [("requests.get", BUILT_IN_CODE, URL, (), None)],
+    ),
+    (
+        "call that sends no request of a module name bound to something else",
+        f'urllib = None\nurllib.parse.quote("{U}")',
+        [(UNKNOWN_CALL, U, URL, ("a.org",), UNKNOWN_CODE_CALL)],
+    ),
+    (
+        "program run by a module name bound to something else",
+        'subprocess = Fake()\nsubprocess.run(["pip", "install", "x"])',
+        [],
+    ),
+    (
+        "call whose row names no module",
+        f'urlopen = None\nurlopen("{U}")',
+        [("urlopen", U, URL, ("a.org",), None)],
+    ),
+]
+
+
 def _knowledge_with_code_call_rows(
     tmp_path: Path, code_call_rows: list[dict[str, str]]
 ) -> NetworkRequestKnowledge:
@@ -631,12 +726,47 @@ def _summary(network_requests: tuple[NetworkRequest, ...]) -> list[tuple]:
 def test_requests_of_code_follow_what_is_known_about_each_call(
     code, code_language, expected
 ):
-    assert _summary(_extract(code, code_language)) == expected
+    imports = _PYTHON_IMPORTS if code_language == PYTHON else ""
+    assert _summary(_extract(imports + code, code_language)) == expected
+
+
+@pytest.mark.parametrize(
+    ("code", "expected"),
+    [case[1:] for case in _IMPORT_CASES],
+    ids=[case[0] for case in _IMPORT_CASES],
+)
+def test_call_of_a_module_loses_its_row_only_when_the_code_binds_its_name_without_import(
+    code, expected
+):
+    assert _summary(_extract(code)) == expected
+
+
+def test_call_of_a_bound_module_name_counts_the_rule_and_its_row():
+    knowledge = NetworkRequestKnowledge()
+    judgment_rule_use_counts: Counter[str] = Counter()
+    no_network_request_counts: Counter[NoNetworkRequestReason] = Counter()
+
+    _extract(
+        "requests = {}\nprev = requests.get(rid)\nself.requests.get(u)",
+        knowledge=knowledge,
+        judgment_rule_use_counts=judgment_rule_use_counts,
+        no_network_request_counts=no_network_request_counts,
+    )
+
+    assert judgment_rule_use_counts == Counter(
+        {CALL_NAME_RULE: 1, MODULE_IMPORT_RULE: 2}
+    )
+    assert knowledge.uses == KnowledgeUses(
+        row_use_counts=Counter({(CODE_CALLS_CSV, ("python", "requests.get")): 2})
+    )
+    assert no_network_request_counts == Counter(
+        {NoNetworkRequestReason.NO_URL_THAT_MAY_BE_PUBLIC: 2}
+    )
 
 
 def test_request_of_a_known_call_is_confirmed_numbered_and_names_the_runner_and_the_code():
     network_requests = _extract(
-        f'requests.get("{U}")\nmylib.fetch("https://b.org")',
+        f'import requests\nrequests.get("{U}")\nmylib.fetch("https://b.org")',
         first_index_in_tool_call=5,
     )
 
@@ -662,7 +792,7 @@ def test_code_typed_through_a_poll_has_no_runner_command():
     poll_input_text = PollInputText(None, ToolCallKey("trial", "main", 1, 0))
 
     (network_request,) = extract_code_network_requests(
-        RanCodeText(poll_input_text, PYTHON, f'requests.get("{U}")'),
+        RanCodeText(poll_input_text, PYTHON, f'import requests\nrequests.get("{U}")'),
         KEY,
         0,
         knowledge=NetworkRequestKnowledge(),
@@ -749,7 +879,7 @@ def test_knowledge_class_is_asked_once_per_call_under_the_name_with_a_row_and_pr
     knowledge = NetworkRequestKnowledge()
 
     _extract(
-        f'urllib.request.urlopen("{U}")\nmylib.fetch(u)\n'
+        f'import subprocess\nurllib.request.urlopen("{U}")\nmylib.fetch(u)\n'
         'subprocess.run(["pip3", "install", "x"])\n'
         'subprocess.check_call([sys.executable, "-m", "pip", "install", "x"])',
         knowledge=knowledge,

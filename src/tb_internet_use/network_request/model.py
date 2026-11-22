@@ -437,9 +437,12 @@ class ParsedCode:
     code_calls: tuple[CodeCall, ...]
     string_assignments: tuple[CodeStringAssignment, ...]
     call_assignments: tuple[CodeCallAssignment, ...]
-    # The names that an `import` statement of Python binds to the module of the same name, e.g. `os` and `sys` for `import os, sys` or `urllib` for `import urllib.request`, but none for `import requests as rq`. Empty for JavaScript.
-    # It exists because a call is found by its form, so `requests.get(rid)` is a call of the library only when the text imports `requests` and not when `requests` is a dict.
+    # The names that Python binds to the module of the same name, by an `import` statement or by a call that imports, e.g. `os` and `sys` for `import os, sys`, `urllib` for `import urllib.request` or `subprocess` for `subprocess = __import__("subprocess")`, but none for `import requests as rq`. Empty for JavaScript.
+    # It exists because a call is found by its form, so `requests.get(rid)` is a call of the library when the text imports `requests`, and not when the text binds `requests` to a dict instead.
     imported_module_names: frozenset[str]
+    # The bare names that Python binds by an assignment at the start of a line, a parameter of a `def` or `lambda` or the variable of a `for` loop that starts a line, e.g. `requests` of `requests = {}`, `def plan(requests, pk):` or `for requests in batches:`. Empty for JavaScript.
+    # It exists so that a call through a name that the text binds to something else, e.g. `requests.get(rid)` after `requests = {}`, is not read as a call of the module, while a call through a name the text neither imports nor binds, e.g. after `from helpers import *`, still is.
+    names_bound_by_assignment_parameter_or_loop: frozenset[str]
     # The 0-based index of the code from which the text was not read, None when all of it was read.
     # It exists because a multi-line string, template string or block comment that never closes hides every call after it, e.g. `fetch(u)` after the backtick of `/`/` in JavaScript.
     unreadable_text_start: int | None
