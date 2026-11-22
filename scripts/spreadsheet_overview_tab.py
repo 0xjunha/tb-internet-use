@@ -201,7 +201,7 @@ _TAB_QUESTIONS = (
     (REQUESTED_ITEMS_TAB_NAME, "What did the trials of each task ask for?"),
     (
         REGISTRIES_AND_HOSTS_TAB_NAME,
-        "What would a mirror or the image have to serve?",
+        "Which registries and hosts were requested?",
     ),
     (WEB_TOOLS_TAB_NAME, "Which requests leave from outside the task environment?"),
     (

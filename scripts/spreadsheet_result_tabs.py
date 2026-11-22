@@ -440,7 +440,7 @@ def lay_out_requested_items_tab(counts: SpreadsheetPythonCounts) -> RequestedIte
     columns = _RequestedItemsColumns(_has_several_benchmark_versions(counts))
     _add_title_and_question(
         grid,
-        "What did the trials of each task ask for, if a mirror or the image had to serve it?",
+        "Packages and hosts that the trials of each task requested from the task environment.",
         columns.last,
     )
     header_row = grid.add_row(
