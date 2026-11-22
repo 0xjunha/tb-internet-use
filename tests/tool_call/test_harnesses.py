@@ -4,14 +4,12 @@ import csv
 import functools
 import importlib.util
 import json
+import sys
 from collections import Counter
 from pathlib import Path
 from types import ModuleType
 from typing import Any
 
-from tb_internet_use.knowledge.harness_result_format_audit import (
-    iter_declared_formats,
-)
 from tb_internet_use.knowledge.tool_call_knowledge import (
     HARNESS_RETURN_CODE_INTERPRETATIONS_CSV,
     HARNESS_TOOL_ARGUMENTS_CSV,
@@ -47,6 +45,16 @@ from tb_internet_use.tool_call.model import (
     UnknownAction,
     WriteFileAction,
 )
+
+_SPEC = importlib.util.spec_from_file_location(
+    "harness_result_format_audit",
+    Path(__file__).parents[2] / "scripts/harness_result_format_audit.py",
+)
+assert _SPEC is not None and _SPEC.loader is not None
+harness_result_format_audit = importlib.util.module_from_spec(_SPEC)
+# Registered as an import would do, so that the audit scripts loaded by other tests share it.
+sys.modules[_SPEC.name] = harness_result_format_audit
+_SPEC.loader.exec_module(harness_result_format_audit)
 
 
 def _catalog_rows(csv_name: str) -> list[dict[str, str]]:
@@ -144,7 +152,7 @@ def _converted_result(
 def test_every_declared_result_format_has_a_case_in_the_test_file_of_its_harness():
     missing = [
         (harness, tool, harness_result_format.name)
-        for harness, tool, harness_result_format in iter_declared_formats()
+        for harness, tool, harness_result_format in harness_result_format_audit.iter_declared_formats()
         if (tool, harness_result_format.name)
         not in _result_format_case_keys_of(harness)
     ]

@@ -2,6 +2,9 @@
 
 from collections.abc import Mapping
 
+from tb_internet_use.knowledge.declarations.tool_call.harness_result_format_declaration import (
+    HarnessToolResultDeclaration,
+)
 from tb_internet_use.knowledge.declarations.tool_call.harness_result_formats import (
     antigravity_cli,
     claude_code,
@@ -12,9 +15,6 @@ from tb_internet_use.knowledge.declarations.tool_call.harness_result_formats imp
     grok_build,
     mini_swe_agent,
     muse_code,
-)
-from tb_internet_use.knowledge.harness_result_format_declaration import (
-    HarnessToolResultDeclaration,
 )
 
 RESULT_FORMATS_BY_HARNESS: Mapping[str, Mapping[str, HarnessToolResultDeclaration]] = {

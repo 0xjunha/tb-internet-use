@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from tb_internet_use.knowledge.catalog import KnowledgeUses
-from tb_internet_use.knowledge.harness_result_format_declaration import (
+from tb_internet_use.knowledge.declarations.tool_call.harness_result_format_declaration import (
     HarnessJsonResultFormat,
     HarnessResultFormatList,
     HarnessTextResultFormat,

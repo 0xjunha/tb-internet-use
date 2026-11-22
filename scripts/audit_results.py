@@ -13,6 +13,7 @@ import argparse
 import csv
 import os
 import re
+import sys
 from collections import Counter, defaultdict
 from collections.abc import Iterable, Sequence
 from concurrent.futures import ProcessPoolExecutor
@@ -20,14 +21,7 @@ from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import Any
 
-from tb_internet_use.knowledge.harness_result_format_audit import (
-    all_matches_of,
-    format_kind_of,
-    harness_text_patterns_of,
-    iter_declared_formats,
-    render_text_format,
-)
-from tb_internet_use.knowledge.harness_result_format_declaration import (
+from tb_internet_use.knowledge.declarations.tool_call.harness_result_format_declaration import (
     MULTILINE_PLACEHOLDER_TYPES,
     PLACEHOLDER_REGEX,
     HarnessResultFormat,
@@ -52,6 +46,16 @@ from tb_internet_use.tool_call.model import (
     UnmatchedFormat,
 )
 from tb_internet_use.trial.model import UnreadableTrajectory
+
+# `python -I` leaves the folder of this script off `sys.path`, so the script puts it there to import the module beside it.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from harness_result_format_audit import (
+    all_matches_of,
+    format_kind_of,
+    harness_text_patterns_of,
+    iter_declared_formats,
+    render_text_format,
+)
 
 DEFAULT_OUTPUT_CSV = (
     Path(__file__).resolve().parents[1]

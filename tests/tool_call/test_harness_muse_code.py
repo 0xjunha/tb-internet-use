@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from tb_internet_use.knowledge.harness_result_format_declaration import (
+from tb_internet_use.knowledge.declarations.tool_call.harness_result_format_declaration import (
     template_regex_of,
 )
 from tb_internet_use.knowledge.tool_call_knowledge import ToolCallKnowledge

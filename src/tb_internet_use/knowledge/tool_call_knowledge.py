@@ -11,13 +11,13 @@ from tb_internet_use.knowledge.catalog import (
     KnowledgeUses,
     load_catalog,
 )
-from tb_internet_use.knowledge.declarations.tool_call.harness_result_formats import (
-    RESULT_FORMATS_BY_HARNESS,
-)
-from tb_internet_use.knowledge.harness_result_format_declaration import (
+from tb_internet_use.knowledge.declarations.tool_call.harness_result_format_declaration import (
     HarnessToolResultDeclaration,
     JsonObject,
     MatchedHarnessResultFormat,
+)
+from tb_internet_use.knowledge.declarations.tool_call.harness_result_formats import (
+    RESULT_FORMATS_BY_HARNESS,
 )
 from tb_internet_use.tool_call.model import (
     DEFERRED,

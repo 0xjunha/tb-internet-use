@@ -5,10 +5,7 @@ import re
 from collections.abc import Iterator
 from typing import Any
 
-from tb_internet_use.knowledge.declarations.tool_call.harness_result_formats import (
-    RESULT_FORMATS_BY_HARNESS,
-)
-from tb_internet_use.knowledge.harness_result_format_declaration import (
+from tb_internet_use.knowledge.declarations.tool_call.harness_result_format_declaration import (
     MULTILINE_PLACEHOLDER_TYPES,
     PLACEHOLDER_REGEX,
     PLACEHOLDER_TYPE_PATTERNS,
@@ -18,6 +15,9 @@ from tb_internet_use.knowledge.harness_result_format_declaration import (
     HarnessTextResultFormat,
     MatchedValues,
     template_regex_of,
+)
+from tb_internet_use.knowledge.declarations.tool_call.harness_result_formats import (
+    RESULT_FORMATS_BY_HARNESS,
 )
 
 # Where a template is cut into harness text, at the tool output and at every multiline placeholder. What these take is not harness text, so a harness text pattern never spans one of them.

@@ -6,7 +6,7 @@ Copilot CLI marks a failed call with `success: false`, and its results then foll
 
 from collections.abc import Mapping
 
-from tb_internet_use.knowledge.harness_result_format_declaration import (
+from tb_internet_use.knowledge.declarations.tool_call.harness_result_format_declaration import (
     HarnessResultFormatList,
     HarnessTextResultFormat,
     HarnessToolResultDeclaration,

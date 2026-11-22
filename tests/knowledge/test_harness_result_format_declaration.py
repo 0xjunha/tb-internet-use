@@ -1,8 +1,8 @@
-"""Tests for knowledge/harness_result_format_declaration.py, with made-up result formats."""
+"""Tests for knowledge/declarations/tool_call/harness_result_format_declaration.py, with made-up result formats."""
 
 import pytest
 
-from tb_internet_use.knowledge.harness_result_format_declaration import (
+from tb_internet_use.knowledge.declarations.tool_call.harness_result_format_declaration import (
     HarnessJsonResultFormat,
     HarnessNotice,
     HarnessResultFormatList,

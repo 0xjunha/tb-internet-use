@@ -4,7 +4,7 @@ import json
 from collections import Counter
 from typing import Any
 
-from tb_internet_use.knowledge.harness_result_format_declaration import (
+from tb_internet_use.knowledge.declarations.tool_call.harness_result_format_declaration import (
     HarnessJsonResultFormat,
     HarnessNotice,
     HarnessResultFormatList,

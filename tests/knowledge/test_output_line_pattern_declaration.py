@@ -1,11 +1,11 @@
-"""Tests for knowledge/output_line_pattern_declaration.py, with made-up patterns.
+"""Tests for knowledge/declarations/network_request_result/output_line_pattern_declaration.py, with made-up patterns.
 
 The meanings that the declared patterns give lines are tested through `NetworkRequestResultKnowledge` in test_network_request_result_knowledge.py.
 """
 
 import pytest
 
-from tb_internet_use.knowledge.output_line_pattern_declaration import (
+from tb_internet_use.knowledge.declarations.network_request_result.output_line_pattern_declaration import (
     OutputLinePattern,
     OutputLinePatternTable,
 )

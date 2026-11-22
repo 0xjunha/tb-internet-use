@@ -138,12 +138,12 @@ A truncation marker, which a harness leaves inside a tool output it cut, stays i
 ### Two kinds of result format
 
 A result format describes one shape of a tool's annotated output.
-A harness declares, per tool, up to three lists of formats ([`HarnessResultFormatList`](../knowledge/harness_result_format_declaration.py)) with the tool's notices, in a `HarnessToolResultDeclaration`: one for text results, one for JSON results, and one for text results that the harness marked as an error.
-Syntax and rules are in [harness_result_format_declaration.py](../knowledge/harness_result_format_declaration.py).
+A harness declares, per tool, up to three lists of formats ([`HarnessResultFormatList`](../knowledge/declarations/tool_call/harness_result_format_declaration.py)) with the tool's notices, in a `HarnessToolResultDeclaration`: one for text results, one for JSON results, and one for text results that the harness marked as an error.
+Syntax and rules are in [harness_result_format_declaration.py](../knowledge/declarations/tool_call/harness_result_format_declaration.py).
 
 | | Text format | JSON format |
 |---|---|---|
-| Class | [`HarnessTextResultFormat`](../knowledge/harness_result_format_declaration.py) | [`HarnessJsonResultFormat`](../knowledge/harness_result_format_declaration.py) |
+| Class | [`HarnessTextResultFormat`](../knowledge/declarations/tool_call/harness_result_format_declaration.py) | [`HarnessJsonResultFormat`](../knowledge/declarations/tool_call/harness_result_format_declaration.py) |
 | Annotated output | A string | A JSON object |
 | Declared as | A template: fixed text plus `{name:type}` placeholders | JSON paths the object must have or lack, and an optional condition on one value |
 | Has this format when | The template matches the whole annotated output, first character to last | The paths are present or absent as declared and the condition holds |

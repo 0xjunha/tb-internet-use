@@ -3,7 +3,7 @@
 A web tool result is page text, so only a page that a server gave in place of the content counts, e.g. a robot check.
 """
 
-from tb_internet_use.knowledge.output_line_pattern_declaration import (
+from tb_internet_use.knowledge.declarations.network_request_result.output_line_pattern_declaration import (
     OutputLinePattern,
     OutputLinePatternTable,
 )

@@ -1,7 +1,9 @@
 """The declared result formats of every harness agree with the harness tool catalog, with their review record, with their own order, with a hand-written table of the judgment rule each names, and with the names that tie a converted result to its rows in the table of declared result formats and in the result format audit, and a tool has no format for results it never returned."""
 
 import csv
+import importlib.util
 import inspect
+import sys
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
@@ -9,12 +11,7 @@ from typing import Any
 import pytest
 
 from tb_internet_use.knowledge.declarations.tool_call import harness_result_formats
-from tb_internet_use.knowledge.harness_result_format_audit import (
-    iter_declared_format_lists,
-    iter_declared_formats,
-    render_text_format,
-)
-from tb_internet_use.knowledge.harness_result_format_declaration import (
+from tb_internet_use.knowledge.declarations.tool_call.harness_result_format_declaration import (
     PLACEHOLDER_REGEX,
     HarnessTextResultFormat,
 )
@@ -28,6 +25,16 @@ from tb_internet_use.tool_call.model import (
     HarnessTool,
     UnmatchedFormat,
 )
+
+_SPEC = importlib.util.spec_from_file_location(
+    "harness_result_format_audit",
+    Path(__file__).parents[2] / "scripts/harness_result_format_audit.py",
+)
+assert _SPEC is not None and _SPEC.loader is not None
+harness_result_format_audit = importlib.util.module_from_spec(_SPEC)
+# Registered as an import would do, so that the audit scripts loaded by other tests share it.
+sys.modules[_SPEC.name] = harness_result_format_audit
+_SPEC.loader.exec_module(harness_result_format_audit)
 
 
 def _catalog_tools() -> set[HarnessTool]:
@@ -189,7 +196,11 @@ def _declared() -> dict[tuple[str, str], dict[str, list[Any]]]:
     names: dict[tuple[str, str], dict[str, list[Any]]] = defaultdict(
         lambda: defaultdict(list)
     )
-    for harness, tool, harness_result_format in iter_declared_formats():
+    for (
+        harness,
+        tool,
+        harness_result_format,
+    ) in harness_result_format_audit.iter_declared_formats():
         same_name = names[(harness, tool)][harness_result_format.name]
         if (
             harness_result_format not in same_name
@@ -203,7 +214,9 @@ def _rendered(harness_result_format: HarnessTextResultFormat) -> str:
         p[1]: _SAMPLE_BY_TYPE[p[2]]
         for p in PLACEHOLDER_REGEX.finditer(harness_result_format.template)
     }
-    return render_text_format(harness_result_format, matched_values)
+    return harness_result_format_audit.render_text_format(
+        harness_result_format, matched_values
+    )
 
 
 def test_one_name_means_one_format_within_a_tool():
@@ -226,7 +239,7 @@ def test_no_declared_name_is_a_reserved_value():
 def test_every_judgment_rule_a_format_names_is_a_function_of_judgment_rules():
     unknown_rules = [
         (harness, tool, harness_result_format.name, harness_result_format.judgment_rule)
-        for harness, tool, harness_result_format in iter_declared_formats()
+        for harness, tool, harness_result_format in harness_result_format_audit.iter_declared_formats()
         if harness_result_format.judgment_rule is not None
         and not inspect.isfunction(
             getattr(judgment_rules, harness_result_format.judgment_rule, None)
@@ -244,7 +257,7 @@ def test_each_format_names_the_judgment_rule_of_the_hand_written_table():
     assert len(expected) == sum(map(len, FORMATS_BY_JUDGMENT_RULE.values()))
     declared = {
         (harness, tool, harness_result_format.name): harness_result_format.judgment_rule
-        for harness, tool, harness_result_format in iter_declared_formats()
+        for harness, tool, harness_result_format in harness_result_format_audit.iter_declared_formats()
         if harness_result_format.judgment_rule is not None
     }
     assert declared == expected
@@ -253,7 +266,8 @@ def test_each_format_names_the_judgment_rule_of_the_hand_written_table():
 def test_tools_with_declared_formats_are_in_the_catalog():
     # A declared harness or tool name that the catalog does not have may be misspelled, and a misspelled name matches no call, so its formats would stay unused.
     declared = {
-        HarnessTool(harness, tool) for harness, tool, _ in iter_declared_format_lists()
+        HarnessTool(harness, tool)
+        for harness, tool, _ in harness_result_format_audit.iter_declared_format_lists()
     }
     assert declared - _catalog_tools() == set()
 
@@ -261,7 +275,11 @@ def test_tools_with_declared_formats_are_in_the_catalog():
 def test_every_text_format_is_the_first_match_of_its_own_template():
     # A general format before a more specific one would take its results.
     shadowed: list[tuple[str, str, str, Any]] = []
-    for harness, tool, format_list in iter_declared_format_lists():
+    for (
+        harness,
+        tool,
+        format_list,
+    ) in harness_result_format_audit.iter_declared_format_lists():
         for harness_result_format in format_list.formats:
             if not isinstance(harness_result_format, HarnessTextResultFormat):
                 continue
@@ -298,7 +316,7 @@ def test_review_record_has_one_row_per_declared_format_in_the_declared_order():
     reviewed = [(r["harness"], r["tool"], r["format"]) for r in rows]
     declared = [
         (harness, tool, harness_result_format.name)
-        for harness, tool, harness_result_format in iter_declared_formats()
+        for harness, tool, harness_result_format in harness_result_format_audit.iter_declared_formats()
     ]
     missing = [key for key in declared if key not in reviewed]
     extra = [key for key in reviewed if key not in declared]

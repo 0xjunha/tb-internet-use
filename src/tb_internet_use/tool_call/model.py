@@ -445,7 +445,7 @@ class ToolCallResult:
     output_path: str | None = None
     # None when the trajectory says nothing.
     is_truncated: bool | None = None
-    # The harness result format that produced the fields above, see knowledge/harness_result_format_declaration.py.
+    # The harness result format that produced the fields above, see knowledge/declarations/tool_call/harness_result_format_declaration.py.
     #   MatchedFormat(name)      the format that matched
     #   UnmatchedFormat.UNKNOWN  the tool has formats, but none matched
     #   UnmatchedFormat.SKIPPED  the tool has no formats, so none were tried

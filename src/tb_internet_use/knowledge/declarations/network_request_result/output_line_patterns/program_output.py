@@ -4,7 +4,7 @@ A pattern that reads a name comes before a general pattern that matches the same
 No alternative may start with an unbounded repeat that can begin anywhere in a line, since one long line would then take quadratic time.
 """
 
-from tb_internet_use.knowledge.output_line_pattern_declaration import (
+from tb_internet_use.knowledge.declarations.network_request_result.output_line_pattern_declaration import (
     OutputLinePattern,
     OutputLinePatternTable,
 )

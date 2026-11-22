@@ -8,9 +8,12 @@ Run it as `uv run python -I scripts/build_harness_result_format_table.py [output
 
 import argparse
 import csv
+import sys
 from pathlib import Path
 
-from tb_internet_use.knowledge.harness_result_format_audit import (
+# `python -I` leaves the folder of this script off `sys.path`, so the script puts it there to import the module beside it.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from harness_result_format_audit import (
     DECLARED_RESULT_FORMAT_TABLE_COLUMNS,
     table_rows_from_declarations,
 )

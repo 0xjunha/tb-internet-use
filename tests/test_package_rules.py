@@ -29,6 +29,8 @@ STEPS = [
     ("network_request_result", "decide_network_request_results"),
     ("export", "export_rows"),
 ]
+# The steps that read no outside knowledge, so they have no knowledge class.
+STEPS_WITHOUT_KNOWLEDGE = {"trial"}
 STEP_FILE_NAMES = {"__init__.py", "model.py", "judgment_rules.py"}
 # A reading function `parse_<x>.py` or a piece of the work `_<x>.py`, each named after a function in it.
 STEP_PIECE_FILE = re.compile(r"(parse_\w+|_(\w+))\.py")
@@ -295,6 +297,24 @@ def test_top_level_holds_only_steps_knowledge_and_pipeline():
     unexpected = sorted(entries - allowed)
     assert not unexpected, (
         f"{unexpected} in {_relative(PACKAGE_DIR)} break the rule that its top level holds only the step packages, knowledge/ and pipeline.py"
+    )
+
+
+def test_top_level_of_knowledge_holds_only_the_catalog_the_knowledge_classes_and_the_knowledge_folders():
+    allowed = {
+        f"{package}_knowledge.py"
+        for package, _ in STEPS
+        if package not in STEPS_WITHOUT_KNOWLEDGE
+    } | {"README.md", "__init__.py", "catalog.py", "catalogs", "declarations"}
+    entries = {
+        entry.name
+        for entry in KNOWLEDGE_DIR.iterdir()
+        if entry.name != "__pycache__" and not entry.name.startswith(".")
+    }
+
+    unexpected = sorted(entries - allowed)
+    assert not unexpected, (
+        f"{unexpected} in {_relative(KNOWLEDGE_DIR)} break the rule that its top level holds only catalog.py, the knowledge class of each step, catalogs/ and declarations/"
     )
 
 
