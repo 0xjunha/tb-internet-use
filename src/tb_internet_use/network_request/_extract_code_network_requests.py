@@ -42,7 +42,10 @@ from tb_internet_use.network_request.model import (
     UnknownProgramNetworkRequestLabel,
     UnknownReceivedContentDestination,
 )
-from tb_internet_use.network_request.parse_code import parse_code
+from tb_internet_use.network_request.parse_code import (
+    BARE_NAME_PATTERN_OF_LANGUAGE,
+    parse_code,
+)
 from tb_internet_use.network_request.parse_target import parse_target
 from tb_internet_use.network_request.parse_url import SCHEME_AND_SLASHES, parse_url
 from tb_internet_use.network_request.parse_urls_in_text import parse_urls_in_text
@@ -58,6 +61,15 @@ if TYPE_CHECKING:
 _TUPLE_OPENING_WITH_WHOLE_STRING = re.compile(r"""\s*\(\s*(["'])[^"'\\]*\1\s*,""")
 # A port that closes the authority of a URL, e.g. `:8069` of `name:8069`.
 _PORT_AT_END = re.compile(r":[0-9]+$")
+# A placeholder of one bare name at the start of a string, e.g. `{BASE}` of the Python f-string `f"{BASE}/config"` or `${BASE}` of the JavaScript template literal `` `${BASE}/config` ``.
+_LEADING_PLACEHOLDER_OF_LANGUAGE = {
+    CodeLanguage.PYTHON: re.compile(
+        rf"\{{({BARE_NAME_PATTERN_OF_LANGUAGE[CodeLanguage.PYTHON]})\}}"
+    ),
+    CodeLanguage.JAVASCRIPT: re.compile(
+        rf"\$\{{({BARE_NAME_PATTERN_OF_LANGUAGE[CodeLanguage.JAVASCRIPT]})\}}"
+    ),
+}
 
 
 def extract_code_network_requests(
@@ -209,6 +221,8 @@ def _add_sending_code_call_network_request(
 
     The URLs in its other strings are no requests, e.g. the referer in `requests.get(u, headers={"Referer": "https://b.org"})`, and neither is the call that holds it.
     A request of unknown target still names the hosts that its URL strings write whole, e.g. `name` for `requests.get('http://name:8069' + path)`.
+    It also names the host that the one string assigned to the name its first argument starts with writes whole, e.g. `localhost` for `urlopen(BASE + path)` after `BASE = "http://localhost:5000/api"`.
+    A target URL that starts with a placeholder of such a name names that host too, e.g. `localhost` for `urlopen(f"{BASE}/config")`.
     """
     target_notation = code_call_label.target_notation
     target_kind = code_call_label.target_kind
@@ -216,6 +230,14 @@ def _add_sending_code_call_network_request(
     target_text = _target_text_of(code_call, target_notation, parsed_code)
     if target_text is None:
         host_names = _host_names_closed_in_url_strings(code_call)
+        if code_call.first_argument_leading_name is not None:
+            assigned_url_and_host_name = _assigned_url_and_host_name_of(
+                code_call.first_argument_leading_name, parsed_code
+            )
+            if assigned_url_and_host_name is not None:
+                assigned_url, host_name = assigned_url_and_host_name
+                code_text_requests.target_assignment_values.add(assigned_url)
+                host_names = tuple(dict.fromkeys((host_name, *host_names)))
         call_name_and_host_names = (code_call_label.call_name, host_names)
         if (
             call_name_and_host_names
@@ -241,34 +263,77 @@ def _add_sending_code_call_network_request(
     ):
         code_text_requests.target_assignment_values.add(target_text)
     parsed_target = parse_target(target_text, target_notation)
+    host_name = parsed_target.host_name
+    leading_placeholder_name = (
+        _leading_placeholder_name_of(
+            target_text, code_text_requests.ran_code_text.code_language
+        )
+        if host_name is None and target_notation == TargetNotation.URL
+        else None
+    )
+    if leading_placeholder_name is not None:
+        assigned_url_and_host_name = _assigned_url_and_host_name_of(
+            leading_placeholder_name, parsed_code
+        )
+        if assigned_url_and_host_name is not None:
+            assigned_url, host_name = assigned_url_and_host_name
+            code_text_requests.target_assignment_values.add(assigned_url)
     code_text_requests.add(
         code_call_label.call_name,
         target_text,
         target_kind if parsed_target.target_kind is None else parsed_target.target_kind,
-        () if parsed_target.host_name is None else (parsed_target.host_name,),
+        () if host_name is None else (host_name,),
         None,
     )
 
 
 def _host_names_closed_in_url_strings(code_call: CodeCall) -> tuple[str, ...]:
-    """List the distinct hosts of the strings of a call that start with a URL whose host ends inside the string, e.g. `name` for `'http://name:8069'` in `'http://name:8069' + path`.
+    """List the distinct hosts of the strings of a call that start with a URL whose host ends inside the string, e.g. `name` for `'http://name:8069'` in `'http://name:8069' + path`."""
+    return tuple(
+        dict.fromkeys(
+            host_name
+            for string_literal in code_call.string_literals
+            if (host_name := _host_name_closed_in_url_string(string_literal))
+            is not None
+        )
+    )
+
+
+def _assigned_url_and_host_name_of(
+    name: str, parsed_code: ParsedCode
+) -> tuple[str, str] | None:
+    """Find the one string assigned to a name with its host, when the string starts with a URL whose host ends inside it, e.g. `http://localhost:5000/api` and `localhost` for `BASE`."""
+    assigned_string = _assigned_string_of(name, parsed_code)
+    if assigned_string is None:
+        return None
+    host_name = _host_name_closed_in_url_string(assigned_string)
+    return None if host_name is None else (assigned_string, host_name)
+
+
+def _host_name_closed_in_url_string(string_value: str) -> str | None:
+    """Find the host of a string that starts with a URL whose host ends inside the string, e.g. `name` for `'http://name:8069'`, or None.
 
     A host ends inside the string when `/`, `?` or `#` follows it there or a port closes it, e.g. `'http://a.org/'` or `'http://name:8069'`.
     A host that runs to the end of the string may go on outside it, so `'http://' + h` and `'http://api.' + domain` name no host.
     """
-    host_names: list[str] = []
-    for string_literal in code_call.string_literals:
-        scheme_match = SCHEME_AND_SLASHES.match(string_literal)
-        if scheme_match is None:
-            continue
-        rest = string_literal[scheme_match.end() :]
-        authority = re.split(r"[/?#]", rest, maxsplit=1)[0]
-        if len(authority) == len(rest) and not _PORT_AT_END.search(authority):
-            continue
-        host_name = parse_url(string_literal)
-        if host_name is not None:
-            host_names.append(host_name)
-    return tuple(dict.fromkeys(host_names))
+    scheme_match = SCHEME_AND_SLASHES.match(string_value)
+    if scheme_match is None:
+        return None
+    rest = string_value[scheme_match.end() :]
+    authority = re.split(r"[/?#]", rest, maxsplit=1)[0]
+    if len(authority) == len(rest) and not _PORT_AT_END.search(authority):
+        return None
+    return parse_url(string_value)
+
+
+def _leading_placeholder_name_of(
+    target_text: str, code_language: CodeLanguage
+) -> str | None:
+    """Find the bare name of the placeholder that a target text starts with, e.g. `BASE` of `{BASE}/config` in Python or of `${BASE}/config` in JavaScript, or None, e.g. for `{cfg.base}/config`."""
+    placeholder_match = _LEADING_PLACEHOLDER_OF_LANGUAGE[code_language].match(
+        target_text
+    )
+    return None if placeholder_match is None else placeholder_match.group(1)
 
 
 def _target_text_of(
@@ -285,13 +350,18 @@ def _target_text_of(
     if code_call.first_argument_string is not None:
         return code_call.first_argument_string
     if code_call.first_argument_name is not None:
-        assigned_values = [
-            assignment.value
-            for assignment in parsed_code.string_assignments
-            if assignment.name == code_call.first_argument_name
-        ]
-        return assigned_values[0] if len(assigned_values) == 1 else None
+        return _assigned_string_of(code_call.first_argument_name, parsed_code)
     return None
+
+
+def _assigned_string_of(name: str, parsed_code: ParsedCode) -> str | None:
+    """Find the string of the one assignment of a string to a name, None when the code gives the name no string or more than one."""
+    assigned_strings = [
+        assignment.value
+        for assignment in parsed_code.string_assignments
+        if assignment.name == name
+    ]
+    return assigned_strings[0] if len(assigned_strings) == 1 else None
 
 
 def _target_text_of_host_and_port_tuple(code_call: CodeCall) -> str | None:

@@ -121,6 +121,11 @@ class _CodeSyntax:
 
 _PYTHON_NAME = r"[^\W\d]\w*"
 _JAVASCRIPT_NAME = r"(?:[^\W\d]|\$)[\w$]*"
+# The pattern of a bare name of each code language, e.g. `$url` in JavaScript, also for reading the name in a placeholder of a string, e.g. `{BASE}` of `f"{BASE}/x"`.
+BARE_NAME_PATTERN_OF_LANGUAGE = {
+    CodeLanguage.PYTHON: _PYTHON_NAME,
+    CodeLanguage.JAVASCRIPT: _JAVASCRIPT_NAME,
+}
 _SYNTAX_OF_LANGUAGE = {
     CodeLanguage.PYTHON: _CodeSyntax(
         dotted_name=re.compile(rf"{_PYTHON_NAME}(?:\.{_PYTHON_NAME})*"),

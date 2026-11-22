@@ -83,13 +83,97 @@ _CASES = [
         PYTHON,
         [("requests.get", BUILT_IN_CODE, URL, (), None), OUTSIDE_U],
     ),
+    # A built URL that starts with a name names the host of the one string assigned to the name when the host ends inside the string.
     (
-        "url built from a name",
+        "url built from a name whose string runs to the end of the host",
         'base = "https://a.org"\nrequests.get(base + path)',
         PYTHON,
         [
             ("requests.get", BUILT_IN_CODE, URL, (), None),
             (UNKNOWN_CALL, "https://a.org", URL, ("a.org",), URL_OUTSIDE_CODE_CALL),
+        ],
+    ),
+    (
+        "url built from a name whose string closes the host",
+        'BASE = "https://a.org/api"\nrequests.get(BASE + path)',
+        PYTHON,
+        [("requests.get", BUILT_IN_CODE, URL, ("a.org",), None)],
+    ),
+    (
+        "url built from a name whose string closes a local host with a port",
+        'BASE = "http://localhost:5000"\nurlopen(BASE + "/x")',
+        PYTHON,
+        [("urlopen", BUILT_IN_CODE, URL, ("localhost",), None)],
+    ),
+    (
+        "url built from a name whose string runs to the end of a local host",
+        'BASE = "http://localhost"\nurlopen(BASE + ":5000/x")',
+        PYTHON,
+        [("urlopen", BUILT_IN_CODE, URL, (), None)],
+    ),
+    (
+        "url built from a name assigned no url",
+        'BASE = "localhost:5000"\nurlopen(BASE + "/x")',
+        PYTHON,
+        [("urlopen", BUILT_IN_CODE, URL, (), None)],
+    ),
+    (
+        "url built from a name assigned twice",
+        'BASE = "https://a.org/api"\nBASE = "https://b.org/api"\nrequests.get(BASE + p)',
+        PYTHON,
+        [
+            ("requests.get", BUILT_IN_CODE, URL, (), None),
+            (UNKNOWN_CALL, "https://a.org/api", URL, ("a.org",), URL_OUTSIDE_CODE_CALL),
+            (UNKNOWN_CALL, "https://b.org/api", URL, ("b.org",), URL_OUTSIDE_CODE_CALL),
+        ],
+    ),
+    (
+        "url built from an item of a name",
+        'BASE = "https://a.org/api"\nrequests.get(BASE[0] + p)',
+        PYTHON,
+        [
+            ("requests.get", BUILT_IN_CODE, URL, (), None),
+            (UNKNOWN_CALL, "https://a.org/api", URL, ("a.org",), URL_OUTSIDE_CODE_CALL),
+        ],
+    ),
+    (
+        "calls without visible url with and without the host of a name",
+        'BASE = "http://localhost:5000"\nurlopen(BASE + p)\nurlopen(u)\nurlopen(BASE + q)',
+        PYTHON,
+        [
+            ("urlopen", BUILT_IN_CODE, URL, ("localhost",), None),
+            ("urlopen", BUILT_IN_CODE, URL, (), None),
+        ],
+    ),
+    # A URL that starts with a placeholder of a name names the host of the one string assigned to the name.
+    (
+        "url that starts with a placeholder in python",
+        'BASE = "http://localhost:5000"\nurlopen(f"{BASE}/config")',
+        PYTHON,
+        [("urlopen", "{BASE}/config", URL, ("localhost",), None)],
+    ),
+    (
+        "url that starts with a placeholder in javascript",
+        'const BASE = "https://a.org/api";\nfetch(`${BASE}/config`)',
+        JAVASCRIPT,
+        [("fetch", "${BASE}/config", URL, ("a.org",), None)],
+    ),
+    (
+        "url that starts with a placeholder that is no bare name",
+        'BASE = "https://a.org/api"\nrequests.get(f"{BASE!r}/x")',
+        PYTHON,
+        [
+            ("requests.get", "{BASE!r}/x", URL, (), None),
+            (UNKNOWN_CALL, "https://a.org/api", URL, ("a.org",), URL_OUTSIDE_CODE_CALL),
+        ],
+    ),
+    (
+        "url that starts with a placeholder of a dotted name",
+        'const base = "https://a.org/api";\nfetch(`${cfg.base}/x`)',
+        JAVASCRIPT,
+        [
+            ("fetch", "${cfg.base}/x", URL, (), None),
+            (UNKNOWN_CALL, "https://a.org/api", URL, ("a.org",), URL_OUTSIDE_CODE_CALL),
         ],
     ),
     # No visible URL gives one request per call name and hosts.
