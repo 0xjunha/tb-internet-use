@@ -84,7 +84,8 @@ def extract_code_network_requests(
     """Extract the requests of one code text in the order of its calls, then those of the URLs that may be public outside every call.
 
     A call that sends a request gives one confirmed request per call when its target is in the text, and one per call name and hosts when it is not, e.g. one for all the calls `requests.get(base + path)` and another for `requests.get('http://name:8069' + path)`.
-    A call without a row gives one uncertain request per URL that may be public or whose host cannot be read, and the text outside every call one per URL that may be public.
+    A call that holds the target of a request gives no request when a sending call reads the target from it, e.g. `Request` of `urlopen(Request(u))`.
+    A call without a row, or one that holds a target that no sending call reads, gives one uncertain request per URL that may be public or whose host cannot be read, and the text outside every call one per URL that may be public.
     Text that `parse_code` could not read to its end holds no call that it read, so its URLs give requests as URLs outside every call, e.g. the URL after an unclosed backtick in ``x = `; fetch("https://a.org/x")``.
     Every request gets `UnknownReceivedContentDestination`, since what code does with the content is not read.
     """
@@ -93,11 +94,37 @@ def extract_code_network_requests(
     code_text_requests = _CodeTextRequests(
         tool_call_key, ran_code_text, first_index_in_tool_call
     )
-    for code_call in parsed_code.code_calls:
-        call_name = _code_call_name_with_row(
-            code_call, code_language, knowledge, judgment_rule_use_counts
+    code_call_labels = tuple(
+        knowledge.code_call_label(
+            code_language,
+            _code_call_name_with_row(
+                code_call, code_language, knowledge, judgment_rule_use_counts
+            ),
         )
-        match knowledge.code_call_label(code_language, call_name):
+        for code_call in parsed_code.code_calls
+    )
+    target_holding_call_of_sending_call_index = {
+        code_call_index: target_holding_call
+        for code_call_index, (code_call, code_call_label) in enumerate(
+            zip(parsed_code.code_calls, code_call_labels, strict=True)
+        )
+        if isinstance(code_call_label, CodeCallLabel)
+        and code_call_label.effect == CodeCallEffect.SENDS_NETWORK_REQUEST
+        and (
+            target_holding_call := _target_holding_call_of(
+                code_call, parsed_code, code_call_labels
+            )
+        )
+        is not None
+    }
+    read_holding_call_indexes = {
+        holding_call_index
+        for holding_call_index, _ in target_holding_call_of_sending_call_index.values()
+    }
+    for code_call_index, (code_call, code_call_label) in enumerate(
+        zip(parsed_code.code_calls, code_call_labels, strict=True)
+    ):
+        match code_call_label:
             case UnknownCodeCallLabel():
                 _add_requests_of_urls_in_strings(
                     code_call,
@@ -107,6 +134,16 @@ def extract_code_network_requests(
                     judgment_rule_use_counts=judgment_rule_use_counts,
                     no_network_request_counts=no_network_request_counts,
                 )
+            case CodeCallLabel(effect=CodeCallEffect.HOLDS_NETWORK_REQUEST_TARGET):
+                if code_call_index not in read_holding_call_indexes:
+                    _add_requests_of_urls_in_strings(
+                        code_call,
+                        UnknownCodeCall(),
+                        NetworkRequestUncertaintyReason.UNKNOWN_CODE_CALL,
+                        code_text_requests,
+                        judgment_rule_use_counts=judgment_rule_use_counts,
+                        no_network_request_counts=no_network_request_counts,
+                    )
             case CodeCallLabel(effect=CodeCallEffect.SENDS_NO_NETWORK_REQUEST):
                 no_network_request_counts[
                     NoNetworkRequestReason.NON_FETCHING_CODE_CALL
@@ -114,15 +151,30 @@ def extract_code_network_requests(
             case CodeCallLabel(effect=CodeCallEffect.RUNS_PROGRAM):
                 _add_program_run_by_code_network_requests(
                     code_call,
-                    call_name,
+                    code_call_label.call_name,
                     code_text_requests,
                     knowledge=knowledge,
                     judgment_rule_use_counts=judgment_rule_use_counts,
                     no_network_request_counts=no_network_request_counts,
                 )
-            case CodeCallLabel() as code_call_label:
+            case CodeCallLabel():
+                target_holding_call = target_holding_call_of_sending_call_index.get(
+                    code_call_index
+                )
+                if target_holding_call is None:
+                    target_code_call, target_code_call_label = (
+                        code_call,
+                        code_call_label,
+                    )
+                else:
+                    holding_call_index, target_code_call_label = target_holding_call
+                    target_code_call = parsed_code.code_calls[holding_call_index]
                 _add_sending_code_call_network_request(
-                    code_call, code_call_label, parsed_code, code_text_requests
+                    code_call_label.call_name,
+                    target_code_call,
+                    target_code_call_label,
+                    parsed_code,
+                    code_text_requests,
                 )
     for url in _select_urls_that_may_be_requested(
         _urls_outside_call_arguments(
@@ -211,34 +263,74 @@ def _code_call_name_with_row(
     return code_call.name if shorter_call_name is None else shorter_call_name
 
 
-def _add_sending_code_call_network_request(
+def _target_holding_call_of(
     code_call: CodeCall,
-    code_call_label: CodeCallLabel,
+    parsed_code: ParsedCode,
+    code_call_labels: tuple[CodeCallLabel | UnknownCodeCallLabel, ...],
+) -> tuple[int, CodeCallLabel] | None:
+    """Find the call that holds the target of a sending call, as its 0-based index in `ParsedCode.code_calls` with its label, or None.
+
+    It is the call that the first argument is, e.g. `Request` of `urlopen(Request(u))`, or the one call assigned to the bare name that the first argument is, when no string is assigned to that name, e.g. `Request` of `urlopen(req)` after `req = Request(u)`.
+    The call must have a row that holds a target, so `urlopen(r)` after `r = requests.get(u)` reads no target from `requests.get`.
+    """
+    holding_call_index = code_call.first_argument_code_call_index
+    first_argument_name = code_call.first_argument_name
+    if (
+        holding_call_index is None
+        and first_argument_name is not None
+        and not any(
+            assignment.name == first_argument_name
+            for assignment in parsed_code.string_assignments
+        )
+    ):
+        assigned_call_indexes = [
+            assignment.code_call_index
+            for assignment in parsed_code.call_assignments
+            if assignment.name == first_argument_name
+        ]
+        if len(assigned_call_indexes) == 1:
+            holding_call_index = assigned_call_indexes[0]
+    if holding_call_index is None:
+        return None
+    code_call_label = code_call_labels[holding_call_index]
+    if (
+        isinstance(code_call_label, CodeCallLabel)
+        and code_call_label.effect == CodeCallEffect.HOLDS_NETWORK_REQUEST_TARGET
+    ):
+        return holding_call_index, code_call_label
+    return None
+
+
+def _add_sending_code_call_network_request(
+    call_name: str,
+    target_code_call: CodeCall,
+    target_code_call_label: CodeCallLabel,
     parsed_code: ParsedCode,
     code_text_requests: _CodeTextRequests,
 ) -> None:
     """Add the confirmed request of a call that sends one, with the target its text shows, or one request of unknown target per call name and hosts when the text shows none.
 
-    The URLs in its other strings are no requests, e.g. the referer in `requests.get(u, headers={"Referer": "https://b.org"})`, and neither is the call that holds it.
+    The target is read from the target call by the target notation and kind of its row, and the target call is the sending call itself or the call that holds its target, e.g. `Request` of `urlopen(req)` after `req = Request("http://api:8000/x")`.
+    The URLs in the other strings of the target call are no requests, e.g. the referer in `requests.get(u, headers={"Referer": "https://b.org"})`, and neither is a call around the sending call, e.g. `print` of `print(requests.get(u))`.
     A request of unknown target still names the hosts that its URL strings write whole, e.g. `name` for `requests.get('http://name:8069' + path)`.
     It also names the host that the one string assigned to the name its first argument starts with writes whole, e.g. `localhost` for `urlopen(BASE + path)` after `BASE = "http://localhost:5000/api"`.
     A target URL that starts with a placeholder of such a name names that host too, e.g. `localhost` for `urlopen(f"{BASE}/config")`.
     """
-    target_notation = code_call_label.target_notation
-    target_kind = code_call_label.target_kind
+    target_notation = target_code_call_label.target_notation
+    target_kind = target_code_call_label.target_kind
     assert target_notation is not None and target_kind is not None
-    target_text = _target_text_of(code_call, target_notation, parsed_code)
+    target_text = _target_text_of(target_code_call, target_notation, parsed_code)
     if target_text is None:
-        host_names = _host_names_closed_in_url_strings(code_call)
-        if code_call.first_argument_leading_name is not None:
+        host_names = _host_names_closed_in_url_strings(target_code_call)
+        if target_code_call.first_argument_leading_name is not None:
             assigned_url_and_host_name = _assigned_url_and_host_name_of(
-                code_call.first_argument_leading_name, parsed_code
+                target_code_call.first_argument_leading_name, parsed_code
             )
             if assigned_url_and_host_name is not None:
                 assigned_url, host_name = assigned_url_and_host_name
                 code_text_requests.target_assignment_values.add(assigned_url)
                 host_names = tuple(dict.fromkeys((host_name, *host_names)))
-        call_name_and_host_names = (code_call_label.call_name, host_names)
+        call_name_and_host_names = (call_name, host_names)
         if (
             call_name_and_host_names
             in code_text_requests.call_names_and_host_names_without_visible_target
@@ -248,7 +340,7 @@ def _add_sending_code_call_network_request(
             call_name_and_host_names
         )
         code_text_requests.add(
-            code_call_label.call_name,
+            call_name,
             UnknownNetworkRequestTarget(
                 UnknownNetworkRequestTargetReason.BUILT_IN_CODE
             ),
@@ -258,8 +350,8 @@ def _add_sending_code_call_network_request(
         )
         return
     if (
-        code_call.first_argument_string is None
-        and code_call.first_argument_name is not None
+        target_code_call.first_argument_string is None
+        and target_code_call.first_argument_name is not None
     ):
         code_text_requests.target_assignment_values.add(target_text)
     parsed_target = parse_target(target_text, target_notation)
@@ -279,7 +371,7 @@ def _add_sending_code_call_network_request(
             assigned_url, host_name = assigned_url_and_host_name
             code_text_requests.target_assignment_values.add(assigned_url)
     code_text_requests.add(
-        code_call_label.call_name,
+        call_name,
         target_text,
         target_kind if parsed_target.target_kind is None else parsed_target.target_kind,
         () if host_name is None else (host_name,),

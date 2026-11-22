@@ -20,6 +20,7 @@ from tb_internet_use.knowledge.catalog import (
     load_catalog,
 )
 from tb_internet_use.network_request.model import (
+    CODE_CALL_EFFECTS_WITH_TARGET,
     CodeCallEffect,
     CodeCallLabel,
     FetchingProgramLabel,
@@ -153,7 +154,7 @@ class NetworkRequestKnowledge:
     def code_call_label(
         self, code_language: CodeLanguage, call_name: str
     ) -> CodeCallLabel | UnknownCodeCallLabel:
-        """Answer whether a call in code sends a request, runs a program or does neither, and how its target is written, or `UnknownCodeCallLabel` for a name without a row.
+        """Answer whether a call in code sends a request, holds the target of one, runs a program or does none of these, and how its target is written, or `UnknownCodeCallLabel` for a name without a row.
 
         Only the row of exactly that name answers, e.g. `requests.get`, and the shorter name of a dotted call is picked before by `extract_code_network_requests`.
         One lookup counts the row or the input `(code_language, call_name)`.
@@ -303,17 +304,17 @@ def _program_option_effect_from_columns(
 
 
 def _code_call_label_from_columns(columns: Mapping[str, str]) -> CodeCallLabel:
-    """Read one row of `code_calls.csv`, in which a call that sends a request names its target notation and may leave its target kind blank, and any other call leaves both blank."""
+    """Read one row of `code_calls.csv`, in which a call that sends a request or holds the target of one names its target notation and may leave its target kind blank, and any other call leaves both blank."""
     _check_review_columns(columns)
     CodeLanguage(columns["code_language"])
     if not columns["call_name"]:
         raise ValueError("call_name is empty")
     effect = CodeCallEffect(columns["effect"])
-    if effect != CodeCallEffect.SENDS_NETWORK_REQUEST:
+    if effect not in CODE_CALL_EFFECTS_WITH_TARGET:
         _check_blank(
             columns,
             ("target_notation", "target_kind"),
-            row_kind="a row that sends no request",
+            row_kind="a row that neither sends a request nor holds its target",
         )
         return CodeCallLabel(columns["call_name"], effect, None, None)
     target_kind = columns["target_kind"]

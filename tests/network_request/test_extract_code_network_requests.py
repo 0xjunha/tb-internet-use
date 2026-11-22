@@ -59,6 +59,8 @@ U = "https://a.org/x"
 REQUESTS_GET_U = ("requests.get", U, URL, ("a.org",), None)
 # The confirmed request of `urlopen` whose argument is no literal, e.g. a request object.
 URLOPEN_OF_OBJECT = ("urlopen", BUILT_IN_CODE, URL, (), None)
+# The confirmed request of `urlopen` whose target `Request` holds as `U`.
+URLOPEN_U = ("urlopen", U, URL, ("a.org",), None)
 # The request of a URL in code outside every call.
 OUTSIDE_U = (UNKNOWN_CALL, U, URL, ("a.org",), URL_OUTSIDE_CODE_CALL)
 NAMESPACE_RULE = "treat_url_of_namespace_host_as_no_target"
@@ -267,18 +269,85 @@ _CASES = [
         PYTHON,
         [(UNKNOWN_CALL, U, URL, ("a.org",), UNKNOWN_CODE_CALL)],
     ),
-    # A request object is no call with a row, so both spellings give the request of urlopen, whose target is the object, and an uncertain request for the URL in it that names its host.
+    # A request object holds the target that urlopen sends, so urlopen takes the target from it and the object gives no request of its own.
     (
         "request object built with a dotted name",
         f'urllib.request.urlopen(urllib.request.Request("{U}"))',
         PYTHON,
-        [URLOPEN_OF_OBJECT, (UNKNOWN_CALL, U, URL, ("a.org",), UNKNOWN_CODE_CALL)],
+        [URLOPEN_U],
     ),
     (
         "request object built with an imported name",
         f'from urllib.request import Request, urlopen\nurlopen(Request("{U}"))',
         PYTHON,
-        [URLOPEN_OF_OBJECT, (UNKNOWN_CALL, U, URL, ("a.org",), UNKNOWN_CODE_CALL)],
+        [URLOPEN_U],
+    ),
+    (
+        "request object assigned to a name",
+        f'req = urllib.request.Request("{U}", data=b)\nurllib.request.urlopen(req)',
+        PYTHON,
+        [URLOPEN_U],
+    ),
+    (
+        "request object of a name assigned a url",
+        f'URL = "{U}"\nreq = Request(URL)\nurlopen(req, timeout=5)',
+        PYTHON,
+        [URLOPEN_U],
+    ),
+    (
+        "request object of a url built from a name",
+        'BASE = "http://workspace:18073"\nreq = Request(BASE + "/api/x")\nurlopen(req)',
+        PYTHON,
+        [("urlopen", BUILT_IN_CODE, URL, ("workspace",), None)],
+    ),
+    (
+        "request object of a url that starts with a placeholder",
+        'BASE = "http://localhost:5000"\nurlopen(Request(f"{BASE}/config"))',
+        PYTHON,
+        [("urlopen", "{BASE}/config", URL, ("localhost",), None)],
+    ),
+    (
+        "request object of a name assigned twice",
+        f'req = Request("{U}")\nreq = Request("https://b.org/y")\nurlopen(req)',
+        PYTHON,
+        [
+            (UNKNOWN_CALL, U, URL, ("a.org",), UNKNOWN_CODE_CALL),
+            (UNKNOWN_CALL, "https://b.org/y", URL, ("b.org",), UNKNOWN_CODE_CALL),
+            URLOPEN_OF_OBJECT,
+        ],
+    ),
+    (
+        "request object of a name also assigned a string",
+        f'req = Request("{U}")\nreq = "x"\nurlopen(req)',
+        PYTHON,
+        [
+            (UNKNOWN_CALL, U, URL, ("a.org",), UNKNOWN_CODE_CALL),
+            ("urlopen", "x", URL, (), None),
+        ],
+    ),
+    (
+        "request object that no call with a row sends",
+        f'req = Request("{U}")\nopener.open(req)',
+        PYTHON,
+        [(UNKNOWN_CALL, U, URL, ("a.org",), UNKNOWN_CODE_CALL)],
+    ),
+    (
+        "request object that no call with a row sends with a local url",
+        'req = Request("http://localhost:8000/x")\nopener.open(req)',
+        PYTHON,
+        [],
+    ),
+    (
+        "result of a sending call passed to a sending call",
+        f'r = requests.get("{U}")\nurlopen(r)',
+        PYTHON,
+        [REQUESTS_GET_U, URLOPEN_OF_OBJECT],
+    ),
+    (
+        "request object sent twice",
+        f'req = Request("{U}")\nurlopen(req)\nurlopen(req)',
+        PYTHON,
+        [URLOPEN_U, URLOPEN_U],
     ),
     (
         "client that sends nothing",

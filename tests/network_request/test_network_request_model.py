@@ -192,6 +192,13 @@ def test_unknown_value_that_stands_beside_none_or_a_bool_refuses_to_be_read_as_t
             False,
         ),
         (CodeCallEffect.SENDS_NETWORK_REQUEST, TargetNotation.URL, None, False),
+        (
+            CodeCallEffect.HOLDS_NETWORK_REQUEST_TARGET,
+            TargetNotation.URL,
+            NetworkRequestTargetKind.URL,
+            True,
+        ),
+        (CodeCallEffect.HOLDS_NETWORK_REQUEST_TARGET, None, None, False),
         (CodeCallEffect.RUNS_PROGRAM, None, None, True),
         (CodeCallEffect.RUNS_PROGRAM, TargetNotation.URL, None, False),
         (CodeCallEffect.SENDS_NO_NETWORK_REQUEST, None, None, True),

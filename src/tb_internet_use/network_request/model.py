@@ -141,13 +141,13 @@ class FromCode:
     # Where the code is.
     code_text_source: CodeTextSource
     code_language: CodeLanguage
-    # The call that sends it, e.g. `requests.get`. An `UnknownCodeCall` when the request comes from a URL that no call with a row holds, also when no call holds it at all.
+    # The call that sends it, e.g. `requests.get`. An `UnknownCodeCall` when the request comes from a URL that no call with a row is known to send, e.g. one in a call without a row, in a `Request` that no call with a row sends or in no call at all.
     call_name: str | UnknownCodeCall
 
 
 @dataclass(frozen=True, slots=True)
 class UnknownCodeCall:
-    """Call in code that no fact covers, or no call at all, for a URL in code that gives an uncertain request, e.g. `mylib.fetch("https://a.org/x")` in Python or `URL = "https://a.org/x"`."""
+    """Call in code that no fact says sends a request, or no call at all, for a URL in code that gives an uncertain request, e.g. `mylib.fetch("https://a.org/x")` in Python or `URL = "https://a.org/x"`."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -262,7 +262,7 @@ class NetworkRequestUncertaintyReason(StrEnum):
     UNREAD_WORDS = "unread_words"
     # The program has a row and an option it was read with has none in the request catalog, which may stop the request, e.g. `-K` of `curl -K cfg u`.
     UNKNOWN_OPTION_EFFECT = "unknown_option_effect"
-    # A URL that may be public or whose host cannot be read sits in the arguments of a call that has no row, e.g. `mylib.fetch("https://a.org/x")` in Python.
+    # A URL that may be public or whose host cannot be read sits in the arguments of a call that has no row, e.g. `mylib.fetch("https://a.org/x")` in Python, or of a call that holds the target of a request that no call with a row reads from it, e.g. `Request("https://a.org/x")` passed to `opener.open`.
     UNKNOWN_CODE_CALL = "unknown_code_call"
     # A URL that may be public sits in code outside the arguments of every call, e.g. `URL = "https://a.org/x"`. No added fact settles it.
     URL_OUTSIDE_CODE_CALL = "url_outside_code_call"
@@ -387,20 +387,17 @@ class CodeCallLabel:
     # The name as the row writes it, e.g. `urlopen` for a call written `urllib.request.urlopen`.
     call_name: str
     effect: CodeCallEffect
-    # None unless the call sends a request.
+    # None unless the call sends a request or holds the target of one.
     target_notation: TargetNotation | None
-    # None unless the call sends a request. An `UnknownNetworkRequestTargetKind` when the row of a call that sends one leaves it blank.
+    # None unless the call sends a request or holds the target of one. An `UnknownNetworkRequestTargetKind` when the row of such a call leaves it blank.
     target_kind: NetworkRequestTargetKind | UnknownNetworkRequestTargetKind | None
 
     def __post_init__(self) -> None:
-        """Refuse a target notation or kind for a call that sends no request, and a call that sends one without both."""
-        sends_network_request = self.effect == CodeCallEffect.SENDS_NETWORK_REQUEST
+        """Refuse a target notation or kind for a call that neither sends a request nor holds the target of one, and such a call without both."""
+        has_target = self.effect in CODE_CALL_EFFECTS_WITH_TARGET
         has_target_notation = self.target_notation is not None
         has_target_kind = self.target_kind is not None
-        if (has_target_notation, has_target_kind) != (
-            sends_network_request,
-            sends_network_request,
-        ):
+        if (has_target_notation, has_target_kind) != (has_target, has_target):
             raise ValueError(
                 f"{self.effect} with {self.target_notation} and {self.target_kind}"
             )
@@ -409,9 +406,19 @@ class CodeCallLabel:
 class CodeCallEffect(StrEnum):
     """Effect of a call in code that the code call catalog names."""
 
-    SENDS_NETWORK_REQUEST = "sends_network_request"  # e.g. `requests.get`
-    RUNS_PROGRAM = "runs_program"  # e.g. `subprocess.run`
+    # The call sends a request itself, e.g. `requests.get`.
+    SENDS_NETWORK_REQUEST = "sends_network_request"
+    # The call builds the target of a request that another call sends, e.g. `urllib.request.Request`, whose object `urlopen` sends.
+    HOLDS_NETWORK_REQUEST_TARGET = "holds_network_request_target"
+    # The call runs a program named in its first string, e.g. `subprocess.run`.
+    RUNS_PROGRAM = "runs_program"
     SENDS_NO_NETWORK_REQUEST = "sends_no_network_request"
+
+
+# The effects of the calls whose row names a target notation and kind.
+CODE_CALL_EFFECTS_WITH_TARGET = frozenset(
+    {CodeCallEffect.SENDS_NETWORK_REQUEST, CodeCallEffect.HOLDS_NETWORK_REQUEST_TARGET}
+)
 
 
 @dataclass(frozen=True, slots=True)

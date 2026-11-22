@@ -128,11 +128,21 @@ _CODE_CALL_CATALOGS_THAT_CANNOT_LOAD = [
     ([{**_SENDING_CODE_CALL_ROW_CELLS, "target_notation": ""}], "'' is not a valid"),
     (
         [{**_RUNNING_CODE_CALL_ROW_CELLS, "target_notation": "url"}],
-        "are filled in a row that sends no request",
+        "are filled in a row that neither sends a request nor holds its target",
     ),
     (
         [{**_RUNNING_CODE_CALL_ROW_CELLS, "target_kind": "url"}],
-        "are filled in a row that sends no request",
+        "are filled in a row that neither sends a request nor holds its target",
+    ),
+    (
+        [
+            {
+                **_SENDING_CODE_CALL_ROW_CELLS,
+                "effect": "holds_network_request_target",
+                "target_notation": "",
+            }
+        ],
+        "'' is not a valid",
     ),
     (
         [{**_SENDING_CODE_CALL_ROW_CELLS, "effect": "fetches"}],
@@ -161,8 +171,6 @@ _OLD_CALLS_WITHOUT_ROW = [
     "aiohttp.ClientSession",
     "requests.request",
     "httpx.stream",
-    # It builds a request object that urlopen sends, and the column effect has no value that says so.
-    "urllib.request.Request",
 ]
 # Programs and subcommands for which no column can state what a page says, so they have no row and stay unknown inputs.
 # The first argument of dig can be its server, git log and git diff fetch missing objects in a partial clone, and pip list sends a request only with --outdated.
@@ -1038,6 +1046,25 @@ def test_blank_target_kind_of_a_sending_code_call_is_unknown_and_not_a_default(
 
     assert isinstance(label, CodeCallLabel)
     assert label.target_kind == UnknownNetworkRequestTargetKind()
+
+
+def test_code_call_that_holds_a_target_is_read_with_its_target_notation_and_kind(
+    tmp_path,
+):
+    knowledge = _knowledge(
+        tmp_path,
+        [],
+        [{**_SENDING_CODE_CALL_ROW_CELLS, "effect": "holds_network_request_target"}],
+    )
+
+    assert knowledge.code_call_label(
+        CodeLanguage.JAVASCRIPT, "mylib.connect"
+    ) == CodeCallLabel(
+        "mylib.connect",
+        CodeCallEffect.HOLDS_NETWORK_REQUEST_TARGET,
+        TargetNotation.HOST_AND_PORT_TUPLE,
+        NetworkRequestTargetKind.HOST,
+    )
 
 
 def test_code_call_that_runs_a_program_has_no_target_notation_or_kind(tmp_path):
