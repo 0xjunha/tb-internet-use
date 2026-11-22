@@ -71,7 +71,7 @@ def extract_code_network_requests(
 ) -> tuple[NetworkRequest, ...]:
     """Extract the requests of one code text in the order of its calls, then those of the URLs that may be public outside every call.
 
-    A call that sends a request gives one confirmed request per call when its target is in the text, and one per call name when it is not, e.g. `requests.get(base + path)`.
+    A call that sends a request gives one confirmed request per call when its target is in the text, and one per call name and hosts when it is not, e.g. one for all the calls `requests.get(base + path)` and another for `requests.get('http://name:8069' + path)`.
     A call without a row gives one uncertain request per URL that may be public or whose host cannot be read, and the text outside every call one per URL that may be public.
     Text that `parse_code` could not read to its end holds no call that it read, so its URLs give requests as URLs outside every call, e.g. the URL after an unclosed backtick in ``x = `; fetch("https://a.org/x")``.
     Every request gets `UnknownReceivedContentDestination`, since what code does with the content is not read.
@@ -139,8 +139,11 @@ class _CodeTextRequests:
     ran_code_text: RanCodeText
     first_index_in_tool_call: int
     network_requests: list[NetworkRequest] = field(default_factory=list)
-    # The call names that already gave a request whose target the text does not show, so that a second such call of the name gives none.
-    names_of_calls_without_visible_target: set[str] = field(default_factory=set)
+    # The call names, each with the hosts of its request, that already gave a request whose target the text does not show, so that a second such call of the name and hosts gives none.
+    # The hosts are part of it so that a call whose hosts are not known stays visible beside one whose hosts are, e.g. `requests.get(u)` beside `requests.get('http://name:8069' + path)`.
+    call_names_and_host_names_without_visible_target: set[
+        tuple[str, tuple[str, ...]]
+    ] = field(default_factory=set)
     # The string values whose assignment gave a call its target, so that their URLs are not counted again outside every call.
     target_assignment_values: set[str] = field(default_factory=set)
 
@@ -202,7 +205,7 @@ def _add_sending_code_call_network_request(
     parsed_code: ParsedCode,
     code_text_requests: _CodeTextRequests,
 ) -> None:
-    """Add the confirmed request of a call that sends one, with the target its text shows, or one request of unknown target per call name when the text shows none.
+    """Add the confirmed request of a call that sends one, with the target its text shows, or one request of unknown target per call name and hosts when the text shows none.
 
     The URLs in its other strings are no requests, e.g. the referer in `requests.get(u, headers={"Referer": "https://b.org"})`, and neither is the call that holds it.
     A request of unknown target still names the hosts that its URL strings write whole, e.g. `name` for `requests.get('http://name:8069' + path)`.
@@ -212,13 +215,15 @@ def _add_sending_code_call_network_request(
     assert target_notation is not None and target_kind is not None
     target_text = _target_text_of(code_call, target_notation, parsed_code)
     if target_text is None:
+        host_names = _host_names_closed_in_url_strings(code_call)
+        call_name_and_host_names = (code_call_label.call_name, host_names)
         if (
-            code_call_label.call_name
-            in code_text_requests.names_of_calls_without_visible_target
+            call_name_and_host_names
+            in code_text_requests.call_names_and_host_names_without_visible_target
         ):
             return
-        code_text_requests.names_of_calls_without_visible_target.add(
-            code_call_label.call_name
+        code_text_requests.call_names_and_host_names_without_visible_target.add(
+            call_name_and_host_names
         )
         code_text_requests.add(
             code_call_label.call_name,
@@ -226,7 +231,7 @@ def _add_sending_code_call_network_request(
                 UnknownNetworkRequestTargetReason.BUILT_IN_CODE
             ),
             target_kind,
-            _host_names_closed_in_url_strings(code_call),
+            host_names,
             None,
         )
         return

@@ -92,7 +92,7 @@ _CASES = [
             (UNKNOWN_CALL, "https://a.org", URL, ("a.org",), URL_OUTSIDE_CODE_CALL),
         ],
     ),
-    # No visible URL gives one request per call name.
+    # No visible URL gives one request per call name and hosts.
     (
         "no visible url",
         "requests.get(base + path)",
@@ -106,6 +106,24 @@ _CASES = [
         [
             ("requests.get", BUILT_IN_CODE, URL, (), None),
             ("requests.post", BUILT_IN_CODE, URL, (), None),
+        ],
+    ),
+    (
+        "calls without visible url with and without a host",
+        "requests.get('http://name:8069' + p)\nrequests.get(u)\nrequests.get('http://name:8069/' + q)",
+        PYTHON,
+        [
+            ("requests.get", BUILT_IN_CODE, URL, ("name",), None),
+            ("requests.get", BUILT_IN_CODE, URL, (), None),
+        ],
+    ),
+    (
+        "calls without visible url with two hosts",
+        "requests.get('http://a:1' + p)\nrequests.get('http://b:1' + p)",
+        PYTHON,
+        [
+            ("requests.get", BUILT_IN_CODE, URL, ("a",), None),
+            ("requests.get", BUILT_IN_CODE, URL, ("b",), None),
         ],
     ),
     (
