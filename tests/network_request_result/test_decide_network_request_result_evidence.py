@@ -1416,6 +1416,260 @@ def test_line_in_a_later_call_names_that_call():
     )
 
 
+# --- A download line of a package file beside a line of a finished install ---
+
+
+@dataclass(frozen=True)
+class DownloadAndInstallCase:
+    # Each line with whether it names a package other than the target.
+    lines: tuple[tuple[str, bool], ...]
+    program_invocation: ProgramInvocation
+    words: str
+    target: str | UnknownNetworkRequestTarget
+    # The evidence of each line in order.
+    expected: tuple[EvidenceWithLevel, ...]
+    rule_names: tuple[str, ...] = ()
+
+
+# Lines that one request owns alone, with the evidence each gives and the rules they ask besides the one about the run.
+DOWNLOAD_AND_INSTALL_CASES = {
+    "pip": DownloadAndInstallCase(
+        (
+            ("Downloading x-1.0-py3-none-any.whl (125 kB)", False),
+            ("Successfully installed x-1.0", False),
+        ),
+        PIP_INSTALL,
+        "pip install x",
+        "x",
+        (
+            line_evidence(K.DOWNLOAD_STARTED, RECEIVED, None),
+            line_evidence(K.INSTALLED, RECEIVED, None, line_index=1),
+        ),
+    ),
+    "uv": DownloadAndInstallCase(
+        (("Downloading pandas (10.8MiB)", False), (" + pandas==3.0.5", False)),
+        program("uv", "pip", "install"),
+        "uv pip install pandas",
+        "pandas",
+        (
+            line_evidence(K.DOWNLOAD_STARTED, RECEIVED, None),
+            line_evidence(K.INSTALLED, RECEIVED, None, line_index=1),
+        ),
+    ),
+    # Both lines name only B, a dependency of A, and still show that the command received, so the rule about another target is not asked.
+    "lines naming another package": DownloadAndInstallCase(
+        (
+            ("Downloading B-1.0-py3-none-any.whl (10 kB)", True),
+            ("Successfully installed B-1.0", True),
+        ),
+        PIP_INSTALL,
+        "pip install A",
+        "A",
+        (
+            line_evidence(K.DOWNLOAD_STARTED, RECEIVED, None),
+            line_evidence(K.INSTALLED, RECEIVED, None, line_index=1),
+        ),
+    ),
+    # A download of metadata alone shows that the index answered, and the install line of packages named in a file rests on its rule.
+    "metadata download beside an install line": DownloadAndInstallCase(
+        (
+            ("Downloading x-1.0-py3-none-any.whl.metadata (6.5 kB)", False),
+            ("Successfully installed x-1.0", False),
+        ),
+        PIP_INSTALL,
+        "pip install -r reqs.txt",
+        NAMED_IN_FILE,
+        (
+            line_evidence(K.SERVER_ANSWERED, REACHED, NOT_VISIBLE),
+            line_evidence(K.INSTALLED, EXECUTED, NOT_VISIBLE, line_index=1),
+        ),
+        (RULE_2,),
+    ),
+}
+
+
+@pytest.mark.parametrize(
+    "download_and_install_case",
+    DOWNLOAD_AND_INSTALL_CASES.values(),
+    ids=DOWNLOAD_AND_INSTALL_CASES.keys(),
+)
+def test_download_line_beside_install_line_shows_that_the_content_arrived(
+    download_and_install_case: DownloadAndInstallCase,
+):
+    ran_command = command(
+        0, download_and_install_case.words, download_and_install_case.program_invocation
+    )
+    network_request = request(
+        K1,
+        from_command(ran_command),
+        download_and_install_case.target,
+        target_kind=PACKAGE_NAME,
+        received_content_destination=ContentSaved(None),
+    )
+    decided = decide(
+        network_request,
+        [call(K1, ran_command)],
+        places=(place(K1, (K1, (0,))),),
+        output_line_owners=tuple(
+            owned(
+                K1,
+                line,
+                network_request,
+                line_index=line_index,
+                names_another_target=names_another_target,
+            )
+            for line_index, (line, names_another_target) in enumerate(
+                download_and_install_case.lines
+            )
+        ),
+    )
+    assert decided.evidence_with_levels == download_and_install_case.expected
+    assert decided.judgment_rule_use_counts == Counter(
+        {**dict.fromkeys(download_and_install_case.rule_names, 1), RULE_11: 1}
+    )
+
+
+def test_download_and_install_lines_shared_by_the_requests_of_one_command_show_it_for_each_but_stay_shared():
+    network_request_a, network_request_b, expanded_tool_call, output_place_sources = (
+        pip_install_a_b(in_two_commands=False)
+    )
+    for network_request in (network_request_a, network_request_b):
+        decided = decide(
+            network_request,
+            [expanded_tool_call],
+            network_requests=[network_request_a, network_request_b],
+            places=(output_place_sources,),
+            output_line_owners=(
+                owned(
+                    K1,
+                    "Downloading c-1.0-py3-none-any.whl (10 kB)",
+                    network_request_a,
+                    network_request_b,
+                    names_another_target=True,
+                ),
+                owned(
+                    K1,
+                    "Successfully installed a-1 b-2 c-1.0",
+                    network_request_a,
+                    network_request_b,
+                    line_index=1,
+                ),
+            ),
+        )
+        assert decided.evidence_with_levels == (
+            line_evidence(
+                K.DOWNLOAD_STARTED,
+                RECEIVED,
+                None,
+                is_shared_with_other_requests=True,
+                may_belong_to_another_request_reason=SHARED_LINE_REASON,
+            ),
+            line_evidence(
+                K.INSTALLED,
+                RECEIVED,
+                None,
+                line_index=1,
+                is_shared_with_other_requests=True,
+                may_belong_to_another_request_reason=SharedOutputLineAssumptionReason(
+                    K1, 1, None
+                ),
+            ),
+        )
+        assert decided.judgment_rule_use_counts == Counter({RULE_11: 1})
+
+
+def test_install_line_that_a_request_of_another_command_owns_too_makes_no_pair():
+    network_request_a, network_request_b, expanded_tool_call, output_place_sources = (
+        pip_install_a_b(in_two_commands=True)
+    )
+    decided = decide(
+        network_request_a,
+        [expanded_tool_call],
+        network_requests=[network_request_a, network_request_b],
+        places=(output_place_sources,),
+        output_line_owners=(
+            owned(K1, "Downloading a-1-py3-none-any.whl (10 kB)", network_request_a),
+            owned(
+                K1,
+                "Successfully installed a-1 b-2",
+                network_request_a,
+                network_request_b,
+                line_index=1,
+            ),
+        ),
+    )
+    assert decided.evidence_with_levels == (
+        line_evidence(K.DOWNLOAD_STARTED, REACHED, NOT_VISIBLE),
+        line_evidence(
+            K.INSTALLED,
+            EXECUTED,
+            NOT_VISIBLE,
+            line_index=1,
+            is_shared_with_other_requests=True,
+            may_belong_to_another_request_reason=SharedOutputLineAssumptionReason(
+                K1, 1, None
+            ),
+        ),
+    )
+    assert decided.judgment_rule_use_counts == Counter({RULE_2: 1, RULE_11: 1})
+
+
+def test_download_line_that_a_run_which_is_not_read_may_have_printed_makes_no_pair():
+    pip = command(0, "pip install x", PIP_INSTALL, succeeded_if_text_exits_zero=False)
+    setup_sh = command(1, "./setup.sh", UnknownProgramInvocation("setup.sh", ()))
+    network_request = request(K1, from_command(pip), "x", target_kind=PACKAGE_NAME)
+    decided = decide(
+        network_request,
+        [call(K1, pip, setup_sh)],
+        places=(place(K1, (K1, (0, 1))),),
+        output_line_owners=(
+            owned(K1, "Downloading x-1.0-py3-none-any.whl (10 kB)", network_request),
+            owned(K1, "Successfully installed x-1.0", network_request, line_index=1),
+        ),
+    )
+    assert decided.evidence_with_levels == (
+        line_evidence(
+            K.DOWNLOAD_STARTED,
+            REACHED,
+            NOT_VISIBLE,
+            may_belong_to_another_request_reason=UnknownRunBesideAssumptionReason(),
+        ),
+        line_evidence(K.INSTALLED, EXECUTED, NOT_VISIBLE, line_index=1),
+    )
+    assert decided.judgment_rule_use_counts == Counter(
+        {RULE_20: 1, RULE_2: 1, RULE_11: 1}
+    )
+
+
+def test_download_line_beside_shown_file_text_makes_no_pair():
+    pip = command(0, "pip install x", PIP_INSTALL)
+    network_request = request(K1, from_command(pip), "x", target_kind=PACKAGE_NAME)
+    decided = decide(
+        network_request,
+        [call(K1, pip)],
+        places=(place(K1, (K1, (0,)), may_show_file_content=True),),
+        output_line_owners=(
+            owned(K1, "Downloading x-1.0-py3-none-any.whl (10 kB)", network_request),
+            owned(K1, "Successfully installed x-1.0", network_request, line_index=1),
+        ),
+    )
+    assert decided.evidence_with_levels == (
+        line_evidence(
+            K.DOWNLOAD_STARTED, REACHED, NOT_VISIBLE, rests_on_judgment_rule=True
+        ),
+        line_evidence(
+            K.INSTALLED,
+            EXECUTED,
+            NOT_VISIBLE,
+            line_index=1,
+            rests_on_judgment_rule=True,
+        ),
+    )
+    assert decided.judgment_rule_use_counts == Counter(
+        {RULE_13: 2, RULE_2: 1, RULE_11: 1}
+    )
+
+
 # --- Evidence of the run ---
 
 

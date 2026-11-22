@@ -117,7 +117,7 @@ _MADE_UP_TRIAL = (
     _bash_call(13, "cp {a,b} /tmp; curl -s -o q https://k.org/g", ""),
     # A page that curl shows, which only a judgment rule takes as the content asked for.
     _bash_call(14, "curl -s https://m.org/p", "<html>a page</html>"),
-    # A download line of another package, shared by both requests and read only as a run, before an install line of A alone.
+    # A download line of another package, shared by both requests, before an install line of A alone, which together show that A received and leave B with the download line read only as a run.
     _bash_call(
         15,
         "pip install A B",
@@ -215,7 +215,8 @@ def test_every_equation_holds_on_a_made_up_trial():
 
     assert _differing_equations(trial_audit) == set()
     assert trial_audit.counts["all", "results"] == 16
-    assert trial_audit.counts["all", "results received none confirmed"] == 1
+    # wget's download line and the download and install lines of A under `pip install A B`.
+    assert trial_audit.counts["all", "results received none confirmed"] == 2
     assert trial_audit.counts["all", "results reached none confirmed"] == 1
     assert trial_audit.counts["all", "results attempted failed confirmed"] == 2
     # Exit code 0 shows the run of wget, both `curl -I`, `sudo curl`, both requests of `curl -s -o p` and `curl -s https://m.org/p`, and not that of the other curl commands.
@@ -226,7 +227,7 @@ def test_every_equation_holds_on_a_made_up_trial():
         == 7
     )
     assert trial_audit.counts["all", "results attempted not_visible confirmed"] == 5
-    assert trial_audit.counts["all", "requests in the view received confirmed"] == 2
+    assert trial_audit.counts["all", "requests in the view received confirmed"] == 3
     assert trial_audit.received_trial_columns == {
         "with request",
         "with received",
@@ -242,7 +243,7 @@ def test_every_equation_holds_on_a_made_up_trial():
         if trial_audit.equation_sides[equation, "left"] == 0
     } == {
         "results_outside_the_result_table",
-        "confirmed_received_results_without_own_download_or_content_use",
+        "confirmed_received_results_without_own_download_install_or_content_use",
         "confirmed_reached_successes_without_own_status",
         "lifted_requests_without_own_line",
         "shared_output_line_reasons_without_another_result_of_the_line",
@@ -491,7 +492,7 @@ BROKEN_INPUT_CASES: list[tuple[str, Callable[[_Steps], _Steps]]] = [
         _content_request_reached_without_stop_reason,
     ),
     (
-        "confirmed_received_results_without_own_download_or_content_use",
+        "confirmed_received_results_without_own_download_install_or_content_use",
         _confirmed_received_on_a_shared_line,
     ),
     (
@@ -696,7 +697,7 @@ def test_counts_the_strongest_evidence_of_each_result():
         if outcome == "strongest" and count
     }
     # wget's own download line outranks its exit code 0. Exit code 0, which `NetworkRequestResultKnowledge` reads as a server's answer, is the only evidence of `sudo curl` and of both requests of `curl -s -o p`.
-    # The shared download line of D shows only that pip ran, so the install line of A alone outranks it, while it stays the strongest evidence of B.
+    # The install line of A alone outranks the download line of D that both requests of pip share, which stays the strongest evidence of B.
     assert strongest_counts == {
         "output line downloaded": 1,
         "output line installed": 1,

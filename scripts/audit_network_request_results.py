@@ -119,8 +119,8 @@ EQUATIONS = (
     "not_run_requests_equal_not_run_failed_results",
     # Results whose level and stop reason are none of the eight rows of the result table, with `REACHED` without a stop reason in place of `RECEIVED` without one for a request that asks for no content, beside 0.
     "results_outside_the_result_table",
-    # Confirmed `RECEIVED` results without a `DOWNLOADED` line of their own and without an `USES_CONTENT` file use that fits one written file beside 0.
-    "confirmed_received_results_without_own_download_or_content_use",
+    # Confirmed `RECEIVED` results without a `DOWNLOADED` line of their own, without a `DOWNLOAD_STARTED` or `INSTALLED` line of their own beside lines of both kinds, and without an `USES_CONTENT` file use that fits one written file beside 0.
+    "confirmed_received_results_without_own_download_install_or_content_use",
     # Confirmed `REACHED` results without a stop reason whose request asks for content, or that have neither a status line 100 to 399 of their own nor the status of a web fetch with one request, beside 0.
     "confirmed_reached_successes_without_own_status",
     # Results whose request certainty rose from `UNCERTAIN` to `CONFIRMED` without an output line of their own beside 0.
@@ -176,7 +176,7 @@ _REPORT_VIEW_BY_STOP_REASON = {
 }
 # The levels from the lowest, to rank the evidence of a result in `_strongest_evidence_of`.
 _LEVELS_IN_ORDER = (_ATTEMPTED, _EXECUTED, _REACHED, _RECEIVED)
-# The level and stop reason that a line of each kind shows, with the provisional choice of each judgment rule, read again here since a result keeps no level of its evidence. Lines of status codes and of content received are read in `_level_and_stop_reason_of_evidence`.
+# The level and stop reason that a line of each kind shows, with the provisional choice of each judgment rule, read again here since a result keeps no level of its evidence. Lines of status codes, of content received and of a download beside an install are read in `_level_and_stop_reason_of_evidence`.
 _LEVEL_AND_STOP_REASON_BY_OUTPUT_LINE_KIND = {
     OutputLineKind.PROGRAM_MISSING: (_ATTEMPTED, _FAILED),
     OutputLineKind.NAME_NOT_RESOLVED: (_EXECUTED, _FAILED),
@@ -193,6 +193,10 @@ _LEVEL_AND_STOP_REASON_BY_OUTPUT_LINE_KIND = {
     OutputLineKind.INSTALLED: (_EXECUTED, _NOT_VISIBLE),
     OutputLineKind.VERSION_NOTICE: (_EXECUTED, _NOT_VISIBLE),
 }
+# The kinds of a download line of a package file and of an install line, which together show that the content arrived.
+_DOWNLOAD_AND_INSTALL_KINDS = frozenset(
+    {OutputLineKind.DOWNLOAD_STARTED, OutputLineKind.INSTALLED}
+)
 # The row of `judgment_rule_lower_bound_changes.csv` for an assumed success that no one rule keeps out of the lower bound, e.g. shown content beside a failure.
 _NO_SINGLE_RULE = "no single rule"
 # The rules that can leave a line of one request alone uncertain, which a result does not tell apart.
@@ -981,8 +985,8 @@ class TrialChecker:
         is_confirmed = result.level_certainty == _CONFIRMED
         if level_and_stop_reason == (_RECEIVED, None) and is_confirmed:
             self.trial_audit.add_sides(
-                "confirmed_received_results_without_own_download_or_content_use",
-                0 if self._has_own_download_or_content_use(result) else 1,
+                "confirmed_received_results_without_own_download_install_or_content_use",
+                0 if self._has_own_download_install_or_content_use(result) else 1,
                 0,
                 tool_call_key,
             )
@@ -1055,11 +1059,18 @@ class TrialChecker:
                     result.network_request.tool_call_key,
                 )
 
-    def _has_own_download_or_content_use(self, result: NetworkRequestResult) -> bool:
+    def _has_own_download_install_or_content_use(
+        self, result: NetworkRequestResult
+    ) -> bool:
+        shows_download_and_install = _shows_download_and_install(result)
         return any(
             isinstance(evidence, OutputLineEvidence)
-            and evidence.kind == OutputLineKind.DOWNLOADED
             and not evidence.is_shared_with_other_requests
+            and (
+                evidence.kind == OutputLineKind.DOWNLOADED
+                or shows_download_and_install
+                and evidence.kind in _DOWNLOAD_AND_INSTALL_KINDS
+            )
             or isinstance(evidence, FileUseEvidence)
             and evidence.file_use.kind == FileUseKind.USES_CONTENT
             and not evidence.file_use.fits_several_written_files
@@ -1297,6 +1308,13 @@ class TrialChecker:
             )
         assert isinstance(evidence, OutputLineEvidence)
         if evidence.kind == OutputLineKind.DOWNLOADED:
+            return success_level, None
+        # A download line of a package file beside an install line shows the success when the result took it, which this script cannot tell from the kinds alone when a line of the pair may belong to another command.
+        if (
+            evidence.kind in _DOWNLOAD_AND_INSTALL_KINDS
+            and (result.level, result.stop_reason) == (success_level, None)
+            and _shows_download_and_install(result)
+        ):
             return success_level, None
         return _LEVEL_AND_STOP_REASON_BY_OUTPUT_LINE_KIND[evidence.kind]
 
@@ -1633,6 +1651,15 @@ def _is_in_lower_bound(result: NetworkRequestResult) -> bool:
         and result.level_certainty == _CONFIRMED
         and result.request_certainty_after_evidence == NetworkRequestCertainty.CONFIRMED
     )
+
+
+def _shows_download_and_install(result: NetworkRequestResult) -> bool:
+    """Tell whether the lines of a result hold both a download line of a package file and an install line, e.g. `Downloading x-1.0.whl` and `Successfully installed x-1.0`."""
+    return _DOWNLOAD_AND_INSTALL_KINDS <= {
+        evidence.kind
+        for evidence in result.evidence
+        if isinstance(evidence, OutputLineEvidence)
+    }
 
 
 def _is_evidence_shared(evidence: NetworkRequestResultEvidence) -> bool:

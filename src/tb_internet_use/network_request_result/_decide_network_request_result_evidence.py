@@ -100,6 +100,10 @@ _FAILURE_BEFORE_SERVER_KINDS = frozenset(
 _SERVER_ANSWER_KINDS = frozenset(
     {OutputLineKind.SERVER_ANSWERED, OutputLineKind.DOWNLOAD_STARTED}
 )
+# The kinds of a download line of a package file and of a line of a finished install, which together show that the content arrived.
+_DOWNLOAD_AND_INSTALL_KINDS = frozenset(
+    {OutputLineKind.DOWNLOAD_STARTED, OutputLineKind.INSTALLED}
+)
 # The status code that curl prints for `%{http_code}` when no answer came, as curl(1) says of `-w`.
 _NO_ANSWER_STATUS_CODE = 0
 
@@ -193,30 +197,76 @@ def _output_line_evidence_of(
     The line may belong to another request when it has several owners, unless it shows only that their one command ran or that its program is missing, and, whether or not it has several owners, when the request's run has no known lines, e.g. `HTTP/1.1 200 OK` under `mytool https://a.org/x`, or when any program prints it and a run that is not read reaches its place, e.g. `Connection refused` under `curl -s u; ./test.sh`.
     The last two ask `treat_line_that_unknown_printer_may_have_printed_as_shared`. A line that only named programs print, one of them a printing program of the run, stays the request's own beside a run that is not read, e.g. `npm ERR! code E404` under `npx tsc`.
     A line in a place that may show file content or page text asks `treat_line_beside_shown_file_or_page_text_as_not_a_trace`.
+    A download line of a package file beside a line of a finished install shows that the content arrived, e.g. `Downloading x-1.0.whl (125 kB)` and `Successfully installed x-1.0`, as `_download_and_install_line_indexes_of` finds them, so those lines show RECEIVED, or REACHED for a request that asks for no content, before any rule is asked of their level. Such a line that the other requests of the command own too stays shared.
     """
+    owned_output_line_owners = [
+        output_line_owners_of_line
+        for output_line_owners_of_line in output_line_owners
+        if network_request in output_line_owners_of_line.owner_network_requests
+    ]
+    places = [
+        output_place_sources_by_key[
+            output_line_owners_of_line.output_line_with_meaning.showing_tool_call_key
+        ]
+        for output_line_owners_of_line in owned_output_line_owners
+    ]
+    is_beside_shown_text_of_lines = [
+        (place.may_show_file_content or place.may_show_page_text)
+        and judgment_rules.treat_line_beside_shown_file_or_page_text_as_not_a_trace(
+            use_counts=judgment_rule_use_counts
+        )
+        for place in places
+    ]
+    # A run whose lines are not known may have printed the line too, also when other requests own it, so those reasons come beside the shared one, e.g. `HTTP/1.1 200 OK` under `curl -sI u1; curl -sI u2; ./check.sh`.
+    unknown_printer_reasons_of_lines = [
+        _unknown_printer_reasons_of(
+            network_request,
+            output_line_owners_of_line.output_line_with_meaning.output_line_meaning,
+            place,
+            expanded_tool_call_by_key,
+            knowledge=knowledge,
+            judgment_rule_use_counts=judgment_rule_use_counts,
+        )
+        for output_line_owners_of_line, place in zip(
+            owned_output_line_owners, places, strict=True
+        )
+    ]
+    download_and_install_line_indexes = _download_and_install_line_indexes_of(
+        owned_output_line_owners,
+        is_beside_shown_text_of_lines,
+        unknown_printer_reasons_of_lines,
+    )
     output_line_evidence: list[EvidenceWithLevel] = []
-    for output_line_owners_of_line in output_line_owners:
+    for owned_line_index, (
+        output_line_owners_of_line,
+        is_beside_shown_text,
+        unknown_printer_reasons,
+    ) in enumerate(
+        zip(
+            owned_output_line_owners,
+            is_beside_shown_text_of_lines,
+            unknown_printer_reasons_of_lines,
+            strict=True,
+        )
+    ):
         owner_network_requests = output_line_owners_of_line.owner_network_requests
-        if network_request not in owner_network_requests:
-            continue
         output_line_with_meaning = output_line_owners_of_line.output_line_with_meaning
         output_line_meaning = output_line_with_meaning.output_line_meaning
-        place = output_place_sources_by_key[
-            output_line_with_meaning.showing_tool_call_key
-        ]
-        level, stop_reason, rests_on_judgment_rule = (
-            _level_and_stop_reason_from_output_line(
-                network_request,
-                output_line_owners_of_line,
-                judgment_rule_use_counts=judgment_rule_use_counts,
+        if owned_line_index in download_and_install_line_indexes:
+            level, stop_reason, rests_on_judgment_rule = (
+                _success_level_of(network_request),
+                None,
+                False,
             )
-        )
-        if (
-            place.may_show_file_content or place.may_show_page_text
-        ) and judgment_rules.treat_line_beside_shown_file_or_page_text_as_not_a_trace(
-            use_counts=judgment_rule_use_counts
-        ):
-            rests_on_judgment_rule = True
+        else:
+            level, stop_reason, rests_on_judgment_rule = (
+                _level_and_stop_reason_from_output_line(
+                    network_request,
+                    output_line_owners_of_line,
+                    judgment_rule_use_counts=judgment_rule_use_counts,
+                )
+            )
+        rests_on_judgment_rule = rests_on_judgment_rule or is_beside_shown_text
         is_shared_with_other_requests = len(owner_network_requests) > 1
         # A missing program and a run are facts about the whole command, so a line that shows only them holds for each request of that command, e.g. both of `pip install a b` under `pip: command not found`.
         may_belong_to_another_request_reasons: tuple[
@@ -238,16 +288,7 @@ def _output_line_evidence_of(
                 and _are_requests_of_one_command(owner_network_requests)
             )
             else ()
-        )
-        # A run whose lines are not known may have printed the line too, also when other requests own it, so those reasons come beside the shared one, e.g. `HTTP/1.1 200 OK` under `curl -sI u1; curl -sI u2; ./check.sh`.
-        may_belong_to_another_request_reasons += _unknown_printer_reasons_of(
-            network_request,
-            output_line_meaning,
-            place,
-            expanded_tool_call_by_key,
-            knowledge=knowledge,
-            judgment_rule_use_counts=judgment_rule_use_counts,
-        )
+        ) + unknown_printer_reasons
         output_line_evidence.append(
             EvidenceWithLevel(
                 evidence=OutputLineEvidence(
@@ -305,6 +346,52 @@ def _unknown_printer_reasons_of(
     ):
         return tuple(unknown_printer_reasons)
     return ()
+
+
+def _download_and_install_line_indexes_of(
+    owned_output_line_owners: Sequence[OutputLineOwners],
+    is_beside_shown_text_of_lines: Sequence[bool],
+    unknown_printer_reasons_of_lines: Sequence[
+        tuple[
+            UnknownProgramOutputLinesAssumptionReason
+            | UnknownRunBesideAssumptionReason,
+            ...,
+        ]
+    ],
+) -> frozenset[int]:
+    """Find the 0-based indexes among the lines that a request owns of its download lines of a package file and its lines of a finished install, when it has both, and none otherwise.
+
+    The pair shows that the command received content, e.g. `Downloading x-1.0.whl (125 kB)` and `Successfully installed x-1.0` under `pip install x`, or `Downloading pandas (10.8MiB)` and ` + pandas==3.0.5` under `uv pip install pandas`, whether or not the lines name the target of the request.
+    A line counts only when no other command's request owns it, no run whose lines are not known may have printed it and its place may show no file content or page text, so that a pair that holds only through a line of another request keeps the reading of each line.
+    """
+    kinds_by_line_index = {
+        owned_line_index: output_line_owners_of_line.output_line_with_meaning.output_line_meaning.kind
+        for owned_line_index, (
+            output_line_owners_of_line,
+            is_beside_shown_text,
+            unknown_printer_reasons,
+        ) in enumerate(
+            zip(
+                owned_output_line_owners,
+                is_beside_shown_text_of_lines,
+                unknown_printer_reasons_of_lines,
+                strict=True,
+            )
+        )
+        if output_line_owners_of_line.output_line_with_meaning.output_line_meaning.kind
+        in _DOWNLOAD_AND_INSTALL_KINDS
+        and not is_beside_shown_text
+        and not unknown_printer_reasons
+        and (
+            len(output_line_owners_of_line.owner_network_requests) == 1
+            or _are_requests_of_one_command(
+                output_line_owners_of_line.owner_network_requests
+            )
+        )
+    }
+    if not _DOWNLOAD_AND_INSTALL_KINDS <= set(kinds_by_line_index.values()):
+        return frozenset()
+    return frozenset(kinds_by_line_index)
 
 
 def _evidence_assumption_reasons_from(

@@ -358,11 +358,11 @@ class OutputLineKind(StrEnum):
     REFUSED_LOCALLY = "refused_locally"
     # pip's notice of a newer pip.
     VERSION_NOTICE = "version_notice"
-    # A download began, e.g. pip `Downloading x.whl`.
+    # A download of a file began, e.g. pip `Downloading x.whl`, which beside an `INSTALLED` line shows that the content arrived.
     DOWNLOAD_STARTED = "download_started"
     # Content arrived, e.g. wget `saved` or apt `Get:1`.
     DOWNLOADED = "downloaded"
-    # A package was installed, e.g. pip `Successfully installed`, which may come from a cache.
+    # A package was installed, e.g. pip `Successfully installed`, which may come from a cache when no `DOWNLOAD_STARTED` line is beside it.
     INSTALLED = "installed"
     # A line of only a 3-digit number, which is a status code only if e.g. `curl -w "%{http_code}"` printed it.
     BARE_STATUS_CODE = "bare_status_code"
