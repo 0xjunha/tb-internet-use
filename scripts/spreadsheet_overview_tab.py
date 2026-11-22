@@ -445,7 +445,7 @@ def _add_key_numbers(
             "Trials that received what a request asked for",
             received_share(CountedBound.LOWER),
             received_share(CountedBound.UPPER),
-            "Most trajectories do not show whether a request received anything, so the bounds are far apart.",
+            f"Lower bound: trials whose output shows a download, the content itself or a finished install of a named package. See {BOUNDS_TAB_NAME}.",
         ),
         (
             "Trials with a request other than a package install or a connectivity check",

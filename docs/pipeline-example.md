@@ -36,14 +36,14 @@ The pipeline ends with one row per request, one row per trial and one row per ca
 | r1 | A | The file x.tgz from a.example.org | Content fetch | Executed | Failed to connect | Assumed. The one error line may be r2's, and then r1 may have received its file |
 | r2 | A | The file y.tgz from b.example.org | Content fetch | Executed | Failed to connect | Assumed, in the same way |
 | r3 | B | The file a.tgz from data.example.org | Content fetch | Executed | The host name did not resolve | Confirmed by its own line in c5 |
-| r4 | B | The package requests | Package | Reached | Nothing further is visible | Confirmed by its own line in c4 that a download began |
+| r4 | B | The package requests | Package | Received | It got what it asked for | Confirmed by its own lines in c4, a download of the package file and a finished install |
 
 Case C makes no request, so it has no row. The trial's rows for each category answer the two questions of the README, as a lower and an upper bound.
 
 | Category | The trial has a request | The trial received one |
 |---|---|---|
 | Content fetch | Yes in both bounds | No in the lower bound, yes in the upper |
-| Package | Yes in both bounds | No in the lower bound, yes in the upper |
+| Package | Yes in both bounds | Yes in both bounds |
 
 ## The steps at a glance
 
@@ -53,7 +53,7 @@ Case C makes no request, so it has no row. The trial's rows for each category an
 | 2. Expand tool calls | What did each call actually run, and where does that output show up? | Nothing beyond its own text, and all output is in c1's result | c3 also ran the curl line of fetch.sh. curl's output shows up in c5, pip's in c4 | setup.sh ran, and what it ran is unknown |
 | 3. Extract network requests | Which of what ran is a request, and for which target? | r1 and r2 | r3 and r4 | None |
 | 4. Decide request results | How far did each request get, and on what evidence? | r1 and r2 share one line | r3 and r4 each have lines of their own | Lines that no request owns are counted, and no request is made |
-| 5. Export rows | Which category is each request, and what do the rows say? | Two content fetches, received only in the upper bound | A content fetch not received, and a package received only in the upper bound | No row |
+| 5. Export rows | Which category is each request, and what do the rows say? | Two content fetches, received only in the upper bound | A content fetch not received, and a package received in both bounds | No row |
 
 Steps 1 and 2 are built to know nothing about the internet.
 Outside knowledge is the facts that no trajectory holds. Each step from step 1 on asks for it through one class of its own, e.g. `ToolCallKnowledge`, and gets a value or unknown.
@@ -304,7 +304,7 @@ Then each request is judged on its own evidence, i.e. its lines, the HTTP status
 | Output place | Commands that reach it | Lines a pattern fits | Owner | Result |
 |---|---|---|---|---|
 | c1's result | curl x.tgz, curl y.tgz, echo | `Connection timed out` | r1 and r2 share it | Both executed, failed, assumed |
-| c4's result | pip of c3 | `Downloading requests-2.32.3`, `Successfully installed requests-2.32.3` | r4 | Reached, not visible, confirmed |
+| c4's result | pip of c3 | `Downloading requests-2.32.3`, `Successfully installed requests-2.32.3` | r4 | Received, confirmed |
 | c5's result | bash and curl of c3, through fetch.log | `Could not resolve host: data.example.org` | r3 | Executed, failed, confirmed |
 | c6's result | bash of c6, which ran unknown content | `Downloading torch-2.3.0`, `Successfully installed torch-2.3.0` | None | Two lines counted as unused under `UNOWNED_LINE_IN_UNKNOWN_RUN`, and by the program `bash` that reaches the place |
 
@@ -323,9 +323,9 @@ r1.result = NetworkRequestResult(
 r4.result = NetworkRequestResult(
     network_request=r4,
     request_certainty_after_evidence=CONFIRMED,
-    # A download began, so a server answered. `Successfully installed` alone does not show that the content arrived, since a cache can give it.
-    level=REACHED,
-    stop_reason=NOT_VISIBLE,
+    # A download of the package file beside a finished install shows that the content arrived, which neither line shows alone, since `Downloading` may still fail and an install can come from a cache.
+    level=RECEIVED,
+    stop_reason=None,
     level_certainty=CONFIRMED,
     evidence=(
         OutputLineEvidence(showing_tool_call_key=c4, line_index=0, line_index_in_json_string=None, kind=DOWNLOAD_STARTED, is_shared_with_other_requests=False),
@@ -366,7 +366,7 @@ The category is computed from what the request's own text shows, so the same com
 | Category | Content fetch for r1 to r3, which save what a URL gives. Package for r4 | The category rules of the step, which read the service of a URL's host before where its content goes. No host of r1 to r3 has a row, so `treat_saved_content_from_unrecognized_url_as_content_fetch` makes their saved files content fetches. r4 names a package |
 | Internet use | Yes for all four | r1 to r3 name their hosts, which are read as public in this example. r4 names no host, so `treat_request_without_host_name_as_sent_to_default_registry_host` gives it the host of the default registry of `pip install`, `pypi.org`, which is public |
 | Request bounds | Both bounds for r1 to r4 | Each is a confirmed request that is internet use. How far it got does not matter here |
-| Received bounds | Neither for r3, the upper bound only for r1, r2 and r4 | r3's own line confirms that it failed. r1 and r2 share one error line, so their failure is assumed and `treat_assumed_failure_as_possibly_received` keeps them in the upper bound. r4's lines show that a download began but not that the package arrived |
+| Received bounds | Neither for r3, the upper bound only for r1 and r2, both for r4 | r3's own line confirms that it failed. r1 and r2 share one error line, so their failure is assumed and `treat_assumed_failure_as_possibly_received` keeps them in the upper bound. r4's own lines confirm that the package arrived |
 | Among success line owners one of which received | No for all four | r1 and r2 share one line, but it shows a failure. Had it been a line of success, both rows would still say no, since `--connect-timeout` has no row of `program_output_lines.csv`, so a run of either `curl` may print any line. Without that option, whichever `curl` printed the line would have received, so both rows would say yes and the trial would count in the lower bound of content fetches received, while each row's own received bound stays in the upper bound only |
 
 Each category and sender of the trial then gets one row with the strongest bounds of its requests, where a row among success line owners one of which received counts in the lower bound of received. All four requests here have the sender `task_environment`, which gives the last table of [Where this ends](#where-this-ends). The trial row takes the strongest bounds of all requests that the task environment sent.
