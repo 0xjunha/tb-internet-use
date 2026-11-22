@@ -192,21 +192,21 @@ def _band_label_of(band: int) -> str:
     return f"{band * 10}–{(band + 1) * 10}%"
 
 
-# The list of tabs at the end of `Overview`, by the questions they answer.
-_TAB_QUESTIONS = (
+# The list of tabs at the end of `Overview`, each with what it holds.
+_TAB_DESCRIPTIONS = (
     (
         TASKS_TAB_NAME,
-        "Which tasks send internet requests, and were they solved without one?",
+        "Internet requests per task, and tasks solved without one",
     ),
-    (REQUESTED_ITEMS_TAB_NAME, "What did the trials of each task ask for?"),
+    (REQUESTED_ITEMS_TAB_NAME, "Packages and hosts requested, per task"),
     (
         REGISTRIES_AND_HOSTS_TAB_NAME,
-        "Which registries and hosts were requested?",
+        "Registries and hosts requested",
     ),
-    (WEB_TOOLS_TAB_NAME, "Which requests leave from outside the task environment?"),
+    (WEB_TOOLS_TAB_NAME, "Requests of web tools, by where they are sent from"),
     (
         BOUNDS_TAB_NAME,
-        "Why is the upper bound higher, and how far did the requests get?",
+        "Causes of the upper bound, and how far requests got",
     ),
     (TRIAL_ROWS_TAB_NAME, "The rows of trials that every count reads"),
     (
@@ -219,7 +219,7 @@ _TAB_QUESTIONS = (
     ),
     (
         METHOD_AND_CHECKS_TAB_NAME,
-        "What do the numbers rest on, and what can they not say?",
+        "Limits, terms and checks of the numbers",
     ),
     (CHART_DATA_TAB_NAME, "The numbers that the charts draw"),
 )
@@ -269,11 +269,11 @@ def lay_out_overview_tab(
     grid.add_row()
     grid.add_charts_below(*_overview_chart_specs_of(chart_data))
     grid.add_row(TabCell("Tabs", style=CellStyle.SECTION))
-    for tab_name, question in _TAB_QUESTIONS:
+    for tab_name, description in _TAB_DESCRIPTIONS:
         # As a note it runs over the cells to its right without widening a column of numbers.
         grid.add_row(
             TabCell(tab_name),
-            TabCell(question, style=CellStyle.NOTE),
+            TabCell(description, style=CellStyle.NOTE),
         )
     grid.fixed_column_widths = {
         _OVERVIEW_LABEL_COLUMN: _OVERVIEW_LABEL_COLUMN_WIDTH,

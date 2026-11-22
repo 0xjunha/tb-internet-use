@@ -750,7 +750,7 @@ def test_frozen_panes_filters_hidden_columns_color_scales_and_bars_of_tasks_foll
     column = _column_by_header(sheet, header_row)
     first_row, last_row = header_row + 1, sheet.max_row
 
-    # The question above the header spans the frozen columns, which with one version is column A alone.
+    # The description above the header spans the frozen columns, which with one version is column A alone.
     assert {str(r) for r in sheet.merged_cells.ranges if r.min_row == 2} == (
         {"A2:B2"} if column["task_name"] == "B" else set()
     )

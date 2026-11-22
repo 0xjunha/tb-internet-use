@@ -1,6 +1,6 @@
-"""Lay out the tabs of results of the spreadsheet of `build_spreadsheet.py`, one per question that `Overview` lists.
+"""Lay out the tabs of results of the spreadsheet of `build_spreadsheet.py`, one per tab of results that `Overview` lists.
 
-Each tab opens with its title and the question it answers, then one table, except `Bounds`, which holds two.
+Each tab opens with its title and a sentence that says what its table holds, then one table, except `Bounds`, which holds two.
 """
 
 from collections import Counter
@@ -66,10 +66,12 @@ from tb_internet_use.export.model import NetworkRequestCategory
 _EXAMPLE_COUNT = 3
 
 
-def _add_title_and_question(grid: TabGrid, question: str, last_column: int) -> None:
-    """Add the title of a tab in row 1 and the question it answers in row 2."""
+def _add_title_and_description(
+    grid: TabGrid, description: str, last_column: int
+) -> None:
+    """Add the title of a tab in row 1 and the sentence that says what its table holds in row 2."""
     grid.add_row(TabCell(grid.name, style=CellStyle.TITLE))
-    grid.add_note(question, last_column)
+    grid.add_note(description, last_column)
 
 
 def _share_cell(
@@ -169,10 +171,10 @@ def lay_out_tasks_tab(
             )
         ),
     )
-    # The question wraps within the frozen columns, so that it stays whole while the others scroll.
-    _add_title_and_question(
+    # The description wraps within the frozen columns, so that it stays whole while the others scroll.
+    _add_title_and_description(
         grid,
-        "Which tasks send internet requests from the task environment, and were they solved without one?",
+        "Share of trials per task with an internet request from the task environment, and whether the task was solved without one.",
         columns.task_name,
     )
     header_row = grid.add_row(
@@ -438,7 +440,7 @@ def lay_out_requested_items_tab(counts: SpreadsheetPythonCounts) -> RequestedIte
     """
     grid = TabGrid(REQUESTED_ITEMS_TAB_NAME, tab_color=RESULTS_TAB_COLOR)
     columns = _RequestedItemsColumns(_has_several_benchmark_versions(counts))
-    _add_title_and_question(
+    _add_title_and_description(
         grid,
         "Packages and hosts that the trials of each task requested from the task environment.",
         columns.last,
@@ -528,9 +530,9 @@ def lay_out_web_tools_tab(
     A line of a known sender counts the lower bound. A line of sender `unknown` counts the upper bound, since such a tool is in no lower bound.
     """
     grid = TabGrid(WEB_TOOLS_TAB_NAME, tab_color=RESULTS_TAB_COLOR)
-    _add_title_and_question(
+    _add_title_and_description(
         grid,
-        "Which web tools send requests that turning off the network of the task environment does not block? For sender unknown it is not known where the tool runs, so its lines count the upper bound.",
+        "Requests of the web tools of harnesses, by where they are sent from. (lines of sender unknown count the upper bound)",
         _WEB_TOOLS_LAST_COLUMN,
     )
     header_row = grid.add_row(
@@ -638,9 +640,9 @@ def lay_out_bounds_tab(
 ) -> BoundsTab:
     """Lay out the trials only in the upper bound by cause, and the trials of the lower bound by how far their requests got."""
     grid = TabGrid(BOUNDS_TAB_NAME, tab_color=RESULTS_TAB_COLOR)
-    _add_title_and_question(
+    _add_title_and_description(
         grid,
-        "Why is the upper bound higher than the lower bound, and how far did the requests of the lower bound get?",
+        "Trials only in the upper bound by cause, and trials of the lower bound by how far their requests got.",
         _BOUNDS_LAST_COLUMN,
     )
     trial_count = len(counts.task_by_trial_id)

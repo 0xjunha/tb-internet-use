@@ -12,9 +12,9 @@ nice -n 10 uv run python -I scripts/build_spreadsheet.py <run_dir>
 
 It writes `internet_use.xlsx` under `<run_dir>/spreadsheet/` (or `--out-dir`), with `formula_check.csv`, which holds each formula cell and chart with the value computed from the file and that of its Python copy.
 
-Each tab of results opens with its title and the question it answers. A table shows one number per fact, the lower bound. The upper bound shows only in the key numbers of `Overview`, in the column `Request, upper bound` of `Tasks`, in the lines of sender `unknown` of `Web tools` and in `Bounds`, which splits the difference by cause.
+Each tab of results opens with its title and a sentence that says what its table holds. A table shows one number per fact, the lower bound. The upper bound shows only in the key numbers of `Overview`, in the column `Request, upper bound` of `Tasks`, in the lines of sender `unknown` of `Web tools` and in `Bounds`, which splits the difference by cause.
 
-| Tab | What it answers |
+| Tab | What it holds |
 |---|---|
 | `Overview` | Five key numbers, each with its lower and upper bound, three charts and the list of tabs, on one screen. The upper bound of the trials that only installed packages leaves out only trials with a request of another category in the lower bound, and its lower bound also those with one in the upper bound or of sender `unknown`. The upper bound of web tools also counts sender `unknown` and unreadable trajectories |
 | `Tasks` | For each task, the share of trials with a request from the task environment, by category, with a bar of both bounds under the header `Request bounds`, and whether it was solved without a request: `yes` when a passed trial shows no request, `maybe` when every passed trial shows a request but some only in the upper bound, which may have sent nothing, `no` when every passed trial is in the lower bound, and `never solved` |

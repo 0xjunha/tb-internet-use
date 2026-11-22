@@ -218,7 +218,7 @@ def lay_out_method_and_checks_tab(
     grid = method_and_checks.grid
     grid.add_row(TabCell(METHOD_AND_CHECKS_TAB_NAME, style=CellStyle.TITLE))
     grid.add_note(
-        "What do the numbers rest on, what can they not say, and does every formula give the value Python counted?",
+        "Limits of the numbers, terms, and checks of every formula against counts made by Python.",
         _NOTE_LAST_COLUMN,
     )
     grid.add_row()
