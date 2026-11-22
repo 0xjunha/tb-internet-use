@@ -493,6 +493,14 @@ EXAMPLE_LINES: list[
         _only(P.PIP_INDEX),
         {},
     ),
+    # pip prints this also when the wheel then comes from its cache, so it is no download of a package file.
+    (
+        "  Downloading music21-10.5.2-py3-none-any.whl.metadata (6.5 kB)",
+        "pip_downloading_metadata",
+        K.SERVER_ANSWERED,
+        _DOWNLOADS,
+        {"package_names_text": "music21-10.5.2-py3-none-any.whl.metadata"},
+    ),
     (
         "  Downloading torch-2.3.0.whl (64 kB)",
         "downloading",
@@ -1102,6 +1110,7 @@ def test_every_program_output_pattern_has_an_example_line():
             "curl: (7) Failed to connect to a.org port 443: Connection refused",
             "connection_failure",
         ),
+        ("Downloading x-1.0-py3-none-any.whl.metadata (6.5 kB)", "downloading"),
     ],
 )
 def test_line_that_two_patterns_match_is_one_that_a_later_pattern_matches_too(

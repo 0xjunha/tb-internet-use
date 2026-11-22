@@ -215,6 +215,14 @@ PROGRAM_OUTPUT_LINE_PATTERNS = OutputLinePatternTable(
             r"^Available versions: ",
             printed_only_by=PrintingProgram.PIP_INDEX,
         ),
+        # pip prints this for the metadata of a wheel, also when the wheel itself then comes from its cache as `Using cached x.whl`, so the line shows that the index answered but is no download of a package file.
+        # It keeps the printing programs of `downloading`, whose lines it took before.
+        _make_program_output_pattern(
+            "pip_downloading_metadata",
+            OutputLineKind.SERVER_ANSWERED,
+            r"^[ \t]*Downloading (?P<package_names_text>[\w.-]+\.metadata)\b",
+            printed_also_by=_DOWNLOAD_PRINTING_PROGRAMS,
+        ),
         _make_program_output_pattern(
             "downloading",
             OutputLineKind.DOWNLOAD_STARTED,
