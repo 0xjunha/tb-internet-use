@@ -49,6 +49,9 @@ _PIXELS_PER_CM = _EMU_PER_CM / _EMU_PER_PIXEL
 # Between charts that stand side by side.
 _CHART_GAP_IN_CM = 0.3
 
+# The share of the values of a column of a row tab that its width fits.
+_SHARE_OF_VALUES_A_ROW_TAB_COLUMN_FITS = 0.95
+
 # Column widths in characters.
 _NARROWEST_COLUMN_WIDTH = 6
 _WIDEST_COLUMN_WIDTH = 60
@@ -575,20 +578,30 @@ def _write_row_tab(sheet: WriteOnlySheet, row_tab: RowTab) -> None:
 
 
 def _row_tab_column_widths_of(row_tab: RowTab) -> dict[int, float]:
-    """Give the column widths of a row tab that fit each header and longest value."""
+    """Give the column widths of a row tab, each fitting its header and the lengths of its values.
+
+    A column fits the length that 95 of 100 of its values are within, so that a few long values do not widen it, e.g. a `target` of 388 characters. Its longer values are cut at the next cell.
+    The header stays on one line, so a column is never narrower than its name, e.g. `received_content_destination` over values such as `saved`.
+    """
     widths: dict[int, float] = {}
     for column, name in enumerate(row_tab.columns, start=1):
-        longest_length = max(
-            (
-                _shown_length_of(value)
-                if isinstance(value, TabCell)
-                else len(_shown_text_of(value))
-                for value in (row[column - 1] for row in row_tab.rows)
-            ),
-            default=0,
+        value_lengths = sorted(
+            _shown_length_of(value)
+            if isinstance(value, TabCell)
+            else len(_shown_text_of(value))
+            for value in (row[column - 1] for row in row_tab.rows)
+            if value is not None
+        )
+        fitted_length = (
+            value_lengths[
+                math.ceil(len(value_lengths) * _SHARE_OF_VALUES_A_ROW_TAB_COLUMN_FITS)
+                - 1
+            ]
+            if value_lengths
+            else 0
         )
         widths[column] = _column_width_for(
-            max(longest_length, _header_length_of(name, has_filter_button=True))
+            max(fitted_length, _header_length_of(name, has_filter_button=True))
         )
     return widths
 
