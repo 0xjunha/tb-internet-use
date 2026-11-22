@@ -99,21 +99,31 @@ def test_chart_data_holds_the_tables_of_the_three_charts_of_overview(
         ["remote_api_call", 1, 1 / 8],
         ["other_web", 1, 1 / 8],
     ]
-    # Shares of the lower bound 0, 0, 1/2 and 2/3, of the upper bound 1/2, 0, 1 and 2/3.
+    # Shares of the lower bound 0, 0, 1/2 and 2/3.
     bands = _rows_from_header_of(
         spreadsheet_path, "Chart data", "% of trials with a request"
     )
     assert len(bands) == 11
-    assert {row[0]: row[1:] for row in bands[1:] if row[1] or row[2]} == {
-        "0–10%": [2, 1],
-        "50–60%": [1, 1],
-        "60–70%": [1, 1],
-        "90–100%": [0, 1],
+    assert {row[0]: row[1] for row in bands[1:] if row[1]} == {
+        "0–10%": 2,
+        "50–60%": 1,
+        "60–70%": 1,
     }
+    # t1, t3 and t5 installed from pypi. t5 also asked github.com, api.github.com and b.org, which has no row of the host catalog.
+    assert _rows_from_header_of(
+        spreadsheet_path, "Chart data", "Registry or kind of host"
+    )[1:] == [
+        ["pypi", 3, 3 / 8],
+        ["code_hosting", 1, 1 / 8],
+        ["unknown", 1, 1 / 8],
+        ["web_api", 1, 1 / 8],
+    ]
+    # Half of the passed trials of 4-0-0 a and all of 3-0-0 b had no request.
     assert _rows_from_header_of(
         spreadsheet_path, "Chart data", "Solved without a request?"
     )[1:] == [
-        ["yes", 2],
+        ["yes (≥50%)", 2],
+        ["yes (<50%)", 0],
         ["maybe", 2],
         ["no", 0],
         ["never solved", 0],
@@ -122,14 +132,9 @@ def test_chart_data_holds_the_tables_of_the_three_charts_of_overview(
         [chart_range.cell_range for chart_range in ranges]
         for ranges in chart_ranges.values()
     ] == [
-        ["'Chart data'!$A$2:$A$5", "'Chart data'!$C$2:$C$5"],
-        [
-            "'Chart data'!$A$8:$A$17",
-            "'Chart data'!$B$8:$B$17",
-            "'Chart data'!$A$8:$A$17",
-            "'Chart data'!$C$8:$C$17",
-        ],
-        ["'Chart data'!$A$20:$A$23", "'Chart data'!$B$20:$B$23"],
+        ["'Chart data'!$A$8:$A$17", "'Chart data'!$B$8:$B$17"],
+        ["'Chart data'!$A$20:$A$23", "'Chart data'!$C$20:$C$23"],
+        ["'Chart data'!$A$26:$A$30", "'Chart data'!$B$26:$B$30"],
     ]
 
 
@@ -204,34 +209,53 @@ def test_only_the_python_copies_are_hidden_and_tabs_come_in_order(
 def test_overview_shows_both_bounds_of_every_key_number(spreadsheet_path: Path):
     lines = _lines_by_label(spreadsheet_path, "Overview")
 
-    # Of the lower-bound trials t1, t3 and t5, t5 requested other categories in the lower bound and t1 only in the upper, so only t3 installed nothing but packages in both columns.
-    # Tasks 4-0-0 0 and a have half or more in the lower bound, 3-0-0 a also in the upper.
-    # Tasks 4-0-0 a and 3-0-0 b were solved without a request, 4-0-0 0 and 3-0-0 a only by trials in the upper bound alone.
+    # t1, t3 and t5 are in the lower bound, and only the request of one of them shows that it received.
+    # Of them only t5 requested something other than packages in the lower bound. In the upper bound t1 did too, t4 has an unreadable trajectory and one more trial may have.
     # t3 and t8 searched through the provider. In the upper bound t6 also fetched through the harness and t4 has an unreadable trajectory.
     assert {
-        label: lines[label][1:3]
-        for label in (
-            "Trials with an internet request from the task environment",
-            "… of them, trials that only installed packages",
-            "Tasks where at least half of the trials sent a request",
-            "Solved tasks that were solved at least once without a request",
-            "Trials with a web tool request sent from outside the task environment",
-        )
+        label: line[1:3] for label, line in lines.items() if "Trials " in label
     } == {
         "Trials with an internet request from the task environment": [3 / 8, 5 / 8],
-        "… of them, trials that only installed packages": [1 / 3, 2 / 3],
-        "Tasks where at least half of the trials sent a request": [2, 3],
-        "Solved tasks that were solved at least once without a request": [2, 4],
+        "Trials that received what a request asked for": [1 / 8, 5 / 8],
+        "Trials with a request other than a package install or a connectivity check": [
+            1 / 8,
+            4 / 8,
+        ],
         "Trials with a web tool request sent from outside the task environment": [
             2 / 8,
             4 / 8,
         ],
     }
-    assert lines["… of them, trials that only installed packages"][3:] == []
-    assert (
-        lines["Solved tasks that were solved at least once without a request"][3]
-        == "of 4 solved tasks, see Tasks"
-    )
+    # t3 and t8 ran on different harnesses, so each harness has one of the two trials.
+    assert lines[
+        "Trials with a web tool request sent from outside the task environment"
+    ][3].endswith(" has 1 of the 2 trials of the lower bound.")
+
+
+def test_overview_counts_the_trials_whose_requests_all_go_to_three_registries(
+    spreadsheet_path: Path,
+):
+    lines = _lines_by_label(spreadsheet_path, "Overview")
+    sheet = load_workbook(spreadsheet_path)["Overview"]
+
+    # Of the lower-bound trials t1, t3 and t5, only t5 asked hosts that are no registry.
+    line = lines["… of them, trials whose requests all go to pypi, apt or npm"]
+    assert line[1:3] == [2 / 3, None]
+    # The number stands in one cell over the columns of both bounds, since it has no upper bound.
+    assert "B6:C6" in {str(merged_range) for merged_range in sheet.merged_cells.ranges}
+
+
+def test_overview_lists_the_tasks_that_request_most_beyond_packages(
+    spreadsheet_path: Path,
+):
+    lines = _lines_by_label(spreadsheet_path, "Overview")
+
+    # t5 is one of the two trials of 4-0-0 0 and the only trial with a request other than a package install.
+    assert [lines["0a"][1], lines["0a"][3]] == [
+        1 / 2,
+        "api.github.com, b.org, github.com",
+    ]
+    assert "a" not in lines
 
 
 def test_overview_lists_each_tab_by_its_name_as_plain_text(spreadsheet_path: Path):
@@ -301,7 +325,7 @@ def test_tasks_has_a_line_per_task_sorted_by_version_and_then_by_the_lower_bound
             "Reward=1 without a request",
             "Solved without a request?",
         )
-    ] == [2 / 3, 1 / 3, 2, 1, "yes"]
+    ] == [2 / 3, 1 / 3, 2, 1, "yes (≥50%)"]
     # t6 sent from outside only with the sender unknown, which is in no lower bound.
     assert line_by_task["3-0-0 a"]["Web tool from outside"] == 0
 

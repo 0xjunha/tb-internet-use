@@ -133,13 +133,19 @@ class WebToolLineKey:
 class SolvedWithoutRequestVerdict(StrEnum):
     """Answer of the column `Solved without a request?` of `Tasks`, by the passed trials of a task and their `any_category_request_measure_bound`."""
 
-    # At least one passed trial is `neither`.
-    YES = "yes"
+    # At least half of the passed trials are `neither`.
+    YES_AT_LEAST_HALF = "yes (≥50%)"
+    # At least one passed trial is `neither`, and fewer than half are, so the answer rests on few trials, e.g. on 1 of 144.
+    YES_UNDER_HALF = "yes (<50%)"
     # None is `neither` and at least one is `upper_only`, which may have sent nothing.
     MAYBE = "maybe"
     # Every passed trial is `lower_and_upper`.
     NO = "no"
     NEVER_SOLVED = "never solved"
+
+
+# The share of the passed trials of a task without a request from which the answer is `YES_AT_LEAST_HALF`, the user's choice of 2026-11-22.
+HALF_OF_THE_PASSED_TRIALS = 0.5
 
 
 @dataclass(frozen=True, slots=True)
@@ -155,7 +161,12 @@ class PassedTrialCounts:
         if not self.passed_trial_count:
             return SolvedWithoutRequestVerdict.NEVER_SOLVED
         if self.without_request_trial_count:
-            return SolvedWithoutRequestVerdict.YES
+            if (
+                self.without_request_trial_count / self.passed_trial_count
+                >= HALF_OF_THE_PASSED_TRIALS
+            ):
+                return SolvedWithoutRequestVerdict.YES_AT_LEAST_HALF
+            return SolvedWithoutRequestVerdict.YES_UNDER_HALF
         if self.upper_bound_only_trial_count:
             return SolvedWithoutRequestVerdict.MAYBE
         return SolvedWithoutRequestVerdict.NO

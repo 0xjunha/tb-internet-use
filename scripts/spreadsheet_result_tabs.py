@@ -22,6 +22,7 @@ from spreadsheet_cells import (
     sparkline_bar_formula,
 )
 from spreadsheet_python_counts import (
+    HALF_OF_THE_PASSED_TRIALS,
     PASSED_REWARD,
     BestRequestResult,
     CountedBound,
@@ -356,7 +357,8 @@ def _tasks_line_cells_of(
         passed_counts.verdict.value,
         formula=(
             f'IF({passed_cell}=0,"{verdict.NEVER_SOLVED}",'
-            f'IF({passed_without_cell}>0,"{verdict.YES}",'
+            f"IF({passed_without_cell}>0,"
+            f'IF({passed_without_cell}/{passed_cell}>={HALF_OF_THE_PASSED_TRIALS},"{verdict.YES_AT_LEAST_HALF}","{verdict.YES_UNDER_HALF}"),'
             f'IF({passed_upper_bound_only_formula}>0,"{verdict.MAYBE}",'
             f'"{verdict.NO}")))'
         ),

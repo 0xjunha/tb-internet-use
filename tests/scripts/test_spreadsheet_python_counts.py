@@ -228,9 +228,9 @@ def test_judges_each_task_by_the_bounds_of_its_passed_trials(made_up_run_dir: Pa
         task: counts.passed_trial_counts_of(task).verdict for task in counts.tasks
     } == {
         TASK_A_3: verdict.MAYBE,
-        TASK_B_3: verdict.YES,
+        TASK_B_3: verdict.YES_AT_LEAST_HALF,
         TASK_0_4: verdict.MAYBE,
-        TASK_A_4: verdict.YES,
+        TASK_A_4: verdict.YES_AT_LEAST_HALF,
     }
     assert counts.passed_trial_counts_of(
         TASK_A_4
@@ -240,7 +240,12 @@ def test_judges_each_task_by_the_bounds_of_its_passed_trials(made_up_run_dir: Pa
 @pytest.mark.parametrize(
     ("passed_trial_counts", "verdict"),
     [
-        pytest.param((3, 1, 1), "yes", id="one passed trial without a request"),
+        pytest.param(
+            (3, 1, 1), "yes (<50%)", id="one of three passed trials without a request"
+        ),
+        pytest.param(
+            (2, 1, 0), "yes (≥50%)", id="half of the passed trials without a request"
+        ),
         pytest.param(
             (3, 0, 1),
             "maybe",

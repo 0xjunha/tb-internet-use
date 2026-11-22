@@ -47,6 +47,8 @@ class RegistriesAndHostsTab:
     grid: TabGrid
     # The trials of every line together.
     trial_ids: frozenset[str]
+    # The trials of each line by its host service and its registry or host name, e.g. `("package_registry", "pypi")`, which `Overview` reads.
+    trial_ids_by_host_service_and_name: dict[tuple[str, str], frozenset[str]]
 
 
 @dataclass(frozen=True, slots=True)
@@ -137,7 +139,12 @@ def lay_out_registries_and_hosts_tab(
         )
     grid.fixed_column_widths = {_BAR_COLUMN: 24}
     return RegistriesAndHostsTab(
-        grid, frozenset(_joined_trial_ids_of(trial_ids_by_line_key.values()))
+        grid,
+        frozenset(_joined_trial_ids_of(trial_ids_by_line_key.values())),
+        {
+            (key.host_service, key.registry_or_host_name): frozenset(trial_ids)
+            for key, trial_ids in trial_ids_by_line_key.items()
+        },
     )
 
 

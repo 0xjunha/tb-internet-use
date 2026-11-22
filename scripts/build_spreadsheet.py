@@ -61,12 +61,15 @@ def build_spreadsheet(row_files: RowFiles, spreadsheet_path: Path) -> None:
     chosen_rows = choose_network_request_rows(row_files)
     row_tabs = lay_out_row_tabs(row_files, counts, chosen_rows)
     tasks = lay_out_tasks_tab(counts, row_tabs)
-    chart_data = lay_out_chart_data_tab(counts, row_tabs, tasks)
+    registries_and_hosts = lay_out_registries_and_hosts_tab(row_files, counts)
+    chart_data = lay_out_chart_data_tab(counts, row_tabs, tasks, registries_and_hosts)
     checked_tabs = CheckedTabs(
-        overview=lay_out_overview_tab(counts, row_tabs, tasks, chart_data),
+        overview=lay_out_overview_tab(
+            counts, row_tabs, tasks, chart_data, registries_and_hosts
+        ),
         tasks=tasks,
         requested_items=lay_out_requested_items_tab(counts),
-        registries_and_hosts=lay_out_registries_and_hosts_tab(row_files, counts),
+        registries_and_hosts=registries_and_hosts,
         web_tools=lay_out_web_tools_tab(counts, row_tabs),
         bounds=lay_out_bounds_tab(counts, row_tabs),
         chart_data=chart_data,
