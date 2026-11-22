@@ -509,6 +509,34 @@ EXAMPLE_LINES: list[
         {"package_names_text": "requests-2.0.tar.gz"},
     ),
     (
+        "info: mathlib: cloning https://github.com/leanprover-community/mathlib4",
+        "lake_cloning",
+        K.DOWNLOAD_STARTED,
+        _only(P.LAKE),
+        {},
+    ),
+    (
+        "[info] downloading https://repo1.maven.org/maven2/a/b/1.0/b-1.0.jar ...",
+        "ivy_downloading",
+        K.DOWNLOAD_STARTED,
+        _only(P.IVY),
+        {},
+    ),
+    (
+        "npm warn exec The following package was not found and will be installed: tsc@2.0.4",
+        "npm_exec_package_not_found",
+        K.SERVER_ANSWERED,
+        _only(P.NPM),
+        {},
+    ),
+    (
+        "npm WARN exec The following packages were not found and will be installed: a, b",
+        "npm_exec_package_not_found",
+        K.SERVER_ANSWERED,
+        _only(P.NPM),
+        {},
+    ),
+    (
         "  Downloaded serde v1.0",
         "downloaded",
         K.DOWNLOADED,
@@ -646,6 +674,10 @@ LINES_WITHOUT_MEANING = [
     "x Requirement already satisfied: y",
     "x + y==1.0",
     "pip: command not found here",
+    # A clone of a local folder sends no request.
+    "info: mylib: cloning ../mylib",
+    "echo downloading https://a.org/x ...",
+    "npm warn exec ran tsc",
 ]
 
 
@@ -976,7 +1008,8 @@ _ANSWERS_OF_REAL_PROGRAM_ROWS = [
     ("pip", ("index", "versions"), _lines(P.PIP, P.PIP_INDEX), _UNKNOWN_MEANING),
     ("pip", ("install",), _lines(P.PIP), M.NOTHING),
     ("playwright", ("install-deps",), _lines(P.PLAYWRIGHT, P.APT), _UNKNOWN_MEANING),
-    ("sbt", (), UnknownProgramOutputLines(), M.NOTHING),
+    ("lake", ("build",), _lines(P.LAKE), M.NOTHING),
+    ("sbt", (), _lines(P.IVY), M.NOTHING),
     ("uv", ("pip", "install"), _lines(P.UV, P.PIP), M.NOTHING),
     ("uv", ("run",), _lines(P.UV, P.PIP), M.NOTHING),
     ("wget", (), _lines(P.WGET), M.REQUEST_SUCCEEDED),

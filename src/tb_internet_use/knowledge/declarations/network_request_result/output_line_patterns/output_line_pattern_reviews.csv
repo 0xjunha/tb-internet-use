@@ -23,6 +23,8 @@ program_output,playwright_downloaded,"not checked, from the old table",,
 program_output,pip_successfully_downloaded,"not checked, from the old table",,
 program_output,pip_index_versions,"not checked, from the old table",,
 program_output,downloading,"not checked, from the old table",,
+program_output,lake_cloning,"Lake, Lake/Load/Materialize.lean, cloneGitPkg, logInfo s!""{name}: cloning {url}"" before repo.clone url, and Lake/Util/Log.lean, LogEntry.toString as s!""{self.level}: {self.message}"", Lean v4.20.0 (github.com/leanprover/lean4, tag v4.20.0, read 2026-11-22)",,"The master branch of Lake logs ""{name}: fetching revision '{rev}' from {url}"" instead of cloning, which no pattern reads yet"
+program_output,ivy_downloading,"Apache Ivy, src/java/org/apache/ivy/plugins/resolver/AbstractResolver.java, startArtifactDownload, Message.info(""downloading "" + rres.getResource() + "" ..."") for an artifact that is no metadata (github.com/apache/ant-ivy, branch master, read 2026-11-22)",,"The pattern also takes the line after [info] , the level that sbt writes before its info messages. sbt with coursier and without the super shell prints no such line, since its CoursierLogger logs downloaded URLs at debug level (github.com/sbt/sbt, main/src/main/scala/sbt/coursierint/LMCoursier.scala, branch 1.13.x, read 2026-11-22)"
 program_output,downloaded,"not checked, from the old table",,
 program_output,apt_get,"not checked, from the old table",,
 program_output,wget_saved,"not checked, from the old table",,
@@ -31,6 +33,7 @@ program_output,uv_installed,"not checked, from the old table",,
 program_output,npm_added,"not checked, from the old table",,
 program_output,apt_setting_up,"not checked, from the old table",,
 program_output,npm_audited,"not checked, from the old table",,
+program_output,npm_exec_package_not_found,"npm, workspaces/libnpmexec/lib/index.js, log.warn('exec', `The following package${add.length === 1 ? ' was' : 's were'} not found and will be installed: ...`) when no TTY or in CI, after pacote.manifest with preferOnline: true found the package missing from the local and npx trees (github.com/npm/cli, branch latest, read 2026-11-22)",,Outputs of the sample show the level as WARN too
 program_output,apt_hit,"not checked, from the old table",,
 program_output,bare_status_code,"not checked, from the old table",,
 program_output,wget_connected,"not checked, from the old table",,

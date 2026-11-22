@@ -383,6 +383,8 @@ class PrintingProgram(StrEnum):
     HTTP_HEADERS = "http_headers"  # a run that prints response headers, e.g. `curl -i`
     HTTP_FAILURE = "http_failure"  # a run that prints an HTTP failure line
     CODE = "code"  # Python or JavaScript code
+    LAKE = "lake"  # the build tool of Lean
+    IVY = "ivy"  # Apache Ivy, which sbt runs to fetch what a build lacks
 
 
 @dataclass(frozen=True, slots=True)

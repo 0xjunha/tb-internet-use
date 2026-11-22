@@ -222,6 +222,20 @@ PROGRAM_OUTPUT_LINE_PATTERNS = OutputLinePatternTable(
             r"^[ \t]*Downloading (?:https?://\S*/)?(?P<package_names_text>[\w.-]+)",
             printed_also_by=_DOWNLOAD_PRINTING_PROGRAMS,
         ),
+        # lake prints this before it clones a dependency, which can still fail.
+        _make_program_output_pattern(
+            "lake_cloning",
+            OutputLineKind.DOWNLOAD_STARTED,
+            r": cloning (?:(?:https?|ssh|git)://|git@)",
+            printed_only_by=PrintingProgram.LAKE,
+        ),
+        # Ivy prints this before it downloads a file of a dependency, which can still fail.
+        _make_program_output_pattern(
+            "ivy_downloading",
+            OutputLineKind.DOWNLOAD_STARTED,
+            r"^(?:\[info\] )?downloading https?://\S+ \.\.\.",
+            printed_only_by=PrintingProgram.IVY,
+        ),
         # cargo prints this line too, and has no printing program.
         _make_program_output_pattern(
             "downloaded",
@@ -274,6 +288,13 @@ PROGRAM_OUTPUT_LINE_PATTERNS = OutputLinePatternTable(
             OutputLineKind.SERVER_ANSWERED,
             r"\baudited \d+ packages?\b",
             r"found \d+ vulnerabilit",
+            printed_only_by=PrintingProgram.NPM,
+        ),
+        # npx prints this after it asked the registry for the package, and only when the package is missing.
+        _make_program_output_pattern(
+            "npm_exec_package_not_found",
+            OutputLineKind.SERVER_ANSWERED,
+            r"^npm (?:WARN|warn) exec The following packages? (?:was|were) not found and will be installed",
             printed_only_by=PrintingProgram.NPM,
         ),
         _make_program_output_pattern(

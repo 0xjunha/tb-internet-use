@@ -579,6 +579,51 @@ def test_each_row_of_the_result_table_comes_out_of_its_case(
     ] == [expected]
 
 
+# Made-up runs of programs that fetch only what is missing, each with an output line that shows a download and the level and stop reason that the line gives.
+DOWNLOAD_LINE_OF_PROGRAM_THAT_FETCHES_ONLY_WHAT_IS_MISSING_CASES = [
+    pytest.param(
+        "npx tsc --version",
+        "npm warn exec The following package was not found and will be installed: tsc@2.0.4",
+        id="npx prints that it installs a missing package",
+    ),
+    pytest.param(
+        "lake build",
+        "info: mathlib: cloning https://github.com/leanprover-community/mathlib4",
+        id="lake prints that it clones a dependency",
+    ),
+    pytest.param(
+        "sbt compile",
+        "[info] downloading https://repo1.maven.org/maven2/a/b/1.0/b-1.0.jar ...",
+        id="sbt prints that Ivy downloads a file",
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    ("command", "output"),
+    DOWNLOAD_LINE_OF_PROGRAM_THAT_FETCHES_ONLY_WHAT_IS_MISSING_CASES,
+)
+def test_download_line_of_a_program_that_fetches_only_what_is_missing_confirms_its_request(
+    command, output
+):
+    steps = _steps(_bash_call(1, command, output))
+    steps_without_line = _steps(_bash_call(1, command, ""))
+
+    (result,) = _decided(steps).results
+    (result_without_line,) = _decided(steps_without_line).results
+
+    assert result.network_request.certainty == NetworkRequestCertainty.UNCERTAIN
+    assert (
+        result.request_certainty_after_evidence,
+        result.level,
+        result.stop_reason,
+    ) == (NetworkRequestCertainty.CONFIRMED, _REACHED, _NOT_VISIBLE)
+    assert (
+        result_without_line.request_certainty_after_evidence
+        == NetworkRequestCertainty.UNCERTAIN
+    )
+
+
 # Made-up inputs where a request saves a file and a command uses it, each with where the request saved its content, its level, stop reason and level certainty, the kinds of its file use evidence and the rule uses of the trial.
 # The kinds of use come from the rows of `program_behaviors.csv` and `program_option_behaviors.csv`, e.g. those of tar and gunzip.
 SAVED_FILE_USE_CASES = [
