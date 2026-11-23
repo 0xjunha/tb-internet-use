@@ -66,7 +66,9 @@ def treat_pip_or_apt_installed_line_of_named_package_as_received(
 
     Decided. The user decided on 2026-11-22 from the counts above, so that such a trial counts in the lower bound of the trials that received something.
     """
-    use_counts[treat_pip_or_apt_installed_line_of_named_package_as_received.__name__] += 1
+    use_counts[
+        treat_pip_or_apt_installed_line_of_named_package_as_received.__name__
+    ] += 1
     return True
 
 
