@@ -42,7 +42,7 @@ from tb_internet_use.network_request_result.model import (
 from tb_internet_use.network_request_result.parse_package_names_text import (
     parse_package_names_text,
 )
-from tb_internet_use.tool_call.model import ExitOutcome, ToolCallKey
+from tb_internet_use.tool_call.model import ExitOutcome, ShellCommand, ToolCallKey
 
 if TYPE_CHECKING:
     # `NetworkRequestResultKnowledge` is passed in and named in annotations only, so that this module never loads `knowledge/` itself.
@@ -149,6 +149,7 @@ def stopped_command_ids_from_missing_program_line(
     A program that is not installed ends every command that runs it with a code other than 0, so the line shows that each such command failed, wherever its own output went.
     `ran_commands` are all commands of one call that is a source of the place of the line, as `RanShellText.ran_commands` holds them, so that the ids of `runs_if` point into them.
     A command whose `structure_may_be_wrong` is set neither stops another nor is stopped, since its `runs_if` may be wrong.
+    A command left of `||` stops nothing after the list, e.g. `rg x` in `rg x || grep x f && pip install y`, since grep runs after rg failed and pip then runs if grep succeeds.
     The ids are in the order of `ran_commands`.
     """
     failed_command_ids = {
@@ -161,11 +162,49 @@ def stopped_command_ids_from_missing_program_line(
         ran_command.shell_command.id
         for ran_command in ran_commands
         if not ran_command.shell_command.structure_may_be_wrong
-        and any(
-            run_condition.required_outcome_of_deciding_commands == ExitOutcome.SUCCESS
-            and not failed_command_ids.isdisjoint(run_condition.deciding_command_ids)
-            for run_condition in ran_command.shell_command.runs_if
+        and not failed_command_ids.isdisjoint(
+            stopping_command_ids_of(ran_command.shell_command, ran_commands)
         )
+    )
+
+
+def stopping_command_ids_of(
+    shell_command: ShellCommand, ran_commands: Sequence[RanCommand]
+) -> frozenset[int]:
+    """Find the ids of the commands whose failure shows that a command did not run, e.g. a and b for c in `a && b && c`, but only b for c in `a || b && c`.
+
+    A run condition that requires success names every deciding command of a list, e.g. a and b for c in `a || b && c`, and holds when the list succeeds.
+    The failure of a deciding command after which another deciding command runs only if it failed, i.e. one left of `||`, does not fail the list, since the list then succeeds if the command after `||` does.
+    A failure of b in `a || b && c` shows that b ran, so a failed, and the list failed with b.
+    `ran_commands` are all commands of the call of `shell_command`, as `ran_commands_of` gives them, so that the ids of `runs_if` point into them.
+    """
+    shell_command_by_id = {
+        ran_command.shell_command.id: ran_command.shell_command
+        for ran_command in ran_commands
+    }
+    return frozenset(
+        deciding_command_id
+        for run_condition in shell_command.runs_if
+        if run_condition.required_outcome_of_deciding_commands == ExitOutcome.SUCCESS
+        for deciding_command_id in run_condition.deciding_command_ids
+        if not _has_command_run_after_failure_of(
+            deciding_command_id, run_condition.deciding_command_ids, shell_command_by_id
+        )
+    )
+
+
+def _has_command_run_after_failure_of(
+    command_id: int,
+    deciding_command_ids: Sequence[int],
+    shell_command_by_id: Mapping[int, ShellCommand],
+) -> bool:
+    """Tell whether one of the deciding commands of a run condition runs only if a command among them failed, e.g. b for a in `a || b && c`."""
+    return any(
+        run_condition.required_outcome_of_deciding_commands == ExitOutcome.FAILURE
+        and command_id in run_condition.deciding_command_ids
+        for deciding_command_id in deciding_command_ids
+        if deciding_command_id in shell_command_by_id
+        for run_condition in shell_command_by_id[deciding_command_id].runs_if
     )
 
 

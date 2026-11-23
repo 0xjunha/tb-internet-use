@@ -37,6 +37,7 @@ from tb_internet_use.network_request_result._decide_output_line_owners import (
     program_output_lines_of,
     ran_commands_of,
     stopped_command_ids_from_missing_program_line,
+    stopping_command_ids_of,
 )
 from tb_internet_use.network_request_result.model import (
     EvidenceWithLevel,
@@ -1360,7 +1361,7 @@ def _output_line_evidence_of_stopping_line(
 def _deciding_command_ids_of(
     ran_commands: Sequence[RanCommand], command_id: int
 ) -> frozenset[int]:
-    """Find the ids of the commands whose success a command needs to run, e.g. the id of a for b in `a && b`, none when either may be read with a wrong structure."""
+    """Find the ids of the commands whose failure shows that a command did not run, e.g. the id of a for b in `a && b` but not for c in `a || b && c`, none when either may be read with a wrong structure."""
     ran_command_by_id = {
         ran_command.shell_command.id: ran_command for ran_command in ran_commands
     }
@@ -1369,9 +1370,9 @@ def _deciding_command_ids_of(
         return frozenset()
     return frozenset(
         deciding_command_id
-        for run_condition in shell_command.runs_if
-        if run_condition.required_outcome_of_deciding_commands == ExitOutcome.SUCCESS
-        for deciding_command_id in run_condition.deciding_command_ids
+        for deciding_command_id in stopping_command_ids_of(
+            shell_command, ran_commands
+        )
         if deciding_command_id in ran_command_by_id
         and not ran_command_by_id[
             deciding_command_id

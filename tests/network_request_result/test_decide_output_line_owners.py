@@ -138,6 +138,10 @@ def after_success_of(*deciding_command_ids: int) -> tuple[RunCondition, ...]:
     return (RunCondition(deciding_command_ids, ExitOutcome.SUCCESS),)
 
 
+def after_failure_of(*deciding_command_ids: int) -> tuple[RunCondition, ...]:
+    return (RunCondition(deciding_command_ids, ExitOutcome.FAILURE),)
+
+
 def call(
     tool_call_key: ToolCallKey,
     *ran_commands: RanCommand,
@@ -1037,6 +1041,53 @@ def test_stopped_command_ids_follow_the_run_conditions_that_require_success_of_a
     assert stopped_command_ids_from_missing_program_line("rg", ran_commands) == (1, 2)
     assert stopped_command_ids_from_missing_program_line("b", ran_commands) == (2,)
     assert stopped_command_ids_from_missing_program_line("x", ran_commands) == ()
+
+
+# (text, commands as (id, text, run conditions), missing program, ids of the stopped commands)
+STOPPED_AFTER_OR_LIST_CASES = [
+    # grep runs after rg failed, and pip then runs if grep succeeds.
+    (
+        "rg x || grep x f && pip install y",
+        [(0, "rg", ()), (1, "grep", after_failure_of(0)), (2, "pip", after_success_of(0, 1))],
+        "rg",
+        (),
+    ),
+    # grep failed, so it ran, rg failed before it and the list failed.
+    (
+        "rg x || grep x f && pip install y",
+        [(0, "rg", ()), (1, "grep", after_failure_of(0)), (2, "pip", after_success_of(0, 1))],
+        "grep",
+        (2,),
+    ),
+    # b never runs after rg failed, and d runs after c, which runs after the left list failed.
+    (
+        "rg x && b || c && d",
+        [
+            (0, "rg", ()),
+            (1, "b", after_success_of(0)),
+            (2, "c", after_failure_of(0, 1)),
+            (3, "d", after_success_of(0, 1, 2)),
+        ],
+        "rg",
+        (1,),
+    ),
+]
+
+
+def test_missing_program_left_of_or_stops_no_command_after_the_list():
+    for text, commands, missing_program_word, stopped_command_ids in (
+        STOPPED_AFTER_OR_LIST_CASES
+    ):
+        ran_commands = tuple(
+            command(command_id, program_name, program(program_name), runs_if=runs_if)
+            for command_id, program_name, runs_if in commands
+        )
+        assert (
+            stopped_command_ids_from_missing_program_line(
+                missing_program_word, ran_commands
+            )
+            == stopped_command_ids
+        ), text
 
 
 def test_unknown_run_beside_a_request_is_another_source_command_or_another_program_of_its_own_command():

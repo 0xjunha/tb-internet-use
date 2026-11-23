@@ -2454,6 +2454,40 @@ def test_failure_of_a_before_a_server_stops_only_b_that_surely_needs_its_success
     assert decided.judgment_rule_use_counts == Counter({RULE_11: 1})
 
 
+def test_failure_of_a_before_a_server_does_not_stop_c_after_the_fallback_b_of_a():
+    # `curl -sS https://a.org/x || curl -sS https://b.org/x && pip install y`, where curl b ran after curl a failed, and pip then ran if curl b succeeded.
+    curl_a = command(0, "curl -sS https://a.org/x", CURL)
+    curl_b = command(
+        1,
+        "curl -sS https://b.org/x",
+        CURL,
+        runs_if=(RunCondition((0,), ExitOutcome.FAILURE),),
+    )
+    pip = command(2, "pip install y", PIP_INSTALL, runs_if=after_success_of(0, 1))
+    network_request_a = request(K1, from_command(curl_a), "https://a.org/x")
+    network_request_b = request(
+        K1, from_command(curl_b), "https://b.org/x", index_in_tool_call=1
+    )
+    network_request_c = request(
+        K1, from_command(pip), "y", target_kind=PACKAGE_NAME, index_in_tool_call=2
+    )
+    decided = decide(
+        network_request_c,
+        [call(K1, curl_a, curl_b, pip, exit_code=7)],
+        network_requests=[network_request_a, network_request_b, network_request_c],
+        places=(place(K1, (K1, (0, 1, 2))),),
+        output_line_owners=(
+            owned(
+                K1,
+                "curl: (7) Failed to connect to a.org port 443",
+                network_request_a,
+            ),
+        ),
+    )
+    assert decided.evidence_with_levels == ()
+    assert decided.judgment_rule_use_counts == Counter({RULE_11: 1})
+
+
 def test_failure_of_a_command_of_another_call_with_the_same_id_does_not_stop_b():
     network_request_b, _, expanded_tool_calls = curl_failure_and_pip()
     curl_of_call_2 = command(0, "curl -sS https://a.org/x", CURL)
