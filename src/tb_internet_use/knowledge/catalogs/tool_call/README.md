@@ -1,6 +1,6 @@
 # Harness tool catalog
 
-The harness tool catalog is outside knowledge for `convert_tool_calls`, kept in the three CSVs of this folder. They are labeled by hand, their `reviewed` column says which rows a person has reviewed, and the conversion reads them only through `ToolCallKnowledge` in [tool_call_knowledge.py](../../tool_call_knowledge.py).
+The harness tool catalog is outside knowledge for `convert_tool_calls`, kept in the three CSVs of this folder. They are labeled by hand, their `reviewed` column says which rows a person or three agents have reviewed, and the conversion reads them only through `ToolCallKnowledge` in [tool_call_knowledge.py](../../tool_call_knowledge.py).
 
 All three files start with the columns `harness` and `tool`, the names that the trajectory gives the harness and the tool, e.g. `claude-code` and `Bash`, which key each row together with `argument` of `harness_tool_arguments.csv` and `return_code_interpretation` of `harness_return_code_interpretations.csv`.
 
@@ -24,7 +24,7 @@ A text without a row leaves the exit code of the result unknown and is counted a
 All three files end with the same three columns.
 
 - **`checked_against`:** What the row was checked against, e.g. `8 sampled tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)` for a label that rests on calls read beside their trajectory.
-- **`reviewed`:** `yes` once a person has reviewed the row, empty until then.
+- **`reviewed`:** `yes` once a person has reviewed the row, `agents` once three agents each checked the row against a primary source and all found every value right, two of them seeing the values and one filling them without seeing them, empty otherwise.
 - **`note`:** Free text, e.g. what the handles of an argument name, why a tool stays `OtherAction` although some of its calls touch the task environment, or which programs a return code interpretation is written for.
 
 A row the conversion cannot use raises `ValueError` when the catalog is loaded, e.g. an `action_type` that names no class, an `action_field` that the class does not have or an `exit_code` that is no integer. A tool without a row becomes `UnknownAction` and is counted as an unknown input.

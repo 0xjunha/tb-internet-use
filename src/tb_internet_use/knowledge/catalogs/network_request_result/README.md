@@ -1,6 +1,6 @@
 # Program output catalogs
 
-The program output catalogs are outside knowledge for `decide_network_request_results`. They say which lines a program run can print, so that a line in a result is matched only to requests whose run can have printed it, and what an exit code of a program says of its request. They are filled by hand, their `reviewed` column says which rows a person has reviewed, and `decide_network_request_results` reads them only through `NetworkRequestResultKnowledge` in [network_request_result_knowledge.py](../../network_request_result_knowledge.py). How a program reads its words is in the [program catalog](../expanded_tool_call/README.md) of `expand_tool_calls`, so every program and subcommand here needs a row of `program_behaviors.csv` too. Whether a program such as sudo ends with the exit code of the program it runs is there as well, and not here.
+The program output catalogs are outside knowledge for `decide_network_request_results`. They say which lines a program run can print, so that a line in a result is matched only to requests whose run can have printed it, and what an exit code of a program says of its request. They are filled by hand, their `reviewed` column says which rows a person or three agents have reviewed, and `decide_network_request_results` reads them only through `NetworkRequestResultKnowledge` in [network_request_result_knowledge.py](../../network_request_result_knowledge.py). How a program reads its words is in the [program catalog](../expanded_tool_call/README.md) of `expand_tool_calls`, so every program and subcommand here needs a row of `program_behaviors.csv` too. Whether a program such as sudo ends with the exit code of the program it runs is there as well, and not here.
 
 Both files have two kinds of rows, keyed by `program_name`, `subcommand` and `option_name`, and in `program_exit_codes.csv` also by `exit_code`.
 
@@ -35,7 +35,7 @@ Both files end with the same three columns.
 | Column | Cell | Blank |
 |---|---|---|
 | `checked_against` | What the cells were checked against, naming the page, its section and the version, e.g. `curl(1) -f, --fail, --fail-with-body and EXIT CODES 22, curl 8.23.1 (curl.se/docs/manpage.html)`. A cell taken over from the old program tables without a check says `not checked, from the old table` | Fails the load |
-| `reviewed` | `yes` once a person has reviewed the row | Not reviewed yet |
+| `reviewed` | `yes` once a person has reviewed the row, `agents` once three agents each checked the row against a primary source and all found every value right, two of them seeing the values and one filling them without seeing them | Not reviewed yet |
 | `note` | Free text, e.g. why a cell is blank or where the row came from | Nothing to note |
 
 A page counts as in the [program catalog](../expanded_tool_call/README.md). Which printing programs a run prints is checked against the output line patterns in [program_output.py](../../declarations/network_request_result/output_line_patterns/program_output.py) and against the program's own documentation for whether the run prints those lines. Each pattern names the printing programs known to print its line, e.g. `HTTP_HEADERS` and `GIT` for `http_status_line`, and some name none, e.g. `connection_failure`, a line that any program can print.

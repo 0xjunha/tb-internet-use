@@ -221,7 +221,7 @@ _PROGRAM_ROWS_THAT_CANNOT_LOAD = [
     ({"visibility_of_piped_input": "unknown"}, "unknown only when blank"),
     ({"exits_with_exit_code_of_next_program": "maybe"}, "not yes or no"),
     ({"subcommand": "pip  install"}, "not words split by one space"),
-    ({"reviewed": "no"}, "not empty or yes"),
+    ({"reviewed": "no"}, "not empty, yes or agents"),
     ({"program_name": ""}, "program_name is empty"),
 ]
 # Rows of one program name that differ in `name_may_end_with_version`, so that `ExpandedToolCallKnowledge` could not tell whether pip3 is pip.

@@ -316,8 +316,19 @@ def test_row_that_export_rows_cannot_use_raises_when_the_catalogs_load(
 
 
 @pytest.mark.parametrize(("file_name", "header", "row"), _CATALOGS_WITH_A_ROW)
-@pytest.mark.parametrize("reviewed", ["no", "Yes"])
-def test_row_with_a_reviewed_other_than_empty_or_yes_raises(
+@pytest.mark.parametrize("reviewed", ["", "yes", "agents"])
+def test_row_with_a_reviewed_of_empty_yes_or_agents_loads(
+    tmp_path, file_name, header, row, reviewed
+):
+    catalogs_dir = _write_catalogs(tmp_path)
+    (catalogs_dir / file_name).write_text(f"{header}\n{row},a manual,{reviewed},\n")
+
+    ExportKnowledge(catalogs_dir=catalogs_dir)
+
+
+@pytest.mark.parametrize(("file_name", "header", "row"), _CATALOGS_WITH_A_ROW)
+@pytest.mark.parametrize("reviewed", ["no", "Yes", "agent"])
+def test_row_with_a_reviewed_other_than_empty_yes_or_agents_raises(
     tmp_path, file_name, header, row, reviewed
 ):
     catalogs_dir = _write_catalogs(tmp_path)

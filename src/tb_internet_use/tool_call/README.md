@@ -83,7 +83,7 @@ What each harness tool does is outside knowledge, which no trajectory holds. It 
 | Step | Method |
 |---|---|
 | List the tools and arguments in the data | Code: [`audit_tool_call_knowledge.py`](../../../scripts/audit_tool_call_knowledge.py), which writes under `out/` and never into the catalog |
-| Label `action_type`, `action_field` | LLM draft, then human review, which the `reviewed` column records per row |
+| Label `action_type`, `action_field` | LLM draft, then a review by a person or by three agents, which the `reviewed` column records per row as `yes` or `agents` |
 | Settle doubtful labels | LLM checks raw trajectories, human decides |
 
 Tools whose `ToolCallAction` varies by call are labeled [`Deferred`](../knowledge/catalogs/tool_call/README.md#deferred-tools).

@@ -1,4 +1,4 @@
 harness,tool,return_code_interpretation,exit_code,checked_against,reviewed,note
-claude-code,Bash,No matches found,1,"the Claude Code 2.1.312 binary, which writes it only for exit code 1 of the last command of a pipeline",,"written for grep, rg, egrep, fgrep and git grep"
-claude-code,Bash,Files differ,1,"the Claude Code 2.1.312 binary, which writes it only for exit code 1 of the last command of a pipeline",,written for diff and git diff
-claude-code,Bash,Some directories were inaccessible,1,"the Claude Code 2.1.312 binary, which writes it only for exit code 1 of the last command of a pipeline",,written for find
+claude-code,Bash,No matches found,1,"the Claude Code 2.1.312 binary, which writes it only for exit code 1 of the last command of a pipeline",agents,"written for grep, rg, egrep, fgrep and git grep"
+claude-code,Bash,Files differ,1,"the Claude Code 2.1.312 binary, which writes it only for exit code 1 of the last command of a pipeline",agents,written for diff and git diff
+claude-code,Bash,Some directories were inaccessible,1,"the Claude Code 2.1.312 binary, which writes it only for exit code 1 of the last command of a pipeline",agents,written for find

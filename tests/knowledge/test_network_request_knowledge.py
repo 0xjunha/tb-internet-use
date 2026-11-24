@@ -159,7 +159,7 @@ _CODE_CALL_CATALOGS_THAT_CANNOT_LOAD = [
         [{**_SENDING_CODE_CALL_ROW_CELLS, "checked_against": ""}],
         "checked_against is empty",
     ),
-    ([{**_SENDING_CODE_CALL_ROW_CELLS, "reviewed": "no"}], "not empty or yes"),
+    ([{**_SENDING_CODE_CALL_ROW_CELLS, "reviewed": "no"}], "not empty, yes or agents"),
     (
         [{**_RUNNING_CODE_CALL_ROW_CELLS, "module_name": "subprocess"}],
         "is not the first dotted part of 'os.system'",
@@ -225,7 +225,7 @@ _CATALOGS_THAT_CANNOT_LOAD = [
         [_PROGRAM_ROW_CELLS, {**_OPTION_ROW_CELLS, "option_effect": ""}],
         "'' is not a valid",
     ),
-    ([{**_PROGRAM_ROW_CELLS, "reviewed": "no"}], "not empty or yes"),
+    ([{**_PROGRAM_ROW_CELLS, "reviewed": "no"}], "not empty, yes or agents"),
     ([{**_PROGRAM_ROW_CELLS, "program_name": ""}], "program_name is empty"),
     (
         [{**_PROGRAM_ROW_CELLS, "subcommand": "pip  install"}],
@@ -578,6 +578,10 @@ _NOT_CHECKED = "not checked, from the old table"
 _MANUAL_PAGE_NAME = re.compile(r"\b[\w.+-]+\([1-9][a-z]*\)")
 # A host of a documentation site, e.g. `pip.pypa.io` or `pnpm.io` in `pnpm.io/cli/install`.
 _DOCUMENTATION_HOST = re.compile(r"\b(?:[a-z0-9-]+\.)+[a-z]{2,}\b")
+# A source file of the program, e.g. `src/http.c` or `bunx_command.rs`, an info manual such as `wget.info`, or its help output, e.g. `uv --help` or `uv help pip install`.
+_SOURCE_FILE_OR_HELP_OUTPUT = re.compile(
+    r"\b[\w/.-]+\.(?:c|cc|go|info|js|lean|py|rs|ts)\b|--help\b|\bhelp \w"
+)
 
 
 def _write_catalog(
@@ -838,7 +842,7 @@ def test_real_catalog_loads_and_holds_no_invisible_control_characters():
     text = (NETWORK_REQUEST_CATALOGS_DIR / PROGRAM_NETWORK_REQUESTS_CSV).read_text()
 
     assert not [c for c in text if ord(c) < 32 and c != "\n"]
-    assert all(row["reviewed"] == "" for row in _real_rows())
+    assert all(row["reviewed"] in ("", "agents") for row in _real_rows())
 
 
 def test_every_program_row_of_the_old_catalog_has_a_row_with_the_cells_it_states():
@@ -978,13 +982,14 @@ def test_one_key_asked_twice_is_counted_twice():
     )
 
 
-def test_real_checked_against_is_the_wording_of_a_carried_row_or_names_a_manual_page_or_a_site():
+def test_real_checked_against_is_the_wording_of_a_carried_row_or_names_a_manual_page_a_site_a_source_file_or_help_output():
     for row in _real_rows():
         checked_against = row["checked_against"]
         assert (
             checked_against == _NOT_CHECKED
             or _MANUAL_PAGE_NAME.search(checked_against)
             or _DOCUMENTATION_HOST.search(checked_against)
+            or _SOURCE_FILE_OR_HELP_OUTPUT.search(checked_against)
         ), row
 
 
@@ -1115,7 +1120,7 @@ def test_real_code_call_catalog_loads_and_holds_no_invisible_control_characters(
     text = (NETWORK_REQUEST_CATALOGS_DIR / CODE_CALLS_CSV).read_text()
 
     assert not [c for c in text if ord(c) < 32 and c != "\n"]
-    assert all(row["reviewed"] == "" for row in _real_code_call_rows())
+    assert all(row["reviewed"] in ("", "agents") for row in _real_code_call_rows())
 
 
 def test_real_code_call_rows_are_carried_from_the_old_tables_or_name_a_documentation_page():

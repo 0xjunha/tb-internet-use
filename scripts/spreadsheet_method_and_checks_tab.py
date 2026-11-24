@@ -610,7 +610,7 @@ _CATALOGS_DIR = (
 def _add_catalog_review_table(
     grid: TabGrid, counts: SpreadsheetPythonCounts, row_tabs: SpreadsheetRowTabs
 ) -> None:
-    """Add the limits that no check can show and the reviewed rows of each catalog."""
+    """Add the limits that no check can show and the rows of each catalog that a person or three agents reviewed."""
     grid.add_row(TabCell("What the rows rest on", style=CellStyle.SECTION))
     for text in (
         *(
@@ -628,13 +628,13 @@ def _add_catalog_review_table(
         "A request of a program that no catalog row covers, sent without a public URL in its words, is in no bound. A request of a script or binary whose content the trajectory does not show is in no bound either.",
         f"The tab {row_tabs.network_request_rows.name} holds only the rows whose request_measure_bound is lower_and_upper and the rows of web tools. The other rows are in network_request_rows.csv of the run folder.",
         "A host_service of unknown is a public host without a row of public_hosts.csv, and a sender of unknown a web tool without a row of harness_web_tools.csv. They are shown as they are.",
-        "Each fact of a catalog says what it was checked against, and a person marks it reviewed. The steps use facts that no person reviewed yet.",
+        "Each fact of a catalog says what it was checked against and whether it was reviewed, by a person or by three agents that each checked it against a primary source and all found it right. The steps use facts that nobody reviewed yet too.",
     ):
         grid.add_note(text, _NOTE_LAST_COLUMN)
     grid.add_row(
         *(
             TabCell(text, style=CellStyle.HEADER)
-            for text in ("Catalog", "Rows", "Reviewed rows")
+            for text in ("Catalog", "Rows", "Reviewed by a person", "Reviewed by agents")
         )
     )
     for catalog_path in sorted(_CATALOGS_DIR.glob("*/*.csv")):
@@ -644,6 +644,10 @@ def _add_catalog_review_table(
             TabCell(len(catalog_rows), style=CellStyle.PYTHON_COUNT),
             TabCell(
                 sum(1 for row in catalog_rows if row.get("reviewed") == "yes"),
+                style=CellStyle.PYTHON_COUNT,
+            ),
+            TabCell(
+                sum(1 for row in catalog_rows if row.get("reviewed") == "agents"),
                 style=CellStyle.PYTHON_COUNT,
             ),
         )

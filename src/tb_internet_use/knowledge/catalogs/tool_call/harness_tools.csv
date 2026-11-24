@@ -1,32 +1,32 @@
 harness,tool,action_type,stops_execution,checked_against,reviewed,note
-antigravity-cli,define_subagent,OtherAction,,"all 4 tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,defines a subagent type for later invoke_subagent calls
-antigravity-cli,edit_file,EditFileAction,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,
-antigravity-cli,invoke_subagent,StartSubagentAction,,"all 22 tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,"the subagent's own calls are not in the trajectory, only the transcript file its result names"
+antigravity-cli,define_subagent,OtherAction,,"all 4 tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",agents,defines a subagent type for later invoke_subagent calls
+antigravity-cli,edit_file,EditFileAction,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",agents,
+antigravity-cli,invoke_subagent,StartSubagentAction,,"all 22 tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",agents,"the subagent's own calls are not in the trajectory, only the transcript file its result names"
 antigravity-cli,manage_subagents,OtherAction,,"all 48 tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,"lists the subagents or kills all of them, and a kill names no subagent"
-antigravity-cli,manage_task,Deferred,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,
-antigravity-cli,read_file,ReadFileAction,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,
-antigravity-cli,run_command,RunCommandAction,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,
-antigravity-cli,schedule,OtherAction,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,a timer that wakes the agent after a time or when a task ends
-antigravity-cli,search_web,WebSearchAction,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,
-antigravity-cli,send_message,PollAction,no,"all 16 tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,the message text fills no field since no later step reads what is said to a subagent
-antigravity-cli,SYSTEM_MESSAGE,Deferred,,"all 10,171 SYSTEM_MESSAGE steps in the trajectories (terminal-bench 4.1, 2026-11-19)",,"not a tool but a step that the harness writes to the agent, e.g. the end of a background task, read as a call by parse_trajectory"
-antigravity-cli,write_file,Deferred,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,
+antigravity-cli,manage_task,Deferred,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",agents,
+antigravity-cli,read_file,ReadFileAction,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",agents,
+antigravity-cli,run_command,RunCommandAction,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",agents,
+antigravity-cli,schedule,OtherAction,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",agents,a timer that wakes the agent after a time or when a task ends
+antigravity-cli,search_web,WebSearchAction,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",agents,
+antigravity-cli,send_message,PollAction,no,"all 16 tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",agents,the message text fills no field since no later step reads what is said to a subagent
+antigravity-cli,SYSTEM_MESSAGE,Deferred,,"all 10,171 SYSTEM_MESSAGE steps in the trajectories (terminal-bench 4.1, 2026-11-19)",agents,"not a tool but a step that the harness writes to the agent, e.g. the end of a background task, read as a call by parse_trajectory"
+antigravity-cli,write_file,Deferred,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",agents,
 claude-code,,UnknownAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 claude-code,"""",UnknownAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 claude-code,"""]",UnknownAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 claude-code,...,UnknownAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
-claude-code,Agent,StartSubagentAction,,8 sampled tool calls in the trajectories (terminal-bench 2026-10-08),,
+claude-code,Agent,StartSubagentAction,,8 sampled tool calls in the trajectories (terminal-bench 2026-10-08),agents,
 claude-code,Bash,RunCommandAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 claude-code,BashOutput,UnknownAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 claude-code,BcriptBash,UnknownAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 claude-code,Bun_placeholder,UnknownAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 claude-code,Edit,EditFileAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 claude-code,ListAgents,OtherAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
-claude-code,Monitor,RunCommandAction,,"all 4,745 tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,"runs a shell command in the background, each line it prints coming back as an event in a task-notification"
+claude-code,Monitor,RunCommandAction,,"all 4,745 tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",agents,"runs a shell command in the background, each line it prints coming back as an event in a task-notification"
 claude-code,Read,ReadFileAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 claude-code,ReportFindings,OtherAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 claude-code,ScheduleWakeup,OtherAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
-claude-code,SendMessage,PollAction,no,8 sampled tool calls in the trajectories (terminal-bench 2026-10-08),,the message text fills no field since no later step reads what is said to a subagent
+claude-code,SendMessage,PollAction,no,8 sampled tool calls in the trajectories (terminal-bench 2026-10-08),agents,the message text fills no field since no later step reads what is said to a subagent
 claude-code,Skill,OtherAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,6 of 31 calls ran as a forked subagent in the 2026-10-08 data
 claude-code,TaskCreate,OtherAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 claude-code,TaskList,OtherAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
@@ -48,7 +48,7 @@ claude-code,bash_tool_placeholder,UnknownAction,,tool calls in the trajectories 
 claude-code,mcp__playwright__browser_click,OtherAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,acts on a browser page
 claude-code,mcp__playwright__browser_navigate,WebFetchAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 claude-code,mcp__playwright__browser_take_screenshot,OtherAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,acts on a browser page
-claude-code,task-notification,Deferred,,"all 4,206 task-notification blocks of user steps in the trajectories (terminal-bench 4.1, 2026-11-19)",,"not a tool but a block that the harness writes to the agent, e.g. the end of a background task, read as a call by parse_trajectory"
+claude-code,task-notification,Deferred,,"all 4,206 task-notification blocks of user steps in the trajectories (terminal-bench 4.1, 2026-11-19)",agents,"not a tool but a block that the harness writes to the agent, e.g. the end of a background task, read as a call by parse_trajectory"
 claude-code,"{""name"":...}",UnknownAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 claude-code,"{\""name\"":\""foo\"",\""arguments\"":{\""x\"":1}}",UnknownAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 codex,clock__curr_time,OtherAction,,exec scripts in the trajectories (terminal-bench 2026-10-08),yes,
@@ -56,49 +56,49 @@ codex,create_goal,OtherAction,,tool calls in the trajectories (terminal-bench 20
 codex,exec,Deferred,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 codex,exec_command,RunCommandAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 codex,get_goal,OtherAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
-codex,interrupt_agent,PollAction,yes,all 3 tool calls in the trajectories (terminal-bench 2026-10-08),,
+codex,interrupt_agent,PollAction,yes,all 3 tool calls in the trajectories (terminal-bench 2026-10-08),agents,
 codex,list_agents,OtherAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 codex,request_user_input,OtherAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 codex,request_user_input_async,OtherAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 codex,sleep,OtherAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 codex,update_goal,OtherAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 codex,update_plan,OtherAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
-codex,view_image,ReadFileAction,,8 sampled tool calls in the trajectories (terminal-bench 2026-10-08),,
+codex,view_image,ReadFileAction,,8 sampled tool calls in the trajectories (terminal-bench 2026-10-08),agents,
 codex,wait,PollAction,no,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
-codex,wait_agent,PollAction,no,8 sampled tool calls in the trajectories (terminal-bench 2026-10-08),,
+codex,wait_agent,PollAction,no,8 sampled tool calls in the trajectories (terminal-bench 2026-10-08),agents,
 codex,web_search_call,Deferred,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 codex,write_stdin,PollAction,no,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
-copilot-cli,apply_patch,Deferred,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,"A patch can change several files, so the action is decided per call from the patch."
-copilot-cli,bash,RunCommandAction,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,
-copilot-cli,create,WriteFileAction,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,
-copilot-cli,edit,EditFileAction,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,
-copilot-cli,glob,ListFilesAction,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,
-copilot-cli,grep,SearchFilesAction,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,
-copilot-cli,list_agents,OtherAction,,"all 11 tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,Lists the subagents without reading one.
-copilot-cli,list_bash,OtherAction,,"all 16 tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,Lists the shell sessions without reading one.
-copilot-cli,read_agent,PollAction,no,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,
-copilot-cli,read_bash,PollAction,no,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,
-copilot-cli,rg,SearchFilesAction,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,
-copilot-cli,session_store_sql,OtherAction,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,Queries Copilot CLI's store of past sessions.
-copilot-cli,skill,OtherAction,,"the only tool call in the trajectories (terminal-bench 4.1, 2026-11-19)",,
-copilot-cli,sql,OtherAction,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,"Queries Copilot CLI's session database, e.g. its to-do table."
-copilot-cli,stop_bash,PollAction,yes,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,
-copilot-cli,str_replace,UnknownAction,,"all 2 tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,Copilot CLI answers that the tool does not exist.
-copilot-cli,str_replace_editor,UnknownAction,,"all 2 tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,Copilot CLI answers that the tool does not exist.
-copilot-cli,str_replace_placeholder,UnknownAction,,"the only tool call in the trajectories (terminal-bench 4.1, 2026-11-19)",,Copilot CLI answers that the tool does not exist.
-copilot-cli,task,StartSubagentAction,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,
-copilot-cli,tool_search_tool,OtherAction,,"all 3 tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,Searches the names of tools Copilot CLI can load.
-copilot-cli,view,Deferred,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",,"Reads a file or lists a folder, which only the result tells."
+copilot-cli,apply_patch,Deferred,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",agents,"A patch can change several files, so the action is decided per call from the patch."
+copilot-cli,bash,RunCommandAction,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",agents,
+copilot-cli,create,WriteFileAction,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",agents,
+copilot-cli,edit,EditFileAction,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",agents,
+copilot-cli,glob,ListFilesAction,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",agents,
+copilot-cli,grep,SearchFilesAction,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",agents,
+copilot-cli,list_agents,OtherAction,,"all 11 tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",agents,Lists the subagents without reading one.
+copilot-cli,list_bash,OtherAction,,"all 16 tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",agents,Lists the shell sessions without reading one.
+copilot-cli,read_agent,PollAction,no,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",agents,
+copilot-cli,read_bash,PollAction,no,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",agents,
+copilot-cli,rg,SearchFilesAction,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",agents,
+copilot-cli,session_store_sql,OtherAction,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",agents,Queries Copilot CLI's store of past sessions.
+copilot-cli,skill,OtherAction,,"the only tool call in the trajectories (terminal-bench 4.1, 2026-11-19)",agents,
+copilot-cli,sql,OtherAction,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",agents,"Queries Copilot CLI's session database, e.g. its to-do table."
+copilot-cli,stop_bash,PollAction,yes,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",agents,
+copilot-cli,str_replace,UnknownAction,,"all 2 tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",agents,Copilot CLI answers that the tool does not exist.
+copilot-cli,str_replace_editor,UnknownAction,,"all 2 tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",agents,Copilot CLI answers that the tool does not exist.
+copilot-cli,str_replace_placeholder,UnknownAction,,"the only tool call in the trajectories (terminal-bench 4.1, 2026-11-19)",agents,Copilot CLI answers that the tool does not exist.
+copilot-cli,task,StartSubagentAction,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",agents,
+copilot-cli,tool_search_tool,OtherAction,,"all 3 tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",agents,Searches the names of tools Copilot CLI can load.
+copilot-cli,view,Deferred,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",agents,"Reads a file or lists a folder, which only the result tells."
 cursor-cli,awaitToolCall,PollAction,no,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
-cursor-cli,deleteToolCall,DeleteFileAction,,8 sampled tool calls in the trajectories (terminal-bench 2026-10-08),,
+cursor-cli,deleteToolCall,DeleteFileAction,,8 sampled tool calls in the trajectories (terminal-bench 2026-10-08),agents,
 cursor-cli,editToolCall,EditFileAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
-cursor-cli,globToolCall,ListFilesAction,,8 sampled tool calls in the trajectories (terminal-bench 2026-10-08),,
-cursor-cli,grepToolCall,SearchFilesAction,,8 sampled tool calls in the trajectories (terminal-bench 2026-10-08),,
+cursor-cli,globToolCall,ListFilesAction,,8 sampled tool calls in the trajectories (terminal-bench 2026-10-08),agents,
+cursor-cli,grepToolCall,SearchFilesAction,,8 sampled tool calls in the trajectories (terminal-bench 2026-10-08),agents,
 cursor-cli,listMcpResourcesToolCall,OtherAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 cursor-cli,mcpToolCall,Deferred,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 cursor-cli,readToolCall,ReadFileAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 cursor-cli,shellToolCall,RunCommandAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
-cursor-cli,taskToolCall,StartSubagentAction,,8 sampled tool calls in the trajectories (terminal-bench 2026-10-08),,
+cursor-cli,taskToolCall,StartSubagentAction,,8 sampled tool calls in the trajectories (terminal-bench 2026-10-08),agents,
 cursor-cli,updateTodosToolCall,OtherAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 cursor-cli,webFetchToolCall,WebFetchAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 cursor-cli,webSearchToolCall,WebSearchAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
@@ -107,14 +107,14 @@ devin,browser_preview,WebFetchAction,,tool calls in the trajectories (terminal-b
 devin,close_browser_preview,OtherAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 devin,edit,EditFileAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 devin,exec,RunCommandAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
-devin,find_file_by_name,ListFilesAction,,8 sampled tool calls in the trajectories (terminal-bench 2026-10-08),,
+devin,find_file_by_name,ListFilesAction,,8 sampled tool calls in the trajectories (terminal-bench 2026-10-08),agents,
 devin,get_output,PollAction,no,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
-devin,grep,SearchFilesAction,,8 sampled tool calls in the trajectories (terminal-bench 2026-10-08),,
+devin,grep,SearchFilesAction,,8 sampled tool calls in the trajectories (terminal-bench 2026-10-08),agents,
 devin,kill_shell,PollAction,yes,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 devin,mcp_list_servers,OtherAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 devin,read,ReadFileAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
-devin,read_subagent,PollAction,no,8 sampled tool calls in the trajectories (terminal-bench 2026-10-08),,
-devin,run_subagent,StartSubagentAction,,all 8 tool calls in the trajectories (terminal-bench 2026-10-08),,
+devin,read_subagent,PollAction,no,8 sampled tool calls in the trajectories (terminal-bench 2026-10-08),agents,
+devin,run_subagent,StartSubagentAction,,all 8 tool calls in the trajectories (terminal-bench 2026-10-08),agents,
 devin,skill,OtherAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 devin,todo_write,OtherAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 devin,web_search,WebSearchAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
@@ -122,15 +122,15 @@ devin,webfetch,WebFetchAction,,tool calls in the trajectories (terminal-bench 20
 devin,write,WriteFileAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 devin,write_to_process,PollAction,no,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 grok-build,get_command_or_subagent_output,PollAction,no,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
-grok-build,grep,SearchFilesAction,,8 sampled tool calls in the trajectories (terminal-bench 2026-10-08),,
+grok-build,grep,SearchFilesAction,,8 sampled tool calls in the trajectories (terminal-bench 2026-10-08),agents,
 grok-build,kill_command_or_subagent,PollAction,yes,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
-grok-build,list_dir,ListFilesAction,,8 sampled tool calls in the trajectories (terminal-bench 2026-10-08),,
+grok-build,list_dir,ListFilesAction,,8 sampled tool calls in the trajectories (terminal-bench 2026-10-08),agents,
 grok-build,monitor,RunCommandAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 grok-build,read_file,ReadFileAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 grok-build,run_terminal_command,RunCommandAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 grok-build,search_replace,EditFileAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 grok-build,search_tool,OtherAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
-grok-build,system-reminder,Deferred,,"all 743 system-reminder blocks of user steps in the trajectories (terminal-bench 4.1, 2026-11-19)",,"not a tool but a block that the harness writes to the agent, e.g. the end of a background task, read as a call by parse_trajectory"
+grok-build,system-reminder,Deferred,,"all 743 system-reminder blocks of user steps in the trajectories (terminal-bench 4.1, 2026-11-19)",agents,"not a tool but a block that the harness writes to the agent, e.g. the end of a background task, read as a call by parse_trajectory"
 grok-build,todo_write,OtherAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 grok-build,write,WriteFileAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 mini-swe-agent,bash,RunCommandAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
@@ -142,15 +142,15 @@ muse-code,monitor,RunCommandAction,,tool calls in the trajectories (terminal-ben
 muse-code,read_file,ReadFileAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 muse-code,read_skill,OtherAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 muse-code,request_user_input,OtherAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
-muse-code,search,SearchFilesAction,,8 sampled tool calls in the trajectories (terminal-bench 2026-10-08),,
-muse-code,subagent_spawn,StartSubagentAction,,the only tool call in the trajectories (terminal-bench 2026-10-08),,
-muse-code,subagent_status,PollAction,no,the only tool call in the trajectories (terminal-bench 2026-10-08),,
+muse-code,search,SearchFilesAction,,8 sampled tool calls in the trajectories (terminal-bench 2026-10-08),agents,
+muse-code,subagent_spawn,StartSubagentAction,,the only tool call in the trajectories (terminal-bench 2026-10-08),agents,
+muse-code,subagent_status,PollAction,no,the only tool call in the trajectories (terminal-bench 2026-10-08),agents,
 muse-code,submit_reminder_decision,OtherAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 muse-code,submit_result,OtherAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
-muse-code,web_fetch,WebFetchAction,,"all 55 tool calls in the trajectories (terminal-bench 4.1, 2026-11-20)",,"Each call has the one argument url, and its result is the page text or a message that starts with `tool failed: web_fetch failed:`"
+muse-code,web_fetch,WebFetchAction,,"all 55 tool calls in the trajectories (terminal-bench 4.1, 2026-11-20)",agents,"Each call has the one argument url, and its result is the page text or a message that starts with `tool failed: web_fetch failed:`"
 muse-code,web_search,WebSearchAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 muse-code,work_list,OtherAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 muse-code,work_stop,PollAction,yes,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
-muse-code,workflow,StartSubagentAction,,all 3 tool calls in the trajectories (terminal-bench 2026-10-08),,
+muse-code,workflow,StartSubagentAction,,all 3 tool calls in the trajectories (terminal-bench 2026-10-08),agents,
 muse-code,write_file,WriteFileAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 muse-code,write_todos,OtherAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,

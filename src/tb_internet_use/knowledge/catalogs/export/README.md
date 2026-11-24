@@ -1,6 +1,6 @@
 # Export catalog
 
-The export catalog is outside knowledge for `export_rows`, kept in the three CSVs of this folder. They say what a public host serves, where a web tool sends its requests from and which registry a package command asks by default, so that `export_rows` can compute the category, the sender and whether a request is internet use. They are filled by hand, their `reviewed` column says which rows a person has reviewed, and `export_rows` reads them only through `ExportKnowledge` in [export_knowledge.py](../../export_knowledge.py).
+The export catalog is outside knowledge for `export_rows`, kept in the three CSVs of this folder. They say what a public host serves, where a web tool sends its requests from and which registry a package command asks by default, so that `export_rows` can compute the category, the sender and whether a request is internet use. They are filled by hand, their `reviewed` column says which rows a person or three agents have reviewed, and `export_rows` reads them only through `ExportKnowledge` in [export_knowledge.py](../../export_knowledge.py).
 
 Whether a host is public at all is no fact of this folder. It is read from the name by `parse_host_name` of `network_request/`, and only a public host is looked up here.
 
@@ -40,7 +40,7 @@ All three files end with the same three columns.
 | Column | Cell | Blank |
 |---|---|---|
 | `checked_against` | What the row was checked against, naming the page and its section, e.g. `npm documentation v10 (docs.npmjs.com/cli/v10/using-npm/config), Config Settings, registry`, or the calls of the trajectories that were counted | Fails the load |
-| `reviewed` | `yes` once a person has reviewed the row | Not reviewed yet |
+| `reviewed` | `yes` once a person has reviewed the row, `agents` once three agents each checked the row against a primary source and all found every value right, two of them seeing the values and one filling them without seeing them | Not reviewed yet |
 | `note` | Free text, e.g. what the check does not cover | Nothing to note |
 
 A host enters `public_hosts.csv` only when a page of the host itself, or a page of the service that runs it, says which `HostService` it gives, e.g. the GitHub documentation for `github.com`. Host names come from the trajectories, so a row holds only the host of a widely used public service. Such a host gets a row even when it occurs in the trajectories of one task only, while a host that is no such service gets none, since its name could show the content of a task. A host that serves an API, e.g. `rest.uniprot.org`, gets the service `web_api`, and a path that serves search results gets `search_engine`, e.g. `/search/` of `api.github.com`.

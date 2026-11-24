@@ -816,7 +816,7 @@ _CATALOGS_THAT_CANNOT_LOAD = [
     ([{**_OUTPUT_LINES_ROW, "prints_status_code": "maybe"}], [], "not yes or no"),
     ([_curl_option_row("-i")], [], "has no program row"),
     ([{**_OUTPUT_LINES_ROW, "checked_against": ""}], [], "checked_against is empty"),
-    ([{**_OUTPUT_LINES_ROW, "reviewed": "no"}], [], "not empty or yes"),
+    ([{**_OUTPUT_LINES_ROW, "reviewed": "no"}], [], "not empty, yes or agents"),
     ([{**_OUTPUT_LINES_ROW, "program_name": ""}], [], "program_name is empty"),
     (
         [{**_OUTPUT_LINES_ROW, "subcommand": "pip  install"}],
@@ -1027,6 +1027,10 @@ _NOT_CHECKED = "not checked, from the old table"
 _MANUAL_PAGE_NAME = re.compile(r"\b[\w.+-]+\([1-9][a-z]*\)")
 # A page of a program's own documentation named by its site and path, e.g. `(pip.pypa.io/en/stable/cli/pip/)`.
 _DOCUMENTATION_PAGE_ADDRESS = re.compile(r"\((?:[\w-]+\.)+[a-z]+/[^)]*\)")
+# A source file of the program, e.g. `src/http.c` or `bunx_command.rs`, an info manual such as `wget.info`, or its help output, e.g. `uv --help` or `uv help pip install`.
+_SOURCE_FILE_OR_HELP_OUTPUT = re.compile(
+    r"\b[\w/.-]+\.(?:c|cc|go|info|js|lean|py|rs|ts)\b|--help\b|\bhelp \w"
+)
 
 
 def _write_catalogs(
@@ -1560,7 +1564,7 @@ def test_real_write_out_rows_print_a_status_code_only_for_a_value_with_their_tex
 @pytest.mark.parametrize(
     "file_name", [PROGRAM_OUTPUT_LINES_CSV, PROGRAM_EXIT_CODES_CSV]
 )
-def test_real_catalog_loads_and_holds_no_invisible_control_characters_and_no_review_yet(
+def test_real_catalog_loads_and_holds_no_invisible_control_characters_and_no_review_by_a_person_yet(
     file_name,
 ):
     NetworkRequestResultKnowledge()
@@ -1568,11 +1572,12 @@ def test_real_catalog_loads_and_holds_no_invisible_control_characters_and_no_rev
 
     assert not [c for c in text if ord(c) < 32 and c != "\n"]
     for row in _real_rows(file_name):
-        assert row["reviewed"] == "", row
+        assert row["reviewed"] in ("", "agents"), row
         assert (
             row["checked_against"].startswith(_NOT_CHECKED)
             or _MANUAL_PAGE_NAME.search(row["checked_against"])
             or _DOCUMENTATION_PAGE_ADDRESS.search(row["checked_against"])
+            or _SOURCE_FILE_OR_HELP_OUTPUT.search(row["checked_against"])
         ), row
 
 

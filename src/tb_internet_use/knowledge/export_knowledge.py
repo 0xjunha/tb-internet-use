@@ -207,11 +207,11 @@ def _package_registry_from_columns(
 
 
 def _check_review_columns(columns: Mapping[str, str]) -> None:
-    """Raise ValueError on a row that does not say what it was checked against, or whose `reviewed` is neither empty nor `yes`."""
+    """Raise ValueError on a row that does not say what it was checked against, or whose `reviewed` is none of empty, `yes` and `agents`."""
     if not columns["checked_against"]:
         raise ValueError("checked_against is empty")
-    if columns["reviewed"] not in ("", "yes"):
-        raise ValueError(f"reviewed is {columns['reviewed']!r}, not empty or yes")
+    if columns["reviewed"] not in ("", "yes", "agents"):
+        raise ValueError(f"reviewed is {columns['reviewed']!r}, not empty, yes or agents")
 
 
 def _check_host_name(host_name: str) -> None:
