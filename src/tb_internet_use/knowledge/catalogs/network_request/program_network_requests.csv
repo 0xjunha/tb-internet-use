@@ -60,7 +60,7 @@ curl,,--output,,,,,,,,sends_content_to_file,"curl(1) -o, --output (Write output 
 curl,,--output,-,,,,,,,sends_content_to_stdout,"curl(1) -o, --output, curl.se/docs/manpage.html, curl 8.23.1 (read 2026-11-23)",agents,
 curl,,--remote-name,,,,,,,,sends_content_to_file,"curl(1) -O, --remote-name (Write output to a local file named like the remote file we get), curl.se/docs/manpage.html, curl 8.23.1",agents,The file it names is a written file of the command
 curl,,--remote-name-all,,,,,,,,sends_content_to_file,"curl(1) --remote-name-all (Change the default action for all given URLs to be dealt with as if --remote-name were used for each one), curl.se/docs/manpage.html, curl 8.23.1",agents,The file it names is a written file of the command
-curl,,--request,HEAD,,,,,,,asks_for_no_content,"curl(1) -X, --request, curl.se/docs/manpage.html, curl 8.23.1 (read 2026-11-23)",agents,
+curl,,--request,HEAD,,,,,,,asks_for_no_content,"curl(1) -X, --request, curl.se/docs/manpage.html, curl 8.23.1 (read 2026-11-23), for the method that the value sets. That a HEAD request asks for no content from RFC 9110 HTTP Semantics, 9.3.2 HEAD (the server MUST NOT send content in the response), rfc-editor.org/rfc/rfc9110 (read 2026-11-24)",agents,
 curl,,--show-error,,,,,,,,none,"curl(1) -S, --show-error, curl.se/docs/manpage.html, curl 8.23.1",agents,
 curl,,--silent,,,,,,,,none,"curl(1) -s, --silent, curl.se/docs/manpage.html, curl 8.23.1",agents,
 curl,,--version,,,,,,,,sends_no_request,"curl source src/tool_getparam.c case C_VERSION and src/tool_operate.c, github.com/curl/curl tag curl-8_17_0; curl(1) -V, --version, curl.se/docs/manpage.html, curl 8.23.1 (read 2026-11-23)",agents,
@@ -71,7 +71,7 @@ curl,,-L,,,,,,,,none,"curl(1) -L, --location, curl.se/docs/manpage.html, curl 8.
 curl,,-O,,,,,,,,sends_content_to_file,"curl(1) -O, --remote-name (Write output to a local file named like the remote file we get), curl.se/docs/manpage.html, curl 8.23.1",agents,The file it names is a written file of the command
 curl,,-S,,,,,,,,none,"curl(1) -S, --show-error, curl.se/docs/manpage.html, curl 8.23.1",agents,
 curl,,-X,DELETE,,,,,,,none,"curl(1) -X, --request, curl.se/docs/manpage.html, curl 8.23.1",agents,"Only the method changes. A value that is no method name, e.g. a variable, has no row"
-curl,,-X,HEAD,,,,,,,asks_for_no_content,"curl(1) -X, --request, curl.se/docs/manpage.html, curl 8.23.1 (read 2026-11-23)",agents,
+curl,,-X,HEAD,,,,,,,asks_for_no_content,"curl(1) -X, --request, curl.se/docs/manpage.html, curl 8.23.1 (read 2026-11-23), for the method that the value sets. That a HEAD request asks for no content from RFC 9110 HTTP Semantics, 9.3.2 HEAD (the server MUST NOT send content in the response), rfc-editor.org/rfc/rfc9110 (read 2026-11-24)",agents,
 curl,,-X,OPTIONS,,,,,,,none,"curl(1) -X, --request, curl.se/docs/manpage.html, curl 8.23.1",agents,Only the method changes
 curl,,-X,PATCH,,,,,,,none,"curl(1) -X, --request, curl.se/docs/manpage.html, curl 8.23.1",agents,Only the method changes
 curl,,-X,POST,,,,,,,none,"curl(1) -X, --request, curl.se/docs/manpage.html, curl 8.23.1",agents,Only the method changes
