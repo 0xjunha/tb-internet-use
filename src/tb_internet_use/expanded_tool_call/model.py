@@ -91,15 +91,26 @@ class RanCodeText:
 
 @dataclass(frozen=True, slots=True)
 class UnknownRanText:
-    """Text that a tool call ran and that could not be followed, kept so that later steps know something ran there."""
+    """Text that a tool call ran and that could not be followed, kept so that later steps know something ran there.
+
+    A file whose content a command that was not read may have changed keeps the texts of its last known content beside the reason, e.g. fetch.py as a write tool wrote it before `sed -i s/a/b/ *.py`, since the requests of that content may still have run.
+    """
 
     source: RanTextSource
     reason: UnknownRanTextReason
+    # The texts that the last content of the file that the trajectory shows runs, in the order that the texts of a call have, i.e. that content first and then the texts that its commands run.
+    # Its commands record no file touches, since the file may no longer hold that content. Empty unless the reason is `CHANGED_BY_UNREAD_COMMAND` and the trajectory shows such a content.
+    ran_texts_of_last_known_content: tuple[RanText, ...] = ()
 
     def __post_init__(self) -> None:
-        """Refuse a reason that the source contradicts, e.g. `READ_FROM_PIPE` for a file."""
+        """Refuse a reason that the source contradicts, e.g. `READ_FROM_PIPE` for a file, and texts of a last known content beside any reason other than `CHANGED_BY_UNREAD_COMMAND`."""
         if not _is_reason_possible_for_source(self.reason, self.source):
             raise ValueError(f"{self.reason} does not fit {self.source}")
+        if (
+            self.ran_texts_of_last_known_content
+            and self.reason != UnknownRanTextReason.CHANGED_BY_UNREAD_COMMAND
+        ):
+            raise ValueError(f"texts of a last known content with {self.reason}")
 
 
 def _is_reason_possible_for_source(
@@ -141,6 +152,7 @@ class UnknownRanTextReason(StrEnum):
     # No call of the trial wrote the file, e.g. setup.sh of the task image.
     NOT_WRITTEN_IN_TRIAL = "not_written_in_trial"
     # A command with a result the trial does not show changed the file or may have changed it before it ran, e.g. `sed -i`, `curl -o f.sh` or `sed -i s/a/b/ *.sh`.
+    # The last content of the file that the trajectory shows stays beside it when there is one, e.g. not after `curl -o f.sh`.
     CHANGED_BY_UNREAD_COMMAND = "changed_by_unread_command"
     # The path fits several files that calls wrote, e.g. fetch.sh for /a/fetch.sh and /b/fetch.sh.
     FITS_SEVERAL_WRITTEN_FILES = "fits_several_written_files"

@@ -114,6 +114,9 @@ def _is_uncertainty_reason_possible_for_source(
             return isinstance(source, FromCode) and isinstance(source.call_name, str)
         case NetworkRequestUncertaintyReason.FINDS_TEXT_IN_OPENED_PAGE:
             return isinstance(source, FromWebTool)
+        case NetworkRequestUncertaintyReason.FILE_MAY_HOLD_OTHER_CONTENT:
+            # A command or code of the file, or of a text that the file runs, e.g. the code of `python -c` in fetch.sh.
+            return isinstance(source, FromCommand | FromCode)
 
 
 def _is_command_of_known_program(source: NetworkRequestSource) -> bool:
@@ -290,6 +293,8 @@ class NetworkRequestUncertaintyReason(StrEnum):
     STRUCTURE_MAY_BE_WRONG = "structure_may_be_wrong"
     # A web tool looks for text in a page that it opened, e.g. a web find of Codex, and may search the page it already holds without a new request. No added fact settles it.
     FINDS_TEXT_IN_OPENED_PAGE = "finds_text_in_opened_page"
+    # The request is in the last known content of a file that a command ran, and the file may hold other content when it runs, since a command that was not read may have changed it after that content, e.g. `requests.get("https://a.org/x")` of fetch.py as a write tool wrote it before `sed -i s/a/b/ *.py`. No added fact settles it, and no output line lifts it to confirmed.
+    FILE_MAY_HOLD_OTHER_CONTENT = "file_may_hold_other_content"
 
 
 @dataclass(frozen=True, slots=True)

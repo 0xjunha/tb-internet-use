@@ -113,6 +113,31 @@ def test_unknown_ran_text_accepts_a_reason_only_with_the_sources_it_fits(
             UnknownRanText(source, reason)
 
 
+@pytest.mark.parametrize("reason", list(UnknownRanTextReason))
+def test_unknown_ran_text_holds_texts_of_a_last_known_content_only_for_a_file_that_an_unread_command_may_have_changed(
+    reason: UnknownRanTextReason,
+):
+    """Each reason gets a source that it fits, so that only the texts of the last known content can make it fail."""
+    source = RAN_TEXT_SOURCE_BY_TYPE_NAME[min(SOURCE_TYPE_NAMES_OF_REASON[reason])]
+    ran_texts_of_last_known_content = (
+        UnknownRanText(
+            RAN_TEXT_SOURCE_BY_TYPE_NAME["FileText"],
+            UnknownRanTextReason.LANGUAGE_NOT_KNOWN,
+        ),
+    )
+    if reason == UnknownRanTextReason.CHANGED_BY_UNREAD_COMMAND:
+        unknown_ran_text = UnknownRanText(
+            source, reason, ran_texts_of_last_known_content
+        )
+        assert (
+            unknown_ran_text.ran_texts_of_last_known_content
+            == ran_texts_of_last_known_content
+        )
+    else:
+        with pytest.raises(ValueError):
+            UnknownRanText(source, reason, ran_texts_of_last_known_content)
+
+
 @pytest.mark.parametrize(
     ("command_id", "channel", "is_accepted"),
     [

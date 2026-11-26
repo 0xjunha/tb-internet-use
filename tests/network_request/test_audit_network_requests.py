@@ -208,6 +208,32 @@ def test_every_equation_holds_on_a_made_up_trial_with_a_request_of_each_means():
     }
 
 
+def test_every_equation_holds_when_the_last_known_content_of_a_file_gives_requests():
+    """`sed -i s/x/y/ *.sh` may have changed fetch.sh, so `bash fetch.sh` gives the requests of its last known content, a curl and a mytool, as uncertain."""
+    steps = _steps(
+        (
+            _harness_tool_call(
+                1,
+                "Write",
+                {
+                    "file_path": "fetch.sh",
+                    "content": "curl https://a.org/x\nmytool https://c.org/z\n",
+                },
+                "File created successfully at: fetch.sh",
+            ),
+            _harness_tool_call(2, "Bash", {"command": "sed -i s/x/y/ *.sh"}),
+            _harness_tool_call(3, "Bash", {"command": "bash fetch.sh"}),
+        )
+    )
+
+    trial_audit = _checked(steps)
+
+    assert _differing_equations(trial_audit) == set()
+    assert [
+        network_request.uncertainty_reason for network_request in steps.network_requests
+    ] == [NetworkRequestUncertaintyReason.FILE_MAY_HOLD_OTHER_CONTENT] * 2
+
+
 def test_every_equation_has_its_definition_above_its_name():
     source_lines = inspect.getsource(audit).splitlines()
     equations_start = source_lines.index("EQUATIONS = (")

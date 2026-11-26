@@ -2,8 +2,10 @@
 
 A text can sit in a file that an earlier call wrote, e.g. `bash fetch.sh` after a write tool wrote fetch.sh, so the calls are read in order with the content each file has at that moment.
 A text that the trial does not hold stays where it would be as an `UnknownRanText`, e.g. setup.sh of the task image, `bash -c "$CMD"` or fetch.sh after `sed -i` changed it.
+The texts of the last content of such a file that the trajectory shows stay beside it, e.g. fetch.sh as a write tool wrote it before that `sed -i`, since its requests may still have run.
 """
 
+import dataclasses
 import fnmatch
 import re
 from collections import Counter
@@ -255,6 +257,9 @@ class LatestFileText:
     written_file_keys: tuple[WrittenFileKey, ...]
     # None unless exactly one write fits and its content is known.
     content: str | None
+    # The last content of that file that the trajectory shows, which it may still hold when `content` is None, e.g. the text of a write tool before `sed -i s/a/b/ *.py`.
+    # None when no write of it shows one, or a later write replaced it with content that the trajectory does not show, e.g. `curl -o f.sh u`.
+    last_known_content: str | None
 
 
 def expand_ran_texts(
@@ -415,6 +420,8 @@ class _ToolCallState:
     judgment_rule_use_counts: Counter[str]
     # The id that the first command of the next text added from a file, an argument, stdin or a poll gets, so ids stay unique within the call.
     next_command_id: int
+    # False while the texts of the last known content of a file are followed. The file may no longer hold that content, so their commands may not have run, and they change no file and use none.
+    records_file_touches: bool = True
     ran_texts: list[RanText] = field(default_factory=list)
     file_touches: list[FileTouch] = field(default_factory=list)
 
@@ -678,6 +685,18 @@ def _record_file_touches_of_file_change(
                 ),
             )
         return
+    if isinstance(file_change, WriteFileAction):
+        content = last_known_content = file_change.content
+    else:
+        latest_file_text = trial_file_contents.file_text(file_change.path)
+        content = _content_after_edit_of(
+            file_change,
+            latest_file_text,
+            judgment_rule_use_counts=tool_call_state.judgment_rule_use_counts,
+        )
+        last_known_content = _last_known_content_after_edit_of(
+            file_change, latest_file_text
+        )
     _add_file_touch(
         tool_call_state,
         trial_file_contents.record_write(
@@ -685,13 +704,9 @@ def _record_file_touches_of_file_change(
             command_id,
             file_change.path,
             channel,
-            file_change.content
-            if isinstance(file_change, WriteFileAction)
-            else _content_after_edit_of(
-                file_change,
-                trial_file_contents.file_text(file_change.path),
-                judgment_rule_use_counts=tool_call_state.judgment_rule_use_counts,
-            ),
+            content,
+            last_known_content=last_known_content,
+            changes_earlier_content=isinstance(file_change, EditFileAction),
             appends=False,
             may_have_run=tool_call_state.may_have_run,
             is_call_sure_to_have_run=tool_call_state.is_sure_to_have_run,
@@ -719,6 +734,26 @@ def _content_after_edit_of(
     ):
         return None
     return content.replace(old_text, new_text, 1)
+
+
+def _last_known_content_after_edit_of(
+    edit_file_action: EditFileAction, latest_file_text: LatestFileText
+) -> str | None:
+    """Apply an edit to the last known content of its file when the text it replaces occurs there exactly once, and give that content as it was otherwise, since the edit may have failed and left the file as it was.
+
+    No rule is asked, since the last known content is read only for requests that may have run, e.g. when `sed -i s/a/b/ *.py` left the content of the file unknown before the edit.
+    """
+    old_text = edit_file_action.old
+    new_text = edit_file_action.new
+    last_known_content = latest_file_text.last_known_content
+    if (
+        last_known_content is None
+        or old_text is None
+        or new_text is None
+        or last_known_content.count(old_text) != 1
+    ):
+        return last_known_content
+    return last_known_content.replace(old_text, new_text, 1)
 
 
 def _expand_ran_shell_text(
@@ -855,7 +890,10 @@ def _record_file_touches_of_command(
     A file that the command runs is recorded where its text is followed, and its stdin where that is read.
     A word with the role `METADATA_CHANGED_FILE` records no touch, since its program leaves the content as it was, e.g. f.sh of `chmod +x f.sh`.
     A command of a call that did not run records only its writes, since they say what the text writes.
+    A command of the last known content of a file records nothing, since the file may no longer hold that content.
     """
+    if not tool_call_state.records_file_touches:
+        return
     shell_command = command_reading.shell_command
     may_have_run = tool_call_state.may_have_run
     trial_file_contents = tool_call_state.trial_file_contents
@@ -886,10 +924,15 @@ def _record_file_touches_of_command(
             file_name = path.rsplit("/", 1)[-1]
             if file_name:
                 _record_write_of_own_output_file(
-                    tool_call_state, shell_command, file_name
+                    tool_call_state,
+                    shell_command,
+                    file_name,
+                    changes_earlier_content=False,
                 )
         elif word_role == ProgramWordRole.CHANGED_FILE:
-            _record_write_of_own_output_file(tool_call_state, shell_command, path)
+            _record_write_of_own_output_file(
+                tool_call_state, shell_command, path, changes_earlier_content=True
+            )
         elif word_role == ProgramWordRole.PATCH_TEXT:
             _record_file_changes_of_patch_word(
                 tool_call_state, command_reading, word_index
@@ -974,9 +1017,16 @@ def _add_unknown_use(
 
 
 def _record_write_of_own_output_file(
-    tool_call_state: _ToolCallState, shell_command: ShellCommand, path: str
+    tool_call_state: _ToolCallState,
+    shell_command: ShellCommand,
+    path: str,
+    *,
+    changes_earlier_content: bool,
 ) -> None:
-    """Record a file that a program writes or changes itself with content that the text does not show, e.g. f.sh of `sed -i s/a/b/ f.sh`."""
+    """Record a file that a program writes or changes itself with content that the text does not show, e.g. a.tgz of `curl -O u/a.tgz` or f.sh of `sed -i s/a/b/ f.sh`.
+
+    `changes_earlier_content` is True for a program that changes the content the file had, e.g. sed, which keeps the last known content of the file, and False for one that replaces it, e.g. curl.
+    """
     if _may_touch_files(tool_call_state, shell_command):
         _add_file_touch(
             tool_call_state,
@@ -986,6 +1036,8 @@ def _record_write_of_own_output_file(
                 path,
                 FileWriteChannel.OWN_OUTPUT_FILE,
                 None,
+                last_known_content=None,
+                changes_earlier_content=changes_earlier_content,
                 appends=False,
                 may_have_run=tool_call_state.may_have_run,
                 is_call_sure_to_have_run=tool_call_state.is_sure_to_have_run,
@@ -1040,6 +1092,11 @@ def _record_write_of_written_file_word(
     ) or not _may_touch_files(tool_call_state, shell_command):
         return
     appends = _APPENDS_OF_WRITTEN_FILE_ROLE[word_role]
+    content = (
+        None
+        if appends or not is_passing_on_all_piped_input
+        else _stdin_text_passed_on_whole_of(command_reading)
+    )
     _add_file_touch(
         tool_call_state,
         tool_call_state.trial_file_contents.record_write(
@@ -1049,9 +1106,9 @@ def _record_write_of_written_file_word(
             FileWriteChannel.STDOUT
             if is_passing_on_all_piped_input
             else FileWriteChannel.OWN_OUTPUT_FILE,
-            None
-            if appends or not is_passing_on_all_piped_input
-            else _stdin_text_passed_on_whole_of(command_reading),
+            content,
+            last_known_content=content,
+            changes_earlier_content=False,
             appends=appends,
             may_have_run=tool_call_state.may_have_run,
             is_call_sure_to_have_run=tool_call_state.is_sure_to_have_run,
@@ -1168,6 +1225,11 @@ def _record_writes_of_output_routes(
                 channel == FileWriteChannel.STDOUT
                 and not output_route.pipe_reader_command_ids
             )
+            content = (
+                _stdin_text_passed_on_whole_of(command_reading)
+                if passes_on_stdin_text
+                else None
+            )
             _add_file_touch(
                 tool_call_state,
                 tool_call_state.trial_file_contents.record_write(
@@ -1177,9 +1239,9 @@ def _record_writes_of_output_routes(
                         file_destination.path, ran_command.variable_values
                     ),
                     channel,
-                    _stdin_text_passed_on_whole_of(command_reading)
-                    if passes_on_stdin_text
-                    else None,
+                    content,
+                    last_known_content=content,
+                    changes_earlier_content=False,
                     appends=file_destination.appends,
                     may_have_run=tool_call_state.may_have_run,
                     is_call_sure_to_have_run=tool_call_state.is_sure_to_have_run,
@@ -1625,11 +1687,14 @@ def _expand_ran_text_of_file(
 
     The path of a default run file is not in the words, so the source holds no path, e.g. the Makefile of `make`.
     A path that fits no written file and still holds a variable is built at run time, e.g. `bash $F` when F has no single value.
+    A file whose content a command that was not read may have changed is followed in its last known content too, whose texts go beside the reason, e.g. fetch.py as a write tool wrote it before `sed -i s/a/b/ *.py`.
     """
     shell_command = command_reading.shell_command
     trial_file_contents = tool_call_state.trial_file_contents
-    if tool_call_state.may_have_run and _may_touch_files(
-        tool_call_state, shell_command
+    if (
+        tool_call_state.records_file_touches
+        and tool_call_state.may_have_run
+        and _may_touch_files(tool_call_state, shell_command)
     ):
         _add_file_touch(
             tool_call_state,
@@ -1662,7 +1727,22 @@ def _expand_ran_text_of_file(
         )
     elif content is None:
         tool_call_state.ran_texts.append(
-            UnknownRanText(source, UnknownRanTextReason.CHANGED_BY_UNREAD_COMMAND)
+            UnknownRanText(
+                source,
+                UnknownRanTextReason.CHANGED_BY_UNREAD_COMMAND,
+                _expand_ran_texts_of_last_known_content(
+                    tool_call_state,
+                    command_reading,
+                    source,
+                    latest_file_text.last_known_content,
+                    language_of_content,
+                    shell_text_start_state_of_content,
+                    running_written_file_keys=(
+                        *running_written_file_keys,
+                        written_file_key,
+                    ),
+                ),
+            )
         )
     else:
         _expand_ran_text_of_language(
@@ -1677,6 +1757,39 @@ def _expand_ran_text_of_file(
         )
 
 
+def _expand_ran_texts_of_last_known_content(
+    tool_call_state: _ToolCallState,
+    command_reading: _CommandReading,
+    source: FileText,
+    last_known_content: str | None,
+    language_of_content: Callable[[str], RanTextLanguage | UnknownRanTextLanguage],
+    shell_text_start_state_of_content: Callable[[str], _ShellTextStartState],
+    *,
+    running_written_file_keys: tuple[WrittenFileKey, ...],
+) -> tuple[RanText, ...]:
+    """Follow the last known content of a file whose content is unknown, as its text would be followed, and give its texts apart from those of the call, none when the trajectory shows no such content.
+
+    Its commands get ids after all ids of the call so far, so ids stay unique within the call, and record no file touches, since the file may no longer hold that content.
+    """
+    if last_known_content is None:
+        return ()
+    last_known_content_state = dataclasses.replace(
+        tool_call_state, records_file_touches=False, ran_texts=[], file_touches=[]
+    )
+    _expand_ran_text_of_language(
+        last_known_content_state,
+        source,
+        last_known_content,
+        language_of_content(last_known_content),
+        lambda: shell_text_start_state_of_content(last_known_content),
+        runner_command_reading=command_reading,
+        running_written_file_keys=running_written_file_keys,
+        command_substitution_texts=frozenset(),
+    )
+    tool_call_state.next_command_id = last_known_content_state.next_command_id
+    return tuple(last_known_content_state.ran_texts)
+
+
 def _expand_ran_text_of_stdin(
     tool_call_state: _ToolCallState,
     command_reading: _CommandReading,
@@ -1689,6 +1802,7 @@ def _expand_ran_text_of_stdin(
     The program reads its stdin only when none of the command's words names a file or a text, apart from `-`.
     A heredoc that a program without a row or with an unknown stdin role takes is text in an unknown language, and a written file it takes is a use of unknown kind.
     A heredoc or herestring with the role `PATCH_TEXT` records the files its patch changes, e.g. `apply_patch <<'EOF'`, and a file with that role is a use of its content, e.g. p.txt of `apply_patch < p.txt`.
+    A command of the last known content of a file records neither, as `_record_file_touches_of_command` says.
     """
     shell_command = command_reading.shell_command
     program_invocations = command_reading.ran_command.program_invocations
@@ -1711,7 +1825,11 @@ def _expand_ran_text_of_stdin(
             shell_command.stdin_file_path, command_reading.ran_command.variable_values
         )
     )
-    may_record_use = tool_call_state.may_have_run and stdin_file_path is not None
+    may_record_use = (
+        tool_call_state.records_file_touches
+        and tool_call_state.may_have_run
+        and stdin_file_path is not None
+    )
     stdin_text = _stdin_text_read_by_program_of(shell_command)
     if stdin_role == ProgramWordRole.RUN_TEXT:
         if shell_command.stdin_text is not None and stdin_text is None:
@@ -1751,7 +1869,10 @@ def _expand_ran_text_of_stdin(
             )
     elif stdin_role == ProgramWordRole.PATCH_TEXT:
         if stdin_text is not None:
-            _record_file_changes_of_patch(tool_call_state, shell_command, stdin_text)
+            if tool_call_state.records_file_touches:
+                _record_file_changes_of_patch(
+                    tool_call_state, shell_command, stdin_text
+                )
         elif (
             may_record_use
             and stdin_file_path is not None
@@ -1923,6 +2044,8 @@ class TrialFileContents:
         channel: FileWriteChannel,
         content: str | None,
         *,
+        last_known_content: str | None,
+        changes_earlier_content: bool,
         appends: bool,
         may_have_run: bool,
         is_call_sure_to_have_run: bool,
@@ -1935,6 +2058,10 @@ class TrialFileContents:
         A write that replaces the content of the file where the harness saved a result ends the reads of that result, e.g. `echo x > /tmp/tasks/b1.output`.
         A write to a glob records no touch and leaves the content of each written file that the glob may name unknown by a rule, e.g. f.sh of `sed -i s/a/b/ *.sh`.
         `may_be_glob` is False for the path argument of a tool, which names one file as written, e.g. `app/[id]/page.tsx`, and True for a word or redirect of a command, which the shell may expand.
+
+        `content` is the content that the write gives the file as the trajectory shows it, None when it shows none, e.g. for `curl -o f.sh u`.
+        `last_known_content` is the content that the file holds after the write as far as the trajectory shows it, which a later run follows when the content is unknown. It differs from `content` where a rule leaves the content unknown or the earlier content is unknown, e.g. the content of the source of `cp f.sh g.sh`, or the earlier content after an edit tool whose old text it does not hold exactly once, since the edit may have failed.
+        `changes_earlier_content` is True for a write that changes the content the file had instead of replacing it, e.g. `sed -i s/a/b/ f.sh` or an edit tool, so that the last known content stays that of the earlier writes when the write shows none.
         """
         if may_be_glob and self._is_glob(path):
             if may_have_run:
@@ -1951,6 +2078,8 @@ class TrialFileContents:
                 written_file_key,
                 path,
                 content if is_call_sure_to_have_run else None,
+                last_known_content=last_known_content,
+                changes_earlier_content=changes_earlier_content,
                 appends=appends,
                 may_not_have_happened=not is_call_sure_to_have_run,
                 fits_several_written_files_of_tool_call=len(fitting_written_file_keys)
@@ -1981,23 +2110,31 @@ class TrialFileContents:
         """Record the copy that a command with exactly two arguments makes, e.g. g.sh of `cp f.sh g.sh`, with unknown content or the content of the source as a rule says, and record no use of the source.
 
         A copy from a glob gets unknown content by a rule, e.g. g.sh of `cp *.sh g.sh`.
+        The last known content of the copy is that of its source, which it holds if the copy happened.
         """
         if self._is_glob(source_path):
-            content = None
+            content = last_known_content = None
         else:
-            content = (
-                None
-                if treat_copy_with_two_arguments_as_unknown_content(
-                    use_counts=self._judgment_rule_use_counts
-                )
-                else self._sure_content_of(source_path)
+            source_written_file_history = self._sole_written_file_history_of(
+                source_path
             )
+            if source_written_file_history is None:
+                content = last_known_content = None
+            else:
+                content = source_written_file_history.content
+                last_known_content = source_written_file_history.last_known_content
+            if treat_copy_with_two_arguments_as_unknown_content(
+                use_counts=self._judgment_rule_use_counts
+            ):
+                content = None
         return self.record_write(
             tool_call_key,
             command_id,
             destination_path,
             FileWriteChannel.OWN_OUTPUT_FILE,
             content,
+            last_known_content=last_known_content,
+            changes_earlier_content=False,
             appends=False,
             may_have_run=may_have_run,
             is_call_sure_to_have_run=is_call_sure_to_have_run,
@@ -2102,15 +2239,16 @@ class TrialFileContents:
         )
 
     def file_text(self, path: str) -> LatestFileText:
-        """Give the last write of each written file a path fits and the content when exactly one fits, unknown by a rule when several fit."""
+        """Give the last write of each written file a path fits and the content and last known content when exactly one fits, unknown by a rule when several fit."""
         written_file_histories = self._live_written_file_histories_fitting(path)
         if not written_file_histories:
-            return LatestFileText((), None)
+            return LatestFileText((), None, None)
         if len(written_file_histories) == 1:
             (written_file_history,) = written_file_histories
             return LatestFileText(
                 (written_file_history.written_file_keys[-1],),
                 written_file_history.content,
+                written_file_history.last_known_content,
             )
         if treat_path_that_fits_several_written_files_as_unknown_text(
             path, use_counts=self._judgment_rule_use_counts
@@ -2121,11 +2259,13 @@ class TrialFileContents:
                     for written_file_history in written_file_histories
                 ),
                 None,
+                None,
             )
         latest_written_file_history = written_file_histories[-1]
         return LatestFileText(
             (latest_written_file_history.written_file_keys[-1],),
             latest_written_file_history.content,
+            latest_written_file_history.last_known_content,
         )
 
     def has_written_file_fitting(self, path: str) -> bool:
@@ -2207,6 +2347,8 @@ class TrialFileContents:
         path: str,
         content: str | None,
         *,
+        last_known_content: str | None,
+        changes_earlier_content: bool,
         appends: bool,
         may_not_have_happened: bool,
         fits_several_written_files_of_tool_call: bool,
@@ -2218,6 +2360,7 @@ class TrialFileContents:
         A path that fits several files that the same call wrote earlier joins the file first written by this very path and leaves its content unknown too, since the text does not say which of them it writes, e.g. the fourth write to run.sh after writes to run.sh, /a/run.sh and /b/run.sh in one call.
         A later run of /a/run.sh then sees content changed by a command that was not read, while after the same writes in four calls it sees a path that fits several written files.
         Without a file first written by this very path it starts a file of its own, as a path that fits several written files does, e.g. run.sh after /a/run.sh and /b/run.sh in one call, after which a run of /a/run.sh sees a path that fits several written files.
+        The other written files whose content becomes unknown keep their last known content, and the written file gets the one that `_last_known_content_after_write_of` gives.
         """
         written_content = (
             None if appends or fits_several_written_files_of_tool_call else content
@@ -2241,7 +2384,7 @@ class TrialFileContents:
                 for fitting_written_file_history in written_file_histories:
                     fitting_written_file_history.content = None
                 written_file_history = _WrittenFileHistory(
-                    [path], [written_file_key], [], written_content
+                    [path], [written_file_key], [], written_content, None
                 )
                 self._written_file_histories.append(written_file_history)
             self._written_file_history_of_key[written_file_key] = written_file_history
@@ -2253,15 +2396,24 @@ class TrialFileContents:
                     fitting_written_file_history.content = None
             if path not in written_file_history.paths:
                 written_file_history.paths.append(path)
+        written_file_history.last_known_content = _last_known_content_after_write_of(
+            None
+            if written_file_history.is_deleted
+            else written_file_history.last_known_content,
+            last_known_content,
+            appends=appends,
+            keeps_earlier_last_known_content=changes_earlier_content
+            or may_not_have_happened,
+        )
         written_file_history.content = written_content
         written_file_history.is_deleted = False
 
-    def _sure_content_of(self, path: str) -> str | None:
-        """Give the content of the one written file a path fits, None when none or several fit, it was removed or its content is unknown."""
+    def _sole_written_file_history_of(self, path: str) -> _WrittenFileHistory | None:
+        """Give the one written file a path fits, None when none or several fit or it was removed."""
         written_file_histories = self._written_file_histories_fitting(path)
         if len(written_file_histories) != 1 or written_file_histories[0].is_deleted:
             return None
-        return written_file_histories[0].content
+        return written_file_histories[0]
 
     def _live_written_file_histories_fitting(
         self, path: str
@@ -2362,10 +2514,36 @@ class _WrittenFileHistory:
     replaced_written_file_keys: list[WrittenFileKey]
     # None when the trial does not show the content.
     content: str | None
+    # The last content that the trajectory shows, which the file may still hold when `content` is None, as `LatestFileText.last_known_content` gives it.
+    last_known_content: str | None
     # A command or a tool removed it after the last write.
     is_deleted: bool = False
     # The last write that replaced the content may not have happened, since its call's result does not say that it ran.
     last_replacement_may_not_have_happened: bool = False
+
+
+def _last_known_content_after_write_of(
+    earlier_last_known_content: str | None,
+    last_known_content: str | None,
+    *,
+    appends: bool,
+    keeps_earlier_last_known_content: bool,
+) -> str | None:
+    """Give the last known content of a file after a write, from the last known content before it and the content that the write gives the file as far as the trajectory shows it.
+
+    A write that appends adds its content to the earlier one, which stays as it was when the write shows no content, e.g. `echo $X >> f.sh`.
+    Any other write that shows its content gives that content, also one that may not have happened, e.g. a write tool cut off at the end of a trajectory.
+    One that shows none keeps the earlier last known content when `keeps_earlier_last_known_content` is True, i.e. it changes the earlier content or may not have happened, e.g. `sed -i s/a/b/ f.sh`, and else leaves none, e.g. `curl -o f.sh u`.
+    """
+    if appends:
+        if earlier_last_known_content is None or last_known_content is None:
+            return earlier_last_known_content
+        return earlier_last_known_content + last_known_content
+    if last_known_content is not None:
+        return last_known_content
+    if keeps_earlier_last_known_content:
+        return earlier_last_known_content
+    return None
 
 
 def _path_parts_of(path: str) -> tuple[bool, tuple[str, ...]]:

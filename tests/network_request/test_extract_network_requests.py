@@ -17,6 +17,7 @@ from tb_internet_use.expanded_tool_call import expand_tool_calls
 from tb_internet_use.expanded_tool_call.model import (
     ArgumentText,
     CallCommandText,
+    CodeLanguage,
     FileText,
     ProgramInvocation,
     ProgramOption,
@@ -52,6 +53,7 @@ from tb_internet_use.network_request.model import (
     NoNetworkRequestReason,
     UnknownNetworkRequestTarget,
     UnknownNetworkRequestTargetReason,
+    UnknownReceivedContentDestination,
 )
 from tb_internet_use.tool_call.model import (
     ExecutionHandle,
@@ -120,6 +122,11 @@ PROGRAM_BEHAVIOR_ROWS: list[dict[str, str]] = [
     {"program_name": "apt-get", "subcommand": "update"},
     {"program_name": "echo"},
     {"program_name": "cat", "argument_role": "read_file", "stdin_role": "read_file"},
+    {
+        "program_name": "sed",
+        "argument_role": "read_file",
+        "first_argument_role": "pattern",
+    },
 ]
 # Made-up rows of `program_option_behaviors.csv`, each with the cells that differ from `_PROGRAM_OPTION_BEHAVIOR_DEFAULTS`.
 PROGRAM_OPTION_BEHAVIOR_ROWS: list[dict[str, str]] = [
@@ -132,6 +139,11 @@ PROGRAM_OPTION_BEHAVIOR_ROWS: list[dict[str, str]] = [
         "program_name": "python",
         "option_name": "-c",
         "first_argument_role_with_option": "run_text",
+    },
+    {
+        "program_name": "sed",
+        "option_name": "-i",
+        "argument_role_with_option": "changed_file",
     },
     {"program_name": "curl", "option_name": "-s"},
     {"program_name": "curl", "option_name": "-S"},
@@ -223,6 +235,7 @@ PROGRAM_NETWORK_REQUEST_ROWS: list[dict[str, str]] = [
     },
     {"program_name": "echo", "fetches": "no"},
     {"program_name": "cat", "fetches": "no"},
+    {"program_name": "sed", "fetches": "no"},
 ]
 # Made-up rows of `code_calls.csv`, each with the cells that differ from `_CODE_CALL_DEFAULTS`. mylib.fetch has no row.
 CODE_CALL_ROWS: list[dict[str, str]] = [
@@ -763,6 +776,103 @@ def test_a_call_gives_its_commands_by_id_then_its_code_then_its_web_steps_number
         (K2, 1, ("command", 3, FileText(0, "fetch.sh", K1)), "https://a.org/x"),
         (K2, 2, ("code", 1, ArgumentText(1)), "https://c.org/x"),
         (K2, 3, ("web tool step", 1, None), "https://w.org/doc"),
+    ]
+
+
+FETCH_PY_CONTENT = 'import requests\nrequests.get("https://a.org/x")\n'
+
+
+def test_code_of_a_file_that_an_unread_command_may_have_changed_gives_the_requests_of_its_last_known_content_as_uncertain(
+    catalogs_dir,
+):
+    """fetch.py as a write tool wrote it, then `sed -i s/x/y/ *.py`, whose glob may name fetch.py, then `python fetch.py`."""
+    network_requests = _extract(
+        catalogs_dir,
+        _call(1, WriteFileAction("fetch.py", FETCH_PY_CONTENT)),
+        _call(2, "sed -i s/x/y/ *.py"),
+        _call(3, "python fetch.py"),
+    ).network_requests
+
+    assert network_requests == (
+        NetworkRequest(
+            tool_call_key=K3,
+            index_in_tool_call=0,
+            source=FromCode(
+                0, FileText(0, "fetch.py", K1), CodeLanguage.PYTHON, "requests.get"
+            ),
+            target="https://a.org/x",
+            target_kind=URL,
+            host_names=("a.org",),
+            received_content_destination=UnknownReceivedContentDestination(),
+            certainty=UNCERTAIN,
+            uncertainty_reason=Reason.FILE_MAY_HOLD_OTHER_CONTENT,
+        ),
+    )
+
+
+@pytest.mark.parametrize(
+    "changing_text",
+    ["curl -s -o fetch.py https://a.org/fetch.py", "python gen.py > fetch.py"],
+    ids=["downloaded over it", "redirect of output"],
+)
+def test_a_file_whose_content_a_command_replaced_with_one_the_trajectory_does_not_show_gives_no_request(
+    catalogs_dir, changing_text: str
+):
+    """A write that replaces the content leaves no last known content, as for a file that the trajectory never showed, so only the request of the replacing command itself stays."""
+    network_requests = _extract(
+        catalogs_dir,
+        _call(1, WriteFileAction("fetch.py", FETCH_PY_CONTENT)),
+        _call(2, changing_text),
+        _call(3, "python fetch.py"),
+    ).network_requests
+
+    assert [network_request.tool_call_key for network_request in network_requests] == (
+        [K2] if changing_text.startswith("curl") else []
+    )
+
+
+def test_commands_of_a_last_known_content_give_uncertain_requests_after_the_other_requests_of_the_call(
+    catalogs_dir,
+):
+    """The curl of the call's own text keeps index 0, and curl and mytool of fetch.sh, whose content `sed -i s/x/y/ *.sh` may have changed, come after it with the reason of the last known content in place of their own, e.g. `UNKNOWN_PROGRAM` of mytool."""
+    network_requests = _extract(
+        catalogs_dir,
+        _call(
+            1,
+            WriteFileAction(
+                "fetch.sh", "curl -s https://a.org/x\nmytool https://c.org/z\n"
+            ),
+        ),
+        _call(2, "sed -i s/x/y/ *.sh"),
+        _call(3, "bash fetch.sh; curl -s https://b.org/y"),
+    ).network_requests
+
+    fetch_sh = FileText(0, "fetch.sh", K1)
+    assert [
+        (
+            network_request.index_in_tool_call,
+            _place_in_call_of(network_request),
+            network_request.target,
+            network_request.certainty,
+            network_request.uncertainty_reason,
+        )
+        for network_request in network_requests
+    ] == [
+        (0, ("command", 1, CallCommandText()), "https://b.org/y", CONFIRMED, None),
+        (
+            1,
+            ("command", 2, fetch_sh),
+            "https://a.org/x",
+            UNCERTAIN,
+            Reason.FILE_MAY_HOLD_OTHER_CONTENT,
+        ),
+        (
+            2,
+            ("command", 3, fetch_sh),
+            "https://c.org/z",
+            UNCERTAIN,
+            Reason.FILE_MAY_HOLD_OTHER_CONTENT,
+        ),
     ]
 
 

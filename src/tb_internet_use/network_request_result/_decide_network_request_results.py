@@ -5,7 +5,10 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 from tb_internet_use.expanded_tool_call.model import ExpandedToolCall
-from tb_internet_use.network_request.model import NetworkRequest
+from tb_internet_use.network_request.model import (
+    NetworkRequest,
+    NetworkRequestUncertaintyReason,
+)
 from tb_internet_use.network_request_result._decide_network_request_result_evidence import (
     decide_network_request_result_evidence,
 )
@@ -20,6 +23,9 @@ from tb_internet_use.network_request_result._decide_output_line_owners import (
 )
 from tb_internet_use.network_request_result._decide_output_place_sources import (
     decide_output_place_sources,
+)
+from tb_internet_use.network_request_result.judgment_rules import (
+    treat_request_of_last_known_content_as_reaching_no_output_place,
 )
 from tb_internet_use.network_request_result.model import (
     NetworkRequestResult,
@@ -50,9 +56,23 @@ def decide_network_request_results(
     """Decide one `NetworkRequestResult` for each of `network_requests`, in their order, from the output of `expanded_tool_calls`.
 
     The lines of every call's result are read, also where no request reaches, so that a line that a pattern fits and that no request owns is counted, e.g. `Downloading torch-2.3.0.whl` in the result of `./setup.sh`.
+    A request of the last known content of a file asks `treat_request_of_last_known_content_as_reaching_no_output_place`. On `True` it is left out of the requests that own lines and that the evidence of the others reads, and its own evidence is only the status of a call that did not run.
     Every use of a rule of `judgment_rules.py` adds one to `judgment_rule_use_counts` under the name of the rule.
     Every output line that a pattern fits and that gives no evidence adds one to `unused_output_line_counts` under its reason and kind. A line that no request owns under `NO_UNKNOWN_RUN` or `UNOWNED_LINE_IN_UNKNOWN_RUN` also adds one to `program_counts_of_unowned_output_lines` for each program name that `decide_output_line_owners` counts it under, e.g. echo and ls for `Downloading torch-2.3.0.whl` in the result of `echo Downloading torch-2.3.0.whl; ls`.
     """
+    may_reach_output_place_of_requests = [
+        _may_reach_output_place(
+            network_request, judgment_rule_use_counts=judgment_rule_use_counts
+        )
+        for network_request in network_requests
+    ]
+    network_requests_reaching_output_places = tuple(
+        network_request
+        for network_request, may_reach_output_place in zip(
+            network_requests, may_reach_output_place_of_requests, strict=True
+        )
+        if may_reach_output_place
+    )
     output_place_sources = decide_output_place_sources(expanded_tool_calls)
     output_line_owners = decide_output_line_owners(
         output_place_sources,
@@ -60,7 +80,7 @@ def decide_network_request_results(
             expanded_tool_calls, output_place_sources, knowledge=knowledge
         ),
         expanded_tool_calls,
-        network_requests,
+        network_requests_reaching_output_places,
         knowledge=knowledge,
         unused_output_line_counts=unused_output_line_counts,
         program_counts_of_unowned_output_lines=program_counts_of_unowned_output_lines,
@@ -70,16 +90,32 @@ def decide_network_request_results(
             network_request,
             decide_network_request_result_evidence(
                 network_request,
-                network_requests,
+                network_requests_reaching_output_places,
                 expanded_tool_calls,
                 output_place_sources,
                 output_line_owners,
+                may_reach_output_place=may_reach_output_place,
                 knowledge=knowledge,
                 judgment_rule_use_counts=judgment_rule_use_counts,
             ),
             judgment_rule_use_counts=judgment_rule_use_counts,
         )
-        for network_request in network_requests
+        for network_request, may_reach_output_place in zip(
+            network_requests, may_reach_output_place_of_requests, strict=True
+        )
+    )
+
+
+def _may_reach_output_place(
+    network_request: NetworkRequest, *, judgment_rule_use_counts: Counter[str]
+) -> bool:
+    """Tell whether the output of a request may reach a place, asking `treat_request_of_last_known_content_as_reaching_no_output_place` for a request of the last known content of a file and giving True for any other request."""
+    return not (
+        network_request.uncertainty_reason
+        == NetworkRequestUncertaintyReason.FILE_MAY_HOLD_OTHER_CONTENT
+        and treat_request_of_last_known_content_as_reaching_no_output_place(
+            use_counts=judgment_rule_use_counts
+        )
     )
 
 

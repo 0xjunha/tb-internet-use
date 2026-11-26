@@ -14,6 +14,7 @@ Run it as `nice -n 10 uv run python -I scripts/audit_network_requests.py <raw_tr
 
 import argparse
 import csv
+import dataclasses
 import functools
 import io
 import json
@@ -95,9 +96,9 @@ OUT_DIR = Path(__file__).resolve().parents[1] / "out" / "network_request"
 # Every equation in the order of the output.
 # The comment above each name gives its left side beside its right side.
 EQUATIONS = (
-    # `ProgramInvocation`s and `UnknownProgramInvocation`s of the commands beside lookups of program rows of `program_network_requests.csv`, i.e. uses and unknown inputs without an option and not under `any subcommand`, plus `UnknownProgramInvocation`s.
+    # `ProgramInvocation`s and `UnknownProgramInvocation`s of the commands, also those of the last known contents of files beside unknown texts, beside lookups of program rows of `program_network_requests.csv`, i.e. uses and unknown inputs without an option and not under `any subcommand`, plus `UnknownProgramInvocation`s.
     "program_invocations_equal_program_lookups",
-    # Program runs with a request, i.e. distinct (call, command id, program invocation) of the `FromCommand` requests, beside runs that the `NetworkRequestKnowledge` of this script answers with `FetchingProgramLabel`, minus the counts `option_sends_no_request` and `no_target_arguments`, plus runs without a row that run nothing else and have a URL in their words, with the variables of one sure value filled, found with this script's own pattern, whose host `parse_host_name` does not read as local or reserved.
+    # Program runs with a request, i.e. distinct (call, command id, program invocation) of the `FromCommand` requests, beside runs of the commands, also of those of the last known contents of files, that the `NetworkRequestKnowledge` of this script answers with `FetchingProgramLabel`, minus the counts `option_sends_no_request` and `no_target_arguments`, plus runs without a row that run nothing else and have a URL in their words, with the variables of one sure value filled, found with this script's own pattern, whose host `parse_host_name` does not read as local or reserved.
     "command_request_runs_equal_fetching_and_public_url_runs",
     # `RanCodeText`s without a `FromCode` request beside those whose URLs, found with this script's own pattern, are all local, reserved, of a namespace host with no dot in the last path part or on a line with a call of a `sends_no_network_request` row, and in which no call name of a `sends_network_request` row is followed by `(` outside strings and comments, before the point where `parse_code` stops reading and other than as the name of a JavaScript method definition.
     "code_texts_without_request_show_no_request",
@@ -736,10 +737,12 @@ class TrialChecker:
         )
 
     def check_program_lookups(self) -> None:
-        """Check that `NetworkRequestKnowledge` was asked once for each program invocation of the commands."""
+        """Check that `NetworkRequestKnowledge` was asked once for each program invocation of the commands, those of the last known contents of files included."""
         program_invocation_count = 0
         unknown_program_invocation_count = 0
-        for expanded_tool_call in self.expanded_tool_calls:
+        for expanded_tool_call in _expanded_tool_calls_with_last_known_contents_of(
+            self.expanded_tool_calls
+        ):
             for ran_command in _ran_commands_of(expanded_tool_call):
                 for program_invocation in ran_command.program_invocations:
                     program_invocation_count += 1
@@ -762,14 +765,16 @@ class TrialChecker:
         )
 
     def check_command_request_runs(self) -> None:
-        """Check that the runs with a request are the fetching runs that were not stopped, plus the runs without a row that show a URL that may be public."""
+        """Check that the runs with a request are the fetching runs that were not stopped, plus the runs without a row that show a URL that may be public, those of the last known contents of files included."""
         expected_run_count = -(
             self.no_network_request_counts[
                 NoNetworkRequestReason.OPTION_SENDS_NO_REQUEST
             ]
             + self.no_network_request_counts[NoNetworkRequestReason.NO_TARGET_ARGUMENTS]
         )
-        for expanded_tool_call in self.expanded_tool_calls:
+        for expanded_tool_call in _expanded_tool_calls_with_last_known_contents_of(
+            self.expanded_tool_calls
+        ):
             for ran_command in _ran_commands_of(expanded_tool_call):
                 expected_run_count += self._expected_runs_with_request_of(
                     ran_command, expanded_tool_call
@@ -1078,6 +1083,36 @@ class TrialChecker:
         ):
             self.trial_audit.count("subagent calls with a public URL")
             self.trial_audit.has_subagent_url = True
+
+
+def _expanded_tool_calls_with_last_known_contents_of(
+    expanded_tool_calls: Sequence[ExpandedToolCall],
+) -> list[ExpandedToolCall]:
+    """Give each call, then a copy of it for each last known content of a file that it ran, whose texts are those of that content, as `extract_network_requests` reads them."""
+    return [
+        expanded_tool_call_of_texts
+        for expanded_tool_call in expanded_tool_calls
+        for expanded_tool_call_of_texts in (
+            expanded_tool_call,
+            *_last_known_content_expanded_tool_calls_of(expanded_tool_call),
+        )
+    ]
+
+
+def _last_known_content_expanded_tool_calls_of(
+    expanded_tool_call: ExpandedToolCall,
+) -> list[ExpandedToolCall]:
+    """Give a copy of a call for each last known content of a file beside its unknown texts, deeper ones after their outer one, whose texts are those of that content."""
+    copies: list[ExpandedToolCall] = []
+    for ran_text in expanded_tool_call.ran_texts:
+        if isinstance(ran_text, UnknownRanText) and (
+            ran_text.ran_texts_of_last_known_content
+        ):
+            copy = dataclasses.replace(
+                expanded_tool_call, ran_texts=ran_text.ran_texts_of_last_known_content
+            )
+            copies += [copy, *_last_known_content_expanded_tool_calls_of(copy)]
+    return copies
 
 
 def _ran_commands_of(expanded_tool_call: ExpandedToolCall) -> list[RanCommand]:

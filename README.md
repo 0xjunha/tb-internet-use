@@ -36,6 +36,7 @@ The upper bound adds the trials that the trajectory cannot rule out.
   - The program is not in the catalogs but has a URL among its words, e.g. `mytool https://a.org/x`.
   - The target does not show whether it is on the internet, e.g. `git fetch origin` or `curl "$URL"`.
   - A variable set before the command may send it to another host or keep it from going out, e.g. `GOPROXY=http://localhost:3000 go build`.
+  - The request is in the last content of a file that the trajectory shows, and a command that it does not read may have changed the file before it ran, e.g. `requests.get(u)` of fetch.py before `sed -i s/a/b/ *.py` and `python fetch.py`. Such a request is never in the lower bounds, whatever its run prints.
 - Received
   - The output is discarded or never read, e.g. `pip install -q x > /dev/null`, or a background command that no later call polls.
   - Nothing shows that the command ran, e.g. a command in a loop or in a script.
@@ -49,7 +50,7 @@ The upper bound adds the trials that the trajectory cannot rule out.
 | 1 | Convert tool calls | Normalizes the tool calls of each harness into common types | `tool_call/` | `ToolCall` | 22 |
 | 2 | Expand tool calls | Links each call to the scripts it runs and to the later calls that show its output | `expanded_tool_call/` | `ExpandedToolCall` | 23 |
 | 3 | Extract network requests | Looks up each program and code call in the catalogs and reads its targets | `network_request/` | `NetworkRequest` | 7 |
-| 4 | Decide request results | Matches each request's output lines and exit code to known patterns | `network_request_result/` | `NetworkRequestResult` | 22 |
+| 4 | Decide request results | Matches each request's output lines and exit code to known patterns | `network_request_result/` | `NetworkRequestResult` | 23 |
 | 5 | Export rows | Flattens the results into table rows per request and per trial, with category and bounds | `export/` | `NetworkRequestRow`, `TrialRow`, `TrialCategoryMeasureRow` | 22 |
 
 ## Why tool calls are expanded

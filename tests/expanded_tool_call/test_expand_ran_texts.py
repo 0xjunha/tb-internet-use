@@ -357,6 +357,15 @@ def _texts_with_words(
     return described
 
 
+def _last_known_content_texts_with_words(
+    ran_text: RanText,
+) -> list[tuple[object, tuple[tuple[str, ...], ...] | str]]:
+    """Give the texts of the last known content beside an unknown text as `_texts_with_words` gives texts, none for any other text."""
+    if not isinstance(ran_text, UnknownRanText):
+        return []
+    return _texts_with_words(ran_text.ran_texts_of_last_known_content)
+
+
 def _last_text(knowledge: ExpandedToolCallKnowledge, *calls: ToolCall) -> RanText:
     return _expand(knowledge, *calls)[-1].ran_texts[-1]
 
@@ -612,6 +621,18 @@ FILE_CHANGE_CASES = [
         K1,
     ),
 ]
+# The commands of the last known content that stays beside the reason `CHANGED_BY_UNREAD_COMMAND`, by the case id of `FILE_CHANGE_CASES`, for the cases whose command changes the content that the trajectory showed instead of replacing it.
+# A copy takes the last known content of its source, and an append adds its heredoc to it. The other cases with that reason replace the content with one that the trajectory does not show, e.g. `curl -o f.sh u`, so no texts stay beside it.
+LAST_KNOWN_CONTENT_COMMANDS_OF_FILE_CHANGE_CASES: dict[
+    str, tuple[tuple[str, ...], ...]
+] = {
+    "program without a row": (("curl", "a"),),
+    "changed in place": (("curl", "a"),),
+    "changed in place after -e": (("curl", "a"),),
+    "appended": (("curl", "a"), ("curl", "b")),
+    "glob": (("curl", "a"),),
+    "copied": (("curl", "a"),),
+}
 
 
 # (case id, text typed into the handle that the starting call started, the command of the starting call or None when no call started it, the expected texts of the poll)
@@ -886,12 +907,13 @@ def test_a_substitution_in_an_unquoted_heredoc_is_a_command_of_the_call_only(
 
 
 @pytest.mark.parametrize(
-    ("command_text", "result", "run_path", "followed", "writer"),
-    [case[1:] for case in FILE_CHANGE_CASES],
+    ("case_id", "command_text", "result", "run_path", "followed", "writer"),
+    FILE_CHANGE_CASES,
     ids=[case[0] for case in FILE_CHANGE_CASES],
 )
 def test_text_of_a_written_file_after_a_command_touched_it(
     knowledge: ExpandedToolCallKnowledge,
+    case_id: str,
     command_text: str,
     result: ToolCallResult,
     run_path: str,
@@ -900,12 +922,21 @@ def test_text_of_a_written_file_after_a_command_touched_it(
 ):
     ran_text = _last_text(
         knowledge,
-        _call(1, WriteFileAction("f.sh", "curl a")),
+        _call(1, WriteFileAction("f.sh", "curl a\n")),
         _call(2, command_text, result),
         _call(3, f"bash {run_path}"),
     )
 
-    assert _texts_with_words((ran_text,)) == [(FileText(0, run_path, writer), followed)]
+    source = FileText(0, run_path, writer)
+    assert _texts_with_words((ran_text,)) == [(source, followed)]
+    last_known_content_commands = LAST_KNOWN_CONTENT_COMMANDS_OF_FILE_CHANGE_CASES.get(
+        case_id
+    )
+    assert _last_known_content_texts_with_words(ran_text) == (
+        []
+        if last_known_content_commands is None
+        else [(source, last_known_content_commands)]
+    )
 
 
 def test_a_use_by_a_program_without_a_row_is_recorded_on_the_written_file(
@@ -1186,7 +1217,7 @@ def test_a_write_and_an_append_of_one_call_by_two_paths_of_one_file(
 def test_a_write_of_one_call_that_fits_several_of_its_files_leaves_them_unknown(
     knowledge: ExpandedToolCallKnowledge,
 ):
-    """A fourth write to `run.sh` after writes to `run.sh`, `/a/run.sh` and `/b/run.sh` in one call may write either file, so a later run of `/a/run.sh` runs no known content."""
+    """A fourth write to `run.sh` after writes to `run.sh`, `/a/run.sh` and `/b/run.sh` in one call may write either file, so a later run of `/a/run.sh` runs no known content, and the content of that write is its last known content."""
     _, runner = _expand(
         knowledge,
         _call(
@@ -1203,9 +1234,13 @@ def test_a_write_of_one_call_that_fits_several_of_its_files_leaves_them_unknown(
         _call(2, "bash /a/run.sh"),
     )
 
-    assert runner.ran_texts[-1] == UnknownRanText(
-        FileText(0, "/a/run.sh", K1), Reason.CHANGED_BY_UNREAD_COMMAND
-    )
+    source = FileText(0, "/a/run.sh", K1)
+    assert _texts_with_words(runner.ran_texts[-1:]) == [
+        (source, Reason.CHANGED_BY_UNREAD_COMMAND)
+    ]
+    assert _last_known_content_texts_with_words(runner.ran_texts[-1]) == [
+        (source, (("curl", "y"),))
+    ]
 
 
 @pytest.mark.parametrize(
@@ -1275,7 +1310,7 @@ def test_a_write_of_one_call_joins_its_file_only_if_it_fits_the_paths_of_earlier
 def test_a_write_of_one_call_leaves_unknown_the_other_files_its_path_fits(
     knowledge: ExpandedToolCallKnowledge,
 ):
-    """One call that writes `x/run.sh` and then `run.sh` writes its own file, but `run.sh` may also name the file at `/a/run.sh` written earlier, so a later run of `/a/run.sh` runs no known content."""
+    """One call that writes `x/run.sh` and then `run.sh` writes its own file, but `run.sh` may also name the file at `/a/run.sh` written earlier, so a later run of `/a/run.sh` runs no known content, and the content written earlier stays its last known content."""
     results = _expand(
         knowledge,
         _call(1, _heredoc_write("/a/run.sh", "curl a")),
@@ -1288,9 +1323,13 @@ def test_a_write_of_one_call_leaves_unknown_the_other_files_its_path_fits(
         _call(3, "bash /a/run.sh"),
     )
 
-    assert results[-1].ran_texts[-1] == UnknownRanText(
-        FileText(0, "/a/run.sh", K1), Reason.CHANGED_BY_UNREAD_COMMAND
-    )
+    source = FileText(0, "/a/run.sh", K1)
+    assert _texts_with_words(results[-1].ran_texts[-1:]) == [
+        (source, Reason.CHANGED_BY_UNREAD_COMMAND)
+    ]
+    assert _last_known_content_texts_with_words(results[-1].ran_texts[-1]) == [
+        (source, (("curl", "a"),))
+    ]
 
 
 @pytest.mark.parametrize(
@@ -1786,15 +1825,96 @@ def test_a_call_may_have_run_unless_its_result_says_not_run(
 def test_a_write_of_a_call_whose_result_does_not_say_it_ran_has_unknown_content(
     knowledge: ExpandedToolCallKnowledge, result: ToolCallResult | None
 ):
+    """The written content is its last known content, since the write may have happened."""
     ran_text = _last_text(
         knowledge,
         _call(1, WriteFileAction("fetch.sh", "curl a"), result),
         _call(2, "bash fetch.sh"),
     )
 
-    assert ran_text == UnknownRanText(
-        FileText(0, "fetch.sh", K1), Reason.CHANGED_BY_UNREAD_COMMAND
+    source = FileText(0, "fetch.sh", K1)
+    assert _texts_with_words((ran_text,)) == [
+        (source, Reason.CHANGED_BY_UNREAD_COMMAND)
+    ]
+    assert _last_known_content_texts_with_words(ran_text) == [
+        (source, (("curl", "a"),))
+    ]
+
+
+@pytest.mark.parametrize(
+    ("earlier_content", "last_known_content_commands"),
+    [("curl a\n", (("curl", "a"),)), (None, None)],
+    ids=["earlier content shown", "no earlier content shown"],
+)
+def test_a_write_that_shows_no_content_and_may_not_have_happened_keeps_the_earlier_last_known_content(
+    knowledge: ExpandedToolCallKnowledge,
+    earlier_content: str | None,
+    last_known_content_commands: tuple[tuple[str, ...], ...] | None,
+):
+    """`curl -o fetch.sh u` in a call without a result may not have replaced fetch.sh, while a file that only such a write wrote has no last known content."""
+    earlier_calls = (
+        ()
+        if earlier_content is None
+        else (_call(1, WriteFileAction("fetch.sh", earlier_content)),)
     )
+    ran_text = _last_text(
+        knowledge,
+        *earlier_calls,
+        _call(2, "curl -o fetch.sh u", None),
+        _call(3, "bash fetch.sh"),
+    )
+
+    source = FileText(0, "fetch.sh", K2)
+    assert _texts_with_words((ran_text,)) == [
+        (source, Reason.CHANGED_BY_UNREAD_COMMAND)
+    ]
+    assert _last_known_content_texts_with_words(ran_text) == (
+        []
+        if last_known_content_commands is None
+        else [(source, last_known_content_commands)]
+    )
+
+
+def test_commands_of_a_last_known_content_get_ids_after_those_of_the_call_and_touch_no_file(
+    knowledge: ExpandedToolCallKnowledge,
+):
+    """`curl -o a.tgz u` and `cat notes.txt` of the last known content of fetch.sh record no write and no use, and the ids of the commands that the call runs after it come after theirs."""
+    results = _expand(
+        knowledge,
+        _call(1, WriteFileAction("fetch.sh", "curl -o a.tgz u\ncat notes.txt\n")),
+        _call(2, WriteFileAction("notes.txt", "x")),
+        _call(3, "sed -i s/u/v/ *.sh"),
+        _call(4, "bash fetch.sh; bash -c 'curl b'"),
+        _call(5, "cat a.tgz"),
+    )
+
+    runner, reader = results[3], results[4]
+    (unknown_ran_text,) = [
+        ran_text
+        for ran_text in runner.ran_texts
+        if isinstance(ran_text, UnknownRanText)
+    ]
+    assert [
+        ran_command.shell_command.id
+        for ran_text in unknown_ran_text.ran_texts_of_last_known_content
+        if isinstance(ran_text, RanShellText)
+        for ran_command in ran_text.ran_commands
+    ] == [2, 3]
+    assert _texts_with_words(runner.ran_texts) == [
+        (CallCommandText(), (("bash", "fetch.sh"), ("bash", "-c", "curl b"))),
+        (FileText(0, "fetch.sh", K1), Reason.CHANGED_BY_UNREAD_COMMAND),
+        (ArgumentText(1), (("curl", "b"),)),
+    ]
+    assert [
+        ran_command.shell_command.id
+        for ran_text in runner.ran_texts
+        if isinstance(ran_text, RanShellText)
+        for ran_command in ran_text.ran_commands
+    ] == [0, 1, 4]
+    assert runner.file_touches == (
+        _touch(0, "fetch.sh", Kind.USES_CONTENT, WrittenFileKey(K1, "fetch.sh")),
+    )
+    assert reader.file_touches == (_touch(0, "a.tgz", Kind.SHOWS_CONTENT),)
 
 
 def test_a_message_that_the_harness_wrote_in_no_known_format_is_not_asked_whether_it_ran(
@@ -1835,8 +1955,8 @@ def test_rules_counted_by_their_situation(knowledge: ExpandedToolCallKnowledge):
     assert use_counts["treat_copy_with_two_arguments_as_unknown_content"] == 1
     assert use_counts["treat_outer_assignment_as_not_visible_in_new_shell"] == 1
     assert use_counts["treat_file_not_named_by_command_words_as_unknown_content"] == 1
-    # The use of f.sh by cat asks the rule on two paths, and the copy, whose content is unknown by a rule, does not look up its source.
-    assert use_counts["treat_path_that_ends_another_as_same_file"] == 1
+    # The use of f.sh by cat asks the rule on two paths, and so does the copy, whose content is unknown by a rule, when it looks up the last known content of its source.
+    assert use_counts["treat_path_that_ends_another_as_same_file"] == 2
 
 
 @pytest.mark.parametrize(
@@ -1870,6 +1990,8 @@ def test_paths_that_name_one_written_file(written_path: str, path: str, same: bo
             first,
             Channel.TOOL_ARGUMENT,
             "x",
+            last_known_content="x",
+            changes_earlier_content=False,
             appends=False,
             may_have_run=True,
             is_call_sure_to_have_run=True,

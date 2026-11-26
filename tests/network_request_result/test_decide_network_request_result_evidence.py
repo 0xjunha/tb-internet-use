@@ -504,6 +504,7 @@ def decide(
     network_requests: list[NetworkRequest] | None = None,
     places: tuple[OutputPlaceSources, ...] = (),
     output_line_owners: tuple[OutputLineOwners, ...] = (),
+    may_reach_output_place: bool = True,
     knowledge: NetworkRequestResultKnowledge | None = None,
 ) -> Decided:
     """Decide the evidence of one request, with the trial's requests being that one alone unless given."""
@@ -515,6 +516,7 @@ def decide(
         expanded_tool_calls,
         places,
         output_line_owners,
+        may_reach_output_place=may_reach_output_place,
         knowledge=knowledge,
         judgment_rule_use_counts=judgment_rule_use_counts,
     )
@@ -2090,6 +2092,35 @@ def test_call_that_did_not_run_fails_every_request_at_attempted():
             ),
         )
         assert decided.judgment_rule_use_counts == Counter()
+
+
+@pytest.mark.parametrize(
+    ("execution_status", "evidence_with_levels"),
+    [
+        (FINISHED, ()),
+        (
+            ExecutionStatus.NOT_RUN,
+            (status_evidence(ExecutionStatus.NOT_RUN, ATTEMPTED, FAILED),),
+        ),
+    ],
+    ids=["call that ran", "call that did not run"],
+)
+def test_request_whose_output_reaches_no_place_gets_only_the_status_of_a_call_that_did_not_run(
+    execution_status: ExecutionStatus,
+    evidence_with_levels: tuple[EvidenceWithLevel, ...],
+):
+    """Exit 0 of `pip install A`, which would show that it ran, gives nothing to a request whose output reaches no place, e.g. a request of the last known content of a file that `decide_network_request_results` keeps from every place by a rule."""
+    pip = command(0, "pip install A", PIP_INSTALL)
+    network_request = request(K1, from_command(pip), "A", target_kind=PACKAGE_NAME)
+
+    decided = decide(
+        network_request,
+        [call(K1, pip, execution_status=execution_status, exit_code=0)],
+        may_reach_output_place=False,
+    )
+
+    assert decided.evidence_with_levels == evidence_with_levels
+    assert decided.judgment_rule_use_counts == Counter()
 
 
 def test_web_tool_call_that_did_not_run_fails_at_attempted():

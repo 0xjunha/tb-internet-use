@@ -19,8 +19,15 @@ from tb_internet_use.network_request.model import (
     ContentSaved,
     NetworkRequest,
     NetworkRequestCertainty,
+    NetworkRequestUncertaintyReason,
+)
+from tb_internet_use.network_request_result import (
+    _decide_network_request_results as decide_network_request_results_module,
 )
 from tb_internet_use.network_request_result import decide_network_request_results
+from tb_internet_use.network_request_result.judgment_rules import (
+    treat_request_of_last_known_content_as_reaching_no_output_place,
+)
 from tb_internet_use.network_request_result.model import (
     ExecutionStatusEvidence,
     ExitCodeEvidence,
@@ -1088,3 +1095,64 @@ def test_a_request_of_a_subagent_trajectory_takes_only_the_lines_of_its_own_call
             ),
         ),
     ]
+
+
+# fetch.py as cat wrote it in call 1, whose content `sed -i s/x/y/ *.py` of call 2 may have changed, run after `pip install x` in call 3, whose line python may have printed too, since no row says which lines python prints.
+FETCH_PY_WRITE = (
+    "cat > fetch.py <<'EOF'\nimport requests\nrequests.get('https://a.org/x')\nEOF"
+)
+LAST_KNOWN_CONTENT_RULE_NAME = (
+    treat_request_of_last_known_content_as_reaching_no_output_place.__name__
+)
+
+
+def _steps_of_install_beside_code_of_last_known_content() -> _Steps:
+    return _steps(
+        _bash_call(1, FETCH_PY_WRITE, ""),
+        _bash_call(2, "sed -i s/x/y/ *.py", ""),
+        _bash_call(
+            3, "pip install x && python fetch.py", "Successfully installed x-1.0"
+        ),
+    )
+
+
+def test_a_request_of_the_last_known_content_of_a_file_gets_no_line_and_leaves_the_lines_of_the_other_requests_as_they_were():
+    steps = _steps_of_install_beside_code_of_last_known_content()
+
+    decided = _decided(steps)
+
+    pip_result, code_result = decided.results
+    assert code_result == NetworkRequestResult(
+        network_request=steps.network_requests[1],
+        request_certainty_after_evidence=NetworkRequestCertainty.UNCERTAIN,
+        level=_ATTEMPTED,
+        stop_reason=_NOT_VISIBLE,
+        level_certainty=_CONFIRMED,
+        evidence=(),
+        assumption_reasons=(),
+    )
+    assert code_result.network_request.uncertainty_reason == (
+        NetworkRequestUncertaintyReason.FILE_MAY_HOLD_OTHER_CONTENT
+    )
+    assert (pip_result.level, pip_result.level_certainty) == (_RECEIVED, _CONFIRMED)
+    assert decided.judgment_rule_use_counts[LAST_KNOWN_CONTENT_RULE_NAME] == 1
+
+
+def test_on_the_other_answer_a_request_of_the_last_known_content_of_a_file_shares_the_lines_of_its_command_and_stays_uncertain(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    monkeypatch.setattr(
+        decide_network_request_results_module,
+        LAST_KNOWN_CONTENT_RULE_NAME,
+        lambda *, use_counts: False,
+    )
+    steps = _steps_of_install_beside_code_of_last_known_content()
+
+    decided = _decided(steps)
+
+    pip_result, code_result = decided.results
+    assert code_result.request_certainty_after_evidence == (
+        NetworkRequestCertainty.UNCERTAIN
+    )
+    assert _line(3, OutputLineKind.INSTALLED, is_shared=True) in code_result.evidence
+    assert (pip_result.level, pip_result.level_certainty) == (_RECEIVED, _ASSUMED)

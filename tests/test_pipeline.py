@@ -31,6 +31,7 @@ from tb_internet_use.network_request.judgment_rules import (
 from tb_internet_use.network_request.model import (
     FromCommand,
     NetworkRequestCertainty,
+    NetworkRequestUncertaintyReason,
     NoNetworkRequestReason,
 )
 from tb_internet_use.network_request_result import (
@@ -1215,3 +1216,68 @@ def test_apt_download_and_install_lines_that_the_update_and_the_install_own_coun
         ]
         == 1
     )
+
+
+@pytest.mark.parametrize(
+    (
+        "changing_calls",
+        "request_certainty",
+        "request_uncertainty_reason",
+        "measure_bound",
+    ),
+    [
+        ((), NetworkRequestCertainty.CONFIRMED, None, MeasureBound.LOWER_AND_UPPER),
+        (
+            (("sed -i s/x/y/ *.sh", ""),),
+            NetworkRequestCertainty.UNCERTAIN,
+            NetworkRequestUncertaintyReason.FILE_MAY_HOLD_OTHER_CONTENT,
+            MeasureBound.UPPER_ONLY,
+        ),
+    ],
+    ids=["content known", "content that an unread command may have changed"],
+)
+def test_a_request_of_the_last_known_content_of_a_file_counts_in_the_upper_bounds_only_whatever_its_run_prints(
+    tmp_path,
+    write_trial_folder,
+    changing_calls: tuple[tuple[str, str], ...],
+    request_certainty: NetworkRequestCertainty,
+    request_uncertainty_reason: NetworkRequestUncertaintyReason | None,
+    measure_bound: MeasureBound,
+):
+    """fetch.sh as cat wrote it runs `pip install requests`, and its run prints the line that pip prints when it installed the package. After `sed -i s/x/y/ *.sh`, whose glob may name fetch.sh, the file may hold other content whose run printed the line."""
+    trial_dir = write_trial_folder(
+        tmp_path,
+        "trial-1",
+        [
+            ("cat > fetch.sh <<'EOF'\npip install requests\nEOF", ""),
+            *changing_calls,
+            ("bash fetch.sh", "Successfully installed requests-2.32.3"),
+        ],
+    )
+
+    ((_, _, _, trial_row, network_request_rows, _), _, _) = (
+        _run_steps_of_trial_with_new_counters(trial_dir)
+    )
+
+    assert [
+        (
+            row.made_by,
+            row.request_certainty,
+            row.request_uncertainty_reason,
+            row.request_measure_bound,
+            row.received_measure_bound,
+        )
+        for row in network_request_rows
+    ] == [
+        (
+            "pip install",
+            request_certainty,
+            request_uncertainty_reason,
+            measure_bound,
+            measure_bound,
+        )
+    ]
+    assert (
+        trial_row.any_category_request_measure_bound,
+        trial_row.any_category_received_measure_bound,
+    ) == (measure_bound, measure_bound)

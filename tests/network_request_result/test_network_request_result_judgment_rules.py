@@ -21,6 +21,7 @@ from tb_internet_use.network_request_result.judgment_rules import (
     treat_lost_connection_as_after_server_answer,
     treat_pip_or_apt_installed_line_of_named_package_as_received,
     treat_pip_saved_line_of_named_package_as_received,
+    treat_request_of_last_known_content_as_reaching_no_output_place,
     treat_shown_content_of_saved_file_as_assumed_content,
     treat_shown_result_text_as_assumed_content,
     treat_size_or_type_of_saved_file_as_no_evidence_of_content,
@@ -83,6 +84,7 @@ JUDGMENT_RULE_CASES: list[tuple[Callable[..., object], tuple[object, ...], objec
         True,
     ),
     (treat_lost_connection_as_after_server_answer, (), True),
+    (treat_request_of_last_known_content_as_reaching_no_output_place, (), True),
 ]
 
 # (the rule with an argument, an argument it is not asked for)

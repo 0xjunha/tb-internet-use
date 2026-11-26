@@ -1,6 +1,7 @@
 """Tests for the checks that the types of network_request_result/model.py make when they are built."""
 
 import itertools
+from dataclasses import replace
 
 import pytest
 
@@ -252,6 +253,21 @@ def test_network_request_result_lifts_a_request_to_confirmed_only_by_an_output_l
                 evidence=evidence,
                 level=level,
             )
+
+
+def test_network_request_result_never_lifts_a_request_of_the_last_known_content_of_a_file():
+    """An output line of its own, which would lift `npx tsc`, does not lift it, since the file may hold other content whose run printed the line."""
+    network_request = replace(
+        build_network_request(certainty=UNCERTAIN),
+        uncertainty_reason=NetworkRequestUncertaintyReason.FILE_MAY_HOLD_OTHER_CONTENT,
+    )
+
+    with pytest.raises(ValueError, match="last known content"):
+        build_network_request_result(
+            network_request,
+            request_certainty_after_evidence=CONFIRMED,
+            evidence=(EXIT_CODE_EVIDENCE, OWN_OUTPUT_LINE_EVIDENCE),
+        )
 
 
 # The reason that names the line of `SHARED_OUTPUT_LINE_EVIDENCE`.

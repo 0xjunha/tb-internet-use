@@ -62,6 +62,9 @@ FINDS_TEXT_IN_OPENED_PAGE = NetworkRequestUncertaintyReason.FINDS_TEXT_IN_OPENED
 CALL_NAME_MAY_BE_ANOTHER_FUNCTION = (
     NetworkRequestUncertaintyReason.CALL_NAME_MAY_BE_ANOTHER_FUNCTION
 )
+FILE_MAY_HOLD_OTHER_CONTENT = (
+    NetworkRequestUncertaintyReason.FILE_MAY_HOLD_OTHER_CONTENT
+)
 # One source of each kind that gives requests of different reasons.
 SOURCES_BY_NAME: dict[str, NetworkRequestSource] = {
     "command of a program with a row": CURL_SOURCE,
@@ -81,6 +84,7 @@ ACCEPTED_UNCERTAINTY_REASONS_OF_SOURCE: dict[
     str, set[NetworkRequestUncertaintyReason | None]
 ] = {
     # `curl u`, `curl --foo x u`, `curl -L u` without an option row, `npx tsc`, curl in a text whose lines stayed joined, and a program that the request catalog has no row for, e.g. `python -m ensurepip https://a.org/x`.
+    # Each source of a command or code may be in the last known content of a file, e.g. curl of fetch.sh as a write tool wrote it before `sed -i s/a/b/ *.sh`.
     "command of a program with a row": {
         None,
         UNREAD_WORDS,
@@ -88,18 +92,27 @@ ACCEPTED_UNCERTAINTY_REASONS_OF_SOURCE: dict[
         FETCHES_ONLY_WHAT_IS_MISSING,
         STRUCTURE_MAY_BE_WRONG,
         UNKNOWN_PROGRAM,
+        FILE_MAY_HOLD_OTHER_CONTENT,
     },
     # `mytool https://a.org/x`.
-    "command of a program without a row": {UNKNOWN_PROGRAM},
+    "command of a program without a row": {
+        UNKNOWN_PROGRAM,
+        FILE_MAY_HOLD_OTHER_CONTENT,
+    },
     # `requests.get(u)`, `subprocess.run(["pip", "install", "x"])`, a program without a row that code runs, e.g. `subprocess.run(["mytool", u])`, and `self.page.goto(u)`.
     "code call with a row": {
         None,
         PROGRAM_RUN_BY_CODE,
         UNKNOWN_PROGRAM,
         CALL_NAME_MAY_BE_ANOTHER_FUNCTION,
+        FILE_MAY_HOLD_OTHER_CONTENT,
     },
     # `mylib.fetch(u)` and `URL = u`.
-    "code without a known call": {UNKNOWN_CODE_CALL, URL_OUTSIDE_CODE_CALL},
+    "code without a known call": {
+        UNKNOWN_CODE_CALL,
+        URL_OUTSIDE_CODE_CALL,
+        FILE_MAY_HOLD_OTHER_CONTENT,
+    },
     # A web search or fetch, and a web find, which may search a page that its tool already holds.
     "web tool": {None, FINDS_TEXT_IN_OPENED_PAGE},
 }

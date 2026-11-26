@@ -13,6 +13,7 @@ from tb_internet_use.expanded_tool_call.model import FileUse
 from tb_internet_use.network_request.model import (
     NetworkRequest,
     NetworkRequestCertainty,
+    NetworkRequestUncertaintyReason,
     NoContentRequested,
 )
 from tb_internet_use.tool_call.model import ExecutionStatus, ToolCallKey
@@ -59,6 +60,7 @@ class NetworkRequestResult:
         """Refuse a level and stop reason that a request cannot have, a claim that rests on no evidence, a request certainty that the evidence cannot give, and reasons that do not fit the certainty or the evidence.
 
         A failure is recorded only when the trajectory shows a trace of it, and a request is lifted to confirmed only by an output line of this request alone, e.g. `npm ERR! code E404` under `npx tsc`.
+        A request of the last known content of a file is never lifted, since it counts in the upper bounds only.
         A confirmed result has no assumption reason and an assumed one has at least one, and a shared output line that is a reason is a line of the evidence that other requests own too.
         """
         if not _is_valid_level_and_stop_reason(
@@ -90,6 +92,13 @@ class NetworkRequestResult:
             raise ValueError(
                 "an uncertain request lifted to confirmed without an output line of its own"
             )
+        if (
+            self.network_request.uncertainty_reason
+            == NetworkRequestUncertaintyReason.FILE_MAY_HOLD_OTHER_CONTENT
+            and self.request_certainty_after_evidence
+            == NetworkRequestCertainty.CONFIRMED
+        ):
+            raise ValueError("a request of the last known content of a file lifted")
         if (
             self.level_certainty == NetworkRequestResultCertainty.CONFIRMED
             and self.assumption_reasons

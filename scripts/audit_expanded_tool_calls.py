@@ -41,6 +41,7 @@ from tb_internet_use.expanded_tool_call.model import (
     RanCodeText,
     RanCommand,
     RanShellText,
+    RanText,
     ScriptStepText,
     StdinText,
     UnknownOptionsEndAtFirstArgument,
@@ -118,9 +119,9 @@ EQUATIONS = (
     "program_invocations_hold_the_words_of_their_command",
     # Arguments of an innermost `cat` without unread words in a call that may have run, with variables of one sure value filled, or its stdin file when no argument names a file, that are no glob, no `-`, no repeat of the file of an earlier one and no harness output file, beside uses of a file without a known writer plus groups of `FileUse`s of the same command, i.e. of written files that can name one file or that one argument fits when the path fits several.
     "cat_arguments_equal_file_uses",
-    # `UnknownProgramInvocation`s beside unknown inputs of `program_behaviors.csv` plus program words that are expansions.
+    # `UnknownProgramInvocation`s, also those of the last known contents of files beside unknown texts, beside unknown inputs of `program_behaviors.csv` plus program words that are expansions.
     "unknown_program_invocations_equal_unknown_program_lookups",
-    # `ProgramInvocation`s with unread words, plus those whose first unread word is an option cluster word without a row and whose later unread words hold an option without a row, which give a second unknown input, beside unknown inputs of `program_option_behaviors.csv` plus blank `options_end_at_first_argument` cells that left a word unread, i.e. unknown inputs under `BLANK_PROGRAM_BEHAVIOR_CELLS`, plus options with a row that take a value and are the last word, which give none.
+    # `ProgramInvocation`s with unread words, also those of the last known contents of files, plus those whose first unread word is an option cluster word without a row and whose later unread words hold an option without a row, which give a second unknown input, beside unknown inputs of `program_option_behaviors.csv` plus blank `options_end_at_first_argument` cells that left a word unread, i.e. unknown inputs under `BLANK_PROGRAM_BEHAVIOR_CELLS`, plus options with a row that take a value and are the last word, which give none.
     "unread_words_equal_unknown_option_lookups",
     # `OutputPlace`s and `FileUse`s beside those whose call is in the trial, with the command ids of an `OutputPlace` among the commands of the call that holds it and the command id of a `FileUse`, if it has one, among the commands of its using call.
     "pointers_stay_inside_trial",
@@ -611,6 +612,9 @@ class TrialChecker:
             self.count_call(expanded_tool_call)
             self.check_call_texts(expanded_tool_call)
             self.check_commands(expanded_tool_call)
+            self.count_program_invocations_of_last_known_contents(
+                expanded_tool_call.ran_texts
+            )
             self.check_pointers(expanded_tool_call)
             self.check_written_files(expanded_tool_call)
             self.check_call_not_run(expanded_tool_call)
@@ -859,16 +863,7 @@ class TrialChecker:
         }
         for ran_command in ran_commands:
             shell_command = ran_command.shell_command
-            for program_invocation in ran_command.program_invocations:
-                if isinstance(program_invocation, UnknownProgramInvocation):
-                    trial_audit.count("unknown_program_invocations")
-                    if _is_expansion_word(
-                        shell_command, program_invocation.program_name
-                    ):
-                        trial_audit.count("program_words_that_are_expansions")
-                elif program_invocation.unread_words:
-                    trial_audit.count("program_invocations_with_unread_words")
-                    self.count_unread_words_beside_lookups(program_invocation)
+            self.count_program_invocations(ran_command)
             if (
                 shell_command.words
                 and _file_name_of(shell_command.words[0]) in RUNNER_NAMES
@@ -903,6 +898,35 @@ class TrialChecker:
                 self.check_route(route, ran_commands, tool_call_key)
             if self.is_checked_cat_command(expanded_tool_call, ran_command):
                 self.check_cat_arguments(expanded_tool_call, ran_command)
+
+    def count_program_invocations(self, ran_command: RanCommand) -> None:
+        """Count the program invocations of a command that no fact covers or that have unread words, for the equations beside the lookups of `ExpandedToolCallKnowledge`."""
+        trial_audit = self.trial_audit
+        for program_invocation in ran_command.program_invocations:
+            if isinstance(program_invocation, UnknownProgramInvocation):
+                trial_audit.count("unknown_program_invocations")
+                if _is_expansion_word(
+                    ran_command.shell_command, program_invocation.program_name
+                ):
+                    trial_audit.count("program_words_that_are_expansions")
+            elif program_invocation.unread_words:
+                trial_audit.count("program_invocations_with_unread_words")
+                self.count_unread_words_beside_lookups(program_invocation)
+
+    def count_program_invocations_of_last_known_contents(
+        self, ran_texts: Sequence[RanText]
+    ) -> None:
+        """Count the program invocations of the commands of the last known contents of files beside unknown texts, deeper ones included, which `ExpandedToolCallKnowledge` was asked about as about those of the call."""
+        for ran_text in ran_texts:
+            if not isinstance(ran_text, UnknownRanText):
+                continue
+            for last_known_content_ran_text in ran_text.ran_texts_of_last_known_content:
+                if isinstance(last_known_content_ran_text, RanShellText):
+                    for ran_command in last_known_content_ran_text.ran_commands:
+                        self.count_program_invocations(ran_command)
+            self.count_program_invocations_of_last_known_contents(
+                ran_text.ran_texts_of_last_known_content
+            )
 
     def count_unread_words_beside_lookups(
         self, program_invocation: ProgramInvocation

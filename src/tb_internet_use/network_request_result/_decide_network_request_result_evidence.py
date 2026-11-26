@@ -120,14 +120,16 @@ def decide_network_request_result_evidence(
     output_place_sources: Sequence[OutputPlaceSources],
     output_line_owners: Sequence[OutputLineOwners],
     *,
+    may_reach_output_place: bool,
     knowledge: NetworkRequestResultKnowledge,
     judgment_rule_use_counts: Counter[str],
 ) -> tuple[EvidenceWithLevel, ...]:
     """Decide every piece of evidence of `network_request`, each with the level and stop reason it shows, its lines first, then the evidence of its run, then that of what it received.
 
-    `network_requests` are all requests of the trial, so that a line of command a can stop the request of b in `a && b`, and `output_place_sources` tell whether the place of a line may show file content or page text and which runs reach it.
+    `network_requests` are all requests of the trial whose output may reach a place, so that a line of command a can stop the request of b in `a && b`, and `output_place_sources` tell whether the place of a line may show file content or page text and which runs reach it.
     Every use of a rule of `judgment_rules.py` adds one to `judgment_rule_use_counts`, and a request without evidence of its run counts `treat_command_without_own_evidence_as_no_evidence_of_run` once.
     A call whose result is `NOT_RUN` ran nothing, so its requests get only the evidence of its status, e.g. a `curl u` call marked not run whose result holds a message of the harness.
+    A request whose output reaches no place by `may_reach_output_place` gets no other evidence, e.g. one of the last known content of a file, whose run may have printed the lines of another content.
     """
     expanded_tool_call_by_key = {
         expanded_tool_call.tool_call.harness_tool_call.key: expanded_tool_call
@@ -147,6 +149,8 @@ def decide_network_request_result_evidence(
                 assumption_reasons=(),
             ),
         )
+    if not may_reach_output_place:
+        return ()
     output_place_sources_by_key = {
         output_place_sources_of_call.showing_tool_call_key: output_place_sources_of_call
         for output_place_sources_of_call in output_place_sources

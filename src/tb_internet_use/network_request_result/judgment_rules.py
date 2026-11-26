@@ -419,3 +419,21 @@ def treat_lost_connection_as_after_server_answer(*, use_counts: Counter[str]) ->
     """
     use_counts[treat_lost_connection_as_after_server_answer.__name__] += 1
     return True
+
+
+def treat_request_of_last_known_content_as_reaching_no_output_place(
+    *, use_counts: Counter[str]
+) -> bool:
+    """Read a request of the last known content of a file, i.e. one whose uncertainty reason is `FILE_MAY_HOLD_OTHER_CONTENT`, as one whose output reaches no place, e.g. `requests.get("https://a.org/x")` of fetch.py as a write tool wrote it before `sed -i s/a/b/ *.py`, under a later `python fetch.py`.
+
+    The file may hold other content when it runs, so a line in the result of its run may come from a request of that content, and the trajectory does not say whether the request of the last known content ran at all.
+    `decide_network_request_results` asks it once for each such request.
+    On `True` no line is its evidence and it shares no line or place with another request, so it gets only the status of a call that did not run, else no evidence. On `False` its output reaches the places of its command like that of any other request, though no line lifts it to confirmed.
+    A use is such a request.
+
+    Provisional. No earlier code gave such requests, and evidence that may come from another content claims more than none. It also leaves the evidence of every other request as it was without these requests, e.g. a `Successfully installed x-1.0` of `pip install x && python fetch.py`, which a request of the code would otherwise share.
+    """
+    use_counts[
+        treat_request_of_last_known_content_as_reaching_no_output_place.__name__
+    ] += 1
+    return True

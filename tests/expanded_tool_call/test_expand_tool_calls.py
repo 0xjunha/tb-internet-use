@@ -847,11 +847,9 @@ def test_a_file_that_a_command_with_an_unknown_result_touches_before_it_runs_is_
         _call(3, "bash f.sh"),
     )
 
-    assert expanded_tool_calls[2].ran_texts[1:] == (
-        UnknownRanText(
-            FileText(0, "f.sh", writer_tool_call_key), Reason.CHANGED_BY_UNREAD_COMMAND
-        ),
-    )
+    assert _words_of_ran_texts(expanded_tool_calls[2])[1:] == [
+        (FileText(0, "f.sh", writer_tool_call_key), Reason.CHANGED_BY_UNREAD_COMMAND)
+    ]
 
 
 # One case per row of the table of where output shows up. The output is followed when the trajectory holds the place, and gets no place in a later call when it does not.

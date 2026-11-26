@@ -11,6 +11,7 @@ from dataclasses import dataclass, replace
 from tb_internet_use.network_request.model import (
     NetworkRequest,
     NetworkRequestCertainty,
+    NetworkRequestUncertaintyReason,
 )
 from tb_internet_use.network_request_result.judgment_rules import (
     treat_higher_evidence_beside_failure_as_assumed_level,
@@ -307,7 +308,13 @@ def _request_certainty_after_evidence_of(
     A line whose level rests on a judgment rule or that another request or a run that is not read may have printed lifts nothing, e.g. `HTTP/1.1 200 OK` in the result of `mytool https://a.org/x`. Evidence that is no output line lifts nothing either, e.g. exit 0 of `sbt compile`.
     A line that shows only that the program ran, EXECUTED with NOT_VISIBLE, lifts nothing either, e.g. `Could not resolve host: b.org` under `curl --verbose https://a.org/x`, which `treat_line_naming_another_target_as_no_evidence_of_answer` reads so, since a request to b.org does not show that the request to a.org was sent.
     A line that several requests of one command own lifts none of them, although it may still confirm that their command ran, e.g. a `DOWNLOAD_STARTED` line that names another package under `npx a u`, owned by both the package request of `a` and the URL request of `u`.
+    A request of the last known content of a file stays uncertain whatever its lines show, since the file may hold other content whose run printed them, and the user decided on 2026-11-25 that such a request counts in the upper bounds only.
     """
+    if (
+        network_request.uncertainty_reason
+        == NetworkRequestUncertaintyReason.FILE_MAY_HOLD_OTHER_CONTENT
+    ):
+        return network_request.certainty
     if any(
         _is_line_of_sent_request(evidence_with_level)
         for evidence_with_level in evidence_with_levels

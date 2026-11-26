@@ -295,6 +295,29 @@ def test_every_equation_holds_on_a_made_up_trial_of_the_kinds_it_counts(knowledg
     }
 
 
+def test_every_equation_holds_when_the_last_known_content_of_a_file_is_followed(
+    knowledge,
+):
+    """mytool of call 2 may have changed fetch.sh, so `bash fetch.sh` follows its last known content, whose mytool `ExpandedToolCallKnowledge` is asked about as about that of call 2."""
+    trial_audit = _checked(
+        knowledge,
+        (
+            _call(1, WriteFileAction("fetch.sh", "mytool z\n")),
+            _call(2, "mytool fetch.sh"),
+            _call(3, "bash fetch.sh"),
+        ),
+    )
+
+    assert _differing_equations(trial_audit) == set()
+    assert (
+        trial_audit.counts[
+            "all", "ran_texts unknown changed_by_unread_command from FileText"
+        ]
+        == 1
+    )
+    assert trial_audit.counts["all", "unknown_program_invocations"] == 2
+
+
 def test_every_equation_has_its_definition_above_its_name():
     source_lines = inspect.getsource(audit).splitlines()
     equations_start = source_lines.index("EQUATIONS = (")

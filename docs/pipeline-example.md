@@ -141,6 +141,7 @@ c3.result = ToolCallResult(execution_status=RUNNING, handles=(ExecutionHandle(CO
 Each call is expanded into everything it actually ran and the places where that output shows up, using all calls of the trial.
 Each command is read once into its program, options and arguments, and later steps do not read it again.
 Where the step cannot follow, it records what is unknown.
+When a command that the step does not read may have changed a file after the last content of it that the trajectory shows, e.g. `sed -i s/a/b/ *.sh` after c2, a later run of the file is unknown, and the texts of that last content stay beside it, so that step 3 can read their requests as uncertain.
 
 | Asked through `ExpandedToolCallKnowledge` | Answer in this example |
 |---|---|
@@ -237,7 +238,7 @@ An option that has no row in the catalog of this step makes the request uncertai
 
 ```python
 # c3's own text has `bash fetch.sh` with id 0 and `pip install requests` with id 1, and the curl of fetch.sh gets the next id 2 of the call.
-# The requests of a call follow the command ids, then the code texts, then the web tool steps, and are numbered from 0 in the call.
+# The requests of a call follow the command ids, then the code texts, then the web tool steps, then the last known contents of files whose content is unknown, and are numbered from 0 in the call.
 r4 = NetworkRequest(
     tool_call_key=c3,
     index_in_tool_call=0,
@@ -392,4 +393,5 @@ The entry function `export_rows` calls these pieces in order.
 - Code text, e.g. `python client.py`, which is not split into commands and is read for requests in step 3.
 - Web tools, and text typed into a running process.
 - Requests that are uncertain although the program is known: one that fetches only when something is missing, e.g. `npx tsc`, and one with an option that no fact covers.
+- A request of the last known content of a file, e.g. the curl of fetch.sh had a call run `sed -i s/a/b/ *.sh` between c2 and c3. It is uncertain with the reason `FILE_MAY_HOLD_OTHER_CONTENT`, `treat_request_of_last_known_content_as_reaching_no_output_place` gives it no line, and no line could lift it to confirmed, so it counts in the upper bounds only.
 - A request that needed to send nothing, e.g. pip printing `Requirement already satisfied`.

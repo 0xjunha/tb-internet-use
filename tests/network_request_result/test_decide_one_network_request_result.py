@@ -1030,6 +1030,33 @@ def test_decide_one_network_request_result_lifts_an_uncertain_request_only_by_a_
 
 
 @pytest.mark.parametrize(
+    ("kind", "level", "stop_reason"),
+    [
+        (kind, level, stop_reason)
+        for kind, level, stop_reason, shows_sent_request in SENT_REQUEST_LINE_CASES
+        if shows_sent_request
+    ],
+)
+def test_decide_one_network_request_result_keeps_a_request_of_the_last_known_content_of_a_file_uncertain_by_a_clean_line_of_its_own(
+    kind: OutputLineKind,
+    level: NetworkRequestResultLevel,
+    stop_reason: NetworkRequestResultStopReason | None,
+):
+    """The file may hold other content when it runs, whose request may have printed the line, e.g. `curl: (6) Could not resolve host: a.org` under `bash fetch.sh` after `sed -i s/a/b/ *.sh`."""
+    request_of_last_known_content = replace(
+        UNCERTAIN_REQUEST,
+        uncertainty_reason=NetworkRequestUncertaintyReason.FILE_MAY_HOLD_OTHER_CONTENT,
+    )
+
+    result, _ = decide(
+        request_of_last_known_content,
+        [with_level(output_line(kind), level, stop_reason)],
+    )
+
+    assert result.request_certainty_after_evidence == NetworkRequestCertainty.UNCERTAIN
+
+
+@pytest.mark.parametrize(
     ("evidence", "level", "stop_reason"), EVIDENCE_OTHER_THAN_LINES
 )
 @pytest.mark.parametrize(
