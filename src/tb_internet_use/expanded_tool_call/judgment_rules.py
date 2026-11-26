@@ -29,21 +29,20 @@ def treat_values_outside_their_for_loop_as_one_of_them(
     return True
 
 
-def treat_word_with_expansion_as_start_of_unread_words(
+def treat_word_with_expansion_as_one_argument(
     word: str, *, use_counts: Counter[str]
 ) -> bool:
-    """Read a command word that holds an expansion as the first of the unread words of its program, e.g. `$OPTS` in `curl $OPTS u`, `$PKGS` in `pip install $PKGS` or `$F` in `curl -o $F u`.
+    """Read a command word that holds an expansion as one word where it is written, i.e. one argument or one option value, e.g. `$OPTS` in `curl $OPTS u`, `$PKGS` in `pip install $PKGS` or `$F` in `curl -o $F u`.
 
     The words of a command are as written in the trajectory, so such a word can stand for several options, several arguments or none when the command runs.
     `expand_program_invocations` asks it for each word of `ShellCommand.expansion_word_indexes` that ends as an argument or as the value of an option, once all words of its program are placed.
     It does not ask it for the program word, which is an `UnknownProgramInvocation`, for a skipped `NAME=value` word, or for a word whose place makes it a cluster of one-letter options, which is unread.
-    On `True` it and the words after it are unread words, from the word of the option for a value, and on `False` the word is one argument or one value.
-    It returns `True`, so the rule is asked once per command, for the first such word.
+    On `True` the word is one argument or one value, and on `False` it and the words after it are unread words, from the word of the option for a value.
     A use is such a word.
 
-    Decided. The user decided on 2026-11-24 that such a word starts the unread words, since its value may hold options, e.g. `--no-index --find-links /wheels` in `$OPTS` of `pip install $OPTS requests`, so reading it as one argument puts in the lower bound a target and a default host that the trajectory does not show. The earlier code read it as one argument.
+    Provisional. It keeps the choice of the earlier code, which read such a word as one argument.
     """
-    use_counts[treat_word_with_expansion_as_start_of_unread_words.__name__] += 1
+    use_counts[treat_word_with_expansion_as_one_argument.__name__] += 1
     return True
 
 
@@ -83,20 +82,22 @@ def treat_calls_of_other_trajectory_as_not_linked(*, use_counts: Counter[str]) -
     return True
 
 
-def treat_script_poll_step_naming_no_handle_as_polling_none(
+def treat_result_handles_of_script_with_poll_step_naming_none_as_not_linked(
     *, use_counts: Counter[str]
 ) -> bool:
-    """Read a poll step of a tool script that names no handle as reading no handle, even when the script's result names one, e.g. a Codex `exec` script whose step `wait()` has no session id and whose result names session `3`.
+    """Read the handles that the result of a tool script names as linked to no call when a poll step of the script names no handle, e.g. session `3` in the result of a Codex `exec` script whose step `wait()` has no session id.
 
     The trajectory has one result for the whole script, so it does not say whether the handle in it is the one the step read, one that another step started, or one the script only printed.
     `expand_poll_links` asks it for each such step of a script whose result names at least one handle.
-    On `True` the step reads no handle and has no starter, and on `False` it reads every handle that the script's result names, as a poll that is the call's action does.
-    So on `False`, when an earlier call started the same id, the step and the later polls of that id link to that earlier call, which is wrong when the script started the id again, as 2 scripts in the 100 sample trials did.
+    On `True` the step reads no handle and has no starter, and the script is a start of each of those handles other than its own script handle that links no poll, so a later poll of such an id has no starter when the script is its only earlier start, and asks `treat_poll_of_handle_that_several_calls_started_as_not_linked` when an earlier call started the id too.
+    On `False` the step reads every handle that the script's result names, as a poll that is the call's action does, and the script starts none of them. So when an earlier call started the same id, the step and the later polls of that id link to that earlier call, which is wrong when the script started the id again, as 2 scripts in the 100 sample trials did.
     A use is such a step.
 
-    Provisional. It keeps the choice of the earlier code, which read no handle for such a step.
+    Provisional. The earlier code read no handle for such a step and took the script as the starter of the handles its result names, which links a later poll to the script although its step may have read an earlier call's handle, e.g. a poll that shows `Successfully installed x-1.0` that the earlier call printed. The review of 2026-11-24 recommended that the script not be the starter of those handles, and the user has not yet confirmed it.
     """
-    use_counts[treat_script_poll_step_naming_no_handle_as_polling_none.__name__] += 1
+    use_counts[
+        treat_result_handles_of_script_with_poll_step_naming_none_as_not_linked.__name__
+    ] += 1
     return True
 
 
@@ -183,19 +184,22 @@ def treat_input_of_key_presses_only_as_no_text(
     return True
 
 
-def treat_use_after_later_overwrite_as_use_of_later_write(
+def treat_use_after_overwrite_that_may_not_have_happened_as_use_without_known_writer(
     path: str, *, use_counts: Counter[str]
 ) -> bool:
-    """Read a use of a file that a later call overwrote as a use of the later write only, e.g. `cat log` in call 4 after `a > log` in call 1 and `b > log` in call 3.
+    """Read a use of a file that a later call may have overwritten as a use of a file without a known writer, e.g. `cat log` in call 4 after `a > log` in call 1 and `b > log` in call 3, whose result has the status `UNKNOWN`.
 
     A write with `>>` keeps what the file held, so it is no overwrite, and writes within one call are taken together.
-    `expand_ran_texts` asks it for a use of a file that an earlier call wrote before another call overwrote it.
-    On `True` the use belongs to the later write only. On `False` it would belong to the earlier writes too.
+    An overwrite surely happened when its call's result says that it ran. A use after it belongs to the later write only, without the rule. An overwrite by a command under a condition counts as one that happened, since `treat_command_under_run_condition_as_run` records it as if it ran.
+    `expand_ran_texts` asks it for a use of a file that an earlier call wrote before another call overwrote it, when that overwrite may not have happened, i.e. its call has no result or one with the status `UNKNOWN`.
+    On `True` the use belongs to none of the writes of that file, so it is a use of a file without a known writer. On `False` it would belong to the later write only.
     A use is such a use of a file.
 
-    Provisional. It keeps the choice of the earlier code, which counted reads of a file only until it was overwritten.
+    Provisional. The earlier code counted reads of a file only until it was overwritten, which gives the line that an earlier write left to a later request that may not have run, e.g. `Successfully installed x-1.0` of call 1 to `pip install x > log` of call 3, whose result has the status `UNKNOWN`. The review of 2026-11-24 recommended to give such a use no writer, and the user has not yet confirmed it.
     """
-    use_counts[treat_use_after_later_overwrite_as_use_of_later_write.__name__] += 1
+    use_counts[
+        treat_use_after_overwrite_that_may_not_have_happened_as_use_without_known_writer.__name__
+    ] += 1
     return True
 
 
@@ -206,10 +210,11 @@ def treat_tool_call_not_marked_not_run_as_maybe_run(
 
     The trajectory does not say whether the tool ran such a call.
     `expand_ran_texts` asks it for each such call, but not for a message that the harness wrote, which no tool ran.
-    On `True` the call's writes change the files that later calls run and read, and its uses are recorded. On `False` it would be read as a call that did not run.
+    On `True` the call's writes are recorded with unknown content, since they may not have happened, so a later run of a file it wrote runs no known text, and its uses are recorded. On `False` it would be read as a call that did not run, whose writes leave the files as they were.
+    The function `may_have_run` of the `ToolCall` types, which `decide_network_request_results` uses, makes the same choice without asking it.
     A use is such a call.
 
-    Provisional. It keeps the choice of the earlier code, which read every call as run unless its result said `NOT_RUN`.
+    Provisional. The earlier code read every call as run unless its result said `NOT_RUN`, and kept the content of its writes. The review of 2026-11-24 recommended to leave that content unknown, since either answer may follow content that is not the file's, and the user has not yet confirmed it.
     """
     use_counts[treat_tool_call_not_marked_not_run_as_maybe_run.__name__] += 1
     return True
@@ -263,20 +268,20 @@ def treat_use_of_path_that_fits_several_written_files_as_use_of_none(
     return True
 
 
-def treat_file_not_named_by_command_words_as_untouched(
+def treat_file_not_named_by_command_words_as_unknown_content(
     word: str, *, use_counts: Counter[str]
 ) -> bool:
-    """Read a command as touching only the files that its words name as they are, e.g. none of the files under `scripts` for `rm -rf scripts` or `sed -i s/a/b/ *.sh`.
+    """Read the written files that a command may name without naming them as they are as having unknown content, e.g. f.sh for `sed -i s/a/b/ *.sh`, scripts/f.sh for `rm -rf scripts` and every written file for `ls | xargs sed -i s/a/b/`.
 
-    A glob, a folder or the arguments that a program gets at run time, e.g. sed in `ls | xargs sed -i s/a/b/`, name files that the text does not show.
+    A glob, a folder or the arguments that a program gets at run time name files that the text does not show, so the command may have changed any of them.
     `expand_ran_texts` asks it for each word with a file role and each redirect path that holds `*`, `?`, `[` or `{` outside a parameter such as `${D}`, for each word with the role `DELETED_FILE` or path of a delete tool that names a folder of a written file, and for each program with a file role that gets arguments at run time.
-    On `True` the content and the uses of those files stay as they are, and a copy from a glob records no write of its destination either, e.g. g.sh of `cp *.sh g.sh` stays a file that no call wrote.
-    On `False` a glob or a folder is read as a path as written, so those files stay as they are on either answer, and a touch of that path is recorded instead, e.g. a written file named `*.sh` for `sed -i s/a/b/ *.sh`, or the copy g.sh with unknown content for `cp *.sh g.sh`.
+    On `True` a glob or a folder records no touch. When the command writes, changes or removes files, the content of each written file that the glob or the folder may name becomes unknown, and of every written file for a program that gets them at run time. A copy from a glob writes its destination with unknown content, e.g. g.sh of `cp *.sh g.sh`. A glob that a command only reads records no use, e.g. `cat *.log`.
+    On `False` a glob or a folder is read as a path as written and a touch of that path is recorded, e.g. a written file named `*.sh` for `sed -i s/a/b/ *.sh`, so the files it may name keep content that the command may have changed.
     A use is such a word or program.
 
-    Provisional. It keeps the choice of the earlier code, which matched only the paths as written.
+    Provisional. The earlier code matched only the paths as written and kept the content of the files that a glob, a folder or run-time arguments may name, which may give a later run of such a file text that the command changed, e.g. `bash f.sh` after `sed -i s/a/b/ *.sh`. The review of 2026-11-24 recommended to leave their content unknown, and the user has not yet confirmed it.
     """
-    use_counts[treat_file_not_named_by_command_words_as_untouched.__name__] += 1
+    use_counts[treat_file_not_named_by_command_words_as_unknown_content.__name__] += 1
     return True
 
 
@@ -319,8 +324,9 @@ def treat_deleted_file_as_never_written(path: str, *, use_counts: Counter[str]) 
 
     The removal may fail, and a later step of the task may put the file back, which the text does not show.
     `expand_ran_texts` asks it for each run, use or edit of a path that fits a written file that was removed since.
-    On `True` the run is an `UnknownRanText` with the reason `NOT_WRITTEN_IN_TRIAL`, the use goes on no written file and the content after an edit is unknown. On `False` the written file would still be used.
-    A use is such a run, use or edit.
+    On `True` the run is an `UnknownRanText` with the reason `NOT_WRITTEN_IN_TRIAL`, or `BUILT_AT_RUN_TIME` when the path still holds a variable, the use goes on no written file and the content after an edit is unknown. On `False` the written file would still be used.
+    The source of a copy and a write that appends read the removal without asking it, so a removed source gives the copy unknown content and a write that appends to a removed file replaces the earlier writes.
+    A use is such a written file of a run, use or edit, once for each removed file that the path fits. A run counts twice, since it records a use of its file and then reads its text, and a run of a call that did not run, or whose use a rule leaves out, counts once.
 
     Provisional. The earlier code did not read removals and kept the written content.
     """
@@ -345,51 +351,49 @@ def treat_file_without_interpreter_line_as_of_unknown_language(
     return True
 
 
-def treat_script_step_output_as_not_shown_in_call_result(
+def treat_script_step_output_as_shown_in_call_result(
     step_index: int, *, use_counts: Counter[str]
 ) -> bool:
-    """Read the output of the commands of a tool script step as not shown in the result of the script's call, e.g. a Codex `exec` script whose step calls `exec_command` and whose code may not print what the command returned.
+    """Read the output of the commands of a tool script step as shown in the result of the script's call, e.g. a Codex `exec` script whose step calls `exec_command` and whose code may not print what the command returned.
 
     The trajectory has one result for the whole script, and what the script prints is up to its code, so it does not say whether the output of a step reached that result.
     `expand_output_places` asks it for each step of a tool script, i.e. a `RunCommandAction` step or a poll step that types text, with a command whose output ends in the result, when the result of the call has tool output text and is not `NOT_RUN`. `step_index` is 0-based.
-    On `True` the call's result is no place of those commands, and neither is a later read of the file where the harness saved that result, so a step that shows a file, e.g. `cat build.log`, shows it nowhere. On `False` the call's result is a place of those commands.
-    It returns `True`. The later polls of a handle that the script started stay places on either answer.
+    On `True` the call's result is a place of those commands. On `False` it is not, and neither is a later read of the file where the harness saved that result.
     A use is such a step.
 
-    Decided. The user decided on 2026-11-24 that the result is no place of the step's commands, since the script's code decides what its result prints, so a line there may come from anything but the step, e.g. a log that the code reads itself. The earlier code took the result of a call as the result of all of its commands, script steps included.
+    Provisional. It keeps the choice of the earlier code, which took the result of a call as the result of all of its commands, script steps included.
     """
-    use_counts[treat_script_step_output_as_not_shown_in_call_result.__name__] += 1
+    use_counts[treat_script_step_output_as_shown_in_call_result.__name__] += 1
     return True
 
 
-def treat_poll_result_of_several_commands_as_showing_none(
+def treat_poll_result_as_showing_every_command_of_starter(
     *, use_counts: Counter[str]
 ) -> bool:
-    """Read the result of a poll as showing the output of none of the several commands that run in what it polls and whose output ends in a result, e.g. neither a nor b of `a; b &` after the call that started the handle, nor the commands that an earlier poll typed.
+    """Read the result of a poll as showing the output of every command that runs in what it polls and whose output ends in a result, e.g. both a and b of `a; b &` after the call that started the handle, or both commands that an earlier poll typed.
 
     The trajectory does not say which of several commands of the starting call the handle names, or which of them are still printing when the poll reads.
     `expand_output_places` asks it for each pair of such a group of more than one command and a later poll whose result can show output, i.e. one with tool output text that is not `NOT_RUN`. A group is the commands of the starting call, with every later poll of a handle it started, or the commands that one poll typed into it, with every later poll of a handle that the typing poll names.
-    On `True` the poll's result is a place of none of them. On `False` it is a place of all of them.
-    It returns `True`. A group of one command is a place of the poll without the rule.
+    On `True` the poll's result is a place of all of them. On `False` it is a place of none of them.
     A use is such a pair.
 
-    Decided. The user decided on 2026-11-24 that such a result shows none of them, since a poll of one handle shows only the output of what that handle names, e.g. one of the two sessions that a Codex `exec` script started. The earlier code linked the later polls of a handle to the call that started it as a whole, and those after typed input to that input.
+    Provisional. It keeps the choice of the earlier code, which linked the later polls of a handle to the call that started it as a whole, and those after typed input to that input.
     """
-    use_counts[treat_poll_result_of_several_commands_as_showing_none.__name__] += 1
+    use_counts[treat_poll_result_as_showing_every_command_of_starter.__name__] += 1
     return True
 
 
-def treat_read_of_output_path_of_several_calls_as_showing_each(
+def treat_read_of_output_path_of_several_calls_as_showing_none(
     *, use_counts: Counter[str]
 ) -> bool:
-    """Read a read of a file where the harness saved the results of several earlier calls as showing the result of each of them, e.g. a Cursor terminal file that the results of three calls name.
+    """Read a read of a file where the harness saved the results of several earlier calls as showing the result of none of them, e.g. a Cursor terminal file that the results of three calls name.
 
-    The trajectory does not say whether the file still holds the output of the earlier calls or only that of the latest.
-    `expand_output_places` asks it for each read that shows the content of such a file, in a call whose result can show output, i.e. for a `FileTouch` with more than one `harness_output_file_tool_call_keys`.
-    On `True` the reading call is a place of each of those calls. On `False` it is a place of the latest of them only.
+    The trajectory does not say whether the file still holds the output of the earlier calls or only that of the latest, so a line of the file may come from any of them.
+    `expand_output_places` asks it for each read that shows the content of such a file, in a call whose result can show output, i.e. for a `FileTouch` with more than one `harness_output_file_tool_call_keys`, unless those are one call and the later polls of what it started, whose file holds the output of that one start.
+    On `True` the reading call is a place of none of those calls. On `False` it is a place of each of them.
     A use is such a read.
 
-    Provisional. It keeps the choice of the code before this rule, which linked the read to every call whose result named the path.
+    Provisional. The code before this rule linked the read to every call whose result named the path, which gives a line that a later call without a request printed to the request of an earlier call, and reading it as a place of the latest call only gives the lines left from earlier calls to the latest. The review of 2026-11-24 recommended to link the read to none of them, and the user has not yet confirmed it.
     """
-    use_counts[treat_read_of_output_path_of_several_calls_as_showing_each.__name__] += 1
+    use_counts[treat_read_of_output_path_of_several_calls_as_showing_none.__name__] += 1
     return True

@@ -12,7 +12,7 @@ from tb_internet_use.expanded_tool_call._expand_poll_links import (
 from tb_internet_use.expanded_tool_call.judgment_rules import (
     treat_calls_of_other_trajectory_as_not_linked,
     treat_poll_of_handle_that_several_calls_started_as_not_linked,
-    treat_script_poll_step_naming_no_handle_as_polling_none,
+    treat_result_handles_of_script_with_poll_step_naming_none_as_not_linked,
 )
 from tb_internet_use.tool_call.model import (
     ExecutionHandle,
@@ -35,7 +35,7 @@ SEVERAL_STARTS_RULE_NAME = (
 )
 OTHER_TRAJECTORY_RULE_NAME = treat_calls_of_other_trajectory_as_not_linked.__name__
 SCRIPT_POLL_STEP_RULE_NAME = (
-    treat_script_poll_step_naming_no_handle_as_polling_none.__name__
+    treat_result_handles_of_script_with_poll_step_naming_none_as_not_linked.__name__
 )
 COMMAND = ExecutionHandleKind.COMMAND
 SCRIPT = ExecutionHandleKind.SCRIPT
@@ -405,6 +405,31 @@ def test_the_other_choice_of_the_other_trajectory_rule_links_to_the_latest_earli
         (_key(subagent_poll), None): (_key(first_start),)
     }
     assert judgment_rule_use_counts == Counter()
+
+
+@pytest.mark.parametrize("has_earlier_start", [False, True])
+def test_a_script_with_a_poll_step_naming_no_handle_links_no_later_poll_to_itself(
+    has_earlier_start: bool,
+):
+    # A Codex `exec` script that runs a command and has a `wait()` without a session id, and whose result names h1, which the step may have read.
+    start = _tool_call(1, START, "h1")
+    script = _tool_call(
+        2, RunToolScriptAction(steps=(START, _poll())), "h1", status=FINISHED
+    )
+    later_poll = _tool_call(3, _poll("h1"))
+    tool_calls = (
+        (start, script, later_poll) if has_earlier_start else (script, later_poll)
+    )
+
+    poll_links, judgment_rule_use_counts = _expand(*tool_calls)
+
+    # With an earlier start too, h1 has two starts, which leave the poll unlinked by a rule.
+    assert poll_links.starter_tool_call_keys_of_poll[(_key(later_poll), None)] == ()
+    assert _key(script) not in poll_links.poll_tool_call_keys_of_starter
+    assert judgment_rule_use_counts == Counter(
+        {SCRIPT_POLL_STEP_RULE_NAME: 1}
+        | ({SEVERAL_STARTS_RULE_NAME: 1} if has_earlier_start else {})
+    )
 
 
 def test_the_other_choice_of_the_script_poll_step_rule_reads_the_handles_its_script_result_names(

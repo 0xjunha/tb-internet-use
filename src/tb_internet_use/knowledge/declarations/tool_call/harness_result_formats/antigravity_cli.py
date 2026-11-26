@@ -254,7 +254,7 @@ _MANAGE_TASK = HarnessResultFormatList[str](
         Text(
             "rejected_arguments",
             "Error invalid tool call: invalid arguments:\n{reason:text}",
-            judgment_rule="treat_tool_failure_message_as_not_run",
+            S.NOT_RUN,
         ),
         _FAILED,
     ),

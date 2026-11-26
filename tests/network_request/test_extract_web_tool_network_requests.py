@@ -14,6 +14,7 @@ from tb_internet_use.network_request.model import (
     NetworkRequest,
     NetworkRequestCertainty,
     NetworkRequestTargetKind,
+    NetworkRequestUncertaintyReason,
 )
 from tb_internet_use.tool_call.model import (
     HarnessTool,
@@ -35,7 +36,7 @@ WEB_TOOL = HarnessTool("claude-code", "WebSearch")
 CODEX_EXEC = HarnessTool("codex", "exec")
 SEARCH_QUERY = NetworkRequestTargetKind.SEARCH_QUERY
 URL = NetworkRequestTargetKind.URL
-WEB_FIND_RULE = "treat_web_find_as_request"
+WEB_FIND_RULE = "treat_web_find_as_uncertain_request"
 
 # (case, action, requests as (target, target kind, hosts))
 _CASES = [
@@ -166,18 +167,36 @@ def test_web_find_rule_is_counted_once_per_find():
     assert judgment_rule_use_counts == Counter({WEB_FIND_RULE: 2})
 
 
-def test_web_find_gives_no_request_when_the_rule_answers_no(monkeypatch):
+@pytest.mark.parametrize(
+    ("answer", "certainty", "uncertainty_reason"),
+    [
+        (
+            True,
+            NetworkRequestCertainty.UNCERTAIN,
+            NetworkRequestUncertaintyReason.FINDS_TEXT_IN_OPENED_PAGE,
+        ),
+        (False, NetworkRequestCertainty.CONFIRMED, None),
+    ],
+    ids=["uncertain", "confirmed on the other answer"],
+)
+def test_web_find_gives_requests_whose_certainty_the_rule_says(
+    monkeypatch: pytest.MonkeyPatch,
+    answer: bool,
+    certainty: NetworkRequestCertainty,
+    uncertainty_reason: NetworkRequestUncertaintyReason | None,
+):
     monkeypatch.setattr(
         _extract_web_tool_network_requests,
         WEB_FIND_RULE,
-        lambda web_find_action, *, use_counts: (),
+        lambda *, use_counts: answer,
     )
 
-    assert (
-        extract_web_tool_network_requests(
-            _tool_call(WebFindAction(("https://a.org/guide",))),
-            0,
-            judgment_rule_use_counts=Counter(),
-        )
-        == ()
+    network_requests = extract_web_tool_network_requests(
+        _tool_call(WebFindAction(("https://a.org/guide", "https://b.org/x"))),
+        0,
+        judgment_rule_use_counts=Counter(),
     )
+
+    assert [
+        (request.certainty, request.uncertainty_reason) for request in network_requests
+    ] == [(certainty, uncertainty_reason)] * 2

@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from tb_internet_use.expanded_tool_call.judgment_rules import (
     treat_calls_of_other_trajectory_as_not_linked,
     treat_poll_of_handle_that_several_calls_started_as_not_linked,
-    treat_script_poll_step_naming_no_handle_as_polling_none,
+    treat_result_handles_of_script_with_poll_step_naming_none_as_not_linked,
 )
 from tb_internet_use.tool_call.model import (
     ExecutionHandle,
@@ -50,7 +50,8 @@ class _HandleStart:
 
     call_index: int  # 0-based position of the call in the trial
     trajectory: Trajectory
-    starter_tool_call_key: ToolCallKey
+    # None for a start that links no poll, i.e. a handle that the result of a tool script names when a poll step of the script names none, which the step may have read instead.
+    starter_tool_call_key: ToolCallKey | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,6 +61,8 @@ class _PolledHandles:
     # The 0-based index of the poll in a tool script, None when the poll is the call's action.
     step_index: int | None
     handles: tuple[ExecutionHandle, ...]
+    # The step names no handle and reads none by a rule, so the handles of the script's result start no link.
+    leaves_result_handles_unlinked: bool = False
 
 
 def expand_poll_links(
@@ -68,7 +71,7 @@ def expand_poll_links(
     """Link each poll of one trial to the calls that started the handles it names, and each starter to its later polls, in the order of `tool_calls`.
 
     A handle is matched by its id and its kind, since `ExecutionHandle` carries both and a command and a subagent can have the same id.
-    Every use of `treat_script_poll_step_naming_no_handle_as_polling_none`, `treat_poll_of_handle_that_several_calls_started_as_not_linked` and `treat_calls_of_other_trajectory_as_not_linked` adds one to `judgment_rule_use_counts`.
+    Every use of `treat_result_handles_of_script_with_poll_step_naming_none_as_not_linked`, `treat_poll_of_handle_that_several_calls_started_as_not_linked` and `treat_calls_of_other_trajectory_as_not_linked` adds one to `judgment_rule_use_counts`.
     """
     polled_handles_of_tool_calls = [
         _polled_handles_of(tool_call, judgment_rule_use_counts)
@@ -120,7 +123,7 @@ def _polled_handles_of(
     """List the handles that each poll of a call reads, in step order, each handle once.
 
     A poll reads the handles it names. A poll that names none and is the call's action reads those its result names, since the result of a poll names its target, e.g. a Codex `wait` without arguments.
-    A poll step of a tool script that names none reads those its script's result names only when `treat_script_poll_step_naming_no_handle_as_polling_none` says otherwise, and the rule is asked only when that result names a handle.
+    A poll step of a tool script that names none reads those its script's result names only when `treat_result_handles_of_script_with_poll_step_naming_none_as_not_linked` says otherwise, and the rule is asked only when that result names a handle. When the rule says so, the step reads none and leaves the result's handles unlinked.
     """
     result_handles = (
         ()
@@ -131,20 +134,23 @@ def _polled_handles_of(
     for step_index, action in indexed_action_steps_of(tool_call.action):
         if not isinstance(action, PollAction):
             continue
+        leaves_result_handles_unlinked = False
         if step_index is None:
             handles = handles_of_poll_action(action, result_handles)
         elif action.handles:
             handles = tuple(dict.fromkeys(action.handles))
-        elif (
-            result_handles
-            and not treat_script_poll_step_naming_no_handle_as_polling_none(
-                use_counts=judgment_rule_use_counts
-            )
-        ):
-            handles = result_handles
-        else:
+        elif not result_handles:
             handles = ()
-        polled_handles_of_tool_call.append(_PolledHandles(step_index, handles))
+        elif treat_result_handles_of_script_with_poll_step_naming_none_as_not_linked(
+            use_counts=judgment_rule_use_counts
+        ):
+            handles = ()
+            leaves_result_handles_unlinked = True
+        else:
+            handles = result_handles
+        polled_handles_of_tool_call.append(
+            _PolledHandles(step_index, handles, leaves_result_handles_unlinked)
+        )
     return tuple(polled_handles_of_tool_call)
 
 
@@ -159,19 +165,29 @@ def _handle_starts_of(
     tool_calls: Sequence[ToolCall],
     polled_handles_of_tool_calls: Sequence[tuple[_PolledHandles, ...]],
 ) -> dict[ExecutionHandle, list[_HandleStart]]:
-    """List the starts of handles in the trial by handle, each list in call order."""
+    """List the starts of handles in the trial by handle, each list in call order.
+
+    A tool script with a poll step that leaves the handles of its result unlinked is a start of each of them that links no poll, apart from its own script handle, e.g. session `3` in the result of a Codex `exec` script whose `wait()` names no session.
+    """
     handle_starts_by_handle: defaultdict[ExecutionHandle, list[_HandleStart]] = (
         defaultdict(list)
     )
     for call_index, (tool_call, polled_handles_of_tool_call) in enumerate(
         zip(tool_calls, polled_handles_of_tool_calls, strict=True)
     ):
+        leaves_result_handles_unlinked = any(
+            polled_handles.leaves_result_handles_unlinked
+            for polled_handles in polled_handles_of_tool_call
+        )
         for handle in _started_handles_of(tool_call, polled_handles_of_tool_call):
             handle_starts_by_handle[handle].append(
                 _HandleStart(
                     call_index,
                     trajectory_of(tool_call),
-                    tool_call.harness_tool_call.key,
+                    None
+                    if leaves_result_handles_unlinked
+                    and handle.kind != ExecutionHandleKind.SCRIPT
+                    else tool_call.harness_tool_call.key,
                 )
             )
     return handle_starts_by_handle
@@ -267,7 +283,7 @@ def _choose_latest_starter_tool_call_key(
     earlier_handle_starts: Sequence[_HandleStart],
     judgment_rule_use_counts: Counter[str],
 ) -> ToolCallKey | None:
-    """Choose the one earlier call that started a handle, or the latest of several unless `treat_poll_of_handle_that_several_calls_started_as_not_linked` leaves the poll unlinked."""
+    """Choose the one earlier call that started a handle, or the latest of several unless `treat_poll_of_handle_that_several_calls_started_as_not_linked` leaves the poll unlinked, None when the chosen start links no poll."""
     if len(earlier_handle_starts) == 1:
         return earlier_handle_starts[0].starter_tool_call_key
     if treat_poll_of_handle_that_several_calls_started_as_not_linked(

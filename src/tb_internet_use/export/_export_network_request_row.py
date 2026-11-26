@@ -5,8 +5,9 @@ For example, `pip install requests` names no host, and it is internet use only b
 
 Whether a request is internet use comes from the first condition below that fits it.
 
-- A public host gives True.
-- No host and a web tool source is decided by a judgment rule, e.g. a web search.
+- A public address, or a public host with a row of the public host catalog or among the hosts that a request is taken to be sent to, gives True.
+- A host name with a dot and without a row of the public host catalog is decided by a judgment rule, which counts it as unknown internet use, e.g. `curl https://files.acme.org/x`.
+- No host and a web tool source is decided by a judgment rule, one for a request without a URL, e.g. a web search, and one for a URL whose host was not read, e.g. a fetch of `file:///app/x.html`.
 - No host and any other source gives the hosts that a judgment rule takes it to be sent to, read by the conditions below, or None without such hosts, e.g. `git fetch origin`.
 - A host name with a template is decided by a judgment rule.
 - A host name with an empty label is decided by a judgment rule, which counts it as unknown internet use, e.g. `curl ...`.
@@ -55,13 +56,15 @@ from tb_internet_use.export._redact_credentials import redact_credentials
 from tb_internet_use.export.judgment_rules import (
     treat_assumed_failure_as_possibly_received,
     treat_assumed_not_needed_result_as_upper_bound_only,
+    treat_dotted_host_name_without_public_host_row_as_unknown_internet_use,
     treat_host_name_with_empty_label_as_unknown_internet_use,
     treat_local_or_single_label_host_name_of_web_tool_as_unknown_internet_use,
     treat_request_without_host_name_as_sent_to_default_registry_host,
     treat_reserved_host_name_as_unknown_internet_use,
     treat_single_label_host_name_as_not_internet_use,
     treat_templated_host_name_as_unknown_internet_use,
-    treat_web_tool_request_without_host_name_as_internet_use,
+    treat_web_tool_request_without_url_as_internet_use,
+    treat_web_tool_url_without_host_name_as_unknown_internet_use,
 )
 from tb_internet_use.export.model import (
     MeasureBound,
@@ -132,7 +135,7 @@ def export_network_request_row(
 ) -> NetworkRequestRow:
     """Export the `NetworkRequestRow` of one network request result, by the conditions of the module docstring, with its credentials redacted.
 
-    It asks `knowledge` about each public host of the request, with the path of the target for the host of a target URL, about the package registry of a command whose target is a package name, and about the sender of a web tool.
+    It asks `knowledge` about each public host of the request, with the path of the target for the host of a target URL, about the package registry of a command whose target is a package name, and about the sender of a web tool. It also tells, without counting, whether a dotted host name has any row of the host catalog.
     Each judgment rule adds one to `judgment_rule_use_counts` under its name when it decides something, also the rule of `extract_network_requests` that reads a dotted host name as public.
     The four columns that hold text of the trajectory, i.e. `source`, `made_by`, `target` and `host_names`, pass through `redact_credentials`.
     `is_among_success_line_owners_one_of_which_received` is False here, since it rests on the rows of the other requests that share an output line, and `mark_network_request_rows_among_success_line_owners` sets it once all rows of the trial are made.
@@ -146,7 +149,9 @@ def export_network_request_row(
     )
     package_registry = _package_registry_for(network_request, knowledge=knowledge)
     is_internet_use = _internet_use_from_host_name_scopes(
-        host_name_scopes,
+        _host_name_scopes_with_unlisted_dotted_names_unknown_of(
+            network_request.host_names, host_name_scopes, knowledge=knowledge
+        ),
         network_request,
         package_registry,
         judgment_rule_use_counts=judgment_rule_use_counts,
@@ -248,6 +253,29 @@ def _host_name_scopes_of(
     return tuple(host_name_scopes)
 
 
+def _host_name_scopes_with_unlisted_dotted_names_unknown_of(
+    host_names: Sequence[str],
+    host_name_scopes: Sequence[HostNameScope | UnknownHostNameScope],
+    *,
+    knowledge: ExportKnowledge,
+) -> tuple[HostNameScope | UnknownHostNameScope, ...]:
+    """Give the scopes of the host names with each dotted name that `treat_dotted_host_name_as_public` read as public and that has no row of the public host catalog read as unknown again, e.g. `files.acme.org`, so that only a public address or a listed host counts as public for internet use.
+
+    A host with a row for any path counts as listed, e.g. www.python.org, whose only row is for `/ftp/python/`.
+    """
+    unlisted_dotted_name_scope = UnknownHostNameScope(
+        UnknownHostNameScopeReason.DOTTED_NAME
+    )
+    return tuple(
+        unlisted_dotted_name_scope
+        if host_name_scope == HostNameScope.PUBLIC
+        and parse_host_name(host_name) == unlisted_dotted_name_scope
+        and not knowledge.has_public_host_row(host_name)
+        else host_name_scope
+        for host_name, host_name_scope in zip(host_names, host_name_scopes, strict=True)
+    )
+
+
 def _public_hosts_of(
     network_request: NetworkRequest,
     host_name_scopes: Sequence[HostNameScope | UnknownHostNameScope],
@@ -312,7 +340,16 @@ def _internet_use_from_host_name_scopes(
             judgment_rule_use_counts=judgment_rule_use_counts,
         )
     if isinstance(network_request.source, FromWebTool):
-        if treat_web_tool_request_without_host_name_as_internet_use(
+        if (
+            network_request.target is not None
+            and network_request.target_kind == NetworkRequestTargetKind.URL
+        ):
+            if treat_web_tool_url_without_host_name_as_unknown_internet_use(
+                network_request, use_counts=judgment_rule_use_counts
+            ):
+                return None
+            return True
+        if treat_web_tool_request_without_url_as_internet_use(
             network_request, use_counts=judgment_rule_use_counts
         ):
             return True
@@ -342,6 +379,12 @@ def _internet_use_from_nonempty_host_name_scopes(
 ) -> bool | None:
     """Give whether a request with at least one host is internet use from the scopes of its hosts, asking a judgment rule when the scopes cannot tell."""
     if HostNameScope.PUBLIC in host_name_scopes:
+        return True
+    if UnknownHostNameScope(UnknownHostNameScopeReason.DOTTED_NAME) in host_name_scopes:
+        if treat_dotted_host_name_without_public_host_row_as_unknown_internet_use(
+            network_request, use_counts=judgment_rule_use_counts
+        ):
+            return None
         return True
     if UnknownHostNameScope(UnknownHostNameScopeReason.TEMPLATED) in host_name_scopes:
         return _internet_use_from_rule_answer(

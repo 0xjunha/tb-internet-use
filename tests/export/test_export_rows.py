@@ -17,6 +17,7 @@ from tb_internet_use.export import export_rows
 from tb_internet_use.export.judgment_rules import (
     treat_assumed_failure_as_possibly_received,
     treat_discarded_content_as_connectivity_check,
+    treat_dotted_host_name_without_public_host_row_as_unknown_internet_use,
     treat_request_of_unknown_sender_as_possibly_from_task_environment,
     treat_request_without_host_name_as_sent_to_default_registry_host,
     treat_saved_content_from_unrecognized_url_as_content_fetch,
@@ -92,6 +93,9 @@ URL = NetworkRequestTargetKind.URL
 PACKAGE_NAME = NetworkRequestTargetKind.PACKAGE_NAME
 
 DOTTED_HOST_RULE = treat_dotted_host_name_as_public.__name__
+UNLISTED_DOTTED_HOST_RULE = (
+    treat_dotted_host_name_without_public_host_row_as_unknown_internet_use.__name__
+)
 DEFAULT_REGISTRY_RULE = (
     treat_request_without_host_name_as_sent_to_default_registry_host.__name__
 )
@@ -391,10 +395,14 @@ def _trial_row(
 
 @pytest.fixture(scope="module")
 def catalogs_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    # Hosts such as `a.org` have no row, nor do Claude Code `Fetch` and `conda install`.
+    # `a.org` and `b.org` have rows only for the paths under `/docs/`, so they are listed public hosts whose other paths give no known service. Hosts such as `a.files-mirror.org` have no row, nor do Claude Code `Fetch` and `conda install`.
     return write_made_up_export_catalogs(
         tmp_path_factory.mktemp("export") / "catalogs",
-        public_host_rows=("pypi.org,,package_registry,pypi",),
+        public_host_rows=(
+            "pypi.org,,package_registry,pypi",
+            "a.org,/docs/,documentation,",
+            "b.org,/docs/,documentation,",
+        ),
         harness_web_tool_rows=("codex,web_search_call,provider_server",),
         program_package_registry_rows=(
             "pip,install,pypi,pypi.org",
@@ -444,10 +452,10 @@ def test_example_of_the_pipeline_example_reaches_its_last_table(
         host_scope="public",
         host_service="unknown",
         package_registry="",
-        is_internet_use=True,
+        is_internet_use=None,
         sender=TASK_ENVIRONMENT,
         result_view=NetworkRequestResultView.NOT_RECEIVED,
-        request_measure_bound=LOWER_AND_UPPER,
+        request_measure_bound=UPPER_ONLY,
         received_measure_bound=UPPER_ONLY,
         is_among_success_line_owners_one_of_which_received=False,
     )
@@ -487,24 +495,27 @@ def test_example_of_the_pipeline_example_reaches_its_last_table(
             host_scope="",
             host_service="",
             package_registry="pypi",
+            is_internet_use=True,
             result_view=NetworkRequestResultView.UNKNOWN,
+            request_measure_bound=LOWER_AND_UPPER,
             received_measure_bound=UPPER_ONLY,
         ),
     )
-    # The last table of the example. Both categories have a request in both bounds and are received only in the upper bound.
+    # The last table of the example. The package has a request in both bounds and the content fetches only in the upper, whose hosts have no row, and both are received only in the upper bound.
     assert trial_category_measure_rows == (
         TrialCategoryMeasureRow(
             "t1", PACKAGE, TASK_ENVIRONMENT, LOWER_AND_UPPER, UPPER_ONLY
         ),
         TrialCategoryMeasureRow(
-            "t1", CONTENT_FETCH, TASK_ENVIRONMENT, LOWER_AND_UPPER, UPPER_ONLY
+            "t1", CONTENT_FETCH, TASK_ENVIRONMENT, UPPER_ONLY, UPPER_ONLY
         ),
     )
     assert trial_row == _trial_row(READ_TRIAL, LOWER_AND_UPPER, UPPER_ONLY)
-    # Three named hosts and `pypi.org`, the default host of `pip install`, are dotted names read as public. The three saved files come from hosts without a row.
+    # Three named hosts and `pypi.org`, the default host of `pip install`, are dotted names read as public. The three named hosts have no row, so their internet use is unknown and their saved files come from hosts without a row.
     assert judgment_rule_use_counts == Counter(
         {
             DOTTED_HOST_RULE: 4,
+            UNLISTED_DOTTED_HOST_RULE: 3,
             ASSUMED_FAILURE_RULE: 2,
             DEFAULT_REGISTRY_RULE: 1,
             SAVED_FROM_UNRECOGNIZED_URL_RULE: 3,

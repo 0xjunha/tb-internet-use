@@ -5,13 +5,16 @@ A web tool sends from wherever its harness runs it, e.g. a provider's search, so
 
 from collections import Counter
 
-from tb_internet_use.network_request.judgment_rules import treat_web_find_as_request
+from tb_internet_use.network_request.judgment_rules import (
+    treat_web_find_as_uncertain_request,
+)
 from tb_internet_use.network_request.model import (
     ContentShownInResult,
     FromWebTool,
     NetworkRequest,
     NetworkRequestCertainty,
     NetworkRequestTargetKind,
+    NetworkRequestUncertaintyReason,
 )
 from tb_internet_use.network_request.parse_url import parse_url
 from tb_internet_use.tool_call.model import (
@@ -29,9 +32,9 @@ def extract_web_tool_network_requests(
     *,
     judgment_rule_use_counts: Counter[str],
 ) -> tuple[NetworkRequest, ...]:
-    """Extract one confirmed request per query of a web search and per URL of a web fetch, and one without a target for such an action that names none, in step order.
+    """Extract one request per query of a web search and per URL of a web fetch or a web find, and one without a target for such an action that names none, in step order.
 
-    A web find asks `treat_web_find_as_request` which of its URLs are requests.
+    The requests of a search and a fetch are confirmed, and those of a find are uncertain or confirmed as `treat_web_find_as_uncertain_request` says.
     Every request shows its content in the result, and its tool is the tool of the call, also for a step of a tool script, e.g. `exec` of Codex.
     """
     harness_tool = tool_call.harness_tool_call.tool
@@ -41,14 +44,21 @@ def extract_web_tool_network_requests(
             case WebSearchAction(queries=queries):
                 targets = queries or (None,)
                 target_kind = NetworkRequestTargetKind.SEARCH_QUERY
+                uncertainty_reason = None
             case WebFetchAction(urls=urls):
                 targets = urls or (None,)
                 target_kind = NetworkRequestTargetKind.URL
-            case WebFindAction():
-                targets = treat_web_find_as_request(
-                    action, use_counts=judgment_rule_use_counts
-                )
+                uncertainty_reason = None
+            case WebFindAction(urls=urls):
+                targets = urls or (None,)
                 target_kind = NetworkRequestTargetKind.URL
+                uncertainty_reason = (
+                    NetworkRequestUncertaintyReason.FINDS_TEXT_IN_OPENED_PAGE
+                    if treat_web_find_as_uncertain_request(
+                        use_counts=judgment_rule_use_counts
+                    )
+                    else None
+                )
             case _:
                 continue
         for target in targets:
@@ -61,8 +71,10 @@ def extract_web_tool_network_requests(
                     target_kind=target_kind,
                     host_names=_host_names_of_target(target, target_kind),
                     received_content_destination=ContentShownInResult(),
-                    certainty=NetworkRequestCertainty.CONFIRMED,
-                    uncertainty_reason=None,
+                    certainty=NetworkRequestCertainty.CONFIRMED
+                    if uncertainty_reason is None
+                    else NetworkRequestCertainty.UNCERTAIN,
+                    uncertainty_reason=uncertainty_reason,
                 )
             )
     return tuple(network_requests)

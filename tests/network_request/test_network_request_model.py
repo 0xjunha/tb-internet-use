@@ -57,6 +57,8 @@ PROGRAM_RUN_BY_CODE = NetworkRequestUncertaintyReason.PROGRAM_RUN_BY_CODE
 FETCHES_ONLY_WHAT_IS_MISSING = (
     NetworkRequestUncertaintyReason.FETCHES_ONLY_WHAT_IS_MISSING
 )
+STRUCTURE_MAY_BE_WRONG = NetworkRequestUncertaintyReason.STRUCTURE_MAY_BE_WRONG
+FINDS_TEXT_IN_OPENED_PAGE = NetworkRequestUncertaintyReason.FINDS_TEXT_IN_OPENED_PAGE
 # One source of each kind that gives requests of different reasons.
 SOURCES_BY_NAME: dict[str, NetworkRequestSource] = {
     "command of a program with a row": CURL_SOURCE,
@@ -75,12 +77,13 @@ SOURCES_BY_NAME: dict[str, NetworkRequestSource] = {
 ACCEPTED_UNCERTAINTY_REASONS_OF_SOURCE: dict[
     str, set[NetworkRequestUncertaintyReason | None]
 ] = {
-    # `curl u`, `curl --foo x u`, `curl -L u` without an option row, `npx tsc`, and a program that the request catalog has no row for, e.g. `python -m ensurepip https://a.org/x`.
+    # `curl u`, `curl --foo x u`, `curl -L u` without an option row, `npx tsc`, curl in a text whose lines stayed joined, and a program that the request catalog has no row for, e.g. `python -m ensurepip https://a.org/x`.
     "command of a program with a row": {
         None,
         UNREAD_WORDS,
         UNKNOWN_OPTION_EFFECT,
         FETCHES_ONLY_WHAT_IS_MISSING,
+        STRUCTURE_MAY_BE_WRONG,
         UNKNOWN_PROGRAM,
     },
     # `mytool https://a.org/x`.
@@ -89,8 +92,8 @@ ACCEPTED_UNCERTAINTY_REASONS_OF_SOURCE: dict[
     "code call with a row": {None, PROGRAM_RUN_BY_CODE, UNKNOWN_PROGRAM},
     # `mylib.fetch(u)` and `URL = u`.
     "code without a known call": {UNKNOWN_CODE_CALL, URL_OUTSIDE_CODE_CALL},
-    # Every web tool request is confirmed.
-    "web tool": {None},
+    # A web search or fetch, and a web find, which may search a page that its tool already holds.
+    "web tool": {None, FINDS_TEXT_IN_OPENED_PAGE},
 }
 
 

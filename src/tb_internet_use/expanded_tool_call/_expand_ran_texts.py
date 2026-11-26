@@ -4,6 +4,7 @@ A text can sit in a file that an earlier call wrote, e.g. `bash fetch.sh` after 
 A text that the trial does not hold stays where it would be as an `UnknownRanText`, e.g. setup.sh of the task image, `bash -c "$CMD"` or fetch.sh after `sed -i` changed it.
 """
 
+import fnmatch
 import re
 from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
@@ -27,7 +28,7 @@ from tb_internet_use.expanded_tool_call.judgment_rules import (
     treat_copy_with_two_arguments_as_unknown_content,
     treat_deleted_file_as_never_written,
     treat_edit_of_text_not_found_once_as_unknown_content,
-    treat_file_not_named_by_command_words_as_untouched,
+    treat_file_not_named_by_command_words_as_unknown_content,
     treat_file_without_interpreter_line_as_of_unknown_language,
     treat_input_of_key_presses_only_as_no_text,
     treat_outer_assignment_as_not_visible_in_new_shell,
@@ -35,7 +36,7 @@ from tb_internet_use.expanded_tool_call.judgment_rules import (
     treat_path_that_fits_several_written_files_as_unknown_text,
     treat_tool_call_not_marked_not_run_as_maybe_run,
     treat_typed_text_as_of_unknown_language,
-    treat_use_after_later_overwrite_as_use_of_later_write,
+    treat_use_after_overwrite_that_may_not_have_happened_as_use_without_known_writer,
     treat_use_of_path_that_fits_several_written_files_as_use_of_none,
 )
 from tb_internet_use.expanded_tool_call.model import (
@@ -160,6 +161,16 @@ _FILE_ROLES = frozenset(
         ProgramWordRole.WRITTEN_FILE_SOURCE,
         ProgramWordRole.CHANGED_FILE,
         ProgramWordRole.COPY_SOURCE,
+        ProgramWordRole.COPY_DESTINATION,
+        ProgramWordRole.DELETED_FILE,
+    }
+)
+# The file roles of a program that writes, changes or removes the files it gets at run time, which may then hold other content, e.g. sed in `ls | xargs sed -i s/a/b/`.
+_FILE_CHANGING_ROLES = frozenset(
+    {
+        *_APPENDS_OF_WRITTEN_FILE_ROLE,
+        ProgramWordRole.WRITTEN_FILE_SOURCE,
+        ProgramWordRole.CHANGED_FILE,
         ProgramWordRole.COPY_DESTINATION,
         ProgramWordRole.DELETED_FILE,
     }
@@ -398,6 +409,8 @@ class _ToolCallState:
     trial_file_contents: TrialFileContents
     # False for a call whose result is `NOT_RUN`, whose writes do not change the files and whose uses are not recorded.
     may_have_run: bool
+    # False for a call without a result or whose result has the status `UNKNOWN`, whose writes leave the content of their files unknown by a rule.
+    is_sure_to_have_run: bool
     knowledge: ExpandedToolCallKnowledge
     judgment_rule_use_counts: Counter[str]
     # The id that the first command of the next text added from a file, an argument, stdin or a poll gets, so ids stay unique within the call.
@@ -426,6 +439,7 @@ def _expand_ran_texts_of_tool_call(
         tool_call_key,
         trial_file_contents,
         _may_have_run(tool_call, judgment_rule_use_counts=judgment_rule_use_counts),
+        _is_sure_to_have_run(tool_call),
         knowledge,
         judgment_rule_use_counts,
         _first_added_command_id_of(tool_call.action),
@@ -476,6 +490,14 @@ def _may_have_run(
             use_counts=judgment_rule_use_counts
         )
     return tool_call.result.execution_status != ExecutionStatus.NOT_RUN
+
+
+def _is_sure_to_have_run(tool_call: ToolCall) -> bool:
+    """Tell whether the result of a call says that the tool ran it, i.e. it has a result whose status is neither `UNKNOWN` nor `NOT_RUN`."""
+    return tool_call.result is not None and tool_call.result.execution_status not in (
+        ExecutionStatus.UNKNOWN,
+        ExecutionStatus.NOT_RUN,
+    )
 
 
 def _first_added_command_id_of(action: ToolCallAction) -> int:
@@ -672,6 +694,7 @@ def _record_file_touches_of_file_change(
             ),
             appends=False,
             may_have_run=tool_call_state.may_have_run,
+            is_call_sure_to_have_run=tool_call_state.is_sure_to_have_run,
             may_be_glob=False,
         ),
     )
@@ -739,11 +762,18 @@ def _expand_ran_shell_text(
         for output_destination in (shell_command.stdout, shell_command.stderr)
         if isinstance(output_destination, PipeDestination)
     )
-    for ran_command, word_roles, program_behaviors, program_word_indexes in zip(
+    for (
+        ran_command,
+        word_roles,
+        program_behaviors,
+        program_word_indexes,
+        run_time_argument_roles,
+    ) in zip(
         ran_commands_of_shell_text.ran_commands,
         ran_commands_of_shell_text.word_roles_of_commands,
         ran_commands_of_shell_text.program_behaviors_of_commands,
         ran_commands_of_shell_text.program_word_indexes_of_commands,
+        ran_commands_of_shell_text.run_time_argument_roles_of_commands,
         strict=True,
     ):
         command_reading = _CommandReading(
@@ -751,6 +781,7 @@ def _expand_ran_shell_text(
             word_roles,
             program_behaviors,
             program_word_indexes,
+            run_time_argument_roles,
             ran_commands_of_shell_text.pipe_readers_by_command_id,
             reads_pipe=ran_command.shell_command.id in pipe_reader_command_ids,
         )
@@ -774,6 +805,8 @@ class _CommandReading:
     program_behaviors: tuple[ProgramBehavior | UnknownProgramBehavior, ...]
     # The 0-based index in `ShellCommand.words` of the word of each program, at the index of the program.
     program_word_indexes: tuple[int, ...]
+    # The role that the arguments each program gets at run time take, at the index of the program, None for a program that gets none.
+    run_time_argument_roles: tuple[ProgramWordRole | UnknownProgramWordRole | None, ...]
     # The pipe readers of its text and of the texts around it, which the output of a text it runs can lead to.
     pipe_readers_by_command_id: Mapping[int, PipeReader]
     # A command of the same text sends its stdout or stderr to this command through a pipe.
@@ -890,11 +923,11 @@ def _record_file_touches_of_command(
                 source_path,
                 destination_path,
                 may_have_run=may_have_run,
+                is_call_sure_to_have_run=tool_call_state.is_sure_to_have_run,
             ),
         )
-    _count_programs_that_touch_files_given_at_run_time(
-        command_reading,
-        judgment_rule_use_counts=tool_call_state.judgment_rule_use_counts,
+    _forget_contents_that_run_time_arguments_may_change(
+        tool_call_state, command_reading
     )
     _record_writes_of_output_routes(tool_call_state, command_reading)
 
@@ -955,6 +988,7 @@ def _record_write_of_own_output_file(
                 None,
                 appends=False,
                 may_have_run=tool_call_state.may_have_run,
+                is_call_sure_to_have_run=tool_call_state.is_sure_to_have_run,
                 may_be_glob=True,
             ),
         )
@@ -1020,6 +1054,7 @@ def _record_write_of_written_file_word(
             else _stdin_text_passed_on_whole_of(command_reading),
             appends=appends,
             may_have_run=tool_call_state.may_have_run,
+            is_call_sure_to_have_run=tool_call_state.is_sure_to_have_run,
             may_be_glob=True,
         ),
     )
@@ -1088,24 +1123,29 @@ def _stdin_text_read_by_program_of(shell_command: ShellCommand) -> str | None:
     )
 
 
-def _count_programs_that_touch_files_given_at_run_time(
-    command_reading: _CommandReading, *, judgment_rule_use_counts: Counter[str]
+def _forget_contents_that_run_time_arguments_may_change(
+    tool_call_state: _ToolCallState, command_reading: _CommandReading
 ) -> None:
-    """Ask a rule for each program of a command that gets arguments at run time and whose row gives its arguments a file role, e.g. sed in `ls | xargs sed -i s/a/b/`, whose files the text does not name."""
-    for program_invocation, program_behavior in zip(
+    """Leave the content of every written file unknown when a program of a command may change files that it gets as arguments at run time, e.g. sed in `ls | xargs sed -i s/a/b/`, asking a rule for each program whose arguments at run time take a file role.
+
+    That role comes from the row of the program and the rows of its options, e.g. `CHANGED_FILE` for sed with `-i`.
+    Such a program may change any written file, since the text does not name its files. A program that only reads its files changes nothing, e.g. cat of `ls | xargs cat`, and neither does a call that did not run.
+    """
+    for program_invocation, run_time_argument_role in zip(
         command_reading.ran_command.program_invocations,
-        command_reading.program_behaviors,
+        command_reading.run_time_argument_roles,
         strict=True,
     ):
         if (
-            isinstance(program_invocation, ProgramInvocation)
-            and isinstance(program_behavior, ProgramBehavior)
-            and program_invocation.gets_more_arguments_at_run_time
-            and program_behavior.argument_role in _FILE_ROLES
-        ):
-            treat_file_not_named_by_command_words_as_untouched(
-                program_invocation.program_name, use_counts=judgment_rule_use_counts
+            run_time_argument_role in _FILE_ROLES
+            and treat_file_not_named_by_command_words_as_unknown_content(
+                program_invocation.program_name,
+                use_counts=tool_call_state.judgment_rule_use_counts,
             )
+            and run_time_argument_role in _FILE_CHANGING_ROLES
+            and tool_call_state.may_have_run
+        ):
+            tool_call_state.trial_file_contents.forget_all_contents()
 
 
 def _record_writes_of_output_routes(
@@ -1142,6 +1182,7 @@ def _record_writes_of_output_routes(
                     else None,
                     appends=file_destination.appends,
                     may_have_run=tool_call_state.may_have_run,
+                    is_call_sure_to_have_run=tool_call_state.is_sure_to_have_run,
                     may_be_glob=True,
                 ),
             )
@@ -1232,7 +1273,7 @@ def _expand_ran_texts_of_command(
 def _expand_ran_texts_of_words_of_unknown_role(
     tool_call_state: _ToolCallState, command_reading: _CommandReading
 ) -> None:
-    """Add an `UnknownRanText` with the reason `WORD_ROLE_NOT_KNOWN` for each argument whose role is unknown of a program whose row runs a text or a file, e.g. f.sh of `bash -n f.sh` when the row of `-n` leaves the role of the first argument blank.
+    """Add an `UnknownRanText` with the reason `WORD_ROLE_NOT_KNOWN` for each argument whose role is unknown of a program whose row runs a text or a file, e.g. f.sh of `bash -n f.sh` when the row of `-n` leaves the role of the first argument blank, and one for each such program with unread words, e.g. bash of `bash -x f.sh` when `-x` has no row.
 
     Such a word may be a text or a file that the program runs, so the run is kept as an unknown instead of nothing.
     """
@@ -1249,6 +1290,23 @@ def _expand_ran_texts_of_words_of_unknown_role(
         if (
             isinstance(program_invocation, ProgramInvocation)
             and word in program_invocation.arguments
+            and isinstance(program_behavior, ProgramBehavior)
+            and _is_running_text_or_file(program_behavior)
+        ):
+            tool_call_state.ran_texts.append(
+                UnknownRanText(
+                    ArgumentText(shell_command.id),
+                    UnknownRanTextReason.WORD_ROLE_NOT_KNOWN,
+                )
+            )
+    for program_invocation, program_behavior in zip(
+        command_reading.ran_command.program_invocations,
+        command_reading.program_behaviors,
+        strict=True,
+    ):
+        if (
+            isinstance(program_invocation, ProgramInvocation)
+            and program_invocation.unread_words
             and isinstance(program_behavior, ProgramBehavior)
             and _is_running_text_or_file(program_behavior)
         ):
@@ -1867,15 +1925,20 @@ class TrialFileContents:
         *,
         appends: bool,
         may_have_run: bool,
+        is_call_sure_to_have_run: bool,
         may_be_glob: bool,
     ) -> FileTouch | None:
         """Record a write of a file and give its touch, whose key is that of the call's earlier write to the same file or a new one.
 
         A write that appends keeps the earlier writes and leaves the content unknown. A write of a call that did not run changes nothing.
+        A write of a call that may have run, but whose result does not say so, leaves the content unknown by `treat_tool_call_not_marked_not_run_as_maybe_run`, e.g. a write tool cut off at the end of a trajectory.
         A write that replaces the content of the file where the harness saved a result ends the reads of that result, e.g. `echo x > /tmp/tasks/b1.output`.
+        A write to a glob records no touch and leaves the content of each written file that the glob may name unknown by a rule, e.g. f.sh of `sed -i s/a/b/ *.sh`.
         `may_be_glob` is False for the path argument of a tool, which names one file as written, e.g. `app/[id]/page.tsx`, and True for a word or redirect of a command, which the shell may expand.
         """
         if may_be_glob and self._is_glob(path):
+            if may_have_run:
+                self._forget_contents_maybe_named_by_glob(path)
             return None
         fitting_written_file_keys = self._written_file_keys_of_tool_call_fitting(
             tool_call_key, path
@@ -1887,8 +1950,9 @@ class TrialFileContents:
             self._record_written_content(
                 written_file_key,
                 path,
-                content,
+                content if is_call_sure_to_have_run else None,
                 appends=appends,
+                may_not_have_happened=not is_call_sure_to_have_run,
                 fits_several_written_files_of_tool_call=len(fitting_written_file_keys)
                 > 1,
             )
@@ -1912,17 +1976,22 @@ class TrialFileContents:
         destination_path: str,
         *,
         may_have_run: bool,
+        is_call_sure_to_have_run: bool,
     ) -> FileTouch | None:
-        """Record the copy that a command with exactly two arguments makes, e.g. g.sh of `cp f.sh g.sh`, with unknown content or the content of the source as a rule says, and record no use of the source."""
+        """Record the copy that a command with exactly two arguments makes, e.g. g.sh of `cp f.sh g.sh`, with unknown content or the content of the source as a rule says, and record no use of the source.
+
+        A copy from a glob gets unknown content by a rule, e.g. g.sh of `cp *.sh g.sh`.
+        """
         if self._is_glob(source_path):
-            return None
-        content = (
-            None
-            if treat_copy_with_two_arguments_as_unknown_content(
-                use_counts=self._judgment_rule_use_counts
+            content = None
+        else:
+            content = (
+                None
+                if treat_copy_with_two_arguments_as_unknown_content(
+                    use_counts=self._judgment_rule_use_counts
+                )
+                else self._sure_content_of(source_path)
             )
-            else self._sure_content_of(source_path)
-        )
         return self.record_write(
             tool_call_key,
             command_id,
@@ -1931,6 +2000,7 @@ class TrialFileContents:
             content,
             appends=False,
             may_have_run=may_have_run,
+            is_call_sure_to_have_run=is_call_sure_to_have_run,
             may_be_glob=True,
         )
 
@@ -1939,16 +2009,24 @@ class TrialFileContents:
     ) -> FileTouch | None:
         """Record the removal of the written files a path fits, after which a rule reads them as never written, e.g. f.sh of `rm f.sh`.
 
-        A path that names a folder of a written file, e.g. scripts of `rm -rf scripts`, touches none of its files by a rule.
+        A path that names a folder of a written file, e.g. scripts of `rm -rf scripts`, or a glob records no touch and leaves the content of each written file that it may name unknown by a rule.
         A removal of the file where the harness saved a result ends the reads of that result, e.g. `rm /tmp/tasks/b1.output`.
         `may_be_glob` says whether the path may be a glob, as for `record_write`.
         """
-        if (may_be_glob and self._is_glob(path)) or (
-            self._is_folder_of_written_file(path)
-            and treat_file_not_named_by_command_words_as_untouched(
+        if may_be_glob and self._is_glob(path):
+            self._forget_contents_maybe_named_by_glob(path)
+            return None
+        written_file_histories_under_folder = self._written_file_histories_under_folder(
+            path
+        )
+        if (
+            written_file_histories_under_folder
+            and treat_file_not_named_by_command_words_as_unknown_content(
                 path, use_counts=self._judgment_rule_use_counts
             )
         ):
+            for written_file_history in written_file_histories_under_folder:
+                written_file_history.content = None
             return None
         written_file_histories = self._written_file_histories_fitting(path)
         for written_file_history in written_file_histories:
@@ -2004,12 +2082,14 @@ class TrialFileContents:
             written_file_histories = []
         written_file_keys: list[WrittenFileKey] = []
         for written_file_history in written_file_histories:
-            if written_file_history.replaced_written_file_keys and not (
-                treat_use_after_later_overwrite_as_use_of_later_write(
+            if (
+                written_file_history.replaced_written_file_keys
+                and written_file_history.last_replacement_may_not_have_happened
+                and treat_use_after_overwrite_that_may_not_have_happened_as_use_without_known_writer(
                     path, use_counts=self._judgment_rule_use_counts
                 )
             ):
-                written_file_keys += written_file_history.replaced_written_file_keys
+                continue
             written_file_keys += written_file_history.written_file_keys
         return FileTouch(
             command_id,
@@ -2128,6 +2208,7 @@ class TrialFileContents:
         content: str | None,
         *,
         appends: bool,
+        may_not_have_happened: bool,
         fits_several_written_files_of_tool_call: bool,
     ) -> None:
         """Change the state of the file that a write of a call that may have run writes.
@@ -2151,6 +2232,9 @@ class TrialFileContents:
                         written_file_history.written_file_keys
                     )
                     written_file_history.written_file_keys = []
+                    written_file_history.last_replacement_may_not_have_happened = (
+                        may_not_have_happened
+                    )
                 written_file_history.written_file_keys.append(written_file_key)
                 written_file_history.paths.append(path)
             else:
@@ -2220,31 +2304,47 @@ class TrialFileContents:
             path, other_path, use_counts=self._judgment_rule_use_counts
         )
 
-    def _is_folder_of_written_file(self, path: str) -> bool:
-        """Tell whether a path names a folder that holds a written file, e.g. scripts for scripts/fetch.sh."""
-        is_absolute, parts = _path_parts_of(path)
+    def forget_all_contents(self) -> None:
+        """Leave the content of every written file unknown, e.g. after `ls | xargs sed -i s/a/b/`."""
         for written_file_history in self._written_file_histories:
-            for written_path in written_file_history.paths:
-                written_path_is_absolute, written_path_parts = _path_parts_of(
-                    written_path
+            written_file_history.content = None
+
+    def _forget_contents_maybe_named_by_glob(self, glob: str) -> None:
+        """Leave the content of each written file that a glob may name unknown, e.g. f.sh for `*.sh`."""
+        for written_file_history in self._written_file_histories:
+            if any(
+                _may_glob_name_path(glob, written_path)
+                for written_path in written_file_history.paths
+            ):
+                written_file_history.content = None
+
+    def _written_file_histories_under_folder(
+        self, path: str
+    ) -> list[_WrittenFileHistory]:
+        """Give the histories of the written files in a folder that a path may name, e.g. scripts/fetch.sh for scripts."""
+        is_absolute, parts = _path_parts_of(path)
+        return [
+            written_file_history
+            for written_file_history in self._written_file_histories
+            if any(
+                _may_path_parts_name_same_file(
+                    (is_absolute, parts),
+                    (written_path_is_absolute, written_path_parts[:part_count]),
                 )
-                if any(
-                    _may_path_parts_name_same_file(
-                        (is_absolute, parts),
-                        (written_path_is_absolute, written_path_parts[:part_count]),
-                    )
-                    for part_count in range(1, len(written_path_parts))
-                ):
-                    return True
-        return False
+                for written_path_is_absolute, written_path_parts in map(
+                    _path_parts_of, written_file_history.paths
+                )
+                for part_count in range(1, len(written_path_parts))
+            )
+        ]
 
     def _is_glob(self, path: str) -> bool:
-        """Tell whether a path is a glob or a brace list, whose files a rule leaves untouched, e.g. `*.sh`.
+        """Tell whether a path is a glob or a brace list, whose written files a rule leaves with unknown content when the command changes files, e.g. `*.sh`.
 
         The braces of a parameter, e.g. `${D}` of `${D}/f.sh`, make no brace list.
         """
         return not _GLOB_CHARACTERS.isdisjoint(_PARAMETER_IN_BRACES.sub("", path)) and (
-            treat_file_not_named_by_command_words_as_untouched(
+            treat_file_not_named_by_command_words_as_unknown_content(
                 path, use_counts=self._judgment_rule_use_counts
             )
         )
@@ -2264,6 +2364,8 @@ class _WrittenFileHistory:
     content: str | None
     # A command or a tool removed it after the last write.
     is_deleted: bool = False
+    # The last write that replaced the content may not have happened, since its call's result does not say that it ran.
+    last_replacement_may_not_have_happened: bool = False
 
 
 def _path_parts_of(path: str) -> tuple[bool, tuple[str, ...]]:
@@ -2283,6 +2385,29 @@ def _path_parts_of(path: str) -> tuple[bool, tuple[str, ...]]:
     while not is_absolute and parts and _UNKNOWN_FOLDER_PART.match(parts[0]):
         parts.pop(0)
     return is_absolute, tuple(parts)
+
+
+def _may_glob_name_path(glob: str, path: str) -> bool:
+    """Tell whether a glob may name a path, comparing their parts from the end, e.g. `*.sh` and `/app/fetch.sh`.
+
+    A part of the glob may name a part of the path that it equals or that it matches as an `fnmatch` pattern, and a part with a brace list or a parameter may name any part, e.g. `{a,b}.sh` or `${D}`.
+    Two absolute paths need as many parts, and otherwise the parts at the end that both have are compared, as for `_may_path_parts_name_same_file`.
+    """
+    is_glob_absolute, glob_parts = _path_parts_of(glob)
+    is_path_absolute, path_parts = _path_parts_of(path)
+    if not glob_parts or not path_parts:
+        return False
+    if is_glob_absolute and is_path_absolute and len(glob_parts) != len(path_parts):
+        return False
+    return all(
+        glob_part == path_part
+        or "{" in glob_part
+        or "$" in glob_part
+        or fnmatch.fnmatchcase(path_part, glob_part)
+        for glob_part, path_part in zip(
+            reversed(glob_parts), reversed(path_parts), strict=False
+        )
+    )
 
 
 def _may_path_parts_name_same_file(

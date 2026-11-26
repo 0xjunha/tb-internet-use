@@ -30,7 +30,8 @@ from tb_internet_use.export.judgment_rules import (
     treat_url_request_to_package_registry_host_as_package,
     treat_url_request_to_search_engine_host_as_search,
     treat_url_request_without_path_or_query_to_package_registry_or_search_engine_host_as_connectivity_check,
-    treat_web_tool_request_without_host_name_as_internet_use,
+    treat_web_tool_request_without_url_as_internet_use,
+    treat_web_tool_url_without_host_name_as_unknown_internet_use,
 )
 from tb_internet_use.export.model import (
     MeasureBound,
@@ -269,12 +270,23 @@ JUDGMENT_RULE_CASES: list[tuple[Callable[..., object], tuple[object, ...], objec
         True,
     ),
     (
-        treat_web_tool_request_without_host_name_as_internet_use,
+        treat_web_tool_request_without_url_as_internet_use,
         (
             _web_tool_request(
                 HarnessTool("codex", "web_search_call"),
                 "how to x?",
                 NetworkRequestTargetKind.SEARCH_QUERY,
+            ),
+        ),
+        True,
+    ),
+    (
+        treat_web_tool_url_without_host_name_as_unknown_internet_use,
+        (
+            _web_tool_request(
+                HarnessTool("claude-code", "WebFetch"),
+                "file:///app/x.html",
+                NetworkRequestTargetKind.URL,
             ),
         ),
         True,

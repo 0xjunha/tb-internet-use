@@ -759,7 +759,10 @@ def test_writes_the_uses_of_rules_and_rows_the_unknown_inputs_and_the_host_scope
         (
             "t1",
             "task a",
-            {"treat_web_find_as_request": 2, "treat_dotted_host_name_as_public": 1},
+            {
+                "treat_web_find_as_uncertain_request": 2,
+                "treat_dotted_host_name_as_public": 1,
+            },
             {curl_row: 3},
             {mytool: 2, fetch_call: 1},
             {"public": 2, "unknown_dotted_name": 1},
@@ -768,7 +771,7 @@ def test_writes_the_uses_of_rules_and_rows_the_unknown_inputs_and_the_host_scope
         (
             "t2",
             "task a",
-            {"treat_web_find_as_request": 1},
+            {"treat_web_find_as_uncertain_request": 1},
             {curl_row: 1},
             {mytool: 1, sync_tool: 4},
             {"public": 1},
@@ -792,7 +795,7 @@ def test_writes_the_uses_of_rules_and_rows_the_unknown_inputs_and_the_host_scope
     audit.write_audit_files(total, tmp_path)
 
     assert _csv_rows(tmp_path / "judgment_rule_uses.csv")[1:] == [
-        ["treat_web_find_as_request", "3", "2"],
+        ["treat_web_find_as_uncertain_request", "3", "2"],
         ["treat_dotted_host_name_as_public", "1", "1"],
     ]
     assert _csv_rows(tmp_path / "knowledge_row_uses.csv")[1:] == [

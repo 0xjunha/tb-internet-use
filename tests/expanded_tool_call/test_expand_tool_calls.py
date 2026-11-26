@@ -8,13 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from tb_internet_use.expanded_tool_call import (
-    _expand_program_invocations,
-    expand_tool_calls,
-)
-from tb_internet_use.expanded_tool_call.judgment_rules import (
-    treat_word_with_expansion_as_start_of_unread_words,
-)
+from tb_internet_use.expanded_tool_call import expand_tool_calls
 from tb_internet_use.expanded_tool_call.model import (
     ArgumentText,
     CallCommandText,
@@ -686,7 +680,7 @@ def test_the_counts_of_every_piece_reach_the_counter_of_the_caller(knowledge):
             # From `expand_command_text_status`.
             "treat_first_poll_that_saw_end_as_command_text_status": 1,
             # From `expand_output_places`, for the two commands of c1 in its poll c2.
-            "treat_poll_result_of_several_commands_as_showing_none": 1,
+            "treat_poll_result_as_showing_every_command_of_starter": 1,
         }
     )
     assert knowledge.uses.unknown_input_counts == Counter(
@@ -769,13 +763,7 @@ def test_a_file_whose_content_is_not_in_the_trajectory_is_run_but_unknown(knowle
     ]
 
 
-def test_a_value_set_at_run_time_is_unknown(knowledge, monkeypatch):
-    # The text of bash -c is followed only on the other answer of the rule on words with an expansion, which reads `"$CMD"` as one argument.
-    monkeypatch.setattr(
-        _expand_program_invocations,
-        treat_word_with_expansion_as_start_of_unread_words.__name__,
-        lambda word, *, use_counts: False,
-    )
+def test_a_value_set_at_run_time_is_unknown(knowledge):
     substitution, built_text = _expand(
         knowledge, _call(1, "curl $(cat urls.txt)"), _call(2, 'bash -c "$CMD"')
     )

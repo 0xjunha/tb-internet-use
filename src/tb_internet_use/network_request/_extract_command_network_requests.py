@@ -170,7 +170,7 @@ def _extract_program_network_requests(
 
     An option that sends no request gives none. Unread words give one request whose target and content destination are unknown, e.g. `curl --foo x u`, since the unread option may name the target or a file.
     Otherwise `extract_network_request_targets` gives the targets, and no target means no request, e.g. `curl` alone.
-    A request is uncertain when an option has no row of the request catalog, e.g. `-K` of `curl -K cfg u`, or else when the program or an option fetches only what is missing, e.g. `npx tsc`.
+    A request is uncertain when its command is marked `structure_may_be_wrong`, since a target may be a word of another command, or else when an option has no row of the request catalog, e.g. `-K` of `curl -K cfg u`, or else when the program or an option fetches only what is missing, e.g. `npx tsc`.
     """
     program_option_effects = _program_option_effects_of(program_invocation, knowledge)
     if ProgramOptionEffect.SENDS_NO_REQUEST in program_option_effects:
@@ -211,7 +211,9 @@ def _extract_program_network_requests(
         no_network_request_counts[NoNetworkRequestReason.NO_TARGET_ARGUMENTS] += 1
         return ()
     uncertainty_reason = _uncertainty_reason_of(
-        fetching_program_label, program_option_effects
+        fetching_program_label,
+        program_option_effects,
+        structure_may_be_wrong=ran_command.shell_command.structure_may_be_wrong,
     )
     received_content_destination = extract_received_content_destination(
         fetching_program_label.content_route,
@@ -296,8 +298,12 @@ def _program_option_effects_of(
 def _uncertainty_reason_of(
     fetching_program_label: FetchingProgramLabel,
     program_option_effects: Sequence[ProgramOptionEffect | UnknownProgramOptionEffect],
+    *,
+    structure_may_be_wrong: bool,
 ) -> NetworkRequestUncertaintyReason | None:
-    """Give why the requests of a fetching program are uncertain, an option without a row before fetching only what is missing, or None when they are confirmed."""
+    """Give why the requests of a fetching program are uncertain, a command whose structure may be wrong before an option without a row before fetching only what is missing, or None when they are confirmed."""
+    if structure_may_be_wrong:
+        return NetworkRequestUncertaintyReason.STRUCTURE_MAY_BE_WRONG
     if any(
         isinstance(program_option_effect, UnknownProgramOptionEffect)
         for program_option_effect in program_option_effects

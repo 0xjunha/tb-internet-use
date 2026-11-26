@@ -210,7 +210,7 @@ JUDGMENT_RULE_CASES: list[
         "read",
         {"content": "Tool 'read' validation failed: a required argument is missing"},
         (S.NOT_RUN, None),
-        {"treat_tool_failure_message_as_not_run": 1},
+        {},
     ),
     (
         "devin",

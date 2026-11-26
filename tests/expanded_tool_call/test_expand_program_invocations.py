@@ -11,7 +11,7 @@ from tb_internet_use.expanded_tool_call._expand_program_invocations import (
     expand_program_invocations,
 )
 from tb_internet_use.expanded_tool_call.judgment_rules import (
-    treat_word_with_expansion_as_start_of_unread_words,
+    treat_word_with_expansion_as_one_argument,
 )
 from tb_internet_use.expanded_tool_call.model import (
     ProgramBehavior,
@@ -35,7 +35,7 @@ from tb_internet_use.tool_call.model import ShellCommand
 
 UNKNOWN_ROLE = UnknownProgramWordRole()
 UNKNOWN_EXITS_WITH_EXIT_CODE_OF_NEXT_PROGRAM = UnknownExitsWithExitCodeOfNextProgram()
-EXPANSION_RULE_NAME = treat_word_with_expansion_as_start_of_unread_words.__name__
+EXPANSION_RULE_NAME = treat_word_with_expansion_as_one_argument.__name__
 
 _RUNS_NEXT_PROGRAM = {
     "argument_role": "program",
@@ -504,12 +504,11 @@ INVOCATION_CASES = [
             ),
         ),
     ),
-    # A word with an expansion starts the unread words by a rule, since its value may hold options.
     (
         "curl $OPTS u",
         ("curl", "$OPTS", "u"),
         (1,),
-        (_program_invocation("curl", unread_words=("$OPTS", "u")),),
+        (_program_invocation("curl", arguments=("$OPTS", "u")),),
     ),
     # The cases of the old tests of the programs past wrappers, of shell texts and of option values.
     (
@@ -711,12 +710,12 @@ INVOCATION_CASES = [
             ),
         ),
     ),
-    # The letters of -$n come from a variable when the command runs, so it is an argument, which a rule makes unread with the words after it.
+    # The letters of -$n come from a variable when the command runs, so it is one argument.
     (
         "tail -$n log",
         ("tail", "-$n", "log"),
         (1,),
-        (_program_invocation("tail", unread_words=("-$n", "log")),),
+        (_program_invocation("tail", arguments=("-$n", "log")),),
     ),
     # -pe has a row of its own, so its letters are not read apart.
     (
@@ -916,6 +915,12 @@ INVOCATION_CASES = [
             ),
         ),
     ),
+    (
+        "bash -c $CMD",
+        ("bash", "-c", "$CMD"),
+        (2,),
+        (_program_invocation("bash", options=(_option("-c"),), arguments=("$CMD",)),),
+    ),
     # The words after the text of -c are arguments of that text, not options of bash.
     (
         "bash -c text name a",
@@ -959,6 +964,17 @@ INVOCATION_CASES = [
     ),
     ("sed -e", ("sed", "-e"), (), (_program_invocation("sed", unread_words=("-e",)),)),
     ("tar xf", ("tar", "xf"), (), (_program_invocation("tar", unread_words=("xf",)),)),
+    # The value of the cluster word is a word with an expansion, which is read as one value.
+    (
+        "tar xzf $F",
+        ("tar", "xzf", "$F"),
+        (2,),
+        (
+            _program_invocation(
+                "tar", options=(_option("-x"), _option("-z"), _option("-f", "$F"))
+            ),
+        ),
+    ),
     # The letters of $X are known only when the command runs, so it is unread with the words after it.
     (
         "tar $X a",
@@ -1211,7 +1227,7 @@ ROLE_CASES = [
         "curl $OPTS u",
         ("curl", "$OPTS", "u"),
         (1,),
-        (None, UNKNOWN_ROLE, UNKNOWN_ROLE),
+        (None, ProgramWordRole.OTHER, ProgramWordRole.OTHER),
     ),
     # The value `-` of an option whose row names a file stands for stdout, which the row cannot say, in each of its three spellings.
     (
@@ -1248,7 +1264,7 @@ ROLE_CASES = [
         "bash -c $CMD",
         ("bash", "-c", "$CMD"),
         (2,),
-        (None, None, UNKNOWN_ROLE),
+        (None, None, ProgramWordRole.RUN_TEXT),
     ),
     (
         "bash -c text name a",
@@ -1264,7 +1280,7 @@ ROLE_CASES = [
     ),
     ("curl -fo", ("curl", "-fo"), (), (None, UNKNOWN_ROLE)),
     ("tar xf", ("tar", "xf"), (), (None, UNKNOWN_ROLE)),
-    ("tar xzf $F", ("tar", "xzf", "$F"), (2,), (None, UNKNOWN_ROLE, UNKNOWN_ROLE)),
+    ("tar xzf $F", ("tar", "xzf", "$F"), (2,), (None, None, ProgramWordRole.USED_FILE)),
     ("late a -m", ("late", "a", "-m"), (), (None, UNKNOWN_ROLE, UNKNOWN_ROLE)),
     ("sudo $P u", ("sudo", "$P", "u"), (1,), (None, None, UNKNOWN_ROLE)),
 ]
@@ -1277,6 +1293,7 @@ class _Expansion(NamedTuple):
     roles: tuple[ProgramWordRole | UnknownProgramWordRole | None, ...]
     program_behaviors: tuple[ProgramBehavior | UnknownProgramBehavior, ...]
     program_word_indexes: tuple[int, ...]
+    run_time_argument_roles: tuple[ProgramWordRole | UnknownProgramWordRole | None, ...]
     uses: KnowledgeUses
     judgment_rule_use_counts: Counter[str]
 
@@ -1288,18 +1305,23 @@ def _expansion_of(
 ) -> _Expansion:
     knowledge = ExpandedToolCallKnowledge(catalogs_dir=catalogs_dir)
     judgment_rule_use_counts: Counter[str] = Counter()
-    program_invocations, roles, program_behaviors, program_word_indexes = (
-        expand_program_invocations(
-            ShellCommand(0, words, expansion_word_indexes=expansion_word_indexes),
-            knowledge=knowledge,
-            judgment_rule_use_counts=judgment_rule_use_counts,
-        )
+    (
+        program_invocations,
+        roles,
+        program_behaviors,
+        program_word_indexes,
+        run_time_argument_roles,
+    ) = expand_program_invocations(
+        ShellCommand(0, words, expansion_word_indexes=expansion_word_indexes),
+        knowledge=knowledge,
+        judgment_rule_use_counts=judgment_rule_use_counts,
     )
     return _Expansion(
         program_invocations,
         roles,
         program_behaviors,
         program_word_indexes,
+        run_time_argument_roles,
         knowledge.uses,
         judgment_rule_use_counts,
     )
@@ -1435,6 +1457,33 @@ def test_knowledge_class_is_asked_once_per_program_and_option_and_counts_an_opti
 
 
 @pytest.mark.parametrize(
+    ("words", "run_time_argument_roles"),
+    [
+        # The row of sed gives its arguments the role `READ_FILE`, and -i changes it.
+        (("xargs", "sed", "-i", "s/a/b/"), (None, ProgramWordRole.CHANGED_FILE)),
+        (("xargs", "sed", "s/a/b/"), (None, ProgramWordRole.READ_FILE)),
+        (("sed", "-i", "s/a/b/", "f"), (None,)),
+        (("xargs", "mytool"), (None, None)),
+    ],
+    ids=[
+        "option changes the role",
+        "role of the row",
+        "no run-time arguments",
+        "unknown program",
+    ],
+)
+def test_the_role_of_the_arguments_a_program_gets_at_run_time_follows_its_row_and_its_options(
+    catalogs_dir: Path,
+    words: tuple[str, ...],
+    run_time_argument_roles: tuple[ProgramWordRole | None, ...],
+):
+    assert (
+        _expansion_of(catalogs_dir, words).run_time_argument_roles
+        == run_time_argument_roles
+    )
+
+
+@pytest.mark.parametrize(
     ("words", "unknown_option_inputs"),
     [
         (("xargs", "curl", "-sO"), ()),
@@ -1550,8 +1599,7 @@ def test_program_word_with_an_expansion_is_not_asked_of_the_knowledge_class(
     ("words", "expansion_word_indexes", "rule_use_count"),
     [
         (("curl", "$OPTS", "u"), (1,), 1),
-        # The first word makes the words after it unread, so the second is not asked.
-        (("curl", "$A", "$B"), (1, 2), 1),
+        (("curl", "$A", "$B"), (1, 2), 2),
         (("bash", "-c", "$CMD"), (2,), 1),
         # The value of an option is read as one word like an argument.
         (("curl", "-o", "$F", "u"), (2,), 1),
@@ -1564,7 +1612,7 @@ def test_program_word_with_an_expansion_is_not_asked_of_the_knowledge_class(
         (("late", "a", "-p", "b", "$X"), (4,), 0),
     ],
 )
-def test_rule_on_words_with_an_expansion_is_counted_once_per_word_it_reads(
+def test_rule_on_words_with_an_expansion_is_counted_once_per_word_read_as_one_argument_or_value(
     catalogs_dir, words, expansion_word_indexes, rule_use_count
 ):
     expansion = _expansion_of(catalogs_dir, words, expansion_word_indexes)
@@ -1573,71 +1621,46 @@ def test_rule_on_words_with_an_expansion_is_counted_once_per_word_it_reads(
     )
 
 
-# (words, indexes of the words with an expansion, the program invocation by the rule's answer, the same on the other answer)
-EXPANSION_WORD_CASES = [
-    (
-        ("curl", "-s", "$OPTS", "u"),
-        (2,),
-        _program_invocation(
-            "curl", options=(_option("-s"),), unread_words=("$OPTS", "u")
-        ),
-        _program_invocation("curl", options=(_option("-s"),), arguments=("$OPTS", "u")),
-    ),
-    # For a value, the option that would take it is unread too.
-    (
-        ("curl", "-s", "-o", "$F", "u"),
-        (3,),
-        _program_invocation(
-            "curl", options=(_option("-s"),), unread_words=("-o", "$F", "u")
-        ),
-        _program_invocation(
-            "curl", options=(_option("-s"), _option("-o", "$F")), arguments=("u",)
-        ),
-    ),
-    (
-        ("bash", "-c", "$CMD"),
-        (2,),
-        _program_invocation("bash", options=(_option("-c"),), unread_words=("$CMD",)),
-        _program_invocation("bash", options=(_option("-c"),), arguments=("$CMD",)),
-    ),
-    (
-        ("tar", "xzf", "$F"),
-        (2,),
-        _program_invocation("tar", unread_words=("xzf", "$F")),
-        _program_invocation(
-            "tar", options=(_option("-x"), _option("-z"), _option("-f", "$F"))
-        ),
-    ),
-]
-
-
 @pytest.mark.parametrize(
-    (
-        "words",
-        "expansion_word_indexes",
-        "program_invocation",
-        "program_invocation_on_false",
-    ),
-    EXPANSION_WORD_CASES,
+    ("words", "expansion_word_indexes", "program_invocation", "roles"),
+    [
+        (
+            ("curl", "-s", "$OPTS", "u"),
+            (2,),
+            _program_invocation(
+                "curl", options=(_option("-s"),), unread_words=("$OPTS", "u")
+            ),
+            (None, None, UNKNOWN_ROLE, UNKNOWN_ROLE),
+        ),
+        # For a value, the option that would take it is unread too.
+        (
+            ("curl", "-s", "-o", "$F", "u"),
+            (3,),
+            _program_invocation(
+                "curl", options=(_option("-s"),), unread_words=("-o", "$F", "u")
+            ),
+            (None, None, UNKNOWN_ROLE, UNKNOWN_ROLE, UNKNOWN_ROLE),
+        ),
+    ],
 )
-def test_word_with_an_expansion_starts_the_unread_words_and_is_one_word_on_the_other_answer(
+def test_word_with_an_expansion_and_the_words_after_it_are_unread_when_the_rule_says_no(
     catalogs_dir,
     monkeypatch,
     words,
     expansion_word_indexes,
     program_invocation,
-    program_invocation_on_false,
+    roles,
 ):
-    expansion = _expansion_of(catalogs_dir, words, expansion_word_indexes)
     monkeypatch.setattr(
         _expand_program_invocations,
         EXPANSION_RULE_NAME,
         lambda word, *, use_counts: False,
     )
-    expansion_on_false = _expansion_of(catalogs_dir, words, expansion_word_indexes)
+
+    expansion = _expansion_of(catalogs_dir, words, expansion_word_indexes)
 
     assert expansion.program_invocations == (program_invocation,)
-    assert expansion_on_false.program_invocations == (program_invocation_on_false,)
+    assert expansion.roles == roles
 
 
 def test_wrapper_chain_shell_option_with_a_plus_and_echo_are_read_on_the_real_catalogs():

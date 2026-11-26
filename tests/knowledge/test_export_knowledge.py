@@ -197,6 +197,24 @@ def test_public_host_is_answered_from_the_row_with_the_longest_path_prefix_of_th
     )
 
 
+@pytest.mark.parametrize(
+    ("host_name", "has_row"),
+    [
+        ("reg.org", True),
+        ("Code.ORG", True),
+        # A row with a blank service and rows for paths alone are rows of the name too.
+        ("blank.org", True),
+        ("api.org", True),
+        ("files.reg.org", False),
+    ],
+)
+def test_public_host_row_of_a_name_is_told_for_any_path_without_counting(
+    knowledge, host_name, has_row
+):
+    assert knowledge.has_public_host_row(host_name) is has_row
+    assert knowledge.uses == KnowledgeUses()
+
+
 def test_path_of_a_host_with_rows_for_other_paths_alone_is_unknown_and_counted_as_the_blank_prefix(
     knowledge,
 ):

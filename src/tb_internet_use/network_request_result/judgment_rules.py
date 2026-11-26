@@ -61,6 +61,7 @@ def treat_pip_or_apt_installed_line_of_named_package_as_received(
     The same count for `apt-get install` found a `Get:` line of a package beside `Setting up` in 132 calls, and none without it in a result that the harness did not cut, while 27 results were cut.
     A local install prints the line without a download, e.g. `pip install -e /app` in 4 calls, so the rule holds only for a request whose target is a named package.
     `_level_and_stop_reason_from_output_line` asks it for each line of the kind INSTALLED that only pip or only apt prints and that a request owns, when the request's target is a named package, unless `treat_line_naming_another_target_as_no_evidence_of_answer` has taken the line.
+    A line beside a download line of a package file that the request owns never asks it, since the two show that the content arrived, so it decides only a line without such a download line, e.g. under `pip install x | tail -1`.
     On `True` the line shows RECEIVED with no stop reason, or REACHED for a request that asks for no content, and the level does not rest on this rule. On `False` it shows only that the program ran, EXECUTED with NOT_VISIBLE.
     A use is such a line of a request.
 
@@ -177,10 +178,11 @@ def treat_line_naming_another_target_as_no_evidence_of_answer(
 
     B may be a dependency that the request for A fetched or the output of another request, and the line does not say which.
     `_level_and_stop_reason_from_output_line` asks it for each line of a request with `OutputLineOwners.names_another_target` set, also for a request that names no target, e.g. `apt-get update` beside `curl https://a.org/x -o x` under `Could not resolve host: cdn.b.net`.
-    On `True` the line shows only that the program ran, EXECUTED with NOT_VISIBLE. On `False` it shows the level that the same line would show if it named the target of the request.
+    A download line and an installed line that the request owns together never ask it, whatever they name, e.g. `Downloading B-1.0.whl` beside `Successfully installed A-1.0 B-1.0` under `pip install A`, since the two show that the content arrived.
+    On `True` the line shows only that the program ran, EXECUTED with NOT_VISIBLE, and the level does not rest on this rule, since the run holds whatever the line names. Such a line makes no uncertain request confirmed, e.g. `Could not resolve host: b.org` under `curl --verbose https://a.org/x`, whose option has no row, since a request to b.org does not show that the request to a.org was sent. On `False` it shows the level that the same line would show if it named the target of the request.
     A use is such a line of a request.
 
-    Provisional. No earlier code chose, and no evidence beyond the run claims least.
+    Provisional. No earlier code chose, and no evidence beyond the run claims least. Until the review of 2026-11-24 such a line still made an uncertain request confirmed, and the review recommended that it lift none, which the user has not yet confirmed.
     """
     use_counts[treat_line_naming_another_target_as_no_evidence_of_answer.__name__] += 1
     return True
@@ -286,6 +288,7 @@ def treat_stop_reasons_of_one_level_as_first_in_fixed_order(
     A program can try again or follow a redirect, so the lines may show steps of one request, and the trajectory does not say which of them ended it.
     `_level_and_stop_reason_for` asks it for a request whose evidence at its highest level gives two or more of no stop reason, FAILED and NOT_NEEDED, or gives FAILED beside evidence of NOT_VISIBLE that shows the request may have gone on after the failure.
     It returns the first of the given stop reasons in the fixed order, and the result rests on this rule. It raises `ValueError` when it is given fewer than two different stop reasons.
+    The order also decides the request bound of a confirmed request, since `export_rows` leaves out of the lower bound of requests only a result that is NOT_NEEDED, e.g. FAILED keeps the request in it, while an assumed NOT_NEEDED would count it only toward the upper bound.
     A use is such a request.
 
     Provisional. No earlier code chose. The result that rests on this rule is assumed, so it counts toward no lower bound of the trials that received something.

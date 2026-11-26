@@ -138,7 +138,7 @@ _READ_BASH_FAILED = HarnessResultFormatList[str](
             "Invalid delay: {reason:line}"
             + _RESULT_JSON_LINE
             + "Invalid delay: {reason_again:rest_of_line}",
-            judgment_rule="treat_tool_failure_message_as_not_run",
+            S.NOT_RUN,
         ),
     )
 )
@@ -219,7 +219,7 @@ _VIEW_FAILED = HarnessResultFormatList[str](
 _INVALID_INPUT = Text(
     "invalid_input",
     "Invalid input: {reason:line}\n{reason_again:rest_of_line}",
-    judgment_rule="treat_tool_failure_message_as_not_run",
+    S.NOT_RUN,
 )
 
 _CREATE = HarnessResultFormatList[str](

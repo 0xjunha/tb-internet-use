@@ -15,9 +15,9 @@ from tb_internet_use.expanded_tool_call._expand_ran_texts import (
     RanTextsOfToolCall,
 )
 from tb_internet_use.expanded_tool_call.judgment_rules import (
-    treat_poll_result_of_several_commands_as_showing_none,
-    treat_read_of_output_path_of_several_calls_as_showing_each,
-    treat_script_step_output_as_not_shown_in_call_result,
+    treat_poll_result_as_showing_every_command_of_starter,
+    treat_read_of_output_path_of_several_calls_as_showing_none,
+    treat_script_step_output_as_shown_in_call_result,
 )
 from tb_internet_use.expanded_tool_call.model import (
     CallCommandText,
@@ -61,7 +61,7 @@ def expand_output_places(
     `ran_texts_of_tool_calls` and `poll_links` are what `expand_ran_texts` and `expand_poll_links` gave for the same calls.
     A command reaches a place when one of its output routes ends in the result, e.g. both commands of `curl u | tail -1`, and not when they all end in a file, are captured by `$(...)` or are thrown away.
     A place is a result that the trajectory holds, so a call without a result, a result without tool output text and a result that is `NOT_RUN` show nothing, and a call whose own result is `NOT_RUN` has no places.
-    Every use of `treat_script_step_output_as_not_shown_in_call_result`, `treat_poll_result_of_several_commands_as_showing_none` and `treat_read_of_output_path_of_several_calls_as_showing_each` adds one to `judgment_rule_use_counts`.
+    Every use of `treat_script_step_output_as_shown_in_call_result`, `treat_poll_result_as_showing_every_command_of_starter` and `treat_read_of_output_path_of_several_calls_as_showing_none` adds one to `judgment_rule_use_counts`.
     """
     tool_call_by_key = {
         tool_call.harness_tool_call.key: tool_call for tool_call in tool_calls
@@ -85,7 +85,10 @@ def expand_output_places(
     ]
     harness_output_file_reading_tool_call_keys = (
         _harness_output_file_reading_tool_call_keys_of(
-            ran_texts_of_tool_calls, tool_call_by_key, judgment_rule_use_counts
+            ran_texts_of_tool_calls,
+            tool_call_by_key,
+            poll_links,
+            judgment_rule_use_counts,
         )
     )
     return tuple(
@@ -219,13 +222,13 @@ def _result_command_groups_of(
 def _is_shown_in_own_result(
     result_command_group: _ResultCommandGroup, judgment_rule_use_counts: Counter[str]
 ) -> bool:
-    """Tell whether the call's own result shows the output of a group, asking `treat_script_step_output_as_not_shown_in_call_result` for a step of a tool script, whose one result is what its code prints."""
+    """Tell whether the call's own result shows the output of a group, asking `treat_script_step_output_as_shown_in_call_result` for a step of a tool script, whose one result is what its code prints."""
     match result_command_group.own_text_source:
         case (
             ScriptStepText(step_index=step_index)
             | PollInputText(step_index=int() as step_index)
         ):
-            return not treat_script_step_output_as_not_shown_in_call_result(
+            return treat_script_step_output_as_shown_in_call_result(
                 step_index, use_counts=judgment_rule_use_counts
             )
         case _:
@@ -238,7 +241,7 @@ def _expand_output_places_of_polls(
     tool_call_by_key: Mapping[ToolCallKey, ToolCall],
     judgment_rule_use_counts: Counter[str],
 ) -> list[OutputPlace]:
-    """Expand the polls whose results show the output of commands that run in what they poll, asking `treat_poll_result_of_several_commands_as_showing_none` for each poll when there are several commands."""
+    """Expand the polls whose results show the output of commands that run in what they poll, asking `treat_poll_result_as_showing_every_command_of_starter` for each poll when there are several commands."""
     if not command_ids:
         return []
     return [
@@ -247,7 +250,7 @@ def _expand_output_places_of_polls(
         if _has_result_showing_output(tool_call_by_key[poll_tool_call_key])
         and (
             len(command_ids) == 1
-            or not treat_poll_result_of_several_commands_as_showing_none(
+            or treat_poll_result_as_showing_every_command_of_starter(
                 use_counts=judgment_rule_use_counts
             )
         )
@@ -286,17 +289,29 @@ def _polled_handles_of(tool_call: ToolCall) -> frozenset[ExecutionHandle]:
 def _harness_output_file_reading_tool_call_keys_of(
     ran_texts_of_tool_calls: Sequence[RanTextsOfToolCall],
     tool_call_by_key: Mapping[ToolCallKey, ToolCall],
+    poll_links: PollLinks,
     judgment_rule_use_counts: Counter[str],
 ) -> defaultdict[ToolCallKey, list[ToolCallKey]]:
     """List, by the call whose result the harness saved in a file, the later calls whose results show that file's content, each once in call order.
 
     A read is a touch that shows content, e.g. `cat`, a read tool or a content search tool, so a touch that shows only the size, e.g. `wc -c`, is none.
     A read by a command shows the content only when its stdout ends in the reading call's result, e.g. through `| tail -1`, and not in `cat P > /dev/null`.
-    A read of a file that the results of several calls name asks `treat_read_of_output_path_of_several_calls_as_showing_each` whether it shows each of them or the latest only.
+    A read of a file that the results of several calls name asks `treat_read_of_output_path_of_several_calls_as_showing_none` whether it shows none of them or each.
+    A call and the later polls of what it started count as one there, since the file holds the output of that one start, e.g. a poll whose result names the output file of the command it polls.
     """
     reading_tool_call_keys: defaultdict[ToolCallKey, list[ToolCallKey]] = defaultdict(
         list
     )
+    starter_tool_call_keys_of_poll_call: defaultdict[ToolCallKey, set[ToolCallKey]] = (
+        defaultdict(set)
+    )
+    for (
+        poll_tool_call_key,
+        _,
+    ), starter_tool_call_keys in poll_links.starter_tool_call_keys_of_poll.items():
+        starter_tool_call_keys_of_poll_call[poll_tool_call_key].update(
+            starter_tool_call_keys
+        )
     for ran_texts_of_tool_call in ran_texts_of_tool_calls:
         reading_tool_call_key = ran_texts_of_tool_call.tool_call_key
         if not _has_result_showing_output(tool_call_by_key[reading_tool_call_key]):
@@ -316,11 +331,16 @@ def _harness_output_file_reading_tool_call_keys_of(
                 continue
             saved_result_tool_call_keys = file_touch.harness_output_file_tool_call_keys
             if len(
-                saved_result_tool_call_keys
-            ) > 1 and not treat_read_of_output_path_of_several_calls_as_showing_each(
+                {
+                    _starter_tool_call_key_for(
+                        saved_result_tool_call_key, starter_tool_call_keys_of_poll_call
+                    )
+                    for saved_result_tool_call_key in saved_result_tool_call_keys
+                }
+            ) > 1 and treat_read_of_output_path_of_several_calls_as_showing_none(
                 use_counts=judgment_rule_use_counts
             ):
-                saved_result_tool_call_keys = saved_result_tool_call_keys[-1:]
+                continue
             for saved_result_tool_call_key in saved_result_tool_call_keys:
                 if (
                     reading_tool_call_key
@@ -330,6 +350,20 @@ def _harness_output_file_reading_tool_call_keys_of(
                         reading_tool_call_key
                     )
     return reading_tool_call_keys
+
+
+def _starter_tool_call_key_for(
+    tool_call_key: ToolCallKey,
+    starter_tool_call_keys_of_poll_call: Mapping[ToolCallKey, set[ToolCallKey]],
+) -> ToolCallKey:
+    """Give the call that started what a call polls when it polls what exactly one call started, and the call itself otherwise."""
+    starter_tool_call_keys = starter_tool_call_keys_of_poll_call.get(
+        tool_call_key, set()
+    )
+    if len(starter_tool_call_keys) == 1:
+        (starter_tool_call_key,) = starter_tool_call_keys
+        return starter_tool_call_key
+    return tool_call_key
 
 
 def _command_ids_with_stdout_in_result_of(ran_texts: Sequence[RanText]) -> set[int]:

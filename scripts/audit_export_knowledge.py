@@ -31,6 +31,7 @@ from tb_internet_use.export.judgment_rules import (
     treat_assumed_failure_as_possibly_received,
     treat_assumed_not_needed_result_as_upper_bound_only,
     treat_discarded_content_as_connectivity_check,
+    treat_dotted_host_name_without_public_host_row_as_unknown_internet_use,
     treat_host_name_with_empty_label_as_unknown_internet_use,
     treat_host_target_that_may_receive_content_as_other_web,
     treat_local_or_single_label_host_name_of_web_tool_as_unknown_internet_use,
@@ -46,7 +47,8 @@ from tb_internet_use.export.judgment_rules import (
     treat_url_request_to_package_registry_host_as_package,
     treat_url_request_to_search_engine_host_as_search,
     treat_url_request_without_path_or_query_to_package_registry_or_search_engine_host_as_connectivity_check,
-    treat_web_tool_request_without_host_name_as_internet_use,
+    treat_web_tool_request_without_url_as_internet_use,
+    treat_web_tool_url_without_host_name_as_unknown_internet_use,
 )
 from tb_internet_use.export.model import (
     HostService,
@@ -344,6 +346,22 @@ def situation_counts_of(
         for host_name in host_names
     )
     has_public = "public" in host_scope_texts
+    # A dotted host name of the request's own words without a row of the public host catalog, read from the `host_scope` column, which is laid out like its host names, and asked of the catalog without counting.
+    is_unlisted_dotted_name_of_host = [
+        host_scope_text == "public"
+        and parse_host_name(host_name)
+        == UnknownHostNameScope(UnknownHostNameScopeReason.DOTTED_NAME)
+        and not own_export_knowledge.has_public_host_row(host_name)
+        for host_name, host_scope_text in zip(
+            network_request.host_names, row.host_scope.split(), strict=True
+        )
+    ]
+    has_listed_public = any(
+        host_scope_text == "public" and not is_unlisted_dotted_name
+        for host_scope_text, is_unlisted_dotted_name in zip(
+            host_scope_texts, is_unlisted_dotted_name_of_host, strict=False
+        )
+    ) or (not network_request.host_names and has_public)
     has_templated = "unknown_templated" in host_scope_texts
     has_empty_label = "unknown_empty_label" in host_scope_texts
     has_reserved = "reserved" in host_scope_texts
@@ -359,15 +377,23 @@ def situation_counts_of(
         and bool({"package_registry", "search_engine"} & set(host_services))
         and _is_url_without_path_or_query(row.target, network_request.host_names)
     )
+    # A target that is a URL, read from the target and target kind columns, whose target is blank for a request without one.
+    is_url_target = row.target_kind == NetworkRequestTargetKind.URL and row.target != ""
     is_local_or_single_label = bool(host_scope_texts) and set(host_scope_texts) <= {
         "local",
         "unknown_single_label",
     }
     is_situation_of_rule = {
+        treat_dotted_host_name_without_public_host_row_as_unknown_internet_use: not has_listed_public
+        and any(is_unlisted_dotted_name_of_host),
         treat_request_without_host_name_as_sent_to_default_registry_host: not network_request.host_names
         and not is_web_tool,
-        treat_web_tool_request_without_host_name_as_internet_use: not network_request.host_names
-        and is_web_tool,
+        treat_web_tool_request_without_url_as_internet_use: not network_request.host_names
+        and is_web_tool
+        and not is_url_target,
+        treat_web_tool_url_without_host_name_as_unknown_internet_use: not network_request.host_names
+        and is_web_tool
+        and is_url_target,
         treat_templated_host_name_as_unknown_internet_use: not has_public
         and has_templated,
         treat_host_name_with_empty_label_as_unknown_internet_use: not has_public

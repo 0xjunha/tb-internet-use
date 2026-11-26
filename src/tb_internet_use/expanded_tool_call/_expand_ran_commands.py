@@ -75,14 +75,15 @@ def expand_ran_commands(
     ]
     program_invocations_of_commands = tuple(
         program_invocations
-        for program_invocations, _, _, _ in expanded_program_invocations_of_commands
+        for program_invocations, _, _, _, _ in expanded_program_invocations_of_commands
     )
     word_roles_of_commands = tuple(
-        word_roles for _, word_roles, _, _ in expanded_program_invocations_of_commands
+        word_roles
+        for _, word_roles, _, _, _ in expanded_program_invocations_of_commands
     )
     program_behaviors_of_commands = tuple(
         program_behaviors
-        for _, _, program_behaviors, _ in expanded_program_invocations_of_commands
+        for _, _, program_behaviors, _, _ in expanded_program_invocations_of_commands
     )
     variable_assignments = _variable_assignments_with_names_set_at_run_time_from(
         shell_commands,
@@ -137,7 +138,11 @@ def expand_ran_commands(
         program_behaviors_of_commands,
         tuple(
             program_word_indexes
-            for _, _, _, program_word_indexes in expanded_program_invocations_of_commands
+            for _, _, _, program_word_indexes, _ in expanded_program_invocations_of_commands
+        ),
+        tuple(
+            run_time_argument_roles
+            for _, _, _, _, run_time_argument_roles in expanded_program_invocations_of_commands
         ),
         variable_assignments,
         pipe_readers_by_command_id,
@@ -162,6 +167,10 @@ class RanCommandsOfShellText:
     ]
     # The 0-based index in `ShellCommand.words` of the word of each program, laid out like `program_behaviors_of_commands`.
     program_word_indexes_of_commands: tuple[tuple[int, ...], ...]
+    # The role that the arguments each program gets at run time take, laid out like `program_behaviors_of_commands`, None for a program that gets none.
+    run_time_argument_roles_of_commands: tuple[
+        tuple[ProgramWordRole | UnknownProgramWordRole | None, ...], ...
+    ]
     # The outer assignments, then those of the text, with an assignment without a value for each variable that a command sets at run time, in text order.
     variable_assignments: tuple[VariableAssignment, ...]
     # The pipe readers of the outer texts and of this text by command id, which the output of a command of a text that this text runs can lead to, e.g. tail for curl in fetch.sh of `bash fetch.sh | tail -1`.

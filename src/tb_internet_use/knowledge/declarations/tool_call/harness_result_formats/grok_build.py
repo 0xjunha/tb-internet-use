@@ -81,7 +81,7 @@ _RUN_TERMINAL_COMMAND = HarnessResultFormatList[str](
         Text(
             "rejected_arguments",
             "Failed to parse arguments for tool `run_terminal_command`: {reason:text}",
-            judgment_rule="treat_tool_failure_message_as_not_run",
+            S.NOT_RUN,
         ),
     ),
     notices=_NOTICES,
@@ -351,7 +351,7 @@ _SEARCH_REPLACE = HarnessResultFormatList[str](
         Text(
             "rejected_arguments",
             "Failed to parse arguments for tool `search_replace`: {reason:text}",
-            judgment_rule="treat_tool_failure_message_as_not_run",
+            S.NOT_RUN,
         ),
     ),
     notices=_NOTICES,

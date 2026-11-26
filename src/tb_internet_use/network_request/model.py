@@ -93,6 +93,8 @@ def _is_uncertainty_reason_possible_for_source(
             return _is_command_of_known_program(source)
         case NetworkRequestUncertaintyReason.FETCHES_ONLY_WHAT_IS_MISSING:
             return _is_command_of_known_program(source)
+        case NetworkRequestUncertaintyReason.STRUCTURE_MAY_BE_WRONG:
+            return _is_command_of_known_program(source)
         case NetworkRequestUncertaintyReason.UNKNOWN_CODE_CALL:
             return isinstance(source, FromCode) and isinstance(
                 source.call_name, UnknownCodeCall
@@ -103,6 +105,8 @@ def _is_uncertainty_reason_possible_for_source(
             )
         case NetworkRequestUncertaintyReason.PROGRAM_RUN_BY_CODE:
             return isinstance(source, FromCode) and isinstance(source.call_name, str)
+        case NetworkRequestUncertaintyReason.FINDS_TEXT_IN_OPENED_PAGE:
+            return isinstance(source, FromWebTool)
 
 
 def _is_command_of_known_program(source: NetworkRequestSource) -> bool:
@@ -270,6 +274,10 @@ class NetworkRequestUncertaintyReason(StrEnum):
     PROGRAM_RUN_BY_CODE = "program_run_by_code"
     # The program fetches only what is missing, e.g. `npx tsc`. A line of its output that shows a download settles that it fetched, e.g. `info: mathlib: cloning https://github.com/x/y` of `lake build`, and nothing settles that it did not.
     FETCHES_ONLY_WHAT_IS_MISSING = "fetches_only_what_is_missing"
+    # The words of the command may hold words of another command, since `parse_shell_text` left lines joined that tree-sitter-bash still read as one after three repairs and marked the command with `structure_may_be_wrong`, e.g. a next line `echo https://b.org` read as more words of `curl -s http://localhost:8000/x`. No added fact settles it.
+    STRUCTURE_MAY_BE_WRONG = "structure_may_be_wrong"
+    # A web tool looks for text in a page that it opened, e.g. a web find of Codex, and may search the page it already holds without a new request. No added fact settles it.
+    FINDS_TEXT_IN_OPENED_PAGE = "finds_text_in_opened_page"
 
 
 @dataclass(frozen=True, slots=True)

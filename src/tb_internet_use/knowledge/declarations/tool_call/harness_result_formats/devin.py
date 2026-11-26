@@ -168,7 +168,7 @@ _EXEC = HarnessResultFormatList[str](
         Text(
             "rejected",
             "Tool 'exec' validation failed: {reason:text}",
-            judgment_rule="treat_tool_failure_message_as_not_run",
+            S.NOT_RUN,
         ),
         Text(
             "rejected_env",
@@ -241,7 +241,7 @@ _GET_OUTPUT = HarnessResultFormatList[str](
         Text(
             "rejected",
             "Tool 'get_output' validation failed: {reason:text}",
-            judgment_rule="treat_tool_failure_message_as_not_run",
+            S.NOT_RUN,
         ),
         # Devin writes this alone when it could not watch the shell, so the poll shows no output.
         Text(
@@ -271,7 +271,7 @@ _KILL_SHELL = HarnessResultFormatList[str](
         Text(
             "rejected",
             "Tool 'kill_shell' validation failed: {reason:text}",
-            judgment_rule="treat_tool_failure_message_as_not_run",
+            S.NOT_RUN,
         ),
     )
 )
@@ -304,7 +304,7 @@ _READ = HarnessResultFormatList[str](
         Text(
             "rejected",
             "Tool 'read' validation failed: {reason:text}",
-            judgment_rule="treat_tool_failure_message_as_not_run",
+            S.NOT_RUN,
         ),
     )
 )
@@ -339,7 +339,7 @@ _WRITE = HarnessResultFormatList[str](
         Text(
             "rejected",
             "Tool 'write' validation failed: {reason:text}",
-            judgment_rule="treat_tool_failure_message_as_not_run",
+            S.NOT_RUN,
         ),
     )
 )
@@ -351,7 +351,7 @@ _EDIT = HarnessResultFormatList[str](
         Text(
             "rejected",
             "Tool 'edit' validation failed: {reason:text}",
-            judgment_rule="treat_tool_failure_message_as_not_run",
+            S.NOT_RUN,
         ),
     )
 )
@@ -377,7 +377,7 @@ _WEBFETCH = HarnessResultFormatList[str](
         Text(
             "rejected",
             "Tool 'webfetch' validation failed: {reason:text}",
-            judgment_rule="treat_tool_failure_message_as_not_run",
+            S.NOT_RUN,
         ),
     )
 )

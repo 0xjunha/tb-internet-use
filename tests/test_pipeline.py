@@ -19,6 +19,7 @@ from tb_internet_use.expanded_tool_call.model import (
     OutputPlace,
     RanShellText,
 )
+from tb_internet_use.export import _export_network_request_row
 from tb_internet_use.export import judgment_rules as export_judgment_rules
 from tb_internet_use.export.model import MeasureBound, NetworkRequestCategory
 from tb_internet_use.network_request import (
@@ -283,7 +284,7 @@ def test_each_step_counts_its_lookups_in_its_own_knowledge_class_and_its_rules_i
     assert expanded_tool_call_judgment_rule_use_counts == Counter(
         {
             "treat_first_poll_that_saw_end_as_command_text_status": 1,
-            "treat_poll_result_of_several_commands_as_showing_none": 1,
+            "treat_poll_result_as_showing_every_command_of_starter": 1,
         }
     )
     # The last `Bash` result has no exit code line, which a rule of `convert_tool_calls` reads.
@@ -398,7 +399,7 @@ def test_runs_the_extraction_of_network_requests_after_the_expansion_with_its_ow
     assert expanded_tool_call_judgment_rule_use_counts == Counter(
         {
             "treat_first_poll_that_saw_end_as_command_text_status": 1,
-            "treat_poll_result_of_several_commands_as_showing_none": 1,
+            "treat_poll_result_as_showing_every_command_of_starter": 1,
         }
     )
     assert tool_call_judgment_rule_use_counts == Counter(
@@ -854,7 +855,7 @@ def _run_steps_of_trial_with_new_counters(
 def test_runs_every_step_on_a_trial_folder_and_keeps_the_counters_of_each_step_apart(
     tmp_path, write_trial_folder
 ):
-    # wget runs only when x.tgz is missing, pip installs packages of a variable, which a rule reads as unread words, and mytool has no row of a catalog. A later call runs a script whose text the trial does not hold, which prints a download line that no request owns.
+    # wget runs only when x.tgz is missing, pip installs packages of a variable, and mytool has no row of a catalog. A later call runs a script whose text the trial does not hold, which prints a download line that no request owns.
     trial_dir = write_trial_folder(
         tmp_path,
         "trial-1",
@@ -905,9 +906,10 @@ def test_runs_every_step_on_a_trial_folder_and_keeps_the_counters_of_each_step_a
     assert {
         (row.category, row.request_measure_bound) for row in trial_category_measure_rows
     } == {
-        (NetworkRequestCategory.CONTENT_FETCH, MeasureBound.LOWER_AND_UPPER),
-        # pip and mytool are uncertain requests.
-        (NetworkRequestCategory.PACKAGE, MeasureBound.UPPER_ONLY),
+        # files.acme.org has no row of `public_hosts.csv`, so the internet use of wget is unknown.
+        (NetworkRequestCategory.CONTENT_FETCH, MeasureBound.UPPER_ONLY),
+        (NetworkRequestCategory.PACKAGE, MeasureBound.LOWER_AND_UPPER),
+        # mytool is an uncertain request.
         (NetworkRequestCategory.OTHER_WEB, MeasureBound.UPPER_ONLY),
     }
     # Every step uses a rule of its own and counts no rule of another step, except that `export_rows` counts the rule of `extract_network_requests` that reads a dotted host name as public.
@@ -1107,11 +1109,18 @@ def test_a_trial_folder_without_a_detail_file_raises(tmp_path, write_trial_folde
 def test_a_shared_line_of_success_counts_the_trial_in_the_received_lower_bound_only_when_no_run_that_is_not_read_may_have_printed_it(
     tmp_path,
     write_trial_folder,
+    monkeypatch,
     command,
     output,
     category,
     counts_trial_in_received_lower_bound,
 ):
+    # a.org and b.org have no row of `public_hosts.csv`, so they are read here as listed public hosts, which counts their requests in the lower bound.
+    monkeypatch.setattr(
+        _export_network_request_row,
+        "treat_dotted_host_name_without_public_host_row_as_unknown_internet_use",
+        lambda network_request, *, use_counts: False,
+    )
     trial_dir = write_trial_folder(tmp_path, "trial-1", [(command, output)])
 
     (

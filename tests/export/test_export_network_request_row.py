@@ -31,6 +31,7 @@ from tb_internet_use.export.judgment_rules import (
     treat_assumed_failure_as_possibly_received,
     treat_assumed_not_needed_result_as_upper_bound_only,
     treat_discarded_content_as_connectivity_check,
+    treat_dotted_host_name_without_public_host_row_as_unknown_internet_use,
     treat_host_name_with_empty_label_as_unknown_internet_use,
     treat_host_target_that_may_receive_content_as_other_web,
     treat_local_or_single_label_host_name_of_web_tool_as_unknown_internet_use,
@@ -42,7 +43,8 @@ from tb_internet_use.export.judgment_rules import (
     treat_url_query_value_and_fragment_as_credential,
     treat_url_request_to_package_registry_host_as_package,
     treat_url_request_to_search_engine_host_as_search,
-    treat_web_tool_request_without_host_name_as_internet_use,
+    treat_web_tool_request_without_url_as_internet_use,
+    treat_web_tool_url_without_host_name_as_unknown_internet_use,
 )
 from tb_internet_use.export.model import (
     MeasureBound,
@@ -116,8 +118,9 @@ URL = NetworkRequestTargetKind.URL
 SEARCH_QUERY = NetworkRequestTargetKind.SEARCH_QUERY
 HOST = NetworkRequestTargetKind.HOST
 
-WEB_TOOL_WITHOUT_HOST_RULE = (
-    treat_web_tool_request_without_host_name_as_internet_use.__name__
+WEB_TOOL_WITHOUT_URL_RULE = treat_web_tool_request_without_url_as_internet_use.__name__
+WEB_TOOL_URL_WITHOUT_HOST_RULE = (
+    treat_web_tool_url_without_host_name_as_unknown_internet_use.__name__
 )
 DEFAULT_REGISTRY_RULE = (
     treat_request_without_host_name_as_sent_to_default_registry_host.__name__
@@ -134,6 +137,9 @@ LOCAL_HOST_OF_WEB_TOOL_RULE = (
 ASSUMED_NOT_NEEDED_RULE = treat_assumed_not_needed_result_as_upper_bound_only.__name__
 ASSUMED_FAILURE_RULE = treat_assumed_failure_as_possibly_received.__name__
 DOTTED_HOST_RULE = treat_dotted_host_name_as_public.__name__
+UNLISTED_DOTTED_HOST_RULE = (
+    treat_dotted_host_name_without_public_host_row_as_unknown_internet_use.__name__
+)
 CREDENTIAL_RULE = treat_url_query_value_and_fragment_as_credential.__name__
 REPOSITORY_REQUEST_FOR_NO_CONTENT_RULE = (
     treat_repository_request_for_no_content_as_other_web.__name__
@@ -145,8 +151,9 @@ PACKAGE_REGISTRY_HOST_RULE = (
 )
 SEARCH_ENGINE_HOST_RULE = treat_url_request_to_search_engine_host_as_search.__name__
 
-# The made-up host catalog. `a.org` has no row, `huggingface.co` gives an API at the paths under `/api/`, and `api.github.com` search results at the paths under `/search/`.
+# The made-up host catalog. `a.org` has a row only for the paths under `/docs/`, so it is a listed public host whose other paths give no known service, and `files.acme.org` has none. `huggingface.co` gives an API at the paths under `/api/`, and `api.github.com` search results at the paths under `/search/`.
 PUBLIC_HOST_ROWS = (
+    "a.org,/docs/,documentation,",
     "pypi.org,,package_registry,pypi",
     "github.com,,code_hosting,",
     "huggingface.co,/api/,web_api,",
@@ -328,6 +335,7 @@ PIP_INSTALL_REQUESTS = _request(
     ContentSaved(None),
 )
 CURL_A_ORG = _curl("https://a.org/x", "a.org")
+CURL_FILES_ACME = _curl("https://files.acme.org/x", "files.acme.org")
 CURL_DB = _curl("http://db:5432/", "db")
 CURL_TEMPLATED_HOST = _curl("https://$HOST/x", "$HOST")
 CURL_EXAMPLE = _curl("https://example.com/", "example.com")
@@ -337,6 +345,13 @@ WEB_SEARCH = _request(
     _web_tool("codex", "web_search_call"),
     "how to x?",
     SEARCH_QUERY,
+    ContentShownInResult(),
+)
+# A fetch of a URL whose host is not read, here a local file.
+WEB_FETCH_FILE = _request(
+    _web_tool("claude-code", "WebFetch"),
+    "file:///app/x.html",
+    URL,
     ContentShownInResult(),
 )
 WEB_FETCH_LOCALHOST = _request(
@@ -373,6 +388,54 @@ INTERNET_USE_CASES: list[
         {"is_internet_use": True, "host_scope": "public", "host_service": "unknown"},
         {DOTTED_HOST_RULE: 1},
     ),
+    # A dotted host name without a row of the public host catalog, alone, beside a host name without a dot or beside a listed public host.
+    (
+        "curl https://files.acme.org/x",
+        CURL_FILES_ACME,
+        {
+            "host_scope": "public",
+            "host_service": "unknown",
+            "is_internet_use": None,
+            "request_measure_bound": UPPER_ONLY,
+        },
+        {DOTTED_HOST_RULE: 1, UNLISTED_DOTTED_HOST_RULE: 1},
+    ),
+    (
+        "curl https://www.google.com./",
+        _curl("https://www.google.com./", "www.google.com."),
+        {
+            "host_scope": "public",
+            "is_internet_use": None,
+            "request_measure_bound": UPPER_ONLY,
+        },
+        {DOTTED_HOST_RULE: 1, UNLISTED_DOTTED_HOST_RULE: 1},
+    ),
+    (
+        "an unlisted dotted host beside a host without a dot",
+        _request(
+            _command(_program("curl")),
+            "https://files.acme.org/x",
+            URL,
+            CONTENT_SHOWN_IN_RESULT,
+            "files.acme.org",
+            "db",
+        ),
+        {"host_scope": "public unknown_single_label", "is_internet_use": None},
+        {DOTTED_HOST_RULE: 1, UNLISTED_DOTTED_HOST_RULE: 1},
+    ),
+    (
+        "an unlisted dotted host beside a listed one",
+        _request(
+            _command(_program("curl")),
+            "https://files.acme.org/x",
+            URL,
+            CONTENT_SHOWN_IN_RESULT,
+            "files.acme.org",
+            "github.com",
+        ),
+        {"host_scope": "public public", "is_internet_use": True},
+        {DOTTED_HOST_RULE: 2},
+    ),
     # No host and a web tool source.
     (
         "web search of Codex",
@@ -386,7 +449,17 @@ INTERNET_USE_CASES: list[
             "target": "how to x?",
             "host_scope": "",
         },
-        {WEB_TOOL_WITHOUT_HOST_RULE: 1},
+        {WEB_TOOL_WITHOUT_URL_RULE: 1},
+    ),
+    (
+        "web fetch of a local file",
+        WEB_FETCH_FILE,
+        {
+            "is_internet_use": None,
+            "host_scope": "",
+            "request_measure_bound": UPPER_ONLY,
+        },
+        {WEB_TOOL_URL_WITHOUT_HOST_RULE: 1},
     ),
     # No host and any other source, sent to the default registry host.
     (
@@ -426,16 +499,6 @@ INTERNET_USE_CASES: list[
             "request_measure_bound": UPPER_ONLY,
         },
         {EMPTY_LABEL_HOST_RULE: 1},
-    ),
-    (
-        "curl https://www.google.com./",
-        _curl("https://www.google.com./", "www.google.com."),
-        {
-            "host_scope": "public",
-            "is_internet_use": True,
-            "request_measure_bound": LOWER_AND_UPPER,
-        },
-        {DOTTED_HOST_RULE: 1},
     ),
     # A reserved host name.
     (
@@ -852,7 +915,9 @@ def test_a_host_that_the_words_name_decides_a_package_request_instead_of_the_def
 
 # (judgment rule, the answer it is patched to, request, internet use with that answer)
 OTHER_INTERNET_USE_ANSWER_CASES = [
-    (WEB_TOOL_WITHOUT_HOST_RULE, False, WEB_SEARCH, None),
+    (WEB_TOOL_WITHOUT_URL_RULE, False, WEB_SEARCH, None),
+    (UNLISTED_DOTTED_HOST_RULE, False, CURL_FILES_ACME, True),
+    (WEB_TOOL_URL_WITHOUT_HOST_RULE, False, WEB_FETCH_FILE, True),
     (DEFAULT_REGISTRY_RULE, (), PIP_INSTALL_REQUESTS, None),
     (TEMPLATED_HOST_RULE, False, CURL_TEMPLATED_HOST, False),
     (SINGLE_LABEL_HOST_RULE, False, CURL_DB, None),
@@ -1242,9 +1307,9 @@ COLUMN_CASES: list[tuple[str, NetworkRequest, dict[str, object], dict[str, int]]
     ),
     (
         "curl https://files.acme.org/x",
-        _curl("https://files.acme.org/x", "files.acme.org"),
+        CURL_FILES_ACME,
         {"host_scope": "public", "target_kind": URL},
-        {DOTTED_HOST_RULE: 1},
+        {DOTTED_HOST_RULE: 1, UNLISTED_DOTTED_HOST_RULE: 1},
     ),
     (
         "uv pip install requests, without a row",

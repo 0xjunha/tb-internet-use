@@ -59,6 +59,13 @@ class ExportKnowledge:
         )
         return UnknownPublicHost() if row is None else row
 
+    def has_public_host_row(self, host_name: str) -> bool:
+        """Tell whether the host catalog has a row of a host name, for any path and also one with a blank `service`, without counting, for the judgment rule of `export_rows` on dotted host names.
+
+        The name is matched in lower case, as in `public_host`. Only `public_host` counts, so a host is counted once, under the row for the path of its URL.
+        """
+        return host_name.lower() in self._catalogs.path_prefixes_by_host_name
+
     def network_request_sender(
         self, harness_tool: HarnessTool
     ) -> NetworkRequestSender | UnknownNetworkRequestSender:

@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from tb_internet_use.expanded_tool_call.judgment_rules import (
-    treat_word_with_expansion_as_start_of_unread_words,
+    treat_word_with_expansion_as_one_argument,
 )
 from tb_internet_use.expanded_tool_call.model import (
     ProgramArgumentWord,
@@ -75,6 +75,7 @@ def expand_program_invocations(
     tuple[ProgramWordRole | UnknownProgramWordRole | None, ...],
     tuple[ProgramBehavior | UnknownProgramBehavior, ...],
     tuple[int, ...],
+    tuple[ProgramWordRole | UnknownProgramWordRole | None, ...],
 ]:
     """Read the words of a command into the programs they run, the outermost first, and give the role of each word, the row of each program and the index of the word of each program.
 
@@ -82,7 +83,8 @@ def expand_program_invocations(
     The rows have one entry per program, in the order of the programs, and `UnknownProgramBehavior` for an `UnknownProgramInvocation`.
     They are given so that later code reads a fact of a program, e.g. how much of piped input tail passes on, without asking `ExpandedToolCallKnowledge` again, which would count the row twice.
     The program word indexes are 0-based in `shell_command.words`, one per program in the order of the programs, e.g. `(0, 3)` for find and ./run.sh in `find . -exec ./run.sh ;`, so that later code finds the word of a program that words of an outer program follow.
-    Every use of `treat_word_with_expansion_as_start_of_unread_words` adds one to `judgment_rule_use_counts`.
+    The run-time argument roles have one entry per program, the role that the arguments it gets at run time take by its row and the rows of its options, e.g. `CHANGED_FILE` for sed in `ls | xargs sed -i s/a/b/`, and None for a program that gets none, so that later code knows which files they may be.
+    Every use of `treat_word_with_expansion_as_one_argument` adds one to `judgment_rule_use_counts`.
     """
     command_state = _CommandState(shell_command, knowledge, judgment_rule_use_counts)
     command_state.add_program_invocations(
@@ -93,6 +95,7 @@ def expand_program_invocations(
         tuple(command_state.roles),
         tuple(command_state.program_behaviors),
         tuple(command_state.program_word_indexes),
+        tuple(command_state.run_time_argument_roles),
     )
 
 
@@ -120,6 +123,10 @@ class _CommandState:
         self.program_behaviors: list[ProgramBehavior | UnknownProgramBehavior] = []
         # The 0-based index of the word of each program in `program_invocations`, at the same index.
         self.program_word_indexes: list[int] = []
+        # The role that the arguments of each program in `program_invocations` get at run time take, at the same index, None for a program that gets none.
+        self.run_time_argument_roles: list[
+            ProgramWordRole | UnknownProgramWordRole | None
+        ] = []
         # Each entry is set by the state of the program that the word belongs to.
         self.roles: list[ProgramWordRole | UnknownProgramWordRole | None] = [
             None
@@ -165,6 +172,11 @@ class _CommandState:
         )
         self.program_behaviors.append(program_behavior)
         self.program_word_indexes.append(program_word_index)
+        self.run_time_argument_roles.append(
+            program_words_state.argument_role_of_options()
+            if gets_more_arguments_at_run_time
+            else None
+        )
         for next_program_range in program_words_state.next_program_ranges_for(
             gets_more_arguments_at_run_time=gets_more_arguments_at_run_time
         ):
@@ -185,6 +197,7 @@ class _CommandState:
         )
         self.program_behaviors.append(UnknownProgramBehavior())
         self.program_word_indexes.append(program_word_index)
+        self.run_time_argument_roles.append(None)
         self.roles[program_word_index] = None
         for word_index in range(program_word_index + 1, end_word_index):
             self.roles[word_index] = UnknownProgramWordRole()
@@ -448,7 +461,7 @@ class _ProgramWordsState:
         )
 
     def settle_places(self) -> None:
-        """Settle what the placed words are once all are placed, i.e. the letters of option clusters, an argument that later options make a next program, and the words that `treat_word_with_expansion_as_start_of_unread_words` reads."""
+        """Settle what the placed words are once all are placed, i.e. the letters of option clusters, an argument that later options make a next program, and the words that `treat_word_with_expansion_as_one_argument` reads."""
         self.place_option_clusters()
         self.make_words_unread_from_late_next_program_word()
         self.place_expansion_words_by_judgment_rule()
@@ -543,7 +556,7 @@ class _ProgramWordsState:
             self.make_words_unread_from(late_next_program_word_index)
 
     def place_expansion_words_by_judgment_rule(self) -> None:
-        """Ask `treat_word_with_expansion_as_start_of_unread_words` about each word with an expansion that ends as an argument or as the value of an option, e.g. `$OPTS` of `curl $OPTS u` and `$F` of `curl -o $F u`, and make it unread with the words after it when the rule says so.
+        """Ask `treat_word_with_expansion_as_one_argument` about each word with an expansion that ends as an argument or as the value of an option, e.g. `$OPTS` of `curl $OPTS u` and `$F` of `curl -o $F u`, and make it unread with the words after it when the rule says no.
 
         For a value, the word of its option becomes unread too, since the option is then missing its value.
         """
@@ -566,7 +579,7 @@ class _ProgramWordsState:
                 first_unread_word_index = word_index
             else:
                 continue
-            if treat_word_with_expansion_as_start_of_unread_words(
+            if not treat_word_with_expansion_as_one_argument(
                 command_state.words[word_index],
                 use_counts=command_state.judgment_rule_use_counts,
             ):
@@ -680,6 +693,19 @@ class _ProgramWordsState:
             gets_more_arguments_at_run_time=gets_more_arguments_at_run_time,
             unread_words=unread_words,
             exits_with_exit_code_of_next_program=self.exits_with_exit_code_of_next_program_of_words(),
+        )
+
+    def argument_role_of_options(self) -> ProgramWordRole | UnknownProgramWordRole:
+        """Give the role of an argument that is neither first nor last, by the program row unless the options of the command change it, e.g. `CHANGED_FILE` for sed with `-i`."""
+        return _answer_of_program_row_and_option_rows(
+            self.program_behavior.argument_role,
+            [
+                option_behavior.argument_role_with_option
+                for option_behavior in _role_changing_option_behaviors_of(
+                    self.placed_program_options
+                )
+            ],
+            unknown=UnknownProgramWordRole(),
         )
 
     def exits_with_exit_code_of_next_program_of_words(

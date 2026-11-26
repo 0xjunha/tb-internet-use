@@ -12,14 +12,13 @@ from tb_internet_use.network_request.judgment_rules import (
     treat_single_label_or_templated_host_name_as_possibly_public,
     treat_url_of_namespace_host_as_no_target,
     treat_values_outside_their_for_loop_as_unknown_target,
-    treat_web_find_as_request,
+    treat_web_find_as_uncertain_request,
 )
 from tb_internet_use.network_request.model import (
     HostNameScope,
     UnknownHostNameScope,
     UnknownHostNameScopeReason,
 )
-from tb_internet_use.tool_call.model import WebFindAction
 
 DOTTED_NAME = UnknownHostNameScope(UnknownHostNameScopeReason.DOTTED_NAME)
 SINGLE_LABEL = UnknownHostNameScope(UnknownHostNameScopeReason.SINGLE_LABEL)
@@ -104,16 +103,11 @@ def test_url_of_namespace_host_is_no_target_only_without_a_dot_in_its_last_part(
     )
 
 
-def test_web_find_gives_its_urls_or_one_request_without_a_target_and_is_counted():
+def test_web_find_is_an_uncertain_request_and_counted():
     use_counts: Counter[str] = Counter()
 
-    assert treat_web_find_as_request(
-        WebFindAction(("https://a.org/guide", "https://b.org/x")), use_counts=use_counts
-    ) == ("https://a.org/guide", "https://b.org/x")
-    assert treat_web_find_as_request(WebFindAction(()), use_counts=use_counts) == (
-        None,
-    )
-    assert use_counts == Counter({"treat_web_find_as_request": 2})
+    assert treat_web_find_as_uncertain_request(use_counts=use_counts)
+    assert use_counts == Counter({"treat_web_find_as_uncertain_request": 1})
 
 
 @pytest.mark.parametrize(

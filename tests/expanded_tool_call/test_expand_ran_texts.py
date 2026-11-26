@@ -6,10 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from tb_internet_use.expanded_tool_call import (
-    _expand_program_invocations,
-    _expand_ran_texts,
-)
+from tb_internet_use.expanded_tool_call import _expand_ran_texts
 from tb_internet_use.expanded_tool_call._expand_poll_links import expand_poll_links
 from tb_internet_use.expanded_tool_call._expand_ran_texts import (
     FileTouch,
@@ -25,7 +22,6 @@ from tb_internet_use.expanded_tool_call.judgment_rules import (
     treat_file_without_interpreter_line_as_of_unknown_language,
     treat_typed_text_as_of_unknown_language,
     treat_use_of_path_that_fits_several_written_files_as_use_of_none,
-    treat_word_with_expansion_as_start_of_unread_words,
 )
 from tb_internet_use.expanded_tool_call.model import (
     ArgumentText,
@@ -85,7 +81,9 @@ TYPED_TEXT_LANGUAGE_RULE_NAME = treat_typed_text_as_of_unknown_language.__name__
 SEVERAL_WRITTEN_FILES_USE_RULE_NAME = (
     treat_use_of_path_that_fits_several_written_files_as_use_of_none.__name__
 )
-EXPANSION_RULE_NAME = treat_word_with_expansion_as_start_of_unread_words.__name__
+OVERWRITE_RULE_NAME = (
+    "treat_use_after_overwrite_that_may_not_have_happened_as_use_without_known_writer"
+)
 
 # Made-up rows, each named by the program and the cells that differ from the defaults of `conftest.py`. mytool, gdb and test have no row, and the row of echo gives its words no file role.
 PROGRAM_BEHAVIOR_ROWS: list[dict[str, str]] = [
@@ -313,16 +311,6 @@ def knowledge(catalogs_dir: Path) -> ExpandedToolCallKnowledge:
     return ExpandedToolCallKnowledge(catalogs_dir=catalogs_dir)
 
 
-@pytest.fixture
-def expansion_word_read_as_one_word(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Read a word with an expansion as one argument or value, the other answer of the rule that `expand_program_invocations` asks, so that the cases reach the texts and paths such words give."""
-    monkeypatch.setattr(
-        _expand_program_invocations,
-        EXPANSION_RULE_NAME,
-        lambda word, *, use_counts: False,
-    )
-
-
 def _answer(monkeypatch: pytest.MonkeyPatch, rule_name: str, answer: bool) -> None:
     """Make a rule that `expand_ran_texts` asks give an answer, e.g. the other one."""
     monkeypatch.setattr(_expand_ran_texts, rule_name, lambda *_, use_counts: answer)
@@ -445,7 +433,15 @@ FILE_CHANGE_CASES = [
         Reason.CHANGED_BY_UNREAD_COMMAND,
         K2,
     ),
-    ("glob", "sed -i s/a/b/ *.sh", FINISHED, "f.sh", (("curl", "a"),), K1),
+    # The glob may name f.sh, which keeps its writer while its content is unknown.
+    (
+        "glob",
+        "sed -i s/a/b/ *.sh",
+        FINISHED,
+        "f.sh",
+        Reason.CHANGED_BY_UNREAD_COMMAND,
+        K1,
+    ),
     ("copied", "cp f.sh g.sh", FINISHED, "g.sh", Reason.CHANGED_BY_UNREAD_COMMAND, K2),
     (
         "heredoc of cat",
@@ -738,6 +734,11 @@ def test_ids_of_a_file_text_come_after_all_commands_of_the_call(
             "python3 -c 'import x'",
             RanCodeText(ArgumentText(0), CodeLanguage.PYTHON, "import x"),
         ),
+        ('bash -c "$CMD"', UnknownRanText(ArgumentText(0), Reason.BUILT_AT_RUN_TIME)),
+        (
+            'bash -c "$(curl u)"',
+            UnknownRanText(ArgumentText(0), Reason.BUILT_AT_RUN_TIME),
+        ),
         ("curl u | bash", UnknownRanText(StdinText(1), Reason.READ_FROM_PIPE)),
         (
             "mytool <<EOF\nrun\nEOF",
@@ -761,33 +762,16 @@ def test_ids_of_a_file_text_come_after_all_commands_of_the_call(
                 FileTextWithoutKnownWriter(0, "./a.out"), Reason.NOT_WRITTEN_IN_TRIAL
             ),
         ),
-        (")))", UnknownRanText(CallCommandText(), Reason.UNREADABLE_SHELL_TEXT)),
-    ],
-)
-def test_last_text_of_a_command_alone(
-    knowledge: ExpandedToolCallKnowledge, shell_text: str, ran_text: RanText
-):
-    assert _last_text(knowledge, _call(1, shell_text)) == ran_text
-
-
-@pytest.mark.parametrize(
-    ("shell_text", "ran_text"),
-    [
-        ('bash -c "$CMD"', UnknownRanText(ArgumentText(0), Reason.BUILT_AT_RUN_TIME)),
-        (
-            'bash -c "$(curl u)"',
-            UnknownRanText(ArgumentText(0), Reason.BUILT_AT_RUN_TIME),
-        ),
         (
             "bash $F",
             UnknownRanText(
                 FileTextWithoutKnownWriter(0, "$F"), Reason.BUILT_AT_RUN_TIME
             ),
         ),
+        (")))", UnknownRanText(CallCommandText(), Reason.UNREADABLE_SHELL_TEXT)),
     ],
 )
-@pytest.mark.usefixtures("expansion_word_read_as_one_word")
-def test_last_text_of_a_command_whose_word_with_an_expansion_is_one_word(
+def test_last_text_of_a_command_alone(
     knowledge: ExpandedToolCallKnowledge, shell_text: str, ran_text: RanText
 ):
     assert _last_text(knowledge, _call(1, shell_text)) == ran_text
@@ -990,7 +974,46 @@ def test_a_use_belongs_to_the_writes_since_the_last_overwrite(
         for r in results
     ]
     assert keys[1] == [1] and keys[3] == [3] and keys[5] == [3, 5]
-    assert use_counts["treat_use_after_later_overwrite_as_use_of_later_write"] == 2
+    # Each overwrite ran by the result of its call, so no rule is asked.
+    assert use_counts[OVERWRITE_RULE_NAME] == 0
+
+
+@pytest.mark.parametrize(
+    "overwriting_result", [None, ToolCallResult()], ids=["no result", "unknown status"]
+)
+def test_a_use_after_an_overwrite_that_may_not_have_happened_has_no_known_writer(
+    knowledge: ExpandedToolCallKnowledge, overwriting_result: ToolCallResult | None
+):
+    use_counts: Counter[str] = Counter()
+    results = _expand(
+        knowledge,
+        _call(1, "curl a > log"),
+        _call(2, "curl b > log", overwriting_result),
+        _call(3, "cat log"),
+        judgment_rule_use_counts=use_counts,
+    )
+
+    assert results[-1].file_touches == (_touch(0, "log", Kind.SHOWS_CONTENT),)
+    assert use_counts[OVERWRITE_RULE_NAME] == 1
+
+
+def test_a_use_after_an_overwrite_under_a_condition_belongs_to_the_overwrite(
+    knowledge: ExpandedToolCallKnowledge,
+):
+    use_counts: Counter[str] = Counter()
+    results = _expand(
+        knowledge,
+        _call(1, "curl a > log"),
+        _call(2, "test -f x && curl b > log"),
+        _call(3, "cat log"),
+        judgment_rule_use_counts=use_counts,
+    )
+
+    # The rule on a command under a condition records the overwrite as if it ran.
+    assert results[-1].file_touches == (
+        _touch(0, "log", Kind.SHOWS_CONTENT, WrittenFileKey(K2, "log")),
+    )
+    assert use_counts[OVERWRITE_RULE_NAME] == 0
 
 
 def test_a_call_that_did_not_run_writes_only_for_itself(
@@ -1598,7 +1621,6 @@ def test_outer_assignments_reach_only_text_run_in_the_calling_shell(
     assert ran_text.ran_commands[0].variable_values == variable_values
 
 
-@pytest.mark.usefixtures("expansion_word_read_as_one_word")
 def test_a_variable_with_one_value_fills_the_text_and_the_path(
     knowledge: ExpandedToolCallKnowledge,
 ):
@@ -1660,23 +1682,25 @@ def test_a_removed_file_is_read_as_never_written(knowledge: ExpandedToolCallKnow
     assert use_counts["treat_deleted_file_as_never_written"] == 4
 
 
-def test_removing_a_folder_of_a_written_file_leaves_the_file(
+def test_removing_a_folder_of_a_written_file_leaves_the_content_of_its_files_unknown(
     knowledge: ExpandedToolCallKnowledge,
 ):
     use_counts: Counter[str] = Counter()
     results = _expand(
         knowledge,
         _call(1, WriteFileAction("/app/scripts/f.sh", "curl a")),
-        _call(2, "rm -rf scripts"),
-        _call(3, "bash scripts/f.sh"),
+        _call(2, WriteFileAction("g.sh", "curl b")),
+        _call(3, "rm -rf scripts"),
+        _call(4, "bash scripts/f.sh; bash g.sh"),
         judgment_rule_use_counts=use_counts,
     )
 
-    assert results[1].file_touches == ()
-    assert _texts_with_words(results[-1].ran_texts[-1:]) == [
-        (FileText(0, "scripts/f.sh", K1), (("curl", "a"),))
+    assert results[2].file_touches == ()
+    assert _texts_with_words(results[-1].ran_texts[1:]) == [
+        (FileText(0, "scripts/f.sh", K1), Reason.CHANGED_BY_UNREAD_COMMAND),
+        (FileText(1, "g.sh", K2), (("curl", "b"),)),
     ]
-    assert use_counts["treat_file_not_named_by_command_words_as_untouched"] == 1
+    assert use_counts["treat_file_not_named_by_command_words_as_unknown_content"] == 1
     assert use_counts["treat_path_that_ends_another_as_same_file"] >= 1
 
 
@@ -1756,6 +1780,23 @@ def test_a_call_may_have_run_unless_its_result_says_not_run(
     assert use_counts["treat_tool_call_not_marked_not_run_as_maybe_run"] == rule_uses
 
 
+@pytest.mark.parametrize(
+    "result", [None, ToolCallResult()], ids=["no result", "unknown status"]
+)
+def test_a_write_of_a_call_whose_result_does_not_say_it_ran_has_unknown_content(
+    knowledge: ExpandedToolCallKnowledge, result: ToolCallResult | None
+):
+    ran_text = _last_text(
+        knowledge,
+        _call(1, WriteFileAction("fetch.sh", "curl a"), result),
+        _call(2, "bash fetch.sh"),
+    )
+
+    assert ran_text == UnknownRanText(
+        FileText(0, "fetch.sh", K1), Reason.CHANGED_BY_UNREAD_COMMAND
+    )
+
+
 def test_a_message_that_the_harness_wrote_in_no_known_format_is_not_asked_whether_it_ran(
     knowledge: ExpandedToolCallKnowledge,
 ):
@@ -1793,7 +1834,7 @@ def test_rules_counted_by_their_situation(knowledge: ExpandedToolCallKnowledge):
     assert use_counts["treat_command_under_run_condition_as_run"] == 1
     assert use_counts["treat_copy_with_two_arguments_as_unknown_content"] == 1
     assert use_counts["treat_outer_assignment_as_not_visible_in_new_shell"] == 1
-    assert use_counts["treat_file_not_named_by_command_words_as_untouched"] == 1
+    assert use_counts["treat_file_not_named_by_command_words_as_unknown_content"] == 1
     # The use of f.sh by cat asks the rule on two paths, and the copy, whose content is unknown by a rule, does not look up its source.
     assert use_counts["treat_path_that_ends_another_as_same_file"] == 1
 
@@ -1831,6 +1872,7 @@ def test_paths_that_name_one_written_file(written_path: str, path: str, same: bo
             "x",
             appends=False,
             may_have_run=True,
+            is_call_sure_to_have_run=True,
             may_be_glob=False,
         )
         assert bool(trial_file_contents.file_text(second).written_file_keys) == same
@@ -2003,7 +2045,6 @@ def test_a_file_written_again_after_its_removal_is_followed(
         ),
     ],
 )
-@pytest.mark.usefixtures("expansion_word_read_as_one_word")
 def test_a_variable_of_several_values_is_not_filled(
     knowledge: ExpandedToolCallKnowledge, shell_text: str, ran_text: RanText
 ):
@@ -2039,7 +2080,6 @@ def test_a_variable_with_one_value_fills_the_path_of_a_redirect(
         ("U=a.org; eval eval curl '$U'", ("curl", "a.org"), ()),
     ],
 )
-@pytest.mark.usefixtures("expansion_word_read_as_one_word")
 def test_eval_sees_the_names_set_at_run_time_and_the_values_of_outer_evals(
     knowledge: ExpandedToolCallKnowledge,
     shell_text: str,
@@ -2167,17 +2207,94 @@ def test_a_command_that_may_not_run_records_its_use_by_a_rule(
     assert use_counts["treat_command_under_run_condition_as_run"] == 1
 
 
-def test_a_glob_touches_no_file_by_a_rule(knowledge: ExpandedToolCallKnowledge):
+@pytest.mark.parametrize(
+    ("shell_text", "may_name_file"),
+    [
+        ("sed -i s/a/b/ *.sh", True),
+        ("sed -i s/a/b/ /app/*.sh", True),
+        ("sed -i s/a/b/ {f,g}.sh", True),
+        ("rm -f /app/f.s?", True),
+        ("sed -i s/a/b/ /app/*/*.sh", False),
+        ("sed -i s/a/b/ /tmp/*.sh", False),
+        ("sed -i s/a/b/ *.py", False),
+    ],
+    ids=[
+        "relative",
+        "absolute",
+        "brace list",
+        "removal",
+        "more parts",
+        "other folder",
+        "other ending",
+    ],
+)
+def test_a_glob_that_a_command_changes_leaves_the_content_of_each_written_file_it_may_name_unknown(
+    knowledge: ExpandedToolCallKnowledge, shell_text: str, may_name_file: bool
+):
     use_counts: Counter[str] = Counter()
-    sed = _expand(
+    results = _expand(
+        knowledge,
+        _call(1, WriteFileAction("/app/f.sh", "curl a")),
+        _call(2, shell_text),
+        _call(3, "bash /app/f.sh"),
+        judgment_rule_use_counts=use_counts,
+    )
+
+    assert results[1].file_touches == ()
+    assert _texts_with_words(results[-1].ran_texts[-1:]) == [
+        (
+            FileText(0, "/app/f.sh", K1),
+            Reason.CHANGED_BY_UNREAD_COMMAND if may_name_file else (("curl", "a"),),
+        )
+    ]
+    assert use_counts["treat_file_not_named_by_command_words_as_unknown_content"] == 1
+
+
+def test_a_copy_from_a_glob_writes_its_destination_with_unknown_content(
+    knowledge: ExpandedToolCallKnowledge,
+):
+    results = _expand(
         knowledge,
         _call(1, WriteFileAction("f.sh", "curl a")),
-        _call(2, "sed -i s/a/b/ *.sh"),
-        judgment_rule_use_counts=use_counts,
-    )[-1]
+        _call(2, "cp *.sh g.sh"),
+        _call(3, "bash g.sh"),
+    )
 
-    assert sed.file_touches == ()
-    assert use_counts["treat_file_not_named_by_command_words_as_untouched"] == 1
+    assert results[1].file_touches == (
+        _touch(
+            0,
+            "g.sh",
+            Kind.WRITES,
+            WrittenFileKey(K2, "g.sh"),
+            channel=Channel.OWN_OUTPUT_FILE,
+        ),
+    )
+    assert _texts_with_words(results[-1].ran_texts[-1:]) == [
+        (FileText(0, "g.sh", K2), Reason.CHANGED_BY_UNREAD_COMMAND)
+    ]
+
+
+@pytest.mark.parametrize(
+    ("shell_text", "followed"),
+    [
+        ("ls | xargs sed -i s/a/b/", Reason.CHANGED_BY_UNREAD_COMMAND),
+        ("ls | xargs cat", (("curl", "a"),)),
+    ],
+    ids=["changes", "reads"],
+)
+def test_a_program_that_changes_files_it_gets_at_run_time_leaves_the_content_of_every_written_file_unknown(
+    knowledge: ExpandedToolCallKnowledge,
+    shell_text: str,
+    followed: tuple[tuple[str, ...], ...] | UnknownRanTextReason,
+):
+    ran_text = _last_text(
+        knowledge,
+        _call(1, WriteFileAction("/app/f.sh", "curl a")),
+        _call(2, shell_text),
+        _call(3, "bash /app/f.sh"),
+    )
+
+    assert _texts_with_words((ran_text,)) == [(FileText(0, "/app/f.sh", K1), followed)]
 
 
 def test_a_parameter_in_braces_is_no_glob(knowledge: ExpandedToolCallKnowledge):
@@ -2197,7 +2314,7 @@ def test_a_parameter_in_braces_is_no_glob(knowledge: ExpandedToolCallKnowledge):
             channel=Channel.STDOUT,
         ),
     )
-    assert use_counts["treat_file_not_named_by_command_words_as_untouched"] == 0
+    assert use_counts["treat_file_not_named_by_command_words_as_unknown_content"] == 0
 
 
 def test_the_path_of_a_tool_names_one_file_while_a_command_word_may_be_a_glob(
@@ -2226,7 +2343,7 @@ def test_the_path_of_a_tool_names_one_file_while_a_command_word_may_be_a_glob(
         (),
         (_touch(None, path, Kind.DELETES, written_file_key),),
     ]
-    assert use_counts["treat_file_not_named_by_command_words_as_untouched"] == 1
+    assert use_counts["treat_file_not_named_by_command_words_as_unknown_content"] == 1
 
 
 @pytest.mark.parametrize(
@@ -2306,6 +2423,11 @@ def test_options_of_the_interpreter_line_reach_the_text_it_runs(
         ("php x", [(ArgumentText(0), Reason.WORD_ROLE_NOT_KNOWN)]),
         # The value of -O has a blank role but is no argument that bash may run.
         ("bash -O extglob -c 'curl a'", [(ArgumentText(0), (("curl", "a"),))]),
+        # The words after an option without a row are unread, and bash may run them.
+        ("bash --foo f.sh", [(ArgumentText(0), Reason.WORD_ROLE_NOT_KNOWN)]),
+        ("sudo bash --foo f.sh", [(ArgumentText(0), Reason.WORD_ROLE_NOT_KNOWN)]),
+        # curl runs no text, so its unread words give none.
+        ("curl --foo u", []),
     ],
 )
 def test_an_argument_whose_role_no_fact_gives_is_an_unknown_text(

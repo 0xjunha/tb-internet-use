@@ -2,7 +2,7 @@
 
 The export catalog is outside knowledge for `export_rows`, kept in the three CSVs of this folder. They say what a public host serves, where a web tool sends its requests from and which registry a package command asks by default, so that `export_rows` can compute the category, the sender and whether a request is internet use. They are filled by hand, their `reviewed` column says which rows a person or three agents have reviewed, and `export_rows` reads them only through `ExportKnowledge` in [export_knowledge.py](../../export_knowledge.py).
 
-Whether a host is public at all is no fact of this folder. It is read from the name by `parse_host_name` of `network_request/`, and only a public host is looked up here.
+Whether a host is public at all is no fact of this folder. It is read from the name by `parse_host_name` of `network_request/`, and only a public host is looked up here. A row of `public_hosts.csv` still decides whether a request to a dotted name that the standards do not settle counts toward the lower bound of internet use, since `treat_dotted_host_name_without_public_host_row_as_unknown_internet_use` leaves a name without any row of unknown internet use, e.g. `files.acme.org`.
 
 In each file a blank is unknown only in the column that answers the question of the file, and `ExportKnowledge` then answers with an `Unknown…` type of [model.py](../../../export/model.py). The use of such a row is counted like any other, so it leaves the list of unknown inputs. In every other column a blank fails the load where the table asks for a value.
 

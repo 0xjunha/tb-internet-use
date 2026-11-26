@@ -19,7 +19,6 @@ from tb_internet_use.network_request.model import (
     UnknownHostNameScopeReason,
 )
 from tb_internet_use.network_request.parse_url import parse_url
-from tb_internet_use.tool_call.model import WebFindAction
 
 # The hosts whose URLs code writes as names of XML namespaces and schemas.
 _NAMESPACE_HOST_NAMES = frozenset(
@@ -33,7 +32,7 @@ def treat_dotted_host_name_as_public(
     """Read a host name with a dot that the standards do not settle as public, e.g. `files.acme.org`, which may also be a name inside the task's network.
 
     It is asked for the scope that `parse_host_name` gives a host name when the standards do not settle it.
-    For the form DOTTED_NAME it returns PUBLIC, so the host counts as public wherever a public host is asked for.
+    For the form DOTTED_NAME it returns PUBLIC, so the host counts as public wherever a public host is asked for. `export_rows` still counts a request to it toward the lower bound of internet use only when `public_hosts.csv` has a row of the name.
     For any other form it returns the scope it was given and is not counted, since it does not decide that name.
     Were it to return the scope it was given for DOTTED_NAME too, the name would stay unknown, so a URL with it in the words of a program without a row would give no uncertain request and a request to it would not be known to be internet use.
     A use is such a dotted name.
@@ -91,12 +90,13 @@ def treat_values_outside_their_for_loop_as_unknown_target(
 def treat_url_of_namespace_host_as_no_target(
     url: str, *, use_counts: Counter[str]
 ) -> bool:
-    """Read a URL in code whose host only names XML namespaces and schemas, and whose last path part has no dot, as a name and not as a target, e.g. `http://www.w3.org/2000/svg`.
+    """Read a URL in code whose host only names XML namespaces and schemas, and whose text after the last `/` has no dot, as a name and not as a target, e.g. `http://www.w3.org/2000/svg`.
 
-    The hosts are `schemas.openxmlformats.org`, `www.w3.org`, `purl.org` and `json-schema.org`.
-    `extract_code_network_requests` asks it for each URL that would give an uncertain request, i.e. a URL in a call without a row, in a program run by code or outside every call.
+    The hosts are `schemas.openxmlformats.org`, `www.w3.org`, `purl.org` and `json-schema.org`, compared as written, so `http://WWW.W3.ORG/2000/svg` is no namespace URL.
+    `extract_code_network_requests` asks it for each URL with a host that would give an uncertain request, i.e. a URL in a call without a row, in a call that holds a target that no sending call reads, in a call that runs a program without a row or whose program it cannot find, or in code outside every call.
     On `True` the URL gives no request. On `False` it goes on to the question whether its host may be public, so `http://www.w3.org/2000/svg` would give an uncertain request.
     A last path part with a dot names a file, e.g. `http://www.w3.org/2001/XMLSchema.xsd`, which code may fetch, so it gives `False` and is not counted.
+    The text after the last `/` holds the query and the fragment, and it is the host for a URL without a path, so these give `False` too, e.g. `http://www.w3.org`, `https://json-schema.org/`, the version `http://purl.org/dc/elements/1.1/` or `...svg#a.b`, and stay uncertain requests.
     A use is such a namespace URL.
 
     Provisional. It keeps the choice of the earlier code, which read these URLs as schema names, since that a host's URLs are only names cannot be checked against a manual.
@@ -109,20 +109,18 @@ def treat_url_of_namespace_host_as_no_target(
     return True
 
 
-def treat_web_find_as_request(
-    web_find_action: WebFindAction, *, use_counts: Counter[str]
-) -> tuple[str | None, ...]:
-    """Read a web find, which looks for text in a page that a web tool opened, as one confirmed request per URL it names, or one without a target when it names none, e.g. one for `WebFindAction(urls=("https://a.org/guide",))`.
+def treat_web_find_as_uncertain_request(*, use_counts: Counter[str]) -> bool:
+    """Read a web find, which looks for text in a page that a web tool opened, as uncertain requests, e.g. an uncertain request of https://a.org/guide for `WebFindAction(urls=("https://a.org/guide",))`.
 
-    `extract_web_tool_network_requests` asks it for each web find action and makes one request per value it returns, `None` being a request without a target.
-    It returns the URLs, or `(None,)` for a find without one, so a find counts like a fetch although the harness may search a page it already holds without a new request.
-    Were it to return `()`, a find would give no request.
+    The harness may search a page it already holds without a new request, and the trajectory does not show whether it fetched the page again.
+    `extract_web_tool_network_requests` asks it for each web find action, which gives one request per URL it names, or one without a target when it names none.
+    On `True` those requests are uncertain with the reason `FINDS_TEXT_IN_OPENED_PAGE`, so they count toward the upper bound only. On `False` they are confirmed, like those of a web fetch.
     A use is such a find action.
 
-    Provisional. It keeps the choice of the earlier code, which made a request of each web find.
+    Provisional. The earlier code made a confirmed request of each web find, which counts a find that searched a page already held toward the lower bound. The review of 2026-11-24 recommended to make them uncertain, and the user has not yet confirmed it.
     """
-    use_counts[treat_web_find_as_request.__name__] += 1
-    return web_find_action.urls or (None,)
+    use_counts[treat_web_find_as_uncertain_request.__name__] += 1
+    return True
 
 
 def treat_call_name_that_ends_with_catalog_name_as_that_call(

@@ -86,9 +86,11 @@ def treat_bash_output_without_exit_code_line_as_finished(
     It rests on Claude Code `Bash`, which writes `Exit code N` before the output only in a result it marked as an error.
     A result without the line may still come from a command that was stopped, since nothing in the text says how it ended.
     The same holds for a result that only says the output was too large and names the file it was saved to.
-    A use is a result of the format `bare_output`, `persisted_output` or `persisted_output_partial`.
+    A command that Claude Code moved to the background, also after a timeout, has a result of its own, which the formats `background` and `background_timeout` read as running.
+    Only a finished status gets exit code 0 by `treat_bash_output_without_exit_code_line_as_exit_code_0`, so the two rules together make a later use of a saved file sure evidence.
+    A use is a result of the format `bare_output`, `persisted_output_cut_preview`, `persisted_output` or `persisted_output_partial`.
 
-    Provisional. It keeps the choice of the earlier code.
+    Decided. The user decided on 2026-11-24 that such a result is a finished command, as a fact of Claude Code, since a command that did not end in the call has a result of another format, and reading it as unknown would drop the evidence of 754,787 results in 8,881 of the 21,450 Terminal-Bench 4.1 trials.
     """
     use_counts[treat_bash_output_without_exit_code_line_as_finished.__name__] += 1
     return replace(tool_call_result, execution_status=ExecutionStatus.FINISHED)
@@ -100,10 +102,11 @@ def treat_bash_output_without_exit_code_line_as_exit_code_0(
     """Give exit code 0 to a finished command whose result has no `Exit code` line.
 
     It rests on Claude Code `Bash`, which writes no `Exit code` line for a command it did not judge an error, whose code is 0 or the 1 of grep, find, diff and the like.
-    The caller decides that the result is such a command, that its structured result says it was not interrupted and that it has no `returnCodeInterpretation`, whose exit code `ToolCallKnowledge` gives.
-    A use is a result that gets exit code 0 this way.
+    The caller decides that the result is such a command, that its structured result does not say that it was interrupted, also when it has no key `interrupted`, and that it has no `returnCodeInterpretation`, whose exit code `ToolCallKnowledge` gives.
+    The 0 is not written in the trajectory, so a received lower bound that a sure use of a saved file gives rests on this convention of Claude Code.
+    A use is a result that gets exit code 0 this way, also one of the format `no_output`, whose status is finished without a rule.
 
-    Provisional. It keeps the choice of the earlier code.
+    Decided. The user decided on 2026-11-24 to take the convention as a fact of Claude Code, which marks a command that exited with another code as an error or names its code in `returnCodeInterpretation`, after the review of that day found no result in the Terminal-Bench 4.1 trajectories against it.
     """
     use_counts[treat_bash_output_without_exit_code_line_as_exit_code_0.__name__] += 1
     return replace(tool_call_result, exit_code=0)
@@ -115,6 +118,7 @@ def treat_script_syntax_error_as_not_run(
     """Read a tool script that failed with a `SyntaxError` as a script that ran nothing.
 
     It rests on Codex `exec`, whose result shows `Script error` and then `SyntaxError` for a script that does not parse, without saying whether any step ran.
+    The format takes a result whose output is only `Script error:` and one `SyntaxError` line, so a `SyntaxError` that the code throws while it runs, e.g. from `JSON.parse`, gives the same text when the script printed nothing else.
     A use is a result of the format `failed_syntax`.
 
     Provisional. It keeps the choice of the earlier code.
@@ -143,7 +147,8 @@ def treat_failed_file_tool_call_as_not_run(
     """Read a file tool call whose result gives a reason it failed as a call that did no work.
 
     It rests on the file tools that read or change a file, i.e. Claude Code `Read`, Grok Build `read_file` and `search_replace`, Cursor CLI `readToolCall` and `editToolCall` and Copilot CLI `view`, `create` and `edit`, whose results give a reason such as `File does not exist.` without saying whether the tool touched anything.
-    A use is a result of one of their failure formats, e.g. `missing`, `too_large` or `not_unique`.
+    The format `unchanged` of Claude Code `Read` names it too, though it is no failure but a read that Claude Code skipped since the file did not change, which also returns no content.
+    A use is a result of one of their failure formats or of `unchanged`, e.g. `missing`, `too_large` or `not_unique`.
 
     Provisional. It keeps the choice of the earlier code.
     """
@@ -240,10 +245,11 @@ def treat_tool_failure_message_as_not_run(
 ) -> ToolCallResult:
     """Read a result whose text says only that the tool call failed as a call that did no work.
 
-    It rests on the messages in which a harness reports a failed call without saying whether the tool started, i.e. Claude Code `<tool_use_error>`, Muse Code `tool failed`, Codex `exec_command failed` and `write_stdin failed`, Grok Build ``Tool `...` failed``, Antigravity CLI `Encountered error in step execution` and the failures to parse or validate the arguments of Codex `exec_command` and `wait`, of Grok Build tools, of Devin tools, of Antigravity CLI `manage_task` and of Copilot CLI tools, e.g. Devin `Tool 'exec' validation failed` or Copilot CLI `Invalid input`.
-    A use is a result of one of their formats, e.g. `tool_use_error`, `rejected`, `rejected_stdin`, `rejected_arguments` or `failed`.
+    It rests on the messages in which a harness reports a failed call without saying whether the tool started, i.e. Claude Code `<tool_use_error>`, Muse Code `tool failed`, Codex `exec_command failed` and `write_stdin failed`, Grok Build ``Tool `...` failed``, Devin `Failed to configure output monitoring.` of `get_output` and Antigravity CLI `Encountered error in step execution`.
+    A message that the arguments of a call could not be parsed or validated says that the tool did not start, so its format declares `NOT_RUN` without this rule, e.g. Codex `failed to parse function arguments`, Devin `Tool 'exec' validation failed` or Copilot CLI `Invalid input`.
+    A use is a result of one of their formats, i.e. `tool_use_error`, `rejected`, `rejected_command`, `rejected_stdin`, `failed_monitoring` or `failed`.
 
-    Provisional. It keeps the choice of the earlier code.
+    Provisional. It keeps the choice of the earlier code. The user has not yet confirmed that the formats of rejected arguments declare `NOT_RUN` without it, which a review of 2026-11-24 recommended.
     """
     use_counts[treat_tool_failure_message_as_not_run.__name__] += 1
     return replace(tool_call_result, execution_status=ExecutionStatus.NOT_RUN)
@@ -301,9 +307,10 @@ def treat_lines_joined_after_three_repairs_as_left_joined(
     `parse_shell_text` repairs that by putting `;` at the end of each joined line and parsing again, and the new parse can join other lines.
     It asks this rule once it has repaired a text `repair_count` times, which is three, and lines are still joined.
     On `True` it marks every command of the text with `structure_may_be_wrong`, and on `False` it repairs on until no line is joined or a repair no longer lowers the number of joined lines.
+    `extract_network_requests` reads the mark, so every request of a known fetching program in such a command is uncertain with the reason `STRUCTURE_MAY_BE_WRONG`, e.g. a request for `https://b.org` when the next line `echo https://b.org` is read as more words of `curl -s http://localhost:8000/x`. `decide_network_request_results` reads it too and takes no exit code and no sure file use of such a command.
     A use is such a text.
 
-    Provisional. It keeps the choice of the earlier code, which repaired a text at most three times.
+    Provisional. It keeps the choice of the earlier code, which repaired a text at most three times. That `extract_network_requests` makes the requests of such a command uncertain is what the review of 2026-11-24 recommended, and the user has not yet confirmed it.
     """
     use_counts[treat_lines_joined_after_three_repairs_as_left_joined.__name__] += 1
     return True

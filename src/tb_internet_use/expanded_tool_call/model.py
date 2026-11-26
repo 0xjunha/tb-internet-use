@@ -140,7 +140,7 @@ class UnknownRanTextReason(StrEnum):
 
     # No call of the trial wrote the file, e.g. setup.sh of the task image.
     NOT_WRITTEN_IN_TRIAL = "not_written_in_trial"
-    # A command with a result the trial does not show changed the file before it ran, e.g. `sed -i` or `curl -o f.sh`.
+    # A command with a result the trial does not show changed the file or may have changed it before it ran, e.g. `sed -i`, `curl -o f.sh` or `sed -i s/a/b/ *.sh`.
     CHANGED_BY_UNREAD_COMMAND = "changed_by_unread_command"
     # The path fits several files that calls wrote, e.g. fetch.sh for /a/fetch.sh and /b/fetch.sh.
     FITS_SEVERAL_WRITTEN_FILES = "fits_several_written_files"
@@ -157,7 +157,7 @@ class UnknownRanTextReason(StrEnum):
     UNREADABLE_SHELL_TEXT = "unreadable_shell_text"
     # The file is already running in the same call, e.g. `bash f.sh` inside f.sh, so its text is not followed again.
     FILE_ALREADY_RUNNING = "file_already_running"
-    # The program runs texts or files, but no fact says what this argument of it is, e.g. f.sh of `bash -n f.sh` when the row of `-n` leaves the role blank.
+    # The program runs texts or files, but no fact says what this argument of it is, e.g. f.sh of `bash -n f.sh` when the row of `-n` leaves the role blank, or its words are unread, e.g. `-x f.sh` of `bash -x f.sh` when `-x` has no row.
     WORD_ROLE_NOT_KNOWN = "word_role_not_known"
     # The program runs texts or files and its words name no file, but no fact says which file it runs then, e.g. a runner whose row leaves `default_run_file` blank.
     DEFAULT_RUN_FILE_NOT_KNOWN = "default_run_file_not_known"

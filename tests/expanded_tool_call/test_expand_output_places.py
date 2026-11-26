@@ -12,9 +12,9 @@ from tb_internet_use.expanded_tool_call._expand_output_places import (
 from tb_internet_use.expanded_tool_call._expand_poll_links import expand_poll_links
 from tb_internet_use.expanded_tool_call._expand_ran_texts import expand_ran_texts
 from tb_internet_use.expanded_tool_call.judgment_rules import (
-    treat_poll_result_of_several_commands_as_showing_none,
-    treat_read_of_output_path_of_several_calls_as_showing_each,
-    treat_script_step_output_as_not_shown_in_call_result,
+    treat_poll_result_as_showing_every_command_of_starter,
+    treat_read_of_output_path_of_several_calls_as_showing_none,
+    treat_script_step_output_as_shown_in_call_result,
     treat_typed_text_as_of_unknown_language,
 )
 from tb_internet_use.expanded_tool_call.model import OutputPlace
@@ -40,12 +40,10 @@ from tb_internet_use.tool_call.model import (
 )
 from tb_internet_use.tool_call.parse_shell_text import parse_shell_text
 
-SCRIPT_STEP_RULE_NAME = treat_script_step_output_as_not_shown_in_call_result.__name__
-SEVERAL_COMMANDS_RULE_NAME = (
-    treat_poll_result_of_several_commands_as_showing_none.__name__
-)
+SCRIPT_STEP_RULE_NAME = treat_script_step_output_as_shown_in_call_result.__name__
+EVERY_COMMAND_RULE_NAME = treat_poll_result_as_showing_every_command_of_starter.__name__
 SEVERAL_CALLS_RULE_NAME = (
-    treat_read_of_output_path_of_several_calls_as_showing_each.__name__
+    treat_read_of_output_path_of_several_calls_as_showing_none.__name__
 )
 TYPED_TEXT_LANGUAGE_RULE_NAME = treat_typed_text_as_of_unknown_language.__name__
 HANDLE = ExecutionHandle(ExecutionHandleKind.COMMAND, "h1")
@@ -287,22 +285,19 @@ def test_later_polls_of_a_started_handle_show_its_output(
     assert output_places[1:] == ((), (), (), (), ())
 
 
-def test_a_poll_shows_no_command_of_a_starter_of_several_by_a_rule(
+def test_a_poll_shows_every_command_of_the_starter_by_a_rule(
     knowledge: ExpandedToolCallKnowledge, monkeypatch: pytest.MonkeyPatch
 ):
     calls = (_call(1, "curl a; curl b > /dev/null 2>&1; curl c", RUNNING), _poll(2))
     use_counts: Counter[str] = Counter()
 
     output_places = _expand(knowledge, *calls, judgment_rule_use_counts=use_counts)
-    _answer(monkeypatch, SEVERAL_COMMANDS_RULE_NAME, False)
+    _answer(monkeypatch, EVERY_COMMAND_RULE_NAME, False)
     output_places_on_false = _expand(knowledge, *calls)
 
-    assert output_places[0] == (OutputPlace(K1, (0, 2)),)
-    assert use_counts == Counter({SEVERAL_COMMANDS_RULE_NAME: 1})
-    assert output_places_on_false[0] == (
-        OutputPlace(K1, (0, 2)),
-        OutputPlace(K2, (0, 2)),
-    )
+    assert output_places[0] == (OutputPlace(K1, (0, 2)), OutputPlace(K2, (0, 2)))
+    assert use_counts == Counter({EVERY_COMMAND_RULE_NAME: 1})
+    assert output_places_on_false[0] == (OutputPlace(K1, (0, 2)),)
 
 
 def test_a_poll_of_one_command_asks_no_rule(knowledge: ExpandedToolCallKnowledge):
@@ -365,15 +360,12 @@ def test_several_typed_commands_ask_the_rule_once_per_later_poll(
     use_counts: Counter[str] = Counter()
 
     output_places = _expand(knowledge, *calls, judgment_rule_use_counts=use_counts)
-    _answer(monkeypatch, SEVERAL_COMMANDS_RULE_NAME, False)
+    _answer(monkeypatch, EVERY_COMMAND_RULE_NAME, False)
     output_places_on_false = _expand(knowledge, *calls)
 
-    assert output_places[1] == (OutputPlace(K2, (0, 1)),)
-    assert use_counts == Counter({SEVERAL_COMMANDS_RULE_NAME: 1})
-    assert output_places_on_false[1] == (
-        OutputPlace(K2, (0, 1)),
-        OutputPlace(K3, (0, 1)),
-    )
+    assert output_places[1] == (OutputPlace(K2, (0, 1)), OutputPlace(K3, (0, 1)))
+    assert use_counts == Counter({EVERY_COMMAND_RULE_NAME: 1})
+    assert output_places_on_false[1] == (OutputPlace(K2, (0, 1)),)
 
 
 def test_script_steps_show_in_the_script_result_by_a_rule(
@@ -395,17 +387,11 @@ def test_script_steps_show_in_the_script_result_by_a_rule(
 
     output_places = _expand(knowledge, *calls, judgment_rule_use_counts=use_counts)
     _answer(monkeypatch, SCRIPT_STEP_RULE_NAME, False)
-    _answer(monkeypatch, SEVERAL_COMMANDS_RULE_NAME, False)
     output_places_on_false = _expand(knowledge, *calls)
 
-    assert output_places[0] == ()
-    assert use_counts == Counter(
-        {SCRIPT_STEP_RULE_NAME: 2, SEVERAL_COMMANDS_RULE_NAME: 1}
-    )
-    assert output_places_on_false[0] == (
-        OutputPlace(K1, (0, 1)),
-        OutputPlace(K2, (0, 1)),
-    )
+    assert output_places[0] == (OutputPlace(K1, (0, 1)), OutputPlace(K2, (0, 1)))
+    assert use_counts == Counter({SCRIPT_STEP_RULE_NAME: 2, EVERY_COMMAND_RULE_NAME: 1})
+    assert output_places_on_false[0] == (OutputPlace(K2, (0, 1)),)
 
 
 def test_text_typed_by_a_script_step_asks_the_script_rule(
@@ -420,9 +406,9 @@ def test_text_typed_by_a_script_step_asks_the_script_rule(
     _answer(monkeypatch, SCRIPT_STEP_RULE_NAME, False)
     output_places_on_false = _expand(knowledge, *calls)
 
-    assert output_places[1] == (OutputPlace(K3, (0,)),)
+    assert output_places[1] == (OutputPlace(K2, (0,)), OutputPlace(K3, (0,)))
     assert use_counts == Counter({SCRIPT_STEP_RULE_NAME: 1})
-    assert output_places_on_false[1] == (OutputPlace(K2, (0,)), OutputPlace(K3, (0,)))
+    assert output_places_on_false[1] == (OutputPlace(K3, (0,)),)
 
 
 def test_commands_of_a_file_that_a_script_step_runs_ask_the_script_rule_once(
@@ -438,9 +424,9 @@ def test_commands_of_a_file_that_a_script_step_runs_ask_the_script_rule_once(
     _answer(monkeypatch, SCRIPT_STEP_RULE_NAME, False)
     output_places_on_false = _expand(knowledge, *calls)
 
-    assert output_places[1] == ()
+    assert output_places[1] == (OutputPlace(K2, (0, 1)),)
     assert use_counts == Counter({SCRIPT_STEP_RULE_NAME: 1})
-    assert output_places_on_false[1] == (OutputPlace(K2, (0, 1)),)
+    assert output_places_on_false[1] == ()
 
 
 def test_commands_of_a_file_belong_to_the_script_step_that_runs_it(
@@ -452,7 +438,7 @@ def test_commands_of_a_file_belong_to_the_script_step_that_runs_it(
     monkeypatch.setattr(
         _expand_output_places,
         SCRIPT_STEP_RULE_NAME,
-        lambda step_index, *, use_counts: step_index != 1,
+        lambda step_index, *, use_counts: step_index == 1,
     )
 
     output_places = _expand(
@@ -478,8 +464,8 @@ def test_text_typed_into_another_handle_is_no_output_of_what_the_typing_call_sta
         _call(3, PollAction((started_handle,)), FINISHED),
     )
 
-    # The command of the script step has the id 0 and the typed command the id 1. The script's own result shows neither, by the rule on script steps.
-    assert output_places[1] == (OutputPlace(K3, (0,)),)
+    # The command of the script step has the id 0 and the typed command the id 1.
+    assert output_places[1] == (OutputPlace(K2, (0, 1)), OutputPlace(K3, (0,)))
 
 
 def test_text_typed_by_a_poll_that_did_not_run_shows_nowhere(
@@ -532,7 +518,7 @@ def test_a_read_of_the_harness_output_file_is_a_place_while_it_shows_that_result
     )
 
 
-def test_a_read_of_the_output_file_of_several_calls_shows_each_by_a_rule(
+def test_a_read_of_the_output_file_of_several_calls_shows_none_by_a_rule(
     knowledge: ExpandedToolCallKnowledge, monkeypatch: pytest.MonkeyPatch
 ):
     calls = (
@@ -546,15 +532,39 @@ def test_a_read_of_the_output_file_of_several_calls_shows_each_by_a_rule(
     _answer(monkeypatch, SEVERAL_CALLS_RULE_NAME, False)
     output_places_on_false = _expand(knowledge, *calls)
 
-    assert output_places[:2] == (
+    assert output_places[:2] == ((OutputPlace(K1, (0,)),), (OutputPlace(K2, (0,)),))
+    assert use_counts == Counter({SEVERAL_CALLS_RULE_NAME: 1})
+    assert output_places_on_false[:2] == (
         (OutputPlace(K1, (0,)), OutputPlace(K3, (0,))),
         (OutputPlace(K2, (0,)), OutputPlace(K3, (0,))),
     )
-    assert use_counts == Counter({SEVERAL_CALLS_RULE_NAME: 1})
-    assert output_places_on_false[:2] == (
-        (OutputPlace(K1, (0,)),),
-        (OutputPlace(K2, (0,)), OutputPlace(K3, (0,))),
+
+
+def test_a_read_of_the_output_file_that_a_starter_and_its_poll_name_shows_the_starter_without_the_rule(
+    knowledge: ExpandedToolCallKnowledge,
+):
+    use_counts: Counter[str] = Counter()
+
+    output_places = _expand(
+        knowledge,
+        _call(
+            1,
+            "curl u",
+            _result(
+                ExecutionStatus.RUNNING, handles=(HANDLE,), output_path=OUTPUT_PATH
+            ),
+        ),
+        _poll(2, output_path=OUTPUT_PATH),
+        _call(3, f"cat {OUTPUT_PATH}"),
+        judgment_rule_use_counts=use_counts,
     )
+
+    assert output_places[0] == (
+        OutputPlace(K1, (0,)),
+        OutputPlace(K2, (0,)),
+        OutputPlace(K3, (0,)),
+    )
+    assert use_counts[SEVERAL_CALLS_RULE_NAME] == 0
 
 
 def test_a_read_of_the_harness_output_file_of_a_poll_shows_the_starter(

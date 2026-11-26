@@ -16,7 +16,7 @@ This is hard only because a request or its output is often not in the call that 
 
 ## Input
 
-c1 to c6 are the calls, in order. The result of each call is shortened to the lines that matter. Hosts under example.org are reserved for examples, which `export_rows` reads as of unknown internet use. Here they are read as public hosts, as `export_rows` reads a made-up name such as a.files-mirror.org by the judgment rule `treat_dotted_host_name_as_public`.
+c1 to c6 are the calls, in order. The result of each call is shortened to the lines that matter. Hosts under example.org are reserved for examples, which `export_rows` reads as of unknown internet use. Here they are read as a made-up name such as a.files-mirror.org is read, i.e. as a dotted name without a row of `public_hosts.csv`, which the judgment rule `treat_dotted_host_name_as_public` reads as public and `treat_dotted_host_name_without_public_host_row_as_unknown_internet_use` leaves of unknown internet use.
 
 | Call | Case | Tool | Arguments | Result |
 |---|---|---|---|---|
@@ -42,7 +42,7 @@ Case C makes no request, so it has no row. The trial's rows for each category an
 
 | Category | The trial has a request | The trial received one |
 |---|---|---|
-| Content fetch | Yes in both bounds | No in the lower bound, yes in the upper |
+| Content fetch | No in the lower bound, yes in the upper | No in the lower bound, yes in the upper |
 | Package | Yes in both bounds | Yes in both bounds |
 
 ## The steps at a glance
@@ -364,10 +364,10 @@ The category is computed from what the request's own text shows, so the same com
 | Column | What it gives here | Why |
 |---|---|---|
 | Category | Content fetch for r1 to r3, which save what a URL gives. Package for r4 | The category rules of the step, which read the service of a URL's host before where its content goes. No host of r1 to r3 has a row, so `treat_saved_content_from_unrecognized_url_as_content_fetch` makes their saved files content fetches. r4 names a package |
-| Internet use | Yes for all four | r1 to r3 name their hosts, which are read as public in this example. r4 names no host, so `treat_request_without_host_name_as_sent_to_default_registry_host` gives it the host of the default registry of `pip install`, `pypi.org`, which is public |
-| Request bounds | Both bounds for r1 to r4 | Each is a confirmed request that is internet use. How far it got does not matter here |
+| Internet use | Unknown for r1 to r3, yes for r4 | r1 to r3 name hosts with a dot and without a row of `public_hosts.csv`, so `treat_dotted_host_name_without_public_host_row_as_unknown_internet_use` leaves their internet use unknown, since such a name may also be a service inside the task's network. r4 names no host, so `treat_request_without_host_name_as_sent_to_default_registry_host` gives it the host of the default registry of `pip install`, `pypi.org`, which is public |
+| Request bounds | The upper bound only for r1 to r3, both for r4 | A request of unknown internet use counts only toward the upper bound. r4 is a confirmed request that is internet use. How far it got does not matter here |
 | Received bounds | Neither for r3, the upper bound only for r1 and r2, both for r4 | r3's own line confirms that it failed. r1 and r2 share one error line, so their failure is assumed and `treat_assumed_failure_as_possibly_received` keeps them in the upper bound. r4's own lines confirm that the package arrived |
-| Among success line owners one of which received | No for all four | r1 and r2 share one line, but it shows a failure. Had it been a line of success, both rows would still say no, since `--connect-timeout` has no row of `program_output_lines.csv`, so a run of either `curl` may print any line. Without that option, whichever `curl` printed the line would have received, so both rows would say yes and the trial would count in the lower bound of content fetches received, while each row's own received bound stays in the upper bound only |
+| Among success line owners one of which received | No for all four | r1 and r2 share one line, but it shows a failure. Had it been a line of success, both rows would still say no, since `--connect-timeout` has no row of `program_output_lines.csv`, so a run of either `curl` may print any line. Without that option they would say no as well, since their requests are only in the upper bound. Had their hosts rows of `public_hosts.csv` too, whichever `curl` printed the line would have received, so both rows would say yes and the trial would count in the lower bound of content fetches received, while each row's own received bound stays in the upper bound only |
 
 Each category and sender of the trial then gets one row with the strongest bounds of its requests, where a row among success line owners one of which received counts in the lower bound of received. All four requests here have the sender `task_environment`, which gives the last table of [Where this ends](#where-this-ends). The trial row takes the strongest bounds of all requests that the task environment sent.
 The lines of case C give no request and no row. `decide_network_request_results` only counts them as unused lines.

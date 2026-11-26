@@ -1,5 +1,6 @@
 """Tests for network_request/_extract_command_network_requests.py, with commands and calls made by hand and the real `NetworkRequestKnowledge`."""
 
+import dataclasses
 from collections import Counter
 from dataclasses import dataclass
 
@@ -436,6 +437,34 @@ def test_targets_and_certainty_of_command_requests(
     assert _targets(network_requests) == targets
     assert _certainties(network_requests) == certainties
     assert [r.index_in_tool_call for r in network_requests] == list(range(len(targets)))
+
+
+@pytest.mark.parametrize(
+    "options",
+    [
+        pytest.param((), id="curl u"),
+        # The words may be wrong, which comes before an option without a row.
+        pytest.param((("--tlsv1.2", None),), id="curl --tlsv1.2 u"),
+    ],
+)
+def test_a_command_whose_structure_may_be_wrong_gives_uncertain_requests(
+    options: tuple[tuple[str, str | None], ...],
+):
+    curl = _program("curl", options=options, arguments=(U,))
+    command = _command(curl)
+    misread_command = dataclasses.replace(
+        command,
+        shell_command=dataclasses.replace(
+            command.shell_command, structure_may_be_wrong=True
+        ),
+    )
+
+    (network_request,) = _extract(misread_command).network_requests
+
+    assert (network_request.certainty, network_request.uncertainty_reason) == (
+        NetworkRequestCertainty.UNCERTAIN,
+        NetworkRequestUncertaintyReason.STRUCTURE_MAY_BE_WRONG,
+    )
 
 
 def test_the_request_of_a_program_run_by_another_belongs_to_the_inner_program():

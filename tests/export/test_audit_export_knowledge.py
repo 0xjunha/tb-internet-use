@@ -56,10 +56,10 @@ _BASH_CALLS_OF_TRIAL = {
         )
     ],
     "t4": None,
-    # Two wget requests own one `saved` line, which only wget prints, so the trial counts in the lower bound of received content fetches although each request stays assumed.
+    # Two wget requests own one `saved` line, which only wget prints, so the trial counts in the lower bound of received content fetches although each request stays assumed. Their host has a row of `public_hosts.csv`, so they count in the lower bound of requests.
     "t6": [
         (
-            "wget https://a.org/x.tgz https://a.org/y.tgz; ./check.sh",
+            "wget https://files.rcsb.org/x.tgz https://files.rcsb.org/y.tgz; ./check.sh",
             "'x.tgz' saved [1024/1024]",
         )
     ],
@@ -208,6 +208,7 @@ def test_every_equation_holds_on_the_rows_of_made_up_trials(
     ] in rule_rows
     assert _csv_rows(out_dir / "row_uses.csv")[1:] == [
         ["program_package_registries.csv", '["pip", "install"]', "2", "2", "1"],
+        ["public_hosts.csv", '["files.rcsb.org", ""]', "2", "1", "1"],
         ["harness_web_tools.csv", '["claude-code", "WebFetch"]', "1", "1", "1"],
         ["public_hosts.csv", '["github.com", ""]', "1", "1", "1"],
         ["public_hosts.csv", '["html.duckduckgo.com", ""]', "1", "1", "1"],
@@ -247,8 +248,8 @@ BROKEN_FILE_CASES = [
     (
         "measure_rows_differing_from_their_strongest_request_rows",
         "trial_category_measure_rows.csv",
-        "t1,package,task_environment,upper_only",
         "t1,package,task_environment,lower_and_upper",
+        "t1,package,task_environment,upper_only",
     ),
     # The rows of t6 lose their mark, so the main measure line of t6, counted in the lower bound of received by its shared line, rests on no request row.
     (

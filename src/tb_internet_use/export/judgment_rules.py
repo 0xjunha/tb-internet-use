@@ -158,19 +158,37 @@ def treat_saved_content_from_unrecognized_url_as_content_fetch(
     return True
 
 
-def treat_web_tool_request_without_host_name_as_internet_use(
+def treat_web_tool_request_without_url_as_internet_use(
     network_request: NetworkRequest, *, use_counts: Counter[str]
 ) -> bool:
-    """Count a web tool request whose words name no host as internet use, e.g. a harness web search with only a query such as `how to x?`.
+    """Count a web tool request without a URL as internet use, e.g. a harness web search with only a query such as `how to x?`, or a web fetch called without a URL.
 
-    A web search tool sends its query to a search service that the trajectory does not name, and a web fetch tool called without a URL names no host either, so the trajectory does not say where the request went.
-    `export_network_request_row` asks it for each request without a host name whose source is a web tool.
+    A web search tool sends its query to a search service that the trajectory does not name, and a fetch without a URL names no host either, so the trajectory does not say where the request went. The provider of the tool gets it in either case.
+    `export_network_request_row` asks it for each request without a host name whose source is a web tool and whose target is no URL.
     On `True` `is_internet_use` is True. On `False` it is None, so the request counts only toward the upper bound.
     A use is such a request.
 
     Provisional. No earlier code chose. A web tool is made to reach the internet, and the other choice would leave every web search unknown.
     """
-    use_counts[treat_web_tool_request_without_host_name_as_internet_use.__name__] += 1
+    use_counts[treat_web_tool_request_without_url_as_internet_use.__name__] += 1
+    return True
+
+
+def treat_web_tool_url_without_host_name_as_unknown_internet_use(
+    network_request: NetworkRequest, *, use_counts: Counter[str]
+) -> bool:
+    """Leave the internet use of a web tool request unknown when its target is a URL whose host was not read, e.g. a fetch of `file:///app/x.html`, of `localhost:3000/x` or of `a.org/x` without a scheme.
+
+    Such a URL may name a local file or a local host as well as a public one, and the trajectory does not say which.
+    `export_network_request_row` asks it for each request without a host name whose source is a web tool and whose target is a URL.
+    On `True` `is_internet_use` is None, so the request counts only toward the upper bound. On `False` it is True, as for a web search.
+    A use is such a request.
+
+    Provisional. Until the review of 2026-11-24 such a request was counted as internet use with a web search. The review recommended to leave it unknown, since the URLs whose host was not read mix local files and local hosts with public ones, and the user has not yet confirmed it.
+    """
+    use_counts[
+        treat_web_tool_url_without_host_name_as_unknown_internet_use.__name__
+    ] += 1
     return True
 
 
@@ -185,7 +203,7 @@ def treat_request_without_host_name_as_sent_to_default_registry_host(
     A program that installs packages usually names no host, and whether the request went out at all is decided from its output lines when results are decided.
     `export_network_request_row` asks it for each request without a host name whose source is no web tool. It gives the hosts the same reading as hosts that the words name.
     `package_registry` is the answer of `ExportKnowledge.package_registry`, or None for a request that `ExportKnowledge` is not asked about, e.g. `git fetch origin`.
-    It gives the host names of a `PackageRegistry`, e.g. `deb.debian.org archive.ubuntu.com` for `apt-get update`, also when a file names the targets, e.g. `pip install -r reqs.txt`.
+    It gives the host names of a `PackageRegistry`, e.g. `deb.debian.org archive.ubuntu.com security.ubuntu.com` for `apt-get update`, also when a file names the targets, e.g. `pip install -r reqs.txt`.
     It gives no host for a target that is a local path, e.g. `pip install -e .`, since a local project may or may not ask a registry for what it depends on. It gives none either for `UnknownPackageRegistry` or None. Without a host the request's internet use is not known.
     The other choices are no host for every request, which leaves all of them unknown, or the registry hosts for a local path too.
     A use is such a request.
@@ -204,6 +222,24 @@ def treat_request_without_host_name_as_sent_to_default_registry_host(
     if isinstance(package_registry, PackageRegistry):
         return package_registry.host_names
     return ()
+
+
+def treat_dotted_host_name_without_public_host_row_as_unknown_internet_use(
+    network_request: NetworkRequest, *, use_counts: Counter[str]
+) -> bool:
+    """Leave the internet use of a request unknown when a host name of it has a dot and no row of the public host catalog, and no host of it is a public address or has such a row, e.g. `curl https://files.acme.org/x`.
+
+    The standards do not settle whether such a name is public, and `treat_dotted_host_name_as_public` reads it as public only so that a URL with it gives a request. It may also be the name of a service inside the task's network, which the trajectory alone does not tell apart. A row of `public_hosts.csv` names a widely used public service, e.g. `pypi.org`.
+    `export_network_request_row` asks it for a request with such a host name, among the hosts that its words name, before the rules on templated, reserved, local and single-label names, so that such a request never counts as no internet use. A host that a request is taken to be sent to comes from the registry catalog and counts as listed, e.g. `pypi.org` for `pip install requests`.
+    On `True` `is_internet_use` is None, so the request counts only toward the upper bound. On `False` it is True, as for a public host with a row.
+    A use is such a request.
+
+    Provisional. The earlier code counted every dotted name that is no local or reserved name as public, so a request to a service inside the task's network counted toward the lower bound. The review of 2026-11-24 recommended to count toward the lower bound only the hosts with a row of `public_hosts.csv`, which may lower that bound much, and the user has not yet confirmed it.
+    """
+    use_counts[
+        treat_dotted_host_name_without_public_host_row_as_unknown_internet_use.__name__
+    ] += 1
+    return True
 
 
 def treat_templated_host_name_as_unknown_internet_use(

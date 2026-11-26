@@ -212,8 +212,10 @@ def _parsed_shell_text_of(shell_text: str) -> ParsedShellText:
 def _pipe_reader_for(
     shell_command: ShellCommand, knowledge: ExpandedToolCallKnowledge
 ) -> PipeReader:
-    program_invocations, word_roles, program_behaviors, _ = expand_program_invocations(
-        shell_command, knowledge=knowledge, judgment_rule_use_counts=Counter()
+    program_invocations, word_roles, program_behaviors, _, _ = (
+        expand_program_invocations(
+            shell_command, knowledge=knowledge, judgment_rule_use_counts=Counter()
+        )
     )
     return pipe_reader_of(
         shell_command, program_invocations, word_roles, program_behaviors

@@ -957,11 +957,12 @@ def test_sent_request_line_cases_cover_every_output_line_kind():
 
 
 # Each output line case at its own level, and each kind but `BARE_STATUS_CODE` again at `EXECUTED` with `NOT_VISIBLE` as `treat_line_naming_another_target_as_no_evidence_of_answer` reads a line that names another target, with whether a clean line lifts the request.
+# A line at `EXECUTED` with `NOT_VISIBLE` shows only the run, so it lifts none, e.g. `Could not resolve host: b.org` under `curl --verbose https://a.org/x`.
 LINE_LIFTING_CASES = [
     *SENT_REQUEST_LINE_CASES,
     *(
-        (kind, EXECUTED, NOT_VISIBLE, shows_sent_request)
-        for kind, _, _, shows_sent_request in SENT_REQUEST_LINE_CASES
+        (kind, EXECUTED, NOT_VISIBLE, False)
+        for kind, _, _, _ in SENT_REQUEST_LINE_CASES
         if kind != OutputLineKind.BARE_STATUS_CODE
     ),
 ]

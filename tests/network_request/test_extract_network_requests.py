@@ -13,13 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from tb_internet_use.expanded_tool_call import (
-    _expand_program_invocations,
-    expand_tool_calls,
-)
-from tb_internet_use.expanded_tool_call.judgment_rules import (
-    treat_word_with_expansion_as_start_of_unread_words,
-)
+from tb_internet_use.expanded_tool_call import expand_tool_calls
 from tb_internet_use.expanded_tool_call.model import (
     ArgumentText,
     CallCommandText,
@@ -44,7 +38,7 @@ from tb_internet_use.network_request import extract_network_requests
 from tb_internet_use.network_request.judgment_rules import (
     treat_call_name_that_ends_with_catalog_name_as_that_call,
     treat_single_label_or_templated_host_name_as_possibly_public,
-    treat_web_find_as_request,
+    treat_web_find_as_uncertain_request,
 )
 from tb_internet_use.network_request.model import (
     ContentSaved,
@@ -91,9 +85,6 @@ NAMED_IN_FILE = UnknownNetworkRequestTarget(
 )
 VALUE_SET_AT_RUN_TIME = UnknownNetworkRequestTarget(
     UnknownNetworkRequestTargetReason.VALUE_SET_AT_RUN_TIME
-)
-UNREAD_WORDS = UnknownNetworkRequestTarget(
-    UnknownNetworkRequestTargetReason.UNREAD_WORDS
 )
 FINISHED = ToolCallResult(
     tool_output_text="", execution_status=ExecutionStatus.FINISHED, exit_code=0
@@ -589,28 +580,6 @@ def test_the_example_trial_gives_one_request_per_downloaded_url_and_package_and_
             [(NAMED_IN_FILE, PACKAGE_NAME)],
             id="targets in a file",
         ),
-        # A word with an expansion starts the unread words by a rule, so the loop gives one request whose target is unread.
-        pytest.param(
-            "for p in A B C; do pip install $p; done",
-            [(UNREAD_WORDS, PACKAGE_NAME)],
-            id="loop values shown",
-        ),
-    ],
-)
-def test_a_command_gives_one_request_per_target_it_shows_and_one_when_it_shows_none(
-    catalogs_dir, command_text, expected_targets
-):
-    network_requests = _requests(catalogs_dir, command_text)
-
-    assert [
-        (network_request.target, network_request.target_kind)
-        for network_request in network_requests
-    ] == expected_targets
-
-
-@pytest.mark.parametrize(
-    ("command_text", "expected_targets"),
-    [
         pytest.param(
             "for p in A B C; do pip install $p; done",
             [("A", PACKAGE_NAME), ("B", PACKAGE_NAME), ("C", PACKAGE_NAME)],
@@ -623,14 +592,9 @@ def test_a_command_gives_one_request_per_target_it_shows_and_one_when_it_shows_n
         ),
     ],
 )
-def test_a_loop_gives_one_request_per_value_when_a_word_with_an_expansion_is_one_word(
-    catalogs_dir, monkeypatch, command_text, expected_targets
+def test_a_command_gives_one_request_per_target_it_shows_and_one_when_it_shows_none(
+    catalogs_dir, command_text, expected_targets
 ):
-    monkeypatch.setattr(
-        _expand_program_invocations,
-        treat_word_with_expansion_as_start_of_unread_words.__name__,
-        lambda word, *, use_counts: False,
-    )
     network_requests = _requests(catalogs_dir, command_text)
 
     assert [
@@ -839,7 +803,7 @@ def test_every_use_of_a_judgment_rule_and_every_run_without_request_adds_to_the_
         {
             "rule of an earlier trial": 1,
             treat_single_label_or_templated_host_name_as_possibly_public.__name__: 1,
-            treat_web_find_as_request.__name__: 1,
+            treat_web_find_as_uncertain_request.__name__: 1,
             treat_call_name_that_ends_with_catalog_name_as_that_call.__name__: 1,
         }
     )
