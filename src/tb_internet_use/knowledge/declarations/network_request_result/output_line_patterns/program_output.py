@@ -24,11 +24,14 @@ def _make_program_output_pattern(
     """Make the pattern of a line that only one program prints, or that any program can print, with the programs known to print it.
 
     A line that only one program prints has no other printing programs, so giving both `printed_only_by` and `printed_also_by` raises `ValueError`.
+    `PrintingProgram.UNNAMED_PROGRAM` is for a run that prints only lines that any program prints, e.g. `pnpm install`, so naming it raises `ValueError` too.
     """
     if printed_only_by is not None and printed_also_by:
         raise ValueError(
             f"pattern {name} gives both printed_only_by and printed_also_by"
         )
+    if PrintingProgram.UNNAMED_PROGRAM in (printed_only_by, *printed_also_by):
+        raise ValueError(f"pattern {name} names {PrintingProgram.UNNAMED_PROGRAM}")
     if printed_only_by is not None:
         return OutputLinePattern(
             name, kind, frozenset({printed_only_by}), False, alternatives
@@ -40,16 +43,20 @@ def _make_program_output_pattern(
 _HOST_NAME_TEXT = r"(?P<host_name_text>[\w.-]+\.\w+)"
 # Printing programs that print response headers, e.g. `HTTP/1.1 200 OK`.
 _HEADER_PRINTING_PROGRAMS = (PrintingProgram.HTTP_HEADERS, PrintingProgram.GIT)
-# Printing programs that print `Downloading x` lines.
+# Printing programs that print `Downloading x` lines. The line of playwright has a pattern of its own, `playwright_downloading`.
 _DOWNLOAD_PRINTING_PROGRAMS = (
     PrintingProgram.PIP,
     PrintingProgram.UV,
-    PrintingProgram.PLAYWRIGHT,
     PrintingProgram.GIT,
     PrintingProgram.CODE,
 )
 # Labels that curl `-w` formats put before a bare status code, e.g. `status: 200`.
 _STATUS_CODE_LABEL = r"(?i:(?:status|code|http|http_code|http status|response) ?[:=] ?)"
+# The text that programs print right before the text of an errno, e.g. `connect: ` of bash, `failed: ` of curl -v, `[Errno 111] ` of Python or `ConnectionRefusedError(111, '` of the repr of a Python error.
+# `strings` and `readelf -p` print the same texts from the string table of a binary, alone or after an offset, e.g. `  [  16f2]  Network is unreachable`, which is no failure.
+_ERRNO_TEXT_CONTEXT = r"(?:: |\[Errno \d+\] |Error\(\d+, ')"
+# A response status line, e.g. `HTTP/1.1 404 Not Found`.
+_STATUS_LINE = r"HTTP/[\d.]+ (?P<status_code>[1-5]\d\d)"
 
 PROGRAM_OUTPUT_LINE_PATTERNS = OutputLinePatternTable(
     "program_output",
@@ -117,28 +124,34 @@ PROGRAM_OUTPUT_LINE_PATTERNS = OutputLinePatternTable(
         _make_program_output_pattern(
             "connection_failure",
             OutputLineKind.CONNECTION_FAILED,
-            r"Connection refused",
-            r"Connection timed out",
+            rf"{_ERRNO_TEXT_CONTEXT}(?:Connection refused|Connection timed out|Network is unreachable|No route to host)",
+            # curl prints this when it could not connect in time, e.g. `curl: (28) Connection timed out after 5001 milliseconds`.
+            r"curl: \(28\) Connection timed out",
             r"ConnectTimeout",
-            r"Network is unreachable",
-            r"No route to host",
-            r"ECONNREFUSED",
-            r"ETIMEDOUT",
-            r"ENETUNREACH",
+            # Node.js prints the errno name after the system call, e.g. `Error: connect ECONNREFUSED 127.0.0.1:3000`, and again in the error object, e.g. `  code: 'ECONNREFUSED',`.
+            r"connect (?:ECONNREFUSED|ETIMEDOUT|ENETUNREACH)",
+            r"^[ \t]*code: 'ECONNREFUSED'",
             r"curl: \(7\)",
         ),
         _make_program_output_pattern(
             "connection_lost",
             OutputLineKind.CONNECTION_LOST,
-            r"Connection reset by peer",
-            r"ECONNRESET",
+            rf"{_ERRNO_TEXT_CONTEXT}Connection reset by peer",
+            # Node.js, e.g. `Error: read ECONNRESET`.
+            r"read ECONNRESET",
             r"Read timed out",
             r"curl: \((?:52|56)\)",
         ),
         _make_program_output_pattern(
             "http_status_line",
             OutputLineKind.HTTP_STATUS,
-            r"HTTP/[\d.]+ (?P<status_code>[1-5]\d\d)",
+            # A status line right after a quote is text in a string of source code or data, e.g. `self.transport.write(b"HTTP/1.1 100 Continue\r\n")` printed by sed, so it counts anywhere else.
+            # curl -i and -I print it at the start of a line, wget -S after two spaces, curl -v after `< `, and curl again right after a body without a line end, e.g. `{"status":"ok"}HTTP/1.1 201 Created`.
+            rf"(?<![\"']){_STATUS_LINE}",
+            # httpx logs the status of each response in quotes, e.g. `HTTP Request: GET https://a.org/x "HTTP/1.1 200 OK"`.
+            rf"HTTP Request: \S+ \S+ \"{_STATUS_LINE}",
+            # The output string of a JSON step result that is not the whole line, e.g. `RESULT 1: {"chunk_id":"a1","output":"HTTP/1.1 200 OK\r\n..."}`.
+            rf"\"output\":\"{_STATUS_LINE}",
             printed_also_by=_HEADER_PRINTING_PROGRAMS,
         ),
         _make_program_output_pattern(
@@ -201,16 +214,32 @@ PROGRAM_OUTPUT_LINE_PATTERNS = OutputLinePatternTable(
             r"^(?P<package_names_text>\S+) is already the newest version",
             printed_only_by=PrintingProgram.APT,
         ),
-        # playwright prints `Downloading Chromium ...` before the download, which can still fail, and `... downloaded to /...` once it is done.
+        # playwright prints `... downloaded to /...` once a download is done.
         _make_program_output_pattern(
             "playwright_downloaded",
             OutputLineKind.DOWNLOADED,
             r"\) downloaded to /",
             printed_only_by=PrintingProgram.PLAYWRIGHT,
         ),
+        # playwright prints this before it connects, and again before each retry, e.g. `Downloading Chromium 131.0 (playwright build v1148) from https://cdn.playwright.dev/x.zip`.
+        _make_program_output_pattern(
+            "playwright_downloading",
+            OutputLineKind.PROGRAM_RAN,
+            r"^Downloading .*\bplaywright\b.* from https?://",
+            printed_only_by=PrintingProgram.PLAYWRIGHT,
+        ),
+        # pip download and pip wheel print this only when they copy a package file that was not yet in the destination folder, as a path from `/` or from `./`, and `File was already downloaded /tmp/x.whl` when it was there.
+        # The endings are the two that follow such a path in the trajectories, `.whl` and `.tar.gz`, of the archive endings that pip saves.
+        _make_program_output_pattern(
+            "pip_saved",
+            OutputLineKind.PACKAGE_FILE_ADDED_TO_FOLDER,
+            r"^Saved \.?/(?:\S*/)?(?P<package_names_text>[^/\s]+\.(?:whl|tar\.gz))$",
+            printed_only_by=PrintingProgram.PIP,
+        ),
+        # pip download prints this for every package file it saved, also for one from its cache or one already in the destination folder, e.g. after `File was already downloaded /tmp/x.whl`.
         _make_program_output_pattern(
             "pip_successfully_downloaded",
-            OutputLineKind.DOWNLOADED,
+            OutputLineKind.PACKAGE_FILE_IN_FOLDER,
             r"^Successfully downloaded (?P<package_names_text>\S.*)",
             printed_only_by=PrintingProgram.PIP,
         ),
@@ -234,10 +263,10 @@ PROGRAM_OUTPUT_LINE_PATTERNS = OutputLinePatternTable(
             r"^[ \t]*Downloading (?:https?://\S*/)?(?P<package_names_text>[\w.-]+)",
             printed_also_by=_DOWNLOAD_PRINTING_PROGRAMS,
         ),
-        # lake prints this before it clones a dependency, which can still fail.
+        # lake prints this before it clones a dependency, so the clone may have failed without a connection.
         _make_program_output_pattern(
             "lake_cloning",
-            OutputLineKind.DOWNLOAD_STARTED,
+            OutputLineKind.PROGRAM_RAN,
             r": cloning (?:(?:https?|ssh|git)://|git@)",
             printed_only_by=PrintingProgram.LAKE,
         ),
@@ -255,11 +284,18 @@ PROGRAM_OUTPUT_LINE_PATTERNS = OutputLinePatternTable(
             r"^[ \t]*Downloaded (?P<package_names_text>[\w.-]+)",
             printed_also_by=(PrintingProgram.UV, PrintingProgram.CODE),
         ),
+        # apt prints a Get line once the response headers of an item came, before its body, and may print `Err:` for the same item later.
         # A package's Get line ends with its name, architecture, version and size. An index's does not.
         _make_program_output_pattern(
             "apt_get",
-            OutputLineKind.DOWNLOADED,
+            OutputLineKind.DOWNLOAD_STARTED,
             rf"^Get:\d+ https?://{_HOST_NAME_TEXT}(?:\S* \S+ \S+ (?P<package_names_text>[\w.+-]+) (?:amd64|arm64|armhf|i386|all) \S+ \[)?",
+            printed_only_by=PrintingProgram.APT,
+        ),
+        # apt prints this after every item, only when bytes arrived and no error is pending.
+        _make_program_output_pattern(
+            "apt_fetched",
+            OutputLineKind.DOWNLOADED,
             r"^Fetched [\d.,]+ [kMG]?B in",
             printed_only_by=PrintingProgram.APT,
         ),
@@ -295,11 +331,14 @@ PROGRAM_OUTPUT_LINE_PATTERNS = OutputLinePatternTable(
             r"^Unpacking (?P<package_names_text>\S+) \(",
             printed_only_by=PrintingProgram.APT,
         ),
+        # npm prints the lines of its audit report also when it asked no server, e.g. `up to date, audited 1 package` for a tree of the root alone or under `--offline`.
+        # The report says `found 0 vulnerabilities`, or with findings e.g. `2 vulnerabilities (1 moderate, 1 high)` or `1 high severity vulnerability`.
         _make_program_output_pattern(
             "npm_audited",
-            OutputLineKind.SERVER_ANSWERED,
+            OutputLineKind.PROGRAM_RAN,
             r"\baudited \d+ packages?\b",
             r"found \d+ vulnerabilit",
+            r"^\d+ (?:\w+ severity )?vulnerabilit(?:y|ies)\b",
             printed_only_by=PrintingProgram.NPM,
         ),
         # npx prints this after it asked the registry for the package, and only when the package is missing.

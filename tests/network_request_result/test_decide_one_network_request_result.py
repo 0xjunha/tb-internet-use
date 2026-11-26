@@ -946,6 +946,11 @@ SENT_REQUEST_LINE_CASES = [
     (OutputLineKind.DOWNLOAD_STARTED, REACHED, NOT_VISIBLE, True),
     (OutputLineKind.DOWNLOADED, RECEIVED, None, True),
     (OutputLineKind.INSTALLED, EXECUTED, NOT_VISIBLE, False),
+    # A saved package file beside a download line shows the content, but may come from a cache, so it shows no request by itself.
+    (OutputLineKind.PACKAGE_FILE_IN_FOLDER, RECEIVED, None, False),
+    # A file new to the destination folder may come from a cache too, so it shows no request by itself.
+    (OutputLineKind.PACKAGE_FILE_ADDED_TO_FOLDER, RECEIVED, None, False),
+    (OutputLineKind.PROGRAM_RAN, EXECUTED, NOT_VISIBLE, False),
     # A bare `200` read as a status code, and `000`, which shows that no answer came.
     (OutputLineKind.BARE_STATUS_CODE, REACHED, NOT_VISIBLE, True),
     (OutputLineKind.BARE_STATUS_CODE, EXECUTED, FAILED, False),

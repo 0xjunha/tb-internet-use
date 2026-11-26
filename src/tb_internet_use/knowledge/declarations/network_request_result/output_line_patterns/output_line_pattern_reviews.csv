@@ -7,9 +7,9 @@ program_output,could_not_resolve_host,"not checked, from the old table",,
 program_output,name_resolution_failure,"not checked, from the old table",,
 program_output,tls_failure,"not checked, from the old table",,
 program_output,curl_failed_to_connect,"not checked, from the old table",,
-program_output,connection_failure,"not checked, from the old table",,
-program_output,connection_lost,"not checked, from the old table",,
-program_output,http_status_line,"not checked, from the old table",,
+program_output,connection_failure,"the 162 lines that the old regexes matched in 2000 random trials of the trajectories, read with the programs of their calls (terminal-bench 4.1, 2026-11-25)",,"14 of them came from strings, readelf or a script that dumps the strings of a binary, or from a log that rg showed, and no longer match. A label before the errno text, e.g. STR: of such a script, still matches"
+program_output,connection_lost,"the 64 lines that the old regexes matched in 2000 random trials of the trajectories, read with the programs of their calls (terminal-bench 4.1, 2026-11-25)",,"22 of them came from strings, objdump or a script that dumps the strings of a binary and no longer match"
+program_output,http_status_line,"the 2346 lines that the old regex matched in 2000 random trials of the trajectories, read with the programs of their calls (terminal-bench 4.1, 2026-11-25)",,"7 of them no longer match, 2 lines of source code that sed printed, 1 session log that rg showed, 3 responses that Python code printed as bytes, e.g. b'HTTP/1.1 200 OK\r\n', and 1 httpx log line whose start the harness cut, which the regex cannot tell from code"
 program_output,wget_http_status,"not checked, from the old table",,
 program_output,http_returned_error,"not checked, from the old table",,
 program_output,http_error_status,"not checked, from the old table",,
@@ -20,20 +20,23 @@ program_output,pip_already_satisfied,"not checked, from the old table",,
 program_output,uv_audited,"not checked, from the old table",,
 program_output,apt_already_newest,"not checked, from the old table",,
 program_output,playwright_downloaded,"not checked, from the old table",,
-program_output,pip_successfully_downloaded,"not checked, from the old table",,
+program_output,playwright_downloading,"playwright, packages/playwright-core/src/server/registry/browserFetcher.ts, logPolitely(`Downloading ${title}` + colors.dim(` from ${url}`)) in the retry loop before the download, as two agents of the review quoted it (github.com/microsoft/playwright, branch main, read 2026-11-23), and the 36 lines of the form in 2000 random trials of the trajectories, each with playwright in the title (terminal-bench 4.1, 2026-11-25)",,
+program_output,pip_saved,"pip source 25.3 (sdist), src/pip/_internal/operations/prepare.py: RequirementPreparer.save_linked_requirement, lines 667-691, runs shutil.copy and logger.info(""Saved %s"", download_path) only if not os.path.exists(download_location), and _check_download_dir, lines 195-210, logs ""File was already downloaded %s"" when the file is in the download folder; display_path in utils/misc.py gives an absolute path or one from ./; callers commands/download.py line 136 and commands/wheel.py line 150; req_install.py line 757 logs Saved for the .zip of a VCS or editable directory requirement. The same code in installed pip 23.2.1, 26.1.1 and 26.2.2 (read 2026-11-25). Endings: .whl and .tar.gz are the only endings after Saved and a path from / or ./ in all 21,450 trajectories (2,587 and 74 occurrences), of the archive endings of utils/filetypes.py, and the 210 lines that the pattern matches in 587 trials all sit in places that pip download reaches (terminal-bench 4.1, 2026-11-25)",,"Lines of other programs that start with Saved, e.g. of python, freecadcmd or curl scripts in the same 587 trials, end in no such path and file and are not matched"
+program_output,pip_successfully_downloaded,"pip, src/pip/_internal/commands/download.py, write_output(""Successfully downloaded %s"") for every requirement it saved, also one from the cache or already in the download folder (File was already downloaded in operations/prepare.py), as two agents of the review quoted it (github.com/pypa/pip, branch main, read 2026-11-23)",,
 program_output,pip_index_versions,"not checked, from the old table",,
 program_output,pip_downloading_metadata,"pip install results in the trajectories (terminal-bench 4.1, 2026-11-22), e.g. Downloading music21-10.5.2-py3-none-any.whl.metadata (6.5 kB)",,
-program_output,downloading,"not checked, from the old table",,
+program_output,downloading,"not checked, from the old table",,"playwright is not among the printing programs, since its Downloading line has a pattern of its own, playwright_downloading"
 program_output,lake_cloning,"Lake, Lake/Load/Materialize.lean, cloneGitPkg, logInfo s!""{name}: cloning {url}"" before repo.clone url, and Lake/Util/Log.lean, LogEntry.toString as s!""{self.level}: {self.message}"", Lean v4.20.0 (github.com/leanprover/lean4, tag v4.20.0, read 2026-11-22)",,"The master branch of Lake logs ""{name}: fetching revision '{rev}' from {url}"" instead of cloning, which no pattern reads yet"
 program_output,ivy_downloading,"Apache Ivy, src/java/org/apache/ivy/plugins/resolver/AbstractResolver.java, startArtifactDownload, Message.info(""downloading "" + rres.getResource() + "" ..."") for an artifact that is no metadata (github.com/apache/ant-ivy, branch master, read 2026-11-22)",,"The pattern also takes the line after [info] , the level that sbt writes before its info messages. sbt with coursier and without the super shell prints no such line, since its CoursierLogger logs downloaded URLs at debug level (github.com/sbt/sbt, main/src/main/scala/sbt/coursierint/LMCoursier.scala, branch 1.13.x, read 2026-11-22)"
 program_output,downloaded,"not checked, from the old table",,
-program_output,apt_get,"not checked, from the old table",,
+program_output,apt_get,"apt, apt-private/acqprogress.cc, AcqTextStatus::Fetch prints Get when an item starts to download, which the http method reports once the response headers came, and which may later be replaced by Hit, Ign or Err, as three agents of the review quoted it (github.com/Debian/apt, branch main, read 2026-11-23)",,
+program_output,apt_fetched,"apt, apt-private/acqprogress.cc, AcqTextStatus::Stop prints Fetched only when FetchedBytes != 0 and no error is pending, as three agents of the review quoted it (github.com/Debian/apt, branch main, read 2026-11-23)",,
 program_output,wget_saved,"not checked, from the old table",,
 program_output,pip_successfully_installed,"not checked, from the old table",,
 program_output,uv_installed,"not checked, from the old table",,
 program_output,npm_added,"not checked, from the old table",,
 program_output,apt_setting_up,"not checked, from the old table",,
-program_output,npm_audited,"not checked, from the old table",,
+program_output,npm_audited,"npm, lib/utils/reify-output.js, audited set whenever an audit report has no error, and workspaces/arborist/lib/audit-report.js, a report without an error and without a request when offline or when the tree holds only the root, as one agent of the review quoted it, and npm-audit-report, lib/reporters/install.js, the forms with findings, as two agents quoted it (github.com/npm/cli, branch latest, and github.com/npm/npm-audit-report, branch main, read 2026-11-23), and 12 lines of those forms in 2000 random trials of the trajectories (terminal-bench 4.1, 2026-11-25)",,
 program_output,npm_exec_package_not_found,"npm, workspaces/libnpmexec/lib/index.js, log.warn('exec', `The following package${add.length === 1 ? ' was' : 's were'} not found and will be installed: ...`) when no TTY or in CI, after pacote.manifest with preferOnline: true found the package missing from the local and npx trees (github.com/npm/cli, branch latest, read 2026-11-22)",,Outputs of the sample show the level as WARN too
 program_output,apt_hit,"not checked, from the old table",,
 program_output,bare_status_code,"not checked, from the old table",,

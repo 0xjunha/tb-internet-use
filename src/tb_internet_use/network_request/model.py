@@ -284,7 +284,7 @@ class NetworkRequestUncertaintyReason(StrEnum):
     PROGRAM_RUN_BY_CODE = "program_run_by_code"
     # A call in code has the name of a row that sends a request only at its end, also after an import of the code text gives its full name, or as a whole after the text binds its first part to a value and does not import it, so the text does not show that it is the function of the row, e.g. `self.page.goto(u)`, `GPT2TokenizerFast.from_pretrained(m)` after `from transformers import GPT2TokenizerFast` or `page.goto(u)` after `page = browser.new_page()`.
     CALL_NAME_MAY_BE_ANOTHER_FUNCTION = "call_name_may_be_another_function"
-    # The program fetches only what is missing, e.g. `npx tsc`. A line of its output that shows a download settles that it fetched, e.g. `info: mathlib: cloning https://github.com/x/y` of `lake build`, and nothing settles that it did not.
+    # The program fetches only what is missing, e.g. `npx tsc`. A line of its output that shows that the request was sent settles that it fetched, e.g. `npm warn exec The following package was not found and will be installed: tsc@2.0.4` of `npx tsc`, and nothing settles that it did not.
     FETCHES_ONLY_WHAT_IS_MISSING = "fetches_only_what_is_missing"
     # The words of the command may hold words of another command, since `parse_shell_text` left lines joined that tree-sitter-bash still read as one after three repairs and marked the command with `structure_may_be_wrong`, e.g. a next line `echo https://b.org` read as more words of `curl -s http://localhost:8000/x`. No added fact settles it.
     STRUCTURE_MAY_BE_WRONG = "structure_may_be_wrong"

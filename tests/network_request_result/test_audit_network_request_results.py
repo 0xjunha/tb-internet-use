@@ -203,6 +203,24 @@ def _result_of_step(steps: _Steps, step_id: int) -> NetworkRequestResult:
     return result
 
 
+def test_an_own_pip_line_of_a_file_of_the_target_new_to_the_folder_is_allowed_evidence_of_a_confirmed_received_result():
+    # Output cut by tail, so that only the `Saved` line of x and the line that lists x are shown.
+    steps = _steps(
+        (
+            _bash_call(
+                1,
+                "pip download x -d dl 2>&1 | tail -2",
+                "Saved ./dl/x-1.0-py3-none-any.whl\nSuccessfully downloaded x",
+            ),
+        )
+    )
+
+    trial_audit = _checked(steps)
+
+    assert _differing_equations(trial_audit) == set()
+    assert trial_audit.counts["all", "results received none confirmed"] == 1
+
+
 def test_every_equation_holds_on_a_made_up_trial():
     steps = _steps()
 
@@ -246,25 +264,25 @@ def test_every_equation_holds_on_a_made_up_trial():
 
 
 def test_counts_assumed_results_by_reason_and_finds_both_results_of_one_shared_line():
-    # `pip install C E` prints one download line of both packages, so both results rest on that line alone, and so do those of `pip install F G` on two lines and those of `pip install H I` on a line inside a JSON string. The four results of the made-up trial that rest on judgment rules, e.g. exit 0 of `sudo curl -s -o y https://f.org/b`, give the other reason.
+    # `apt-get install -y c e` prints one download line of both packages, so both results rest on that line alone, and so do those of `apt-get install -y f g` on two lines and those of `apt-get install -y h i` on a line inside a JSON string. The four results of the made-up trial that rest on judgment rules, e.g. exit 0 of `sudo curl -s -o y https://f.org/b`, give the other reason.
     trial_audit = _checked(
         _steps(
             (
                 *_MADE_UP_TRIAL,
                 _bash_call(
-                    16, "pip install C E", "Successfully downloaded C-1.0 E-2.0"
+                    16, "apt-get install -y c e", "Fetched 10 kB in 1s (10 kB/s)"
                 ),
                 # Two shared lines at the picked level, which count each result once.
                 _bash_call(
                     17,
-                    "pip install F G",
-                    "Successfully downloaded F-1.0 G-2.0\nSuccessfully downloaded F-1.0 G-2.0",
+                    "apt-get install -y f g",
+                    "Fetched 10 kB in 1s (10 kB/s)\nFetched 20 kB in 1s (20 kB/s)",
                 ),
                 # A shared line inside the output string of a JSON object, found by its index in that string.
                 _bash_call(
                     18,
-                    "pip install H I",
-                    'start\n{"output": "Collecting H\\nSuccessfully downloaded H-1.0 I-2.0"}',
+                    "apt-get install -y h i",
+                    'start\n{"output": "Reading package lists...\\nFetched 10 kB in 1s (10 kB/s)"}',
                 ),
             )
         )

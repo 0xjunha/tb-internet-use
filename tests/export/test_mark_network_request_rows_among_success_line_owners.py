@@ -456,7 +456,7 @@ def test_two_lines_counting_the_trial_for_one_category_and_sender_ask_the_rule_o
 def test_a_category_that_a_row_already_counts_in_the_lower_bound_of_received_marks_no_row(
     knowledge: ExportKnowledge,
 ):
-    # `apt-get install -y aaa bbb; ls` with an own `Get:1 ... bbb` line and a shared `Fetched 10 kB in`, made as two `pip install` requests that share `INSTALLED_LINE`. bbb is confirmed by its own line and counts the trial by itself, so the shared line raises nothing.
+    # `uv pip install aaa bbb; ls` with an own ` Downloaded bbb` line and a shared `Installed 2 packages in 5ms`, made as two `pip install` requests that share `INSTALLED_LINE`. bbb is confirmed by its own line and counts the trial by itself, so the shared line raises nothing.
     apt_install_aaa = _result(_pip_install("aaa", 0))
     apt_install_bbb = _result(
         _pip_install("bbb", 1),

@@ -49,7 +49,7 @@ The upper bound adds the trials that the trajectory cannot rule out.
 | 1 | Convert tool calls | Normalizes the tool calls of each harness into common types | `tool_call/` | `ToolCall` | 22 |
 | 2 | Expand tool calls | Links each call to the scripts it runs and to the later calls that show its output | `expanded_tool_call/` | `ExpandedToolCall` | 23 |
 | 3 | Extract network requests | Looks up each program and code call in the catalogs and reads its targets | `network_request/` | `NetworkRequest` | 7 |
-| 4 | Decide request results | Matches each request's output lines and exit code to known patterns | `network_request_result/` | `NetworkRequestResult` | 20 |
+| 4 | Decide request results | Matches each request's output lines and exit code to known patterns | `network_request_result/` | `NetworkRequestResult` | 22 |
 | 5 | Export rows | Flattens the results into table rows per request and per trial, with category and bounds | `export/` | `NetworkRequestRow`, `TrialRow`, `TrialCategoryMeasureRow` | 22 |
 
 ## Why tool calls are expanded

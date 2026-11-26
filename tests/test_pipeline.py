@@ -1154,3 +1154,64 @@ def test_a_shared_line_of_success_counts_the_trial_in_the_received_lower_bound_o
             else MeasureBound.UPPER_ONLY,
         )
     ]
+
+
+def test_apt_download_and_install_lines_that_the_update_and_the_install_own_count_the_trial_in_the_received_lower_bound(
+    tmp_path, write_trial_folder
+):
+    # `apt-get update` names no package, so it owns both lines of curl too, and only the two together show that the package arrived.
+    trial_dir = write_trial_folder(
+        tmp_path,
+        "trial-1",
+        [
+            (
+                "apt-get update && apt-get install -y curl",
+                "Get:1 http://deb.debian.org/debian bookworm/main amd64 curl amd64 7.88.1-10 [10 kB]\nSetting up curl (7.88.1-10) ...",
+            )
+        ],
+    )
+
+    (
+        (_, _, network_request_results, trial_row, network_request_rows, measure_rows),
+        _,
+        counters,
+    ) = _run_steps_of_trial_with_new_counters(trial_dir)
+
+    # Each request alone stays assumed and only in the upper bound of received.
+    assert [
+        (
+            result.network_request.target,
+            result.level,
+            result.level_certainty,
+            row.received_measure_bound,
+            row.is_among_success_line_owners_one_of_which_received,
+        )
+        for result, row in zip(
+            network_request_results, network_request_rows, strict=True
+        )
+    ] == [
+        (
+            target,
+            NetworkRequestResultLevel.RECEIVED,
+            NetworkRequestResultCertainty.ASSUMED,
+            MeasureBound.UPPER_ONLY,
+            True,
+        )
+        for target in (None, "curl")
+    ]
+    assert [(row.category, row.received_measure_bound) for row in measure_rows] == [
+        (NetworkRequestCategory.PACKAGE, MeasureBound.LOWER_AND_UPPER)
+    ]
+    assert trial_row.any_category_received_measure_bound == MeasureBound.LOWER_AND_UPPER
+    assert (
+        counters["network_request_result_judgment_rule_use_counts"][
+            network_request_result_judgment_rules.treat_apt_download_and_install_lines_shared_by_requests_of_several_commands_as_received.__name__
+        ]
+        == 2
+    )
+    assert (
+        counters["export_judgment_rule_use_counts"][
+            export_judgment_rules.treat_trial_with_success_line_shared_by_confirmed_requests_as_received.__name__
+        ]
+        == 1
+    )

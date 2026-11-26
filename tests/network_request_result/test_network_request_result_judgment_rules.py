@@ -7,6 +7,7 @@ import pytest
 
 from tb_internet_use.network_request_result.judgment_rules import (
     treat_already_present_line_without_matching_target_as_assumed_not_needed,
+    treat_apt_download_and_install_lines_shared_by_requests_of_several_commands_as_received,
     treat_command_without_own_evidence_as_no_evidence_of_run,
     treat_connected_line_as_assumed_server_answer,
     treat_exit_code_meaning_as_assumed_level,
@@ -19,6 +20,7 @@ from tb_internet_use.network_request_result.judgment_rules import (
     treat_line_that_unknown_printer_may_have_printed_as_shared,
     treat_lost_connection_as_after_server_answer,
     treat_pip_or_apt_installed_line_of_named_package_as_received,
+    treat_pip_saved_line_of_named_package_as_received,
     treat_shown_content_of_saved_file_as_assumed_content,
     treat_shown_result_text_as_assumed_content,
     treat_size_or_type_of_saved_file_as_no_evidence_of_content,
@@ -45,7 +47,13 @@ JUDGMENT_RULE_CASES: list[tuple[Callable[..., object], tuple[object, ...], objec
         True,
     ),
     (treat_pip_or_apt_installed_line_of_named_package_as_received, (), True),
+    (treat_pip_saved_line_of_named_package_as_received, (), True),
     (treat_installed_line_as_no_evidence_of_download, (), True),
+    (
+        treat_apt_download_and_install_lines_shared_by_requests_of_several_commands_as_received,
+        (),
+        True,
+    ),
     (treat_version_notice_line_as_no_evidence_of_answer, (), True),
     (treat_shown_result_text_as_assumed_content, (), True),
     (treat_size_or_type_of_saved_file_as_no_evidence_of_content, (), True),

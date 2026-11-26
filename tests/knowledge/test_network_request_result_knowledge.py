@@ -44,7 +44,7 @@ _UNKNOWN_MEANING = UnknownProgramExitCodeMeaning()
 # The printing programs of a pattern and whether other programs print its line too.
 _ANY = (frozenset[PrintingProgram](), True)
 _HEADERS = (frozenset({P.HTTP_HEADERS, P.GIT}), True)
-_DOWNLOADS = (frozenset({P.PIP, P.UV, P.PLAYWRIGHT, P.GIT, P.CODE}), True)
+_DOWNLOADS = (frozenset({P.PIP, P.UV, P.GIT, P.CODE}), True)
 
 
 def _only(program: PrintingProgram) -> tuple[frozenset[PrintingProgram], bool]:
@@ -283,7 +283,44 @@ EXAMPLE_LINES: list[
         {},
     ),
     (
+        "bash: connect: Connection refused",
+        "connection_failure",
+        K.CONNECTION_FAILED,
+        _ANY,
+        {},
+    ),
+    (
+        "ConnectionRefusedError: [Errno 111] Connection refused",
+        "connection_failure",
+        K.CONNECTION_FAILED,
+        _ANY,
+        {},
+    ),
+    # The repr of a Python error, e.g. in a list of errors that a script prints.
+    (
+        "errors: [ConnectionRefusedError(111, 'Connection refused')]",
+        "connection_failure",
+        K.CONNECTION_FAILED,
+        _ANY,
+        {},
+    ),
+    (
+        "curl: (28) Connection timed out after 5001 milliseconds",
+        "connection_failure",
+        K.CONNECTION_FAILED,
+        _ANY,
+        {},
+    ),
+    (
         "connect ECONNREFUSED 127.0.0.1:3000",
+        "connection_failure",
+        K.CONNECTION_FAILED,
+        _ANY,
+        {},
+    ),
+    # Node.js prints the error object after the error line.
+    (
+        "  code: 'ECONNREFUSED',",
         "connection_failure",
         K.CONNECTION_FAILED,
         _ANY,
@@ -346,6 +383,13 @@ EXAMPLE_LINES: list[
         {},
     ),
     (
+        "ssh_exchange_identification: read: Connection reset by peer",
+        "connection_lost",
+        K.CONNECTION_LOST,
+        _ANY,
+        {},
+    ),
+    (
         "ReadTimeoutError: Read timed out. (read timeout=15)",
         "connection_lost",
         K.CONNECTION_LOST,
@@ -372,6 +416,43 @@ EXAMPLE_LINES: list[
         K.HTTP_STATUS,
         _HEADERS,
         {"status_code": 200},
+    ),
+    # wget -S indents the line.
+    (
+        "  HTTP/1.1 302 Found",
+        "http_status_line",
+        K.HTTP_STATUS,
+        _HEADERS,
+        {"status_code": 302},
+    ),
+    (
+        "< HTTP/2 301",
+        "http_status_line",
+        K.HTTP_STATUS,
+        _HEADERS,
+        {"status_code": 301},
+    ),
+    # curl prints the next status line right after a body without a line end.
+    (
+        '{"status":"ok"}HTTP/1.1 201 Created',
+        "http_status_line",
+        K.HTTP_STATUS,
+        _HEADERS,
+        {"status_code": 201},
+    ),
+    (
+        '2025-01-01 00:00:00 [INFO] HTTP Request: GET https://a.org/x "HTTP/1.1 503 Service Unavailable"',
+        "http_status_line",
+        K.HTTP_STATUS,
+        _HEADERS,
+        {"status_code": 503},
+    ),
+    (
+        'RESULT 1: {"chunk_id":"a1","exit_code":0,"output":"HTTP/1.1 404 Not Found\\r\\n"}',
+        "http_status_line",
+        K.HTTP_STATUS,
+        _HEADERS,
+        {"status_code": 404},
     ),
     (
         "2025-01-01 00:00:00 ERROR 404: Not Found.",
@@ -471,14 +552,6 @@ EXAMPLE_LINES: list[
         _only(P.APT),
         {"package_names_text": "curl"},
     ),
-    # playwright prints this before the download, which can still fail.
-    (
-        "Downloading Chromium 131.0 (playwright build v1148)",
-        "downloading",
-        K.DOWNLOAD_STARTED,
-        _DOWNLOADS,
-        {"package_names_text": "Chromium"},
-    ),
     (
         "Chromium 131.0 (playwright build v1148) downloaded to /root/.cache",
         "playwright_downloaded",
@@ -486,10 +559,42 @@ EXAMPLE_LINES: list[
         _only(P.PLAYWRIGHT),
         {},
     ),
+    # playwright prints this before it connects, so the download can still fail.
+    (
+        "Downloading Chromium 131.0 (playwright build v1148) from https://cdn.playwright.dev/x.zip",
+        "playwright_downloading",
+        K.PROGRAM_RAN,
+        _only(P.PLAYWRIGHT),
+        {},
+    ),
+    # A line of the same form without playwright in it, e.g. of a script, is a download line of any program.
+    (
+        "Downloading model.bin from https://a.org/model.bin",
+        "downloading",
+        K.DOWNLOAD_STARTED,
+        _DOWNLOADS,
+        {"package_names_text": "model.bin"},
+    ),
+    # pip download prints this only for a file new to the destination folder, as a path from `/` or `./`.
+    (
+        "Saved ./dl/typing_extensions-4.12.2-py3-none-any.whl",
+        "pip_saved",
+        K.PACKAGE_FILE_ADDED_TO_FOLDER,
+        _only(P.PIP),
+        {"package_names_text": "typing_extensions-4.12.2-py3-none-any.whl"},
+    ),
+    (
+        "Saved /tmp/pkgs/PyYAML-6.0.1.tar.gz",
+        "pip_saved",
+        K.PACKAGE_FILE_ADDED_TO_FOLDER,
+        _only(P.PIP),
+        {"package_names_text": "PyYAML-6.0.1.tar.gz"},
+    ),
+    # pip download prints this also for a file from its cache.
     (
         "Successfully downloaded pyyaml-6.0",
         "pip_successfully_downloaded",
-        K.DOWNLOADED,
+        K.PACKAGE_FILE_IN_FOLDER,
         _only(P.PIP),
         {"package_names_text": "pyyaml-6.0"},
     ),
@@ -523,10 +628,11 @@ EXAMPLE_LINES: list[
         _DOWNLOADS,
         {"package_names_text": "requests-2.0.tar.gz"},
     ),
+    # lake prints this before the clone connects.
     (
         "info: mathlib: cloning https://github.com/leanprover-community/mathlib4",
         "lake_cloning",
-        K.DOWNLOAD_STARTED,
+        K.PROGRAM_RAN,
         _only(P.LAKE),
         {},
     ),
@@ -558,10 +664,11 @@ EXAMPLE_LINES: list[
         (frozenset({P.UV, P.CODE}), True),
         {"package_names_text": "serde"},
     ),
+    # apt prints a Get line before the body of the item arrives.
     (
         "Get:1 http://archive.ubuntu.com/ubuntu jammy/main amd64 x amd64 1.0 [10 kB]",
         "apt_get",
-        K.DOWNLOADED,
+        K.DOWNLOAD_STARTED,
         _only(P.APT),
         {"host_name_text": "archive.ubuntu.com", "package_names_text": "x"},
     ),
@@ -569,13 +676,13 @@ EXAMPLE_LINES: list[
     (
         "Get:2 http://deb.debian.org/debian bookworm InRelease [151 kB]",
         "apt_get",
-        K.DOWNLOADED,
+        K.DOWNLOAD_STARTED,
         _only(P.APT),
         {"host_name_text": "deb.debian.org"},
     ),
     (
         "Fetched 315 kB in 1s (300 kB/s)",
-        "apt_get",
+        "apt_fetched",
         K.DOWNLOADED,
         _only(P.APT),
         {},
@@ -629,17 +736,32 @@ EXAMPLE_LINES: list[
         _only(P.APT),
         {"package_names_text": "libcurl4:amd64"},
     ),
+    # npm prints these also when it asked no server, e.g. for a tree of the root alone.
     (
-        "audited 12 packages in 1s",
+        "up to date, audited 1 package in 120ms",
         "npm_audited",
-        K.SERVER_ANSWERED,
+        K.PROGRAM_RAN,
         _only(P.NPM),
         {},
     ),
     (
         "found 0 vulnerabilities",
         "npm_audited",
-        K.SERVER_ANSWERED,
+        K.PROGRAM_RAN,
+        _only(P.NPM),
+        {},
+    ),
+    (
+        "2 vulnerabilities (1 moderate, 1 high)",
+        "npm_audited",
+        K.PROGRAM_RAN,
+        _only(P.NPM),
+        {},
+    ),
+    (
+        "1 high severity vulnerability",
+        "npm_audited",
+        K.PROGRAM_RAN,
         _only(P.NPM),
         {},
     ),
@@ -691,10 +813,23 @@ LINES_WITHOUT_MEANING = [
     "x Requirement already satisfied: y",
     "x + y==1.0",
     "pip: command not found here",
+    # Lines that start with `Saved` but are no path of a package file, e.g. of a script, of `git stash` or a file name without a path.
+    "Saved model to x",
+    "Saved working directory and index state WIP on main: 1a2b3c4 fix",
+    "Saved results to out.whl",
     # A clone of a local folder sends no request.
     "info: mylib: cloning ../mylib",
     "echo downloading https://a.org/x ...",
     "npm warn exec ran tsc",
+    # Errno texts and names that `strings`, `readelf -p` or a script print from the string table of a binary.
+    "Connection refused",
+    "  [  16f2]  Network is unreachable",
+    "  9b709 Connection reset by peer",
+    "1234:ECONNRESET",
+    "'No route to host'",
+    "b'\\x00ETIMEDOUT\\x00ECONNREFUSED\\x00ELOOP'",
+    # A status line in a string of source code, e.g. printed by sed.
+    '        self.transport.write(b"HTTP/1.1 100 Continue\\r\\n\\r\\n")',
 ]
 
 
@@ -1005,13 +1140,15 @@ _OPTIONS_OF_THE_OLD_RULES = [
 ]
 # Printing programs that the output line patterns name but no program row gives, since a request of code asks `NetworkRequestResultKnowledge` with the run of its runner, e.g. python, and never as `CODE`.
 _PRINTING_PROGRAMS_NOT_GIVEN_BY_A_PROGRAM_ROW = {P.CODE}
+# Printing programs that program rows give but no output line pattern names, which is `UNNAMED_PROGRAM` of runs such as `pnpm install`.
+_PRINTING_PROGRAMS_NOT_NAMED_BY_A_PATTERN = {P.UNNAMED_PROGRAM}
 # (program, subcommand words, answer of `program_output_lines`, answer of `program_exit_code_meaning` for exit 0) of real program rows, with every subcommand of several words.
 # The answers were read from the two CSVs by hand, so that a changed cell or a row lost from either file fails.
 _ANSWERS_OF_REAL_PROGRAM_ROWS = [
     ("agent-browser", ("install",), _lines(P.PLAYWRIGHT), _UNKNOWN_MEANING),
     ("apt", ("install",), _lines(P.APT), M.NOTHING),
     ("apt-get", ("update",), _lines(P.APT), M.NOTHING),
-    ("bunx", (), _lines(P.NPM), M.NOTHING),
+    ("bunx", (), _lines(P.UNNAMED_PROGRAM), M.NOTHING),
     ("conda", ("install",), UnknownProgramOutputLines(), M.NOTHING),
     ("curl", (), _lines(P.CURL), M.SERVER_ANSWERED),
     ("getent", ("hosts",), _lines(), M.NOTHING),
@@ -1124,6 +1261,10 @@ def test_every_program_output_pattern_has_an_example_line():
             "connection_failure",
         ),
         ("Downloading x-1.0-py3-none-any.whl.metadata (6.5 kB)", "downloading"),
+        (
+            "Downloading Chromium 131.0 (playwright build v1148) from https://cdn.playwright.dev/x.zip",
+            "downloading",
+        ),
     ],
 )
 def test_line_that_two_patterns_match_is_one_that_a_later_pattern_matches_too(
@@ -1669,7 +1810,8 @@ def test_real_catalog_gives_the_printing_programs_that_the_output_line_patterns_
 
     assert (
         given_by_rows
-        == named_by_patterns - _PRINTING_PROGRAMS_NOT_GIVEN_BY_A_PROGRAM_ROW
+        == (named_by_patterns - _PRINTING_PROGRAMS_NOT_GIVEN_BY_A_PROGRAM_ROW)
+        | _PRINTING_PROGRAMS_NOT_NAMED_BY_A_PATTERN
     )
 
 

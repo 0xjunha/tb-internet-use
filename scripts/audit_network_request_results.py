@@ -121,7 +121,7 @@ EQUATIONS = (
     "not_run_requests_equal_not_run_failed_results",
     # Results whose level and stop reason are none of the eight rows of the result table, with `REACHED` without a stop reason in place of `RECEIVED` without one for a request that asks for no content, beside 0.
     "results_outside_the_result_table",
-    # Confirmed `RECEIVED` results without a `DOWNLOADED` line of their own, without a `DOWNLOAD_STARTED` or `INSTALLED` line of their own beside lines of both kinds, without an `INSTALLED` line of their own that only pip or only apt prints under a request of a named package, and without an `USES_CONTENT` file use that fits one written file beside 0.
+    # Confirmed `RECEIVED` results without a `DOWNLOADED` line of their own, without a `DOWNLOAD_STARTED`, `INSTALLED`, `PACKAGE_FILE_IN_FOLDER` or `PACKAGE_FILE_ADDED_TO_FOLDER` line of their own beside a `DOWNLOAD_STARTED` line and a line of one of the other three kinds, without an `INSTALLED` line of their own that only pip or only apt prints under a request of a named package, without a `PACKAGE_FILE_ADDED_TO_FOLDER` line of their own that only pip prints and whose file is of the package that the request names, and without an `USES_CONTENT` file use that fits one written file beside 0.
     "confirmed_received_results_without_own_download_install_or_content_use",
     # Confirmed `REACHED` results without a stop reason whose request asks for content, or that have neither a status line 100 to 399 of their own nor the status of a web fetch with one request, beside 0.
     "confirmed_reached_successes_without_own_status",
@@ -178,7 +178,7 @@ _REPORT_VIEW_BY_STOP_REASON = {
 }
 # The levels from the lowest, to rank the evidence of a result in `_strongest_evidence_of`.
 _LEVELS_IN_ORDER = (_ATTEMPTED, _EXECUTED, _REACHED, _RECEIVED)
-# The level and stop reason that a line of each kind shows, with the provisional choice of each judgment rule, read again here since a result keeps no level of its evidence. Lines of status codes, of content received, of a download beside an install and of an install by pip or apt of a named package are read in `_level_and_stop_reason_of_evidence`.
+# The level and stop reason that a line of each kind shows, with the provisional choice of each judgment rule, read again here since a result keeps no level of its evidence. Lines of status codes, of content received, of a download beside an install or a saved package file, of an install by pip or apt of a named package and of a package file of the named package that pip added to the destination folder are read in `_level_and_stop_reason_of_evidence`.
 _LEVEL_AND_STOP_REASON_BY_OUTPUT_LINE_KIND = {
     OutputLineKind.PROGRAM_MISSING: (_ATTEMPTED, _FAILED),
     OutputLineKind.NAME_NOT_RESOLVED: (_EXECUTED, _FAILED),
@@ -193,11 +193,18 @@ _LEVEL_AND_STOP_REASON_BY_OUTPUT_LINE_KIND = {
     OutputLineKind.SERVER_ANSWERED: (_REACHED, _NOT_VISIBLE),
     OutputLineKind.DOWNLOAD_STARTED: (_REACHED, _NOT_VISIBLE),
     OutputLineKind.INSTALLED: (_EXECUTED, _NOT_VISIBLE),
+    OutputLineKind.PACKAGE_FILE_IN_FOLDER: (_EXECUTED, _NOT_VISIBLE),
+    OutputLineKind.PACKAGE_FILE_ADDED_TO_FOLDER: (_EXECUTED, _NOT_VISIBLE),
+    OutputLineKind.PROGRAM_RAN: (_EXECUTED, _NOT_VISIBLE),
     OutputLineKind.VERSION_NOTICE: (_EXECUTED, _NOT_VISIBLE),
 }
-# The kinds of a download line of a package file and of an install line, which together show that the content arrived.
-_DOWNLOAD_AND_INSTALL_KINDS = frozenset(
-    {OutputLineKind.DOWNLOAD_STARTED, OutputLineKind.INSTALLED}
+# The kinds of an install line and of a line of a package file in the destination folder or added to it, any of which beside a `DOWNLOAD_STARTED` line shows that the content arrived.
+_INSTALLED_OR_SAVED_KINDS = frozenset(
+    {
+        OutputLineKind.INSTALLED,
+        OutputLineKind.PACKAGE_FILE_IN_FOLDER,
+        OutputLineKind.PACKAGE_FILE_ADDED_TO_FOLDER,
+    }
 )
 # The row of `judgment_rule_lower_bound_changes.csv` for an assumed success that no one rule keeps out of the lower bound, e.g. shown content beside a failure.
 _NO_SINGLE_RULE = "no single rule"
@@ -1064,17 +1071,19 @@ class TrialChecker:
     def _has_own_download_install_or_content_use(
         self, result: NetworkRequestResult
     ) -> bool:
-        shows_download_and_install = _shows_download_and_install(result)
+        shows_download_and_install_or_save = _shows_download_and_install_or_save(result)
         return any(
             isinstance(evidence, OutputLineEvidence)
             and not evidence.is_shared_with_other_requests
             and (
                 evidence.kind == OutputLineKind.DOWNLOADED
-                or shows_download_and_install
-                and evidence.kind in _DOWNLOAD_AND_INSTALL_KINDS
+                or shows_download_and_install_or_save
+                and evidence.kind
+                in {OutputLineKind.DOWNLOAD_STARTED, *_INSTALLED_OR_SAVED_KINDS}
                 or self._is_install_line_of_pip_or_apt_for_named_package(
                     result, evidence
                 )
+                or self._is_saved_line_of_pip_for_named_package(result, evidence)
             )
             or isinstance(evidence, FileUseEvidence)
             and evidence.file_use.kind == FileUseKind.USES_CONTENT
@@ -1102,6 +1111,38 @@ class TrialChecker:
             in (frozenset({PrintingProgram.PIP}), frozenset({PrintingProgram.APT}))
             and network_request.target_kind == NetworkRequestTargetKind.PACKAGE_NAME
             and isinstance(network_request.target, str)
+        )
+
+    def _is_saved_line_of_pip_for_named_package(
+        self, result: NetworkRequestResult, evidence: OutputLineEvidence
+    ) -> bool:
+        """Tell whether a line is a line that only pip prints of a package file added to the destination folder, as the own `NetworkRequestResultKnowledge` reads it, whose file is of the package that the request names, both read by `parse_package_names_text`, e.g. `Saved ./dl/x-1.0-py3-none-any.whl` under `pip download x -d dl`."""
+        output_line_meaning = self.output_line_meaning_by_place.get(
+            (
+                evidence.showing_tool_call_key,
+                evidence.line_index,
+                evidence.line_index_in_json_string,
+            )
+        )
+        network_request = result.network_request
+        if (
+            evidence.kind != OutputLineKind.PACKAGE_FILE_ADDED_TO_FOLDER
+            or output_line_meaning is None
+            or output_line_meaning.is_printed_by_other_programs_too
+            or output_line_meaning.printing_programs != frozenset({PrintingProgram.PIP})
+            or output_line_meaning.package_names_text is None
+            or network_request.target_kind != NetworkRequestTargetKind.PACKAGE_NAME
+            or not isinstance(network_request.target, str)
+        ):
+            return False
+        line_package_names = parse_package_names_text(
+            output_line_meaning.package_names_text
+        )
+        target_package_names = parse_package_names_text(network_request.target)
+        return (
+            not isinstance(line_package_names, UnreadablePackageNamesText)
+            and not isinstance(target_package_names, UnreadablePackageNamesText)
+            and not line_package_names.isdisjoint(target_package_names)
         )
 
     def _has_own_success_status(self, result: NetworkRequestResult) -> bool:
@@ -1336,12 +1377,16 @@ class TrialChecker:
         assert isinstance(evidence, OutputLineEvidence)
         if evidence.kind == OutputLineKind.DOWNLOADED:
             return success_level, None
-        # A download line of a package file beside an install line shows the success when the result took it, which this script cannot tell from the kinds alone when a line of the pair may belong to another command.
+        # A download line of a package file beside an install line or a line of a saved package file shows the success when the result took it, which this script cannot tell from the kinds alone when a line of the pair may belong to another command.
         if (
-            evidence.kind in _DOWNLOAD_AND_INSTALL_KINDS
+            evidence.kind
+            in {OutputLineKind.DOWNLOAD_STARTED, *_INSTALLED_OR_SAVED_KINDS}
             and (result.level, result.stop_reason) == (success_level, None)
-            and _shows_download_and_install(result)
-        ) or self._is_install_line_of_pip_or_apt_for_named_package(result, evidence):
+            and _shows_download_and_install_or_save(result)
+        ) or (
+            self._is_install_line_of_pip_or_apt_for_named_package(result, evidence)
+            or self._is_saved_line_of_pip_for_named_package(result, evidence)
+        ):
             return success_level, None
         return _LEVEL_AND_STOP_REASON_BY_OUTPUT_LINE_KIND[evidence.kind]
 
@@ -1680,13 +1725,16 @@ def _is_in_lower_bound(result: NetworkRequestResult) -> bool:
     )
 
 
-def _shows_download_and_install(result: NetworkRequestResult) -> bool:
-    """Tell whether the lines of a result hold both a download line of a package file and an install line, e.g. `Downloading x-1.0.whl` and `Successfully installed x-1.0`."""
-    return _DOWNLOAD_AND_INSTALL_KINDS <= {
+def _shows_download_and_install_or_save(result: NetworkRequestResult) -> bool:
+    """Tell whether the lines of a result hold both a download line of a package file and an install line or a line of a saved package file, e.g. `Downloading x-1.0.whl` and `Successfully installed x-1.0`."""
+    kinds = {
         evidence.kind
         for evidence in result.evidence
         if isinstance(evidence, OutputLineEvidence)
     }
+    return OutputLineKind.DOWNLOAD_STARTED in kinds and not kinds.isdisjoint(
+        _INSTALLED_OR_SAVED_KINDS
+    )
 
 
 def _is_evidence_shared(evidence: NetworkRequestResultEvidence) -> bool:

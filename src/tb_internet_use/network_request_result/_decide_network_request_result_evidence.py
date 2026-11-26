@@ -5,7 +5,7 @@ A request that saved what it received gets evidence from a later use of the file
 """
 
 from collections import Counter
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from typing import TYPE_CHECKING
 
 from tb_internet_use.expanded_tool_call.model import (
@@ -101,9 +101,13 @@ _FAILURE_BEFORE_SERVER_KINDS = frozenset(
 _SERVER_ANSWER_KINDS = frozenset(
     {OutputLineKind.SERVER_ANSWERED, OutputLineKind.DOWNLOAD_STARTED}
 )
-# The kinds of a download line of a package file and of a line of a finished install, which together show that the content arrived.
-_DOWNLOAD_AND_INSTALL_KINDS = frozenset(
-    {OutputLineKind.DOWNLOAD_STARTED, OutputLineKind.INSTALLED}
+# The kinds of a line of a finished install and of a package file in the destination folder or added to it, any of which beside a `DOWNLOAD_STARTED` line shows that the content arrived.
+_INSTALLED_OR_SAVED_KINDS = frozenset(
+    {
+        OutputLineKind.INSTALLED,
+        OutputLineKind.PACKAGE_FILE_IN_FOLDER,
+        OutputLineKind.PACKAGE_FILE_ADDED_TO_FOLDER,
+    }
 )
 # The status code that curl prints for `%{http_code}` when no answer came, as curl(1) says of `-w`.
 _NO_ANSWER_STATUS_CODE = 0
@@ -198,7 +202,7 @@ def _output_line_evidence_of(
     The line may belong to another request when it has several owners, unless it shows only that their one command ran or that its program is missing, and, whether or not it has several owners, when the request's run has no known lines, e.g. `HTTP/1.1 200 OK` under `mytool https://a.org/x`, or when any program prints it and a run that is not read reaches its place, e.g. `Connection refused` under `curl -s u; ./test.sh`.
     The last two ask `treat_line_that_unknown_printer_may_have_printed_as_shared`. A line that only named programs print, one of them a printing program of the run, stays the request's own beside a run that is not read, e.g. `npm ERR! code E404` under `npx tsc`.
     A line in a place that may show file content or page text asks `treat_line_beside_shown_file_or_page_text_as_not_a_trace`.
-    A download line of a package file beside a line of a finished install shows that the content arrived, e.g. `Downloading x-1.0.whl (125 kB)` and `Successfully installed x-1.0`, as `_download_and_install_line_indexes_of` finds them, so those lines show RECEIVED, or REACHED for a request that asks for no content, before any rule is asked of their level. Such a line that the other requests of the command own too stays shared.
+    A download line of a package file beside a line of a finished install or of a saved package file shows that the content arrived, e.g. `Downloading x-1.0.whl (125 kB)` and `Successfully installed x-1.0`, as `_download_and_install_or_save_line_indexes_of` finds them, so those lines show RECEIVED, or REACHED for a request that asks for no content, before any rule is asked of their level. Such a line that other requests own too stays shared, those of its command as well as those of other commands, e.g. `Setting up curl (7.88)` under `apt-get update && apt-get install -y curl`.
     """
     owned_output_line_owners = [
         output_line_owners_of_line
@@ -232,10 +236,13 @@ def _output_line_evidence_of(
             owned_output_line_owners, places, strict=True
         )
     ]
-    download_and_install_line_indexes = _download_and_install_line_indexes_of(
-        owned_output_line_owners,
-        is_beside_shown_text_of_lines,
-        unknown_printer_reasons_of_lines,
+    download_and_install_or_save_line_indexes = (
+        _download_and_install_or_save_line_indexes_of(
+            owned_output_line_owners,
+            is_beside_shown_text_of_lines,
+            unknown_printer_reasons_of_lines,
+            judgment_rule_use_counts=judgment_rule_use_counts,
+        )
     )
     output_line_evidence: list[EvidenceWithLevel] = []
     for owned_line_index, (
@@ -253,7 +260,7 @@ def _output_line_evidence_of(
         owner_network_requests = output_line_owners_of_line.owner_network_requests
         output_line_with_meaning = output_line_owners_of_line.output_line_with_meaning
         output_line_meaning = output_line_with_meaning.output_line_meaning
-        if owned_line_index in download_and_install_line_indexes:
+        if owned_line_index in download_and_install_or_save_line_indexes:
             level, stop_reason, rests_on_judgment_rule = (
                 _success_level_of(network_request),
                 None,
@@ -349,7 +356,7 @@ def _unknown_printer_reasons_of(
     return ()
 
 
-def _download_and_install_line_indexes_of(
+def _download_and_install_or_save_line_indexes_of(
     owned_output_line_owners: Sequence[OutputLineOwners],
     is_beside_shown_text_of_lines: Sequence[bool],
     unknown_printer_reasons_of_lines: Sequence[
@@ -359,40 +366,80 @@ def _download_and_install_line_indexes_of(
             ...,
         ]
     ],
+    *,
+    judgment_rule_use_counts: Counter[str],
 ) -> frozenset[int]:
-    """Find the 0-based indexes among the lines that a request owns of its download lines of a package file and its lines of a finished install, when it has both, and none otherwise.
+    """Find the 0-based indexes among the lines that a request owns of its download lines of a package file and its lines of a finished install or of a saved package file, when they make a pair of a download line and one of the others, and none otherwise.
 
-    The pair shows that the command received content, e.g. `Downloading x-1.0.whl (125 kB)` and `Successfully installed x-1.0` under `pip install x`, or `Downloading pandas (10.8MiB)` and ` + pandas==3.0.5` under `uv pip install pandas`, whether or not the lines name the target of the request.
-    A line counts only when no other command's request owns it, no run whose lines are not known may have printed it and its place may show no file content or page text, so that a pair that holds only through a line of another request keeps the reading of each line.
+    The pair shows that the command that printed both received content, e.g. `Downloading x-1.0.whl (125 kB)` and `Successfully installed x-1.0` under `pip install x`, `Downloading pandas (10.8MiB)` and ` + pandas==3.0.5` under `uv pip install pandas`, `Get:1 http://deb.debian.org/debian bookworm/main amd64 curl amd64 7.88 [10 kB]` and `Setting up curl (7.88)` under `apt-get install -y curl`, or `Downloading x-1.0.whl (125 kB)` and `Successfully downloaded x` under `pip download x`, whether or not the lines name the target of the request.
+    The lines that the request owns alone or with other requests of its command make a pair among themselves, since that command printed them.
+    The lines that requests of other commands own too may come from two commands, so they make a pair of their own only when only apt prints them and `treat_apt_download_and_install_lines_shared_by_requests_of_several_commands_as_received` says so, e.g. both lines under `apt-get update && apt-get install -y curl`. Each of these lines then stays evidence that other requests share.
+    Of those, a line that names a package other than every one its owners name is left out, e.g. `Setting up libfoo (1.0)` of a dependency, since every apt request whose output reaches its place owns it, also one whose package was already there, e.g. `apt-get install -y x` under `x is already the newest version`.
+    A pair never joins a line that the request owns alone or with its command to a line that requests of other commands own too, so the first keeps the reading of its kind, e.g. `Downloading a-1.0.whl (10 kB)` of `pip install a` beside `Successfully installed a-1.0 b-2.0` under `pip install a; pip install b`.
+    No line counts that a run whose lines are not known may have printed or whose place may show file content or page text.
     """
-    kinds_by_line_index = {
-        owned_line_index: output_line_owners_of_line.output_line_with_meaning.output_line_meaning.kind
-        for owned_line_index, (
-            output_line_owners_of_line,
-            is_beside_shown_text,
-            unknown_printer_reasons,
-        ) in enumerate(
-            zip(
-                owned_output_line_owners,
-                is_beside_shown_text_of_lines,
-                unknown_printer_reasons_of_lines,
-                strict=True,
-            )
+    kinds_by_line_index_of_one_command: dict[int, OutputLineKind] = {}
+    kinds_by_apt_line_index_of_several_commands: dict[int, OutputLineKind] = {}
+    for owned_line_index, (
+        output_line_owners_of_line,
+        is_beside_shown_text,
+        unknown_printer_reasons,
+    ) in enumerate(
+        zip(
+            owned_output_line_owners,
+            is_beside_shown_text_of_lines,
+            unknown_printer_reasons_of_lines,
+            strict=True,
         )
-        if output_line_owners_of_line.output_line_with_meaning.output_line_meaning.kind
-        in _DOWNLOAD_AND_INSTALL_KINDS
-        and not is_beside_shown_text
-        and not unknown_printer_reasons
-        and (
-            len(output_line_owners_of_line.owner_network_requests) == 1
-            or _are_requests_of_one_command(
-                output_line_owners_of_line.owner_network_requests
-            )
+    ):
+        output_line_meaning = (
+            output_line_owners_of_line.output_line_with_meaning.output_line_meaning
         )
-    }
-    if not _DOWNLOAD_AND_INSTALL_KINDS <= set(kinds_by_line_index.values()):
-        return frozenset()
-    return frozenset(kinds_by_line_index)
+        if (
+            output_line_meaning.kind
+            not in {OutputLineKind.DOWNLOAD_STARTED, *_INSTALLED_OR_SAVED_KINDS}
+            or is_beside_shown_text
+            or unknown_printer_reasons
+        ):
+            continue
+        owner_network_requests = output_line_owners_of_line.owner_network_requests
+        if len(owner_network_requests) == 1 or _are_requests_of_one_command(
+            owner_network_requests
+        ):
+            kinds_by_line_index_of_one_command[owned_line_index] = (
+                output_line_meaning.kind
+            )
+        elif (
+            _is_line_of_program_alone(output_line_meaning, PrintingProgram.APT)
+            and not output_line_owners_of_line.names_another_target
+        ):
+            kinds_by_apt_line_index_of_several_commands[owned_line_index] = (
+                output_line_meaning.kind
+            )
+    line_indexes: set[int] = set()
+    if _has_download_and_install_or_save_kinds(
+        kinds_by_line_index_of_one_command.values()
+    ):
+        line_indexes.update(kinds_by_line_index_of_one_command)
+    if (
+        _has_download_and_install_or_save_kinds(
+            kinds_by_apt_line_index_of_several_commands.values()
+        )
+        and judgment_rules.treat_apt_download_and_install_lines_shared_by_requests_of_several_commands_as_received(
+            use_counts=judgment_rule_use_counts
+        )
+    ):
+        line_indexes.update(kinds_by_apt_line_index_of_several_commands)
+    return frozenset(line_indexes)
+
+
+def _has_download_and_install_or_save_kinds(
+    output_line_kinds: Collection[OutputLineKind],
+) -> bool:
+    """Tell whether the kinds of some lines hold a download line of a package file and a line of a finished install or of a saved package file, e.g. `DOWNLOAD_STARTED` and `INSTALLED`."""
+    return OutputLineKind.DOWNLOAD_STARTED in output_line_kinds and not (
+        _INSTALLED_OR_SAVED_KINDS.isdisjoint(output_line_kinds)
+    )
 
 
 def _evidence_assumption_reasons_from(
@@ -419,7 +466,9 @@ def _level_and_stop_reason_from_output_line(
 
     A line that names another target than the request asks `treat_line_naming_another_target_as_no_evidence_of_answer` first, e.g. `Downloading B-1.0.whl` under `pip install A`.
     A line other than one of a missing program shows at least that the program ran, so EXECUTED with NOT_VISIBLE never rests on a rule, also when a rule chose it.
+    A line that the program prints also when no server answered shows only that, e.g. npm `audited 12 packages in 1s`, and so does a line of a saved package file without a download line beside it, e.g. `Successfully downloaded x` under `pip download x`, since the file may come from a cache.
     An install line of pip or apt under a request of a named package asks `treat_pip_or_apt_installed_line_of_named_package_as_received`, whose level rests on no rule, and any other install line asks `treat_installed_line_as_no_evidence_of_download`.
+    A line of pip that a package file was added to the destination folder asks `treat_pip_saved_line_of_named_package_as_received` when its file is of the package that the request names, e.g. `Saved ./dl/x-1.0-py3-none-any.whl` under `pip download x -d dl`, and its level rests on no rule. Such a line of another package shows only that the program ran.
     """
     output_line_meaning = (
         output_line_owners.output_line_with_meaning.output_line_meaning
@@ -489,6 +538,25 @@ def _level_and_stop_reason_from_output_line(
         level_and_stop_reason = _EXECUTED, _FAILED
     elif kind == OutputLineKind.DOWNLOADED:
         level_and_stop_reason = _success_level_of(network_request), None
+    elif kind == OutputLineKind.PACKAGE_FILE_ADDED_TO_FOLDER and (
+        _is_line_of_program_alone(output_line_meaning, PrintingProgram.PIP)
+        and _is_target_named_by_package_names_text(
+            output_line_meaning.package_names_text, network_request
+        )
+    ):
+        level_and_stop_reason = (
+            (_success_level_of(network_request), None)
+            if judgment_rules.treat_pip_saved_line_of_named_package_as_received(
+                use_counts=judgment_rule_use_counts
+            )
+            else (_EXECUTED, _NOT_VISIBLE)
+        )
+    elif kind in (
+        OutputLineKind.PROGRAM_RAN,
+        OutputLineKind.PACKAGE_FILE_IN_FOLDER,
+        OutputLineKind.PACKAGE_FILE_ADDED_TO_FOLDER,
+    ):
+        level_and_stop_reason = _EXECUTED, _NOT_VISIBLE
     elif kind in (OutputLineKind.HTTP_STATUS, OutputLineKind.BARE_STATUS_CODE):
         status_code = output_line_meaning.status_code
         level_and_stop_reason_of_status_code = (
@@ -1279,9 +1347,18 @@ def _has_package_name_target(network_request: NetworkRequest) -> bool:
 
 def _is_line_of_pip_or_apt_alone(output_line_meaning: OutputLineMeaning) -> bool:
     """Tell whether only pip or only apt prints a line, e.g. `Successfully installed x-1.0` or `Setting up curl (7.88)`, as its pattern says."""
-    return not output_line_meaning.is_printed_by_other_programs_too and (
-        output_line_meaning.printing_programs
-        in (frozenset({PrintingProgram.PIP}), frozenset({PrintingProgram.APT}))
+    return _is_line_of_program_alone(
+        output_line_meaning, PrintingProgram.PIP
+    ) or _is_line_of_program_alone(output_line_meaning, PrintingProgram.APT)
+
+
+def _is_line_of_program_alone(
+    output_line_meaning: OutputLineMeaning, printing_program: PrintingProgram
+) -> bool:
+    """Tell whether only one printing program prints a line, as its pattern says, e.g. apt for `Get:1 http://deb.debian.org/debian bookworm InRelease [151 kB]`."""
+    return (
+        not output_line_meaning.is_printed_by_other_programs_too
+        and output_line_meaning.printing_programs == frozenset({printing_program})
     )
 
 

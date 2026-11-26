@@ -577,6 +577,29 @@ def test_a_line_that_any_program_prints_has_no_owner_whose_run_the_knowledge_cla
     assert owner_targets_of(decided) == [("https://b.org/y",)]
 
 
+def test_a_run_that_no_pattern_names_owns_only_lines_that_any_program_prints():
+    # `npm install a; pnpm install b` with `npm ERR! code E404`, which only npm prints, and `connect ECONNREFUSED 127.0.0.1:4873`, which any program prints. The row of `pnpm install` gives `UNNAMED_PROGRAM`.
+    npm = command(0, "npm install a", program("npm", "install"))
+    pnpm = command(1, "pnpm install b", program("pnpm", "install"))
+    decided = decide(
+        [place(K1, (K1, (0, 1)))],
+        lines(K1, "npm ERR! code E404\nconnect ECONNREFUSED 127.0.0.1:4873"),
+        [call(K1, npm, pnpm)],
+        [
+            request(K1, from_command(npm), "a", target_kind=PACKAGE_NAME),
+            request(
+                K1,
+                from_command(pnpm),
+                "b",
+                target_kind=PACKAGE_NAME,
+                index_in_tool_call=1,
+            ),
+        ],
+    )
+
+    assert owner_targets_of(decided) == [("a",), ("a", "b")]
+
+
 def test_a_bare_number_is_owned_only_by_a_run_that_prints_a_status_code():
     # `curl -w '%{http_code}' u` prints `200`. `curl u` and `./setup.sh` beside it do not, so their `404` is counted as not printed by the run.
     curl_w = command(
@@ -836,7 +859,7 @@ def test_a_line_without_an_owner_is_counted_first_as_no_place_then_as_file_conte
         ],
         lines(K1, "Downloading torch-2.3.0")
         + lines(K2, "Downloading x")
-        + lines(K3, "Connection refused")
+        + lines(K3, "connect: Connection refused")
         + lines(key_of(4), "error: externally-managed-environment"),
         [call(K1, cat), call(K2, *cat_and_setup), call(K3, setup), call(key_of(4))],
         [],
@@ -870,7 +893,7 @@ def test_a_request_still_owns_its_line_in_a_place_that_may_show_file_content():
 def test_code_typed_through_a_poll_owns_lines_of_the_typing_call_and_of_later_places_of_the_starter(
     monkeypatch,
 ):
-    # Call 1 starts `python3`, call 2 types `requests.get(u)` into it, call 3 polls it and call 4 runs `ls`. Each result shows `Connection refused`.
+    # Call 1 starts `python3`, call 2 types `requests.get(u)` into it, call 3 polls it and call 4 runs `ls`. Each result shows `connect: Connection refused`.
     # The typed text is code only on the other answer of the rule on the reader of typed text, which takes `python3` as its reader.
     monkeypatch.setattr(
         _expand_ran_texts,
@@ -879,7 +902,7 @@ def test_code_typed_through_a_poll_owns_lines_of_the_typing_call_and_of_later_pl
     )
     handle = ExecutionHandle(ExecutionHandleKind.COMMAND, "s")
     running = ToolCallResult(
-        tool_output_text="Connection refused",
+        tool_output_text="connect: Connection refused",
         execution_status=ExecutionStatus.RUNNING,
         handles=(handle,),
     )
@@ -900,7 +923,7 @@ def test_code_typed_through_a_poll_owns_lines_of_the_typing_call_and_of_later_pl
                     key_of(4),
                     shell_text_action("ls"),
                     ToolCallResult(
-                        tool_output_text="Connection refused",
+                        tool_output_text="connect: Connection refused",
                         execution_status=ExecutionStatus.FINISHED,
                         exit_code=0,
                     ),
@@ -914,10 +937,10 @@ def test_code_typed_through_a_poll_owns_lines_of_the_typing_call_and_of_later_pl
     assert isinstance(typed_code, RanCodeText)
     decided = decide(
         list(decide_output_place_sources(expanded_tool_calls)),
-        lines(K1, "Connection refused")
-        + lines(K2, "Connection refused")
-        + lines(K3, "Connection refused")
-        + lines(key_of(4), "Connection refused"),
+        lines(K1, "connect: Connection refused")
+        + lines(K2, "connect: Connection refused")
+        + lines(K3, "connect: Connection refused")
+        + lines(key_of(4), "connect: Connection refused"),
         expanded_tool_calls,
         [
             request(
@@ -937,13 +960,13 @@ def test_code_typed_through_a_poll_owns_lines_of_the_typing_call_and_of_later_pl
 
 
 def test_a_request_in_code_reaches_a_place_through_the_command_that_ran_the_code_and_prints_what_its_last_program_prints():
-    # `python get.py; python put.py > /dev/null`, each with a request in its code, and `Connection refused`. `sudo uv run get.py`, whose last program `uv run` prints lines of uv and none of npm, while sudo has no row.
+    # `python get.py; python put.py > /dev/null`, each with a request in its code, and `connect: Connection refused`. `sudo uv run get.py`, whose last program `uv run` prints lines of uv and none of npm, while sudo has no row.
     get = command(0, "python get.py", program("python"))
     put = command(1, "python put.py", program("python"))
     uv_run = command(0, "sudo uv run get.py", program("sudo"), program("uv", "run"))
     decided = decide(
         [place(K1, (K1, (0,))), place(K2, (K2, (0,)))],
-        lines(K1, "Connection refused")
+        lines(K1, "connect: Connection refused")
         + lines(K2, "Audited 1 package\nnpm ERR! code E404"),
         [call(K1, get, put), call(K2, uv_run)],
         [
@@ -974,7 +997,7 @@ def test_a_web_tool_request_owns_the_lines_of_its_own_result_only():
             place(K3, is_web_tool_result=True),
         ],
         lines(K1, "Please verify you are not a robot", is_web_tool_result=True)
-        + lines(K2, "Connection refused")
+        + lines(K2, "connect: Connection refused")
         + lines(K3, "Please verify you are not a robot", is_web_tool_result=True),
         [
             call(K1, action=web_fetch),
@@ -1008,7 +1031,7 @@ def test_the_knowledge_class_is_asked_only_about_runs_whose_rows_answer_whether_
     decide_output_line_owners(
         [place(K1, (K1, (0,))), place(K2, (K2, (0,))), place(K3, (K3, (0,)))],
         lines(K1, "Successfully installed A-1.0")
-        + lines(K2, "Connection refused")
+        + lines(K2, "connect: Connection refused")
         + lines(K3, "Successfully installed A-1.0"),
         [call(K1, pip), call(K2, curl), call(K3, curl_unread)],
         [

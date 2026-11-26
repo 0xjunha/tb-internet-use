@@ -152,7 +152,7 @@ def test_lines_of_a_codex_step_result_keep_the_line_and_the_index_in_its_output_
         # Both parts fit a pattern, and the last part is what a terminal shows.
         pytest.param(
             "Downloading x 10%\rSuccessfully downloaded x",
-            K.DOWNLOADED,
+            K.PACKAGE_FILE_IN_FOLDER,
             "pip_successfully_downloaded",
             id="progress drawn over by the last part",
         ),

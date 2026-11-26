@@ -358,18 +358,28 @@ class OutputLineKind(StrEnum):
     REFUSED_LOCALLY = "refused_locally"
     # pip's notice of a newer pip.
     VERSION_NOTICE = "version_notice"
-    # A download of a file began, e.g. pip `Downloading x.whl`, which beside an `INSTALLED` line shows that the content arrived.
+    # A download of a file began, e.g. pip `Downloading x.whl` or apt `Get:1`, which beside an `INSTALLED`, `PACKAGE_FILE_IN_FOLDER` or `PACKAGE_FILE_ADDED_TO_FOLDER` line shows that the content arrived.
     DOWNLOAD_STARTED = "download_started"
-    # Content arrived, e.g. wget `saved` or apt `Get:1`.
+    # Content arrived, e.g. wget `saved` or apt `Fetched 315 kB in 1s`.
     DOWNLOADED = "downloaded"
     # A package was installed, e.g. pip `Successfully installed`, which may come from a cache when no `DOWNLOAD_STARTED` line is beside it.
     INSTALLED = "installed"
+    # A package file is in the destination folder, put there by this run or found there, e.g. pip `Successfully downloaded x`, which may come from a cache or the destination folder when no `DOWNLOAD_STARTED` line is beside it.
+    PACKAGE_FILE_IN_FOLDER = "package_file_in_folder"
+    # A package file that was not in the destination folder was copied there by this run, from the index or from a cache, e.g. pip `Saved ./dl/x-1.0-py3-none-any.whl`.
+    PACKAGE_FILE_ADDED_TO_FOLDER = "package_file_added_to_folder"
+    # A line that the program prints also when no server answered, e.g. npm `audited 12 packages in 1s`, so it shows only that the program ran.
+    PROGRAM_RAN = "program_ran"
     # A line of only a 3-digit number, which is a status code only if e.g. `curl -w "%{http_code}"` printed it.
     BARE_STATUS_CODE = "bare_status_code"
 
 
 class PrintingProgram(StrEnum):
-    """Name that an output line pattern gives to what prints its line, compared with what the run of a request can print to tell whether the line can be its own."""
+    """Name that an output line pattern gives to what prints its line, compared with what the run of a request can print to tell whether the line can be its own.
+
+    `UNNAMED_PROGRAM` is for a run that prints only lines that any program prints, e.g. `connect ECONNREFUSED 127.0.0.1:4873` of `pnpm install`.
+    No pattern names it, so the run owns none of the lines that only some programs print, e.g. `npm ERR! code E404` under `npm install a; pnpm install b`, while a run without printing programs owns no line at all.
+    """
 
     PIP = "pip"
     PIP_INDEX = "pip_index"  # pip run as `pip index versions`
@@ -385,6 +395,7 @@ class PrintingProgram(StrEnum):
     CODE = "code"  # Python or JavaScript code
     LAKE = "lake"  # the build tool of Lean
     IVY = "ivy"  # Apache Ivy, which sbt runs to fetch what a build lacks
+    UNNAMED_PROGRAM = "unnamed_program"  # a program that no pattern names, e.g. pnpm
 
 
 @dataclass(frozen=True, slots=True)

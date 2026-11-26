@@ -61,7 +61,7 @@ def treat_pip_or_apt_installed_line_of_named_package_as_received(
     The same count for `apt-get install` found a `Get:` line of a package beside `Setting up` in 132 calls, and none without it in a result that the harness did not cut, while 27 results were cut.
     A local install prints the line without a download, e.g. `pip install -e /app` in 4 calls, so the rule holds only for a request whose target is a named package.
     `_level_and_stop_reason_from_output_line` asks it for each line of the kind INSTALLED that only pip or only apt prints and that a request owns, when the request's target is a named package, unless `treat_line_naming_another_target_as_no_evidence_of_answer` has taken the line.
-    A line beside a download line of a package file that the request owns never asks it, since the two show that the content arrived, so it decides only a line without such a download line, e.g. under `pip install x | tail -1`.
+    A line that makes a pair with a download line of a package file, as `_download_and_install_or_save_line_indexes_of` finds it, never asks it, since the two show that the content arrived, so it decides only a line without such a download line, e.g. under `pip install x | tail -1`.
     On `True` the line shows RECEIVED with no stop reason, or REACHED for a request that asks for no content, and the level does not rest on this rule. On `False` it shows only that the program ran, EXECUTED with NOT_VISIBLE.
     A use is such a line of a request.
 
@@ -73,6 +73,25 @@ def treat_pip_or_apt_installed_line_of_named_package_as_received(
     return True
 
 
+def treat_pip_saved_line_of_named_package_as_received(
+    *, use_counts: Counter[str]
+) -> bool:
+    """Read a pip line that a package file was added to the destination folder as showing that the content arrived when the file is of the package that the request names, e.g. `Saved ./dl/x-1.0-py3-none-any.whl` under `pip download x -d dl 2>&1 | tail -2`.
+
+    pip prints `Saved` only when it copies a file that was not yet in the destination folder, and `File was already downloaded` when the file was there, so the line shows a file that this run took from the index or from pip's cache, which the trajectory does not tell apart.
+    That is as much as `Successfully installed x-1.0` shows, which `treat_pip_or_apt_installed_line_of_named_package_as_received` reads as received.
+    `_level_and_stop_reason_from_output_line` asks it for each line of the kind PACKAGE_FILE_ADDED_TO_FOLDER that only pip prints and that a request owns, when the file is of the package that the request names, as `parse_package_names_text` spells both, e.g. `typing_extensions-4.12.2-py3-none-any.whl` for `pip download typing-extensions`. A line of another package, e.g. a dependency, shows only that the program ran.
+    A line that `treat_line_naming_another_target_as_no_evidence_of_answer` has taken, or that makes a pair with a download line of a package file, as `_download_and_install_or_save_line_indexes_of` finds it, does not ask it.
+    On `True` the line shows RECEIVED with no stop reason, or REACHED for a request that asks for no content, and the level does not rest on this rule. On `False` it shows only that the program ran, EXECUTED with NOT_VISIBLE.
+    A use is such a line of a request.
+
+    Decided. The user decided on 2026-11-25, from a check of the 212 request rows in 151 trials of Terminal-Bench 4.1 that left the lower bound of received when `Successfully downloaded x` became a line that shows only the run. 210 of them had their output cut before it was shown, mostly by a pipe in the command, e.g. `pip download x -d dl 2>&1 | tail -5`, and 199 show no `Downloading` line of their package, while 145 rows in 120 trials show the `Saved` line of their package. `Successfully downloaded x` alone still shows only the run, since pip prints it also for a file that was already in the folder.
+    It is a rule apart from `treat_pip_or_apt_installed_line_of_named_package_as_received`, since it reads another line on other evidence and asks that the line name the package of the request itself.
+    """
+    use_counts[treat_pip_saved_line_of_named_package_as_received.__name__] += 1
+    return True
+
+
 def treat_installed_line_as_no_evidence_of_download(
     *, use_counts: Counter[str]
 ) -> bool:
@@ -80,13 +99,33 @@ def treat_installed_line_as_no_evidence_of_download(
 
     The program may have installed the package from its cache or from a local folder, so the line does not say whether the content came over the network.
     `_level_and_stop_reason_from_output_line` asks it for each line of the kind INSTALLED that a request owns, unless `treat_line_naming_another_target_as_no_evidence_of_answer` has taken the line or `treat_pip_or_apt_installed_line_of_named_package_as_received` is asked instead, i.e. for a line of another program such as uv or npm, and for a line of pip or apt under a request whose target is no named package, e.g. a local path or a file of requirements.
-    A line beside a download line of a package file that the request owns never asks it, since the two show that the content arrived.
+    A line that makes a pair with a download line of a package file, as `_download_and_install_or_save_line_indexes_of` finds it, never asks it, since the two show that the content arrived.
     On `True` the line shows only that the program ran, EXECUTED with NOT_VISIBLE. On `False` it shows that the content arrived, RECEIVED with no stop reason.
     A use is such a line of a request.
 
     Provisional. No earlier code chose, and no evidence of a download claims least. The installed lines of programs other than pip and apt were not counted in the trajectories.
     """
     use_counts[treat_installed_line_as_no_evidence_of_download.__name__] += 1
+    return True
+
+
+def treat_apt_download_and_install_lines_shared_by_requests_of_several_commands_as_received(
+    *, use_counts: Counter[str]
+) -> bool:
+    """Read a download line and an install line that only apt prints and that requests of several commands own as showing that one of their owners received, e.g. `Get:1 http://deb.debian.org/debian bookworm/main amd64 curl amd64 7.88 [10 kB]` and `Setting up curl (7.88)` under `apt-get update && apt-get install -y curl`, where the requests of both commands own both lines.
+
+    apt prints a `Get:` line once the response headers of an item came, before its body, and `Setting up` once it installed a package, so the two show that the content arrived for the command that printed both.
+    Each line may come from any command of its owners, and the trajectory does not say whether one command printed both, e.g. the `Get:` lines of `apt-get update` beside the `Setting up` of an `apt-get install` that took its package from the cache.
+    `_download_and_install_or_save_line_indexes_of` asks it once for a request whose lines that requests of other commands own too, that only apt prints and that name no package other than those their owners name hold a `DOWNLOAD_STARTED` line and an `INSTALLED` line. A line that a run whose lines are not known may have printed and one in a place that may show file content or page text are left out.
+    On `True` those lines show RECEIVED with no stop reason, or REACHED for a request that asks for no content, as evidence that other requests share, so each owner stays assumed and `mark_network_request_rows_among_success_line_owners` may count the trial in the lower bound of received. The level does not rest on this rule. On `False` each line shows what its kind shows alone, e.g. REACHED with NOT_VISIBLE for the `Get:` line.
+    A use is such a request.
+
+    Decided. The user decided on 2026-11-25, after `Get:` became a `DOWNLOAD_STARTED` line, that such a pair still shows that one of the owners received, so that the trials that a shared `Get:` line counted in the lower bound of received stay there.
+    Where a shared `Get:` line counted nothing, these lines count nothing either. A line that names another target, e.g. `Get:2 http://deb.debian.org/debian bookworm/main amd64 libfoo amd64 1.0 [5 kB]` of a dependency, asks `treat_line_naming_another_target_as_no_evidence_of_answer` as a shared `Get:` line did. Lines of other programs that requests of several commands own make no pair, e.g. pip `Downloading x-1.0-py3-none-any.whl (10 kB)` beside `Successfully installed x-1.0` under `pip install -r a.txt; pip install -r b.txt`, as the user decided on 2026-11-22 for the lines of a pair.
+    """
+    use_counts[
+        treat_apt_download_and_install_lines_shared_by_requests_of_several_commands_as_received.__name__
+    ] += 1
     return True
 
 
@@ -140,7 +179,7 @@ def treat_size_or_type_of_saved_file_as_no_evidence_of_content(
 def treat_higher_evidence_beside_failure_as_assumed_level(
     *, use_counts: Counter[str]
 ) -> bool:
-    """Take the higher level when a request has evidence of a failure and evidence of a higher level, e.g. `Connection reset by peer` and then `Successfully downloaded x` in the output of `pip install x`.
+    """Take the higher level when a request has evidence of a failure and evidence of a higher level, e.g. `Connection reset by peer` and then `Successfully installed x-1.0` in the output of `pip install x`.
 
     A program can try again after a failure, so the later line may show the same request going further, or another try that the trajectory does not tell apart.
     `_highest_level_and_stop_reason_of` asks it for a request that has evidence of FAILED at one level and evidence of a higher level.
@@ -178,7 +217,7 @@ def treat_line_naming_another_target_as_no_evidence_of_answer(
 
     B may be a dependency that the request for A fetched or the output of another request, and the line does not say which.
     `_level_and_stop_reason_from_output_line` asks it for each line of a request with `OutputLineOwners.names_another_target` set, also for a request that names no target, e.g. `apt-get update` beside `curl https://a.org/x -o x` under `Could not resolve host: cdn.b.net`.
-    A download line and an installed line that the request owns together never ask it, whatever they name, e.g. `Downloading B-1.0.whl` beside `Successfully installed A-1.0 B-1.0` under `pip install A`, since the two show that the content arrived.
+    A download line and an installed line that make a pair of the lines that the request owns alone or with other requests of its command never ask it, whatever they name, e.g. `Downloading B-1.0.whl` beside `Successfully installed A-1.0 B-1.0` under `pip install A`, since the two show that the content arrived. A line that requests of other commands own too still asks it, e.g. `Setting up libfoo (1.0)` under `apt-get update && apt-get install -y curl`.
     On `True` the line shows only that the program ran, EXECUTED with NOT_VISIBLE, and the level does not rest on this rule, since the run holds whatever the line names. Such a line makes no uncertain request confirmed, e.g. `Could not resolve host: b.org` under `curl --verbose https://a.org/x`, whose option has no row, since a request to b.org does not show that the request to a.org was sent. On `False` it shows the level that the same line would show if it named the target of the request.
     A use is such a line of a request.
 

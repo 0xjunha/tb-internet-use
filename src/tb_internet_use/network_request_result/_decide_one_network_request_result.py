@@ -1,6 +1,6 @@
 """Decide the result of one network request from all the evidence of it, as its highest level, why it stopped there and how sure that is.
 
-A request can hold evidence of several levels, e.g. `Connection reset by peer` and then `Successfully downloaded x` in the output of `pip install x`, so the pieces are combined into one level and one stop reason.
+A request can hold evidence of several levels, e.g. `Connection reset by peer` and then `Successfully installed x-1.0` in the output of `pip install x`, so the pieces are combined into one level and one stop reason.
 A result that a judgment rule chose, or that rests only on evidence another request may share, is assumed.
 """
 
@@ -81,7 +81,7 @@ def decide_one_network_request_result(
 ) -> NetworkRequestResult:
     """Decide the result of `network_request` from `evidence_with_levels`, all its evidence, each with the level and stop reason it shows.
 
-    The result takes the highest level, the stop reason at it and every piece of evidence, also those that show a lower level, e.g. the exit code 0 of `pip install x` beside `Successfully downloaded x`.
+    The result takes the highest level, the stop reason at it and every piece of evidence, also those that show a lower level, e.g. the exit code 0 of `pip install x` beside `Successfully installed x-1.0`.
     It is `CONFIRMED` when no judgment rule picked its level and stop reason and evidence that neither another request may share nor a judgment rule gave shows them, and `ASSUMED` otherwise, with every reason of that.
     A request without evidence is `ATTEMPTED` with `NOT_VISIBLE` and `CONFIRMED`, since it claims nothing more.
     Every use of a rule of `judgment_rules.py` adds one to `judgment_rule_use_counts` under the name of the rule.
@@ -114,7 +114,7 @@ def _highest_level_and_stop_reason_of(
 ) -> _LevelAndStopReason:
     """Pick the highest level that the evidence shows and the stop reason at it, asking a judgment rule when a failure sits below a higher level.
 
-    A higher level includes the lower ones. A failure below it, e.g. `Connection reset by peer` beside `Successfully downloaded x`, may be an earlier try, so only `treat_higher_evidence_beside_failure_as_assumed_level` takes the higher level, and the result then rests on it.
+    A higher level includes the lower ones. A failure below it, e.g. `Connection reset by peer` beside `Successfully installed x-1.0`, may be an earlier try, so only `treat_higher_evidence_beside_failure_as_assumed_level` takes the higher level, and the result then rests on it.
     Without evidence the request is `ATTEMPTED` with `NOT_VISIBLE`.
     """
     if not evidence_with_levels:

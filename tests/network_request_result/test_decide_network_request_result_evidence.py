@@ -121,6 +121,8 @@ RULE_2 = judgment_rules.treat_installed_line_as_no_evidence_of_download.__name__
 RULE_23 = (
     judgment_rules.treat_pip_or_apt_installed_line_of_named_package_as_received.__name__
 )
+RULE_24 = judgment_rules.treat_apt_download_and_install_lines_shared_by_requests_of_several_commands_as_received.__name__
+RULE_25 = judgment_rules.treat_pip_saved_line_of_named_package_as_received.__name__
 RULE_3 = judgment_rules.treat_version_notice_line_as_no_evidence_of_answer.__name__
 RULE_4 = judgment_rules.treat_shown_result_text_as_assumed_content.__name__
 RULE_5 = (
@@ -705,12 +707,41 @@ LINE_CASES = {
         target="x",
         target_kind=PACKAGE_NAME,
     ),
-    "downloaded with the name spelled another way": LineCase(
+    # The file may come from the cache of pip, so without a download line the line shows only the run. Its name is spelled another way than the target and asks no rule about another target.
+    "saved package file with the name spelled another way": LineCase(
         "Successfully downloaded pyyaml-6.0",
-        PIP_INSTALL,
-        "pip install PyYAML",
-        line_evidence(K.DOWNLOADED, RECEIVED, None),
+        program("pip", "download"),
+        "pip download PyYAML",
+        line_evidence(K.PACKAGE_FILE_IN_FOLDER, EXECUTED, NOT_VISIBLE),
         target="PyYAML",
+        target_kind=PACKAGE_NAME,
+    ),
+    # pip prints this only for a file new to the destination folder. Its name is spelled another way than the target and still names it.
+    "pip saved package file of the target": LineCase(
+        "Saved ./dl/typing_extensions-4.12.2-py3-none-any.whl",
+        program("pip", "download"),
+        "pip download typing-extensions -d dl",
+        line_evidence(K.PACKAGE_FILE_ADDED_TO_FOLDER, RECEIVED, None),
+        (RULE_25,),
+        target="typing-extensions",
+        target_kind=PACKAGE_NAME,
+    ),
+    # A file of another package, e.g. a dependency, shows only the run of the request, even when the line is taken as its own.
+    "pip saved package file of another package": LineCase(
+        "Saved ./dl/idna-3.7-py3-none-any.whl",
+        program("pip", "download"),
+        "pip download requests -d dl",
+        line_evidence(K.PACKAGE_FILE_ADDED_TO_FOLDER, EXECUTED, NOT_VISIBLE),
+        target="requests",
+        target_kind=PACKAGE_NAME,
+    ),
+    # npm prints this also when it asked no server.
+    "program ran": LineCase(
+        "up to date, audited 1 package in 120ms",
+        program("npm", "install"),
+        "npm install x",
+        line_evidence(K.PROGRAM_RAN, EXECUTED, NOT_VISIBLE),
+        target="x",
         target_kind=PACKAGE_NAME,
     ),
     "server answered": LineCase(
@@ -770,7 +801,7 @@ LINE_CASES = {
         target_kind=PACKAGE_NAME,
     ),
     "connection lost": LineCase(
-        "Connection reset by peer",
+        "ConnectionResetError: [Errno 104] Connection reset by peer",
         PIP_INSTALL,
         "pip install x",
         line_evidence(K.CONNECTION_LOST, REACHED, FAILED, rests_on_judgment_rule=True),
@@ -815,6 +846,7 @@ def test_line_that_a_request_owns_gives_the_level_of_its_kind(line_case: LineCas
     ("case_name", "rule_name", "level", "stop_reason", "rests_on_judgment_rule"),
     [
         ("installed", RULE_23, EXECUTED, NOT_VISIBLE, False),
+        ("pip saved package file of the target", RULE_25, EXECUTED, NOT_VISIBLE, False),
         ("uv installed", RULE_2, RECEIVED, None, True),
         ("version notice", RULE_3, REACHED, NOT_VISIBLE, True),
         ("tls failed", RULE_16, REACHED, FAILED, True),
@@ -1265,7 +1297,7 @@ def unknown_printer_case(
         network_request,
         [call(K1, curl, test_sh)],
         place(K1, (K1, (0, 1))),
-        owned(K1, "Connection refused", network_request),
+        owned(K1, "connect: Connection refused", network_request),
     )
 
 
@@ -1340,7 +1372,7 @@ def test_line_of_an_unknown_printer_beside_a_run_that_is_not_read_gives_both_rea
         network_request,
         [call(K1, mytool, test_sh)],
         places=(place(K1, (K1, (0, 1))),),
-        output_line_owners=(owned(K1, "Connection refused", network_request),),
+        output_line_owners=(owned(K1, "connect: Connection refused", network_request),),
     )
     [evidence_with_level] = decided.evidence_with_levels
     assert evidence_with_level.assumption_reasons == (
@@ -1479,11 +1511,11 @@ def test_line_in_a_later_call_names_that_call():
     )
 
 
-# --- A download line of a package file beside a line of a finished install ---
+# --- A download line of a package file beside a line of a finished install or of a saved package file ---
 
 
 @dataclass(frozen=True)
-class DownloadAndInstallCase:
+class DownloadAndInstallOrSaveCase:
     # Each line with whether it names a package other than the target.
     lines: tuple[tuple[str, bool], ...]
     program_invocation: ProgramInvocation
@@ -1495,8 +1527,8 @@ class DownloadAndInstallCase:
 
 
 # Lines that one request owns alone, with the evidence each gives and the rules they ask besides the one about the run.
-DOWNLOAD_AND_INSTALL_CASES = {
-    "pip": DownloadAndInstallCase(
+DOWNLOAD_AND_INSTALL_OR_SAVE_CASES = {
+    "pip": DownloadAndInstallOrSaveCase(
         (
             ("Downloading x-1.0-py3-none-any.whl (125 kB)", False),
             ("Successfully installed x-1.0", False),
@@ -1509,7 +1541,7 @@ DOWNLOAD_AND_INSTALL_CASES = {
             line_evidence(K.INSTALLED, RECEIVED, None, line_index=1),
         ),
     ),
-    "uv": DownloadAndInstallCase(
+    "uv": DownloadAndInstallOrSaveCase(
         (("Downloading pandas (10.8MiB)", False), (" + pandas==3.0.5", False)),
         program("uv", "pip", "install"),
         "uv pip install pandas",
@@ -1520,7 +1552,7 @@ DOWNLOAD_AND_INSTALL_CASES = {
         ),
     ),
     # Both lines name only B, a dependency of A, and still show that the command received, so the rule about another target is not asked.
-    "lines naming another package": DownloadAndInstallCase(
+    "lines naming another package": DownloadAndInstallOrSaveCase(
         (
             ("Downloading B-1.0-py3-none-any.whl (10 kB)", True),
             ("Successfully installed B-1.0", True),
@@ -1533,8 +1565,51 @@ DOWNLOAD_AND_INSTALL_CASES = {
             line_evidence(K.INSTALLED, RECEIVED, None, line_index=1),
         ),
     ),
+    # The Get line comes before the body, and `Setting up` shows that the package arrived, so the rule about install lines of pip or apt is not asked.
+    "apt": DownloadAndInstallOrSaveCase(
+        (
+            (
+                "Get:1 http://deb.debian.org/debian bookworm/main amd64 curl amd64 7.88.1-10 [10 kB]",
+                False,
+            ),
+            ("Setting up curl (7.88.1-10) ...", False),
+        ),
+        program("apt-get", "install"),
+        "apt-get install -y curl",
+        "curl",
+        (
+            line_evidence(K.DOWNLOAD_STARTED, RECEIVED, None),
+            line_evidence(K.INSTALLED, RECEIVED, None, line_index=1),
+        ),
+    ),
+    "pip download": DownloadAndInstallOrSaveCase(
+        (
+            ("Downloading x-1.0-py3-none-any.whl (125 kB)", False),
+            ("Successfully downloaded x", False),
+        ),
+        program("pip", "download"),
+        "pip download x",
+        "x",
+        (
+            line_evidence(K.DOWNLOAD_STARTED, RECEIVED, None),
+            line_evidence(K.PACKAGE_FILE_IN_FOLDER, RECEIVED, None, line_index=1),
+        ),
+    ),
+    "pip download with a line of a file new to the folder": DownloadAndInstallOrSaveCase(
+        (
+            ("Downloading x-1.0-py3-none-any.whl (125 kB)", False),
+            ("Saved ./dl/x-1.0-py3-none-any.whl", False),
+        ),
+        program("pip", "download"),
+        "pip download x -d dl",
+        "x",
+        (
+            line_evidence(K.DOWNLOAD_STARTED, RECEIVED, None),
+            line_evidence(K.PACKAGE_FILE_ADDED_TO_FOLDER, RECEIVED, None, line_index=1),
+        ),
+    ),
     # A download of metadata alone shows that the index answered, and the install line of packages named in a file rests on its rule.
-    "metadata download beside an install line": DownloadAndInstallCase(
+    "metadata download beside an install line": DownloadAndInstallOrSaveCase(
         (
             ("Downloading x-1.0-py3-none-any.whl.metadata (6.5 kB)", False),
             ("Successfully installed x-1.0", False),
@@ -1552,20 +1627,22 @@ DOWNLOAD_AND_INSTALL_CASES = {
 
 
 @pytest.mark.parametrize(
-    "download_and_install_case",
-    DOWNLOAD_AND_INSTALL_CASES.values(),
-    ids=DOWNLOAD_AND_INSTALL_CASES.keys(),
+    "download_and_install_or_save_case",
+    DOWNLOAD_AND_INSTALL_OR_SAVE_CASES.values(),
+    ids=DOWNLOAD_AND_INSTALL_OR_SAVE_CASES.keys(),
 )
-def test_download_line_beside_install_line_shows_that_the_content_arrived(
-    download_and_install_case: DownloadAndInstallCase,
+def test_download_line_beside_install_or_saved_line_shows_that_the_content_arrived(
+    download_and_install_or_save_case: DownloadAndInstallOrSaveCase,
 ):
     ran_command = command(
-        0, download_and_install_case.words, download_and_install_case.program_invocation
+        0,
+        download_and_install_or_save_case.words,
+        download_and_install_or_save_case.program_invocation,
     )
     network_request = request(
         K1,
         from_command(ran_command),
-        download_and_install_case.target,
+        download_and_install_or_save_case.target,
         target_kind=PACKAGE_NAME,
         received_content_destination=ContentSaved(None),
     )
@@ -1582,13 +1659,13 @@ def test_download_line_beside_install_line_shows_that_the_content_arrived(
                 names_another_target=names_another_target,
             )
             for line_index, (line, names_another_target) in enumerate(
-                download_and_install_case.lines
+                download_and_install_or_save_case.lines
             )
         ),
     )
-    assert decided.evidence_with_levels == download_and_install_case.expected
+    assert decided.evidence_with_levels == download_and_install_or_save_case.expected
     assert decided.judgment_rule_use_counts == Counter(
-        {**dict.fromkeys(download_and_install_case.rule_names, 1), RULE_11: 1}
+        {**dict.fromkeys(download_and_install_or_save_case.rule_names, 1), RULE_11: 1}
     )
 
 
@@ -1675,6 +1752,261 @@ def test_install_line_that_a_request_of_another_command_owns_too_makes_no_pair()
         ),
     )
     assert decided.judgment_rule_use_counts == Counter({RULE_23: 1, RULE_11: 1})
+
+
+def apt_get_update_and_install_curl() -> tuple[
+    NetworkRequest, NetworkRequest, ExpandedToolCall, OutputPlaceSources
+]:
+    """Make `apt-get update && apt-get install -y curl` with the request of each command, the first without a target as `apt-get update` names none."""
+    apt_get_update = command(0, "apt-get update", program("apt-get", "update"))
+    apt_get_install = command(
+        1,
+        "apt-get install -y curl",
+        program("apt-get", "install"),
+        runs_if=after_success_of(0),
+    )
+    return (
+        request(
+            K1,
+            from_command(apt_get_update),
+            target_kind=PACKAGE_NAME,
+            received_content_destination=ContentSaved(None),
+        ),
+        request(
+            K1,
+            from_command(apt_get_install),
+            "curl",
+            target_kind=PACKAGE_NAME,
+            received_content_destination=ContentSaved(None),
+            index_in_tool_call=1,
+        ),
+        call(K1, apt_get_update, apt_get_install),
+        place(K1, (K1, (0, 1))),
+    )
+
+
+# Lines that only apt prints, of the package that `apt-get install -y curl` names, so that the request of the update and that of curl own them.
+APT_GET_LINE = "Get:1 http://deb.debian.org/debian bookworm/main amd64 curl amd64 7.88.1-10 [10 kB]"
+APT_SETTING_UP_LINE = "Setting up curl (7.88.1-10) ..."
+# The reason that the line at index 1 may belong to another request.
+SECOND_SHARED_LINE_REASON = SharedOutputLineAssumptionReason(K1, 1, None)
+
+
+def test_apt_download_and_install_lines_that_requests_of_two_commands_own_show_it_for_each_but_stay_shared():
+    update_request, install_request, expanded_tool_call, output_place_sources = (
+        apt_get_update_and_install_curl()
+    )
+    for network_request in (update_request, install_request):
+        decided = decide(
+            network_request,
+            [expanded_tool_call],
+            network_requests=[update_request, install_request],
+            places=(output_place_sources,),
+            output_line_owners=(
+                owned(K1, APT_GET_LINE, update_request, install_request),
+                owned(
+                    K1,
+                    APT_SETTING_UP_LINE,
+                    update_request,
+                    install_request,
+                    line_index=1,
+                ),
+            ),
+        )
+        assert decided.evidence_with_levels == (
+            line_evidence(
+                K.DOWNLOAD_STARTED,
+                RECEIVED,
+                None,
+                is_shared_with_other_requests=True,
+                may_belong_to_another_request_reason=SHARED_LINE_REASON,
+            ),
+            line_evidence(
+                K.INSTALLED,
+                RECEIVED,
+                None,
+                line_index=1,
+                is_shared_with_other_requests=True,
+                may_belong_to_another_request_reason=SECOND_SHARED_LINE_REASON,
+            ),
+        )
+        assert decided.judgment_rule_use_counts == Counter({RULE_24: 1, RULE_11: 1})
+
+
+def test_apt_download_and_install_lines_that_requests_of_two_commands_own_show_what_each_kind_shows_when_the_rule_says_so(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    answer_false(monkeypatch, RULE_24)
+    update_request, install_request, expanded_tool_call, output_place_sources = (
+        apt_get_update_and_install_curl()
+    )
+    decided = decide(
+        update_request,
+        [expanded_tool_call],
+        network_requests=[update_request, install_request],
+        places=(output_place_sources,),
+        output_line_owners=(
+            owned(K1, APT_GET_LINE, update_request, install_request),
+            owned(
+                K1, APT_SETTING_UP_LINE, update_request, install_request, line_index=1
+            ),
+        ),
+    )
+    # The update names no package, so the install line asks the rule about install lines of other requests.
+    assert decided.evidence_with_levels == (
+        line_evidence(
+            K.DOWNLOAD_STARTED,
+            REACHED,
+            NOT_VISIBLE,
+            is_shared_with_other_requests=True,
+            may_belong_to_another_request_reason=SHARED_LINE_REASON,
+        ),
+        line_evidence(
+            K.INSTALLED,
+            EXECUTED,
+            NOT_VISIBLE,
+            line_index=1,
+            is_shared_with_other_requests=True,
+            may_belong_to_another_request_reason=SECOND_SHARED_LINE_REASON,
+        ),
+    )
+    assert decided.judgment_rule_use_counts == Counter(
+        {RULE_24: 1, RULE_2: 1, RULE_11: 1}
+    )
+
+
+def test_apt_lines_naming_another_target_that_requests_of_two_commands_own_make_no_pair():
+    update_request, install_request, expanded_tool_call, output_place_sources = (
+        apt_get_update_and_install_curl()
+    )
+    decided = decide(
+        install_request,
+        [expanded_tool_call],
+        network_requests=[update_request, install_request],
+        places=(output_place_sources,),
+        output_line_owners=(
+            owned(
+                K1,
+                "Get:2 http://deb.debian.org/debian bookworm/main amd64 libfoo amd64 1.0 [5 kB]",
+                update_request,
+                install_request,
+                names_another_target=True,
+            ),
+            owned(
+                K1,
+                "Setting up libfoo (1.0) ...",
+                update_request,
+                install_request,
+                line_index=1,
+                names_another_target=True,
+            ),
+        ),
+    )
+    assert decided.evidence_with_levels == (
+        line_evidence(
+            K.DOWNLOAD_STARTED,
+            EXECUTED,
+            NOT_VISIBLE,
+            is_shared_with_other_requests=True,
+            may_belong_to_another_request_reason=SHARED_LINE_REASON,
+        ),
+        line_evidence(
+            K.INSTALLED,
+            EXECUTED,
+            NOT_VISIBLE,
+            line_index=1,
+            is_shared_with_other_requests=True,
+            may_belong_to_another_request_reason=SECOND_SHARED_LINE_REASON,
+        ),
+    )
+    assert decided.judgment_rule_use_counts == Counter({RULE_10: 2, RULE_11: 1})
+
+
+def test_apt_download_line_of_the_request_alone_makes_no_pair_with_an_install_line_that_a_request_of_another_command_owns_too():
+    # The Get line is in a place that only the install reaches, e.g. its own result, and the Setting up line in a place that the update reaches too.
+    update_request, install_request, expanded_tool_call, output_place_sources = (
+        apt_get_update_and_install_curl()
+    )
+    decided = decide(
+        install_request,
+        [expanded_tool_call],
+        network_requests=[update_request, install_request],
+        places=(output_place_sources,),
+        output_line_owners=(
+            owned(K1, APT_GET_LINE, install_request),
+            owned(
+                K1, APT_SETTING_UP_LINE, update_request, install_request, line_index=1
+            ),
+        ),
+    )
+    assert decided.evidence_with_levels == (
+        line_evidence(K.DOWNLOAD_STARTED, REACHED, NOT_VISIBLE),
+        line_evidence(
+            K.INSTALLED,
+            RECEIVED,
+            None,
+            line_index=1,
+            is_shared_with_other_requests=True,
+            may_belong_to_another_request_reason=SECOND_SHARED_LINE_REASON,
+        ),
+    )
+    assert decided.judgment_rule_use_counts == Counter({RULE_23: 1, RULE_11: 1})
+
+
+def test_pip_download_and_install_lines_that_requests_of_two_commands_own_make_no_pair():
+    pip_a = command(
+        0, "pip install -r a.txt", PIP_INSTALL, succeeded_if_text_exits_zero=False
+    )
+    pip_b = command(1, "pip install -r b.txt", PIP_INSTALL)
+    network_request_a = request(
+        K1, from_command(pip_a), NAMED_IN_FILE, target_kind=PACKAGE_NAME
+    )
+    network_request_b = request(
+        K1,
+        from_command(pip_b),
+        NAMED_IN_FILE,
+        target_kind=PACKAGE_NAME,
+        index_in_tool_call=1,
+    )
+    decided = decide(
+        network_request_a,
+        [call(K1, pip_a, pip_b)],
+        network_requests=[network_request_a, network_request_b],
+        places=(place(K1, (K1, (0, 1))),),
+        output_line_owners=(
+            owned(
+                K1,
+                "Downloading x-1.0-py3-none-any.whl (10 kB)",
+                network_request_a,
+                network_request_b,
+            ),
+            owned(
+                K1,
+                "Successfully installed x-1.0",
+                network_request_a,
+                network_request_b,
+                line_index=1,
+            ),
+        ),
+    )
+    assert decided.evidence_with_levels == (
+        line_evidence(
+            K.DOWNLOAD_STARTED,
+            REACHED,
+            NOT_VISIBLE,
+            is_shared_with_other_requests=True,
+            may_belong_to_another_request_reason=SHARED_LINE_REASON,
+        ),
+        line_evidence(
+            K.INSTALLED,
+            EXECUTED,
+            NOT_VISIBLE,
+            line_index=1,
+            is_shared_with_other_requests=True,
+            may_belong_to_another_request_reason=SECOND_SHARED_LINE_REASON,
+        ),
+    )
+    assert decided.judgment_rule_use_counts == Counter({RULE_2: 1, RULE_11: 1})
 
 
 def test_download_line_that_a_run_which_is_not_read_may_have_printed_makes_no_pair():

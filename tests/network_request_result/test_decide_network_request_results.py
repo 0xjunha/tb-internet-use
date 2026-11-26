@@ -287,7 +287,7 @@ WHOLE_RESULT_CASES = [
             _bash_call(
                 1,
                 "pip install x",
-                "Connection reset by peer\nSuccessfully downloaded x",
+                "ConnectionResetError: [Errno 104] Connection reset by peer\nDownloading x-1.0-py3-none-any.whl (10 kB)\nSuccessfully installed x-1.0",
             ),
         ),
         [
@@ -298,7 +298,8 @@ WHOLE_RESULT_CASES = [
                 _ASSUMED,
                 (
                     _line(1, OutputLineKind.CONNECTION_LOST),
-                    _line(1, OutputLineKind.DOWNLOADED, line_index=1),
+                    _line(1, OutputLineKind.DOWNLOAD_STARTED, line_index=1),
+                    _line(1, OutputLineKind.INSTALLED, line_index=2),
                     _exit_zero(1),
                 ),
                 (JudgmentRuleAssumptionReason(),),
@@ -442,8 +443,8 @@ WHOLE_RESULT_CASES = [
         (
             _bash_call(
                 1,
-                "pip install A B",
-                "Successfully downloaded A-1.0 B-2.0",
+                "apt-get install -y a b",
+                "Fetched 10 kB in 1s (10 kB/s)",
             ),
         ),
         [
@@ -461,14 +462,14 @@ WHOLE_RESULT_CASES = [
         ]
         * 2,
         Counter(),
-        id="one downloaded line that both requests of `pip install A B` own names the same line as the reason of both",
+        id="one downloaded line that both requests of `apt-get install -y a b` own names the same line as the reason of both",
     ),
     pytest.param(
         (
             _bash_call(
                 1,
-                "pip install A B",
-                'start\n{"output": "Collecting A\\nSuccessfully downloaded A-1.0 B-2.0"}',
+                "apt-get install -y a b",
+                'start\n{"output": "Reading package lists...\\nFetched 10 kB in 1s (10 kB/s)"}',
             ),
         ),
         [
@@ -490,8 +491,8 @@ WHOLE_RESULT_CASES = [
     ),
     pytest.param(
         (
-            _bash_call(1, "pip install A B > log 2>&1", ""),
-            _bash_call(2, "cat log", "Successfully downloaded A-1.0 B-2.0"),
+            _bash_call(1, "apt-get install -y a b > log 2>&1", ""),
+            _bash_call(2, "cat log", "Fetched 10 kB in 1s (10 kB/s)"),
         ),
         [
             (
@@ -509,6 +510,97 @@ WHOLE_RESULT_CASES = [
         * 2,
         Counter(),
         id="a shared line that a later read of the log shows is named by the call that shows it",
+    ),
+    pytest.param(
+        (
+            _bash_call(
+                1,
+                "apt-get update && apt-get install -y curl",
+                "Get:1 http://deb.debian.org/debian bookworm/main amd64 curl amd64 7.88.1-10 [10 kB]\nSetting up curl (7.88.1-10) ...",
+            ),
+        ),
+        [
+            (
+                NetworkRequestCertainty.CONFIRMED,
+                _RECEIVED,
+                None,
+                _ASSUMED,
+                (
+                    _line(1, OutputLineKind.DOWNLOAD_STARTED, is_shared=True),
+                    _line(1, OutputLineKind.INSTALLED, line_index=1, is_shared=True),
+                    _exit_zero(1, is_shared=True),
+                ),
+                (
+                    SharedOutputLineAssumptionReason(_key(1), 0, None),
+                    SharedOutputLineAssumptionReason(_key(1), 1, None),
+                ),
+            ),
+        ]
+        * 2,
+        Counter(
+            {
+                "treat_apt_download_and_install_lines_shared_by_requests_of_several_commands_as_received": 2
+            }
+        ),
+        id="apt download and install lines that the update and the install own leave each request assumed",
+    ),
+    pytest.param(
+        (
+            _bash_call(
+                1,
+                "pip download typing-extensions -d dl 2>&1 | tail -2",
+                "Saved ./dl/typing_extensions-4.12.2-py3-none-any.whl\nSuccessfully downloaded typing-extensions",
+            ),
+        ),
+        [
+            (
+                NetworkRequestCertainty.CONFIRMED,
+                _RECEIVED,
+                None,
+                _CONFIRMED,
+                (
+                    _line(1, OutputLineKind.PACKAGE_FILE_ADDED_TO_FOLDER),
+                    _line(1, OutputLineKind.PACKAGE_FILE_IN_FOLDER, line_index=1),
+                ),
+                (),
+            ),
+        ],
+        Counter(
+            {
+                "treat_pip_saved_line_of_named_package_as_received": 1,
+                "treat_command_without_own_evidence_as_no_evidence_of_run": 1,
+            }
+        ),
+        id="the pip line of a file of the target new to the folder is received beside a cut output",
+    ),
+    pytest.param(
+        (
+            _bash_call(
+                1,
+                "pip download requests -d dl 2>&1 | tail -2",
+                "Saved ./dl/idna-3.7-py3-none-any.whl\nSuccessfully downloaded idna requests",
+            ),
+        ),
+        [
+            (
+                NetworkRequestCertainty.CONFIRMED,
+                _EXECUTED,
+                _NOT_VISIBLE,
+                _CONFIRMED,
+                (
+                    _line(1, OutputLineKind.PACKAGE_FILE_ADDED_TO_FOLDER),
+                    _line(1, OutputLineKind.PACKAGE_FILE_IN_FOLDER, line_index=1),
+                ),
+                (),
+            ),
+        ],
+        Counter(
+            {
+                "treat_line_naming_another_target_as_no_evidence_of_answer": 1,
+                "treat_command_without_own_evidence_as_no_evidence_of_run": 1,
+            }
+        ),
+        id="the pip line of a file of a dependency new to the folder shows only the run",
     ),
 ]
 
@@ -618,16 +710,38 @@ DOWNLOAD_LINE_OF_PROGRAM_THAT_FETCHES_ONLY_WHAT_IS_MISSING_CASES = [
         id="npx prints that it installs a missing package",
     ),
     pytest.param(
-        "lake build",
-        "info: mathlib: cloning https://github.com/leanprover-community/mathlib4",
-        id="lake prints that it clones a dependency",
-    ),
-    pytest.param(
         "sbt compile",
         "[info] downloading https://repo1.maven.org/maven2/a/b/1.0/b-1.0.jar ...",
         id="sbt prints that Ivy downloads a file",
     ),
 ]
+
+
+def test_line_that_shows_only_the_run_of_a_program_that_fetches_only_what_is_missing_leaves_its_request_uncertain():
+    # lake prints that it clones a dependency before the clone connects.
+    steps = _steps(
+        _bash_call(
+            1,
+            "lake build",
+            "info: mathlib: cloning https://github.com/leanprover-community/mathlib4",
+        )
+    )
+
+    (result,) = _decided(steps).results
+
+    assert (
+        result.network_request.certainty,
+        result.request_certainty_after_evidence,
+        result.level,
+        result.stop_reason,
+        result.evidence[0],
+    ) == (
+        NetworkRequestCertainty.UNCERTAIN,
+        NetworkRequestCertainty.UNCERTAIN,
+        _EXECUTED,
+        _NOT_VISIBLE,
+        _line(1, OutputLineKind.PROGRAM_RAN),
+    )
 
 
 @pytest.mark.parametrize(
@@ -874,7 +988,7 @@ def test_a_trial_without_requests_still_reads_every_result_and_counts_its_lines(
 
 def test_results_follow_the_order_of_the_requests_given():
     steps = _steps(
-        _bash_call(1, "pip install A", "Successfully downloaded A-1.0"),
+        _bash_call(1, "pip install A", "Successfully installed A-1.0"),
         _bash_call(2, "pip install B", ""),
     )
     reversed_network_requests = steps.network_requests[::-1]
@@ -952,7 +1066,7 @@ def test_a_request_of_a_subagent_trajectory_takes_only_the_lines_of_its_own_call
     steps = _steps(
         _bash_call(1, "pip install A", ""),
         _bash_call(
-            1, "pip install A", "Successfully downloaded A-1.0", trajectory_id="sub-1"
+            1, "pip install A", "Successfully installed A-1.0", trajectory_id="sub-1"
         ),
     )
 
@@ -968,7 +1082,7 @@ def test_a_request_of_a_subagent_trajectory_takes_only_the_lines_of_its_own_call
             _RECEIVED,
             (
                 OutputLineEvidence(
-                    _key(1, "sub-1"), 0, None, OutputLineKind.DOWNLOADED, False
+                    _key(1, "sub-1"), 0, None, OutputLineKind.INSTALLED, False
                 ),
                 ExitCodeEvidence(_key(1, "sub-1"), 0, False),
             ),
