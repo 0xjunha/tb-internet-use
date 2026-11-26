@@ -49,9 +49,9 @@ def extract_received_content_destination(
 
     1. When an option asks for no content, e.g. `curl -I u`, or the row says `no_content`, e.g. `ping`, it is `NoContentRequested`.
     2. When the program gets more arguments when it runs, e.g. `xargs curl -O`, or an option has no row of the request catalog, e.g. `curl -K cfg u`, it is `UnknownReceivedContentDestination`, since either may send the content elsewhere as `-O` does.
-    3. When an option sends the content to stdout, e.g. `curl -o - u`, or the row says `stdout` and the command writes no file of its own, e.g. `curl u > a.tgz`, it is the end of the stdout route.
+    3. When an option sends the content to stdout, e.g. `curl -o - u`, or the row says `stdout`, no option sends the content to a file and the command writes no file of its own, e.g. `curl u > a.tgz`, it is the end of the stdout route.
     4. When the command writes files of its own that may hold the content, e.g. `curl -o a.tgz u`, it is `ContentSaved` with the path when there is one file and one request, or `ContentDiscarded` when that file is `/dev/null`, else `ContentSaved(None)`, also for `curl -o /dev/null u1 -o /dev/null u2`.
-    5. When the row says `own_file`, e.g. `pip install x`, it is `ContentSaved(None)`.
+    5. When an option sends the content to a file, or the row says `own_file`, e.g. `pip install x`, it is `ContentSaved(None)`. The command then writes no file of its own that `expand_tool_calls` knows the path of, e.g. f of `curl --output-dir d -o f u`, which is d/f, or of `curl --output=f u`.
     6. When the row leaves the route blank, it is `UnknownReceivedContentDestination`.
 
     A file of its own may hold the content unless it is the value of an option whose effect is not `SENDS_CONTENT_TO_FILE`, e.g. h.txt of `curl -D h.txt u`, whose content goes to stdout, or of `curl -D h.txt u > b.txt`, whose content goes to b.txt.
@@ -73,8 +73,12 @@ def extract_received_content_destination(
         program_invocation,
         program_option_effects,
     )
+    sends_content_to_file = (
+        ProgramOptionEffect.SENDS_CONTENT_TO_FILE in program_option_effects
+    )
     if ProgramOptionEffect.SENDS_CONTENT_TO_STDOUT in program_option_effects or (
         not own_output_file_paths
+        and not sends_content_to_file
         and program_content_route == ProgramContentRoute.STDOUT
     ):
         return _destination_of_stdout_routes(ran_command.stdout_routes)
@@ -85,7 +89,7 @@ def extract_received_content_destination(
         return ContentSaved(own_output_file_path)
     if own_output_file_paths:
         return ContentSaved(None)
-    if program_content_route == ProgramContentRoute.OWN_FILE:
+    if sends_content_to_file or program_content_route == ProgramContentRoute.OWN_FILE:
         return ContentSaved(None)
     return UnknownReceivedContentDestination()
 

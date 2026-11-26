@@ -1156,3 +1156,23 @@ def test_on_the_other_answer_a_request_of_the_last_known_content_of_a_file_share
     )
     assert _line(3, OutputLineKind.INSTALLED, is_shared=True) in code_result.evidence
     assert (pip_result.level, pip_result.level_certainty) == (_RECEIVED, _ASSUMED)
+
+
+@pytest.mark.parametrize(
+    "curl_text",
+    [
+        "curl -s --output-dir d -o f https://a.org/f.tgz",
+        "curl -s --output-dir d -O https://a.org/f.tgz",
+        "curl -s --output=f https://a.org/f.tgz",
+    ],
+)
+def test_the_text_of_a_result_is_no_content_of_a_request_whose_option_sends_it_to_a_file_of_unknown_path(
+    curl_text: str,
+):
+    """`done` of echo is the only text of the result, and curl saved what it received in a file whose path `expand_tool_calls` does not know, e.g. d/f, so only the exit code 0 of its command is its evidence."""
+    steps = _steps(_bash_call(1, f"echo done; {curl_text}", "done"))
+
+    (result,) = _decided(steps).results
+
+    assert result.network_request.received_content_destination == ContentSaved(None)
+    assert result.evidence == (_exit_zero(1),)

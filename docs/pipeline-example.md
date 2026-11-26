@@ -228,7 +228,7 @@ The step looks only at what ran, and step 4 reads what came back.
 
 | Asked through `NetworkRequestKnowledge` | Answer in this example |
 |---|---|
-| Does curl fetch? | Yes. Each URL argument is a target, and what it receives goes to stdout unless the command writes a file of its own |
+| Does curl fetch? | Yes. Each URL argument is a target, and what it receives goes to stdout unless an option sends it to a file or the command writes a file of its own |
 | What do curl's `-s`, `-S`, `--connect-timeout` and `-O` change about the request? | `-s`, `-S` and `--connect-timeout` change nothing. `-O` sends what curl receives to a file, whose name comes from step 2 |
 | Does `pip install` fetch? | Yes. Each package name is a target, and pip keeps what it receives in files of its own |
 | Does `echo` fetch? | No |

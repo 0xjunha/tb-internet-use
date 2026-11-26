@@ -221,6 +221,40 @@ def _destination(
             ContentSaved(None),
             id="curl -o /dev/null u1 -o /dev/null u2 saves to an unknown file",
         ),
+        # An option sends the content to a file whose path `expand_tool_calls` does not record, so the content goes to a file and not to the result.
+        pytest.param(
+            {
+                "program_invocation": _invocation(
+                    "curl", options=(("--output-dir", "d"), ("-o", "f"))
+                )
+            },
+            ContentSaved(None),
+            id="curl --output-dir d -o f u, whose file is d/f",
+        ),
+        pytest.param(
+            {
+                "program_invocation": _invocation(
+                    "curl", options=(("--output-dir", "d"), ("-O", None))
+                )
+            },
+            ContentSaved(None),
+            id="curl --output-dir d -O u, whose file is in d",
+        ),
+        pytest.param(
+            {"program_invocation": _invocation("curl", options=(("--output", "f"),))},
+            ContentSaved(None),
+            id="curl --output=f u, whose value no written file holds",
+        ),
+        pytest.param(
+            {
+                "program_invocation": _invocation(
+                    "curl", options=(("-o", "f"), ("-D", "h.txt"))
+                ),
+                "written_files": (_own_output_file("h.txt"),),
+            },
+            ContentSaved(None),
+            id="curl -o f -D h.txt u, whose only file of its own holds the headers",
+        ),
         pytest.param(
             {
                 "program_invocation": _invocation("curl", options=(("-D", "h.txt"),)),

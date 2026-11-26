@@ -967,6 +967,37 @@ def test_commands_give_their_requests_on_the_real_catalogs(text, targets):
     ] == [(target, NetworkRequestCertainty.CONFIRMED) for target in targets]
 
 
+@pytest.mark.parametrize(
+    "curl_text",
+    [
+        "curl --output-dir d -o f https://a.org/f.tgz",
+        "curl --output-dir d -O https://a.org/f.tgz",
+        "curl --output=f https://a.org/f.tgz",
+    ],
+)
+def test_content_that_an_option_sends_to_a_file_of_unknown_path_is_saved_on_the_real_catalogs(
+    curl_text: str,
+):
+    """`expand_tool_calls` records no file of curl for these commands, e.g. not f, since the file of `--output-dir d -o f` is d/f, so the content is saved to a file of unknown path, and the text that echo prints is not its content."""
+    expanded_tool_calls = expand_tool_calls(
+        (_call(1, f"echo done; {curl_text}"),),
+        knowledge=ExpandedToolCallKnowledge(),
+        judgment_rule_use_counts=Counter(),
+    )
+    network_requests = extract_network_requests(
+        expanded_tool_calls,
+        knowledge=NetworkRequestKnowledge(),
+        judgment_rule_use_counts=Counter(),
+        no_network_request_counts=Counter(),
+    )
+
+    assert expanded_tool_calls[0].written_files == ()
+    assert [
+        network_request.received_content_destination
+        for network_request in network_requests
+    ] == [ContentSaved(None)]
+
+
 CONFIRMED = NetworkRequestCertainty.CONFIRMED
 UNCERTAIN = NetworkRequestCertainty.UNCERTAIN
 HOST = NetworkRequestTargetKind.HOST
