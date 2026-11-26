@@ -71,7 +71,6 @@ from tb_internet_use.network_request_result.parse_package_names_text import (
 )
 from tb_internet_use.tool_call.model import (
     ExecutionStatus,
-    ExitOutcome,
     ToolCallKey,
     may_have_run,
 )
@@ -1370,9 +1369,7 @@ def _deciding_command_ids_of(
         return frozenset()
     return frozenset(
         deciding_command_id
-        for deciding_command_id in stopping_command_ids_of(
-            shell_command, ran_commands
-        )
+        for deciding_command_id in stopping_command_ids_of(shell_command, ran_commands)
         if deciding_command_id in ran_command_by_id
         and not ran_command_by_id[
             deciding_command_id

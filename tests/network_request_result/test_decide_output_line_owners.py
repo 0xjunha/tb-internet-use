@@ -1048,14 +1048,22 @@ STOPPED_AFTER_OR_LIST_CASES = [
     # grep runs after rg failed, and pip then runs if grep succeeds.
     (
         "rg x || grep x f && pip install y",
-        [(0, "rg", ()), (1, "grep", after_failure_of(0)), (2, "pip", after_success_of(0, 1))],
+        [
+            (0, "rg", ()),
+            (1, "grep", after_failure_of(0)),
+            (2, "pip", after_success_of(0, 1)),
+        ],
         "rg",
         (),
     ),
     # grep failed, so it ran, rg failed before it and the list failed.
     (
         "rg x || grep x f && pip install y",
-        [(0, "rg", ()), (1, "grep", after_failure_of(0)), (2, "pip", after_success_of(0, 1))],
+        [
+            (0, "rg", ()),
+            (1, "grep", after_failure_of(0)),
+            (2, "pip", after_success_of(0, 1)),
+        ],
         "grep",
         (2,),
     ),
@@ -1075,9 +1083,12 @@ STOPPED_AFTER_OR_LIST_CASES = [
 
 
 def test_missing_program_left_of_or_stops_no_command_after_the_list():
-    for text, commands, missing_program_word, stopped_command_ids in (
-        STOPPED_AFTER_OR_LIST_CASES
-    ):
+    for (
+        text,
+        commands,
+        missing_program_word,
+        stopped_command_ids,
+    ) in STOPPED_AFTER_OR_LIST_CASES:
         ran_commands = tuple(
             command(command_id, program_name, program(program_name), runs_if=runs_if)
             for command_id, program_name, runs_if in commands

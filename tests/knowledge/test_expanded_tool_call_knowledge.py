@@ -1519,9 +1519,11 @@ def test_versioned_programs_of_the_old_tables_are_the_rows_that_allow_a_version(
         if row["name_may_end_with_version"] == "yes"
     }
 
-    assert versioned_names == (
-        _OLD_VERSIONED_PROGRAMS - _PROGRAMS_LEFT_OUT
-    ) | _PROGRAMS_WITH_VERSIONED_NAMES_BY_THE_PAGE
+    assert (
+        versioned_names
+        == (_OLD_VERSIONED_PROGRAMS - _PROGRAMS_LEFT_OUT)
+        | _PROGRAMS_WITH_VERSIONED_NAMES_BY_THE_PAGE
+    )
 
 
 def test_option_syntax_of_the_old_tables_is_in_the_option_rows(real_knowledge):

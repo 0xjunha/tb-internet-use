@@ -634,7 +634,12 @@ def _add_catalog_review_table(
     grid.add_row(
         *(
             TabCell(text, style=CellStyle.HEADER)
-            for text in ("Catalog", "Rows", "Reviewed by a person", "Reviewed by agents")
+            for text in (
+                "Catalog",
+                "Rows",
+                "Reviewed by a person",
+                "Reviewed by agents",
+            )
         )
     )
     for catalog_path in sorted(_CATALOGS_DIR.glob("*/*.csv")):

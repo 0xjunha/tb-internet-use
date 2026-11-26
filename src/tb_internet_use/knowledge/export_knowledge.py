@@ -211,7 +211,9 @@ def _check_review_columns(columns: Mapping[str, str]) -> None:
     if not columns["checked_against"]:
         raise ValueError("checked_against is empty")
     if columns["reviewed"] not in ("", "yes", "agents"):
-        raise ValueError(f"reviewed is {columns['reviewed']!r}, not empty, yes or agents")
+        raise ValueError(
+            f"reviewed is {columns['reviewed']!r}, not empty, yes or agents"
+        )
 
 
 def _check_host_name(host_name: str) -> None:
