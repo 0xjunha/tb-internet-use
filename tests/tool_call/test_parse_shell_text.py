@@ -1682,3 +1682,34 @@ def test_variable_assignments(
 ):
     expected = tuple(VariableAssignment(*a) for a in assignments)
     assert _parsed_shell_text_of(text).variable_assignments == expected
+
+
+@pytest.mark.parametrize(
+    ("text", "assignments_by_command"),
+    [
+        (
+            "PIP_INDEX_URL=https://a.org/simple B='x y' pip install z",
+            [[("PIP_INDEX_URL", "https://a.org/simple"), ("B", "x y")]],
+        ),
+        ("A= b", [[("A", "")]]),
+        ("> f A=1 b", [[("A", "1")]]),  # a redirect may come first
+        # The `$(date)` gives a command of its own after b.
+        ("A=$(date) b", [[("A", None)], []]),
+        ("A=$X/simple b", [[("A", None)]]),
+        ("A+=x b", [[("A", None)]]),
+        ("A=(x y) b", [[("A", None)]]),
+        ("A=1 b | C=2 d", [[("A", "1")], [("C", "2")]]),
+        ("A=1 b; c", [[("A", "1")], []]),  # c does not get A
+        ("env A=1 b", [[]]),  # after the name it is a word
+        ("bash -c 'A=1 b'", [[]]),  # text that a command runs stays one word
+        ("A=1 B=2", []),  # alone they are `VariableAssignment`s
+    ],
+)
+def test_variable_assignments_before_command_name(
+    text: str, assignments_by_command: list[list[tuple[str, str | None]]]
+):
+    parsed = _parsed_shell_text_of(text)
+    assert [
+        [(a.name, a.value) for a in command.variable_assignments]
+        for command in parsed.commands
+    ] == assignments_by_command

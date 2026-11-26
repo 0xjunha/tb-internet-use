@@ -8,7 +8,7 @@ Whether a request is internet use comes from the first condition below that fits
 - A public address, or a public host with a row of the public host catalog or among the hosts that a request is taken to be sent to, gives True.
 - A host name with a dot and without a row of the public host catalog is decided by a judgment rule, which counts it as unknown internet use, e.g. `curl https://files.acme.org/x`.
 - No host and a web tool source is decided by a judgment rule, one for a request without a URL, e.g. a web search, and one for a URL whose host was not read, e.g. a fetch of `file:///app/x.html`.
-- No host and any other source gives the hosts that a judgment rule takes it to be sent to, read by the conditions below, or None without such hosts, e.g. `git fetch origin`.
+- No host and any other source gives the hosts that a judgment rule takes it to be sent to, read by the conditions below, or None without such hosts, e.g. `git fetch origin` or `GOPROXY=http://localhost:3000 go build`.
 - A host name with a template is decided by a judgment rule.
 - A host name with an empty label is decided by a judgment rule, which counts it as unknown internet use, e.g. `curl ...`.
 - A reserved host name is decided by a judgment rule.
@@ -34,7 +34,7 @@ The received bound comes from the first condition below that fits it.
 """
 
 from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING
 
 from tb_internet_use.expanded_tool_call.model import (
@@ -63,6 +63,7 @@ from tb_internet_use.export.judgment_rules import (
     treat_reserved_host_name_as_unknown_internet_use,
     treat_single_label_host_name_as_not_internet_use,
     treat_templated_host_name_as_unknown_internet_use,
+    treat_variable_without_program_variable_row_as_not_changing_package_registry,
     treat_web_tool_request_without_url_as_internet_use,
     treat_web_tool_url_without_host_name_as_unknown_internet_use,
 )
@@ -75,7 +76,9 @@ from tb_internet_use.export.model import (
     NetworkRequestSourceKind,
     PackageRegistry,
     PublicHost,
+    UnknownChangesPackageRegistry,
     UnknownPackageRegistry,
+    UnknownProgramVariable,
     UnknownPublicHost,
 )
 from tb_internet_use.export.parse_url_path import parse_url_path
@@ -135,7 +138,7 @@ def export_network_request_row(
 ) -> NetworkRequestRow:
     """Export the `NetworkRequestRow` of one network request result, by the conditions of the module docstring, with its credentials redacted.
 
-    It asks `knowledge` about each public host of the request, with the path of the target for the host of a target URL, about the package registry of a command whose target is a package name, and about the sender of a web tool. It also tells, without counting, whether a dotted host name has any row of the host catalog.
+    It asks `knowledge` about each public host of the request, with the path of the target for the host of a target URL, about the package registry of a command whose target is a package name, about each variable that a `NAME=value` before the name of such a command without a host name gives a program with a registry, and about the sender of a web tool. It also tells, without counting, whether a dotted host name has any row of the host catalog.
     Each judgment rule adds one to `judgment_rule_use_counts` under its name when it decides something, also the rule of `extract_network_requests` that reads a dotted host name as public.
     The four columns that hold text of the trajectory, i.e. `source`, `made_by`, `target` and `host_names`, pass through `redact_credentials`.
     `is_among_success_line_owners_one_of_which_received` is False here, since it rests on the rows of the other requests that share an output line, and `mark_network_request_rows_among_success_line_owners` sets it once all rows of the trial are made.
@@ -154,6 +157,12 @@ def export_network_request_row(
         ),
         network_request,
         package_registry,
+        _changes_package_registry_by_variable_name_for(
+            network_request,
+            package_registry,
+            knowledge=knowledge,
+            judgment_rule_use_counts=judgment_rule_use_counts,
+        ),
         judgment_rule_use_counts=judgment_rule_use_counts,
     )
     category = export_network_request_category(
@@ -322,10 +331,56 @@ def _package_registry_for(
     return knowledge.package_registry(source.program_invocation)
 
 
+def _changes_package_registry_by_variable_name_for(
+    network_request: NetworkRequest,
+    package_registry: PackageRegistry | UnknownPackageRegistry | None,
+    *,
+    knowledge: ExportKnowledge,
+    judgment_rule_use_counts: Counter[str],
+) -> dict[str, bool | UnknownChangesPackageRegistry | UnknownProgramVariable]:
+    """Find whether each variable that a `NAME=value` before the command name gives a program with a default registry can change that registry, e.g. False for `DEBIAN_FRONTEND` of `DEBIAN_FRONTEND=noninteractive apt-get install -y x`, asking `knowledge` once per name.
+
+    It asks only for a request without a host name whose `package_registry` is a `PackageRegistry`, since only there `treat_request_without_host_name_as_sent_to_default_registry_host` reads the answers, and gives an empty mapping for any other request.
+    A name without a row, e.g. `PORT` of `PORT=3000 npx x`, gets False when `treat_variable_without_program_variable_row_as_not_changing_package_registry` takes it as one that does not change the registry, and keeps its `UnknownProgramVariable` otherwise.
+    """
+    source = network_request.source
+    if (
+        network_request.host_names
+        or not isinstance(package_registry, PackageRegistry)
+        or not isinstance(source, FromCommand)
+        or not isinstance(source.program_invocation, ProgramInvocation)
+    ):
+        return {}
+    program_invocation = source.program_invocation
+    changes_package_registry_by_variable_name: dict[
+        str, bool | UnknownChangesPackageRegistry | UnknownProgramVariable
+    ] = {}
+    for variable_name in dict.fromkeys(
+        variable_assignment.name for variable_assignment in source.variable_assignments
+    ):
+        changes_package_registry = knowledge.changes_package_registry(
+            program_invocation, variable_name
+        )
+        if (
+            isinstance(changes_package_registry, UnknownProgramVariable)
+            and treat_variable_without_program_variable_row_as_not_changing_package_registry(
+                network_request, variable_name, use_counts=judgment_rule_use_counts
+            )
+        ):
+            changes_package_registry = False
+        changes_package_registry_by_variable_name[variable_name] = (
+            changes_package_registry
+        )
+    return changes_package_registry_by_variable_name
+
+
 def _internet_use_from_host_name_scopes(
     host_name_scopes: Sequence[HostNameScope | UnknownHostNameScope],
     network_request: NetworkRequest,
     package_registry: PackageRegistry | UnknownPackageRegistry | None,
+    changes_package_registry_by_variable_name: Mapping[
+        str, bool | UnknownChangesPackageRegistry | UnknownProgramVariable
+    ],
     *,
     judgment_rule_use_counts: Counter[str],
 ) -> bool | None:
@@ -356,7 +411,10 @@ def _internet_use_from_host_name_scopes(
         return None
     default_registry_host_names = (
         treat_request_without_host_name_as_sent_to_default_registry_host(
-            network_request, package_registry, use_counts=judgment_rule_use_counts
+            network_request,
+            package_registry,
+            changes_package_registry_by_variable_name,
+            use_counts=judgment_rule_use_counts,
         )
     )
     if not default_registry_host_names:

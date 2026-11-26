@@ -174,6 +174,9 @@ class ShellCommand:
     id: int
     # The command name, then its arguments, without quotes, e.g. `("sudo", "bash", "-c", "curl u")` for `sudo bash -c 'curl u'`.
     words: tuple[str, ...]
+    # The `NAME=value` written before the command name, in text order, e.g. `PIP_INDEX_URL=https://a.org/simple` of `PIP_INDEX_URL=https://a.org/simple pip install x`.
+    # They are kept apart from the words, since the shell gives them to the program as variables and not as arguments, and they can change what the program does, e.g. which index pip asks.
+    variable_assignments: tuple[ShellCommandVariableAssignment, ...] = ()
     # 0-based indexes of the words that hold `$A`, `${A}`, `$(...)`, backticks, `<(...)`, `>(...)` or `$((...))` outside single quotes, kept as written in `words`. A glob such as `*.sh` and a brace list such as `{a,b}` are not among them.
     # The indexes are `(2,)` for `pip install "$PKG"`, for example.
     expansion_word_indexes: tuple[int, ...] = ()
@@ -201,6 +204,15 @@ class ShellCommand:
     # Those statements are a `time` before a reserved word, `((`, an assignment or words beside a subshell, e.g. `time { a; }`, and a statement that is no simple command with words after its redirect target, e.g. `{ a; } > f b`.
     # A result that rests on them is then not given as confirmed. A text with a syntax error that gives no command at all is an `UnreadableShellText` instead.
     structure_may_be_wrong: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class ShellCommandVariableAssignment:
+    """Value that a `NAME=value` before the command name gives to a variable for that one command, e.g. `A=1` of `A=1 b`, while a `NAME=value` that stands alone gives it to later commands as a `VariableAssignment`."""
+
+    name: str
+    # None when the text computes the value as it runs, e.g. `A=$(date) b`.
+    value: str | None
 
 
 @dataclass(frozen=True, slots=True)

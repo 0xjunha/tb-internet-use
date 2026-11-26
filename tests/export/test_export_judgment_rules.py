@@ -30,6 +30,7 @@ from tb_internet_use.export.judgment_rules import (
     treat_url_request_to_package_registry_host_as_package,
     treat_url_request_to_search_engine_host_as_search,
     treat_url_request_without_path_or_query_to_package_registry_or_search_engine_host_as_connectivity_check,
+    treat_variable_without_program_variable_row_as_not_changing_package_registry,
     treat_web_tool_request_without_url_as_internet_use,
     treat_web_tool_url_without_host_name_as_unknown_internet_use,
 )
@@ -41,6 +42,9 @@ from tb_internet_use.export.model import (
     NetworkRequestSender,
     NetworkRequestSourceKind,
     PackageRegistry,
+    UnknownChangesPackageRegistry,
+    UnknownPackageRegistry,
+    UnknownProgramVariable,
 )
 from tb_internet_use.network_request.model import (
     ContentDiscarded,
@@ -54,6 +58,8 @@ from tb_internet_use.network_request.model import (
     NetworkRequestUncertaintyReason,
     NoContentRequested,
     ReceivedContentDestination,
+    UnknownNetworkRequestTarget,
+    UnknownNetworkRequestTargetReason,
 )
 from tb_internet_use.network_request_result.model import (
     NetworkRequestResult,
@@ -292,6 +298,18 @@ JUDGMENT_RULE_CASES: list[tuple[Callable[..., object], tuple[object, ...], objec
         True,
     ),
     (
+        treat_variable_without_program_variable_row_as_not_changing_package_registry,
+        (
+            _request(
+                ("npx", "x"),
+                NetworkRequestTargetKind.PACKAGE_NAME,
+                ContentSaved(None),
+            ),
+            "PORT",
+        ),
+        True,
+    ),
+    (
         treat_request_without_host_name_as_sent_to_default_registry_host,
         (
             _request(
@@ -300,6 +318,7 @@ JUDGMENT_RULE_CASES: list[tuple[Callable[..., object], tuple[object, ...], objec
                 ContentSaved(None),
             ),
             PackageRegistry("apt", ("deb.debian.org", "archive.ubuntu.com")),
+            {},
         ),
         ("deb.debian.org", "archive.ubuntu.com"),
     ),
@@ -410,3 +429,86 @@ def test_each_rule_gives_its_provisional_value_and_counts_one_use_under_its_name
 
     assert rule(*situation, use_counts=use_counts) == value
     assert use_counts == Counter({rule.__name__: 1})
+
+
+# (answers of `ExportKnowledge.changes_package_registry` by variable name for a made-up `pkg install x` with a registry row, the hosts that the rule gives)
+_DEFAULT_REGISTRY_CASES_BY_VARIABLE_ANSWERS = [
+    # No `NAME=value` before the command name, e.g. `pkg install x`.
+    ({}, ("reg.org",)),
+    # Variables that the program reads for something else, e.g. `MODE=quiet pkg install x`.
+    ({"MODE": False}, ("reg.org",)),
+    ({"MODE": False, "HOME": False}, ("reg.org",)),
+    # A variable that names another index, e.g. `PKG_INDEX=http://localhost:3141 pkg install x`, also beside one read for something else.
+    ({"PKG_INDEX": True}, ()),
+    ({"MODE": False, "PKG_INDEX": True}, ()),
+    # A variable whose row leaves its answer blank, e.g. `GOPATH=/x pkg install x`, may change the registry too.
+    ({"GOPATH": UnknownChangesPackageRegistry()}, ()),
+    ({"MODE": False, "GOPATH": UnknownChangesPackageRegistry()}, ()),
+    # A variable without a row that `treat_variable_without_program_variable_row_as_not_changing_package_registry` did not take as one that leaves the registry.
+    ({"PORT": UnknownProgramVariable()}, ()),
+]
+
+
+@pytest.mark.parametrize(
+    ("changes_package_registry_by_variable_name", "host_names"),
+    _DEFAULT_REGISTRY_CASES_BY_VARIABLE_ANSWERS,
+)
+def test_default_registry_holds_only_when_every_variable_before_the_command_name_leaves_it(
+    changes_package_registry_by_variable_name: dict[
+        str, bool | UnknownChangesPackageRegistry | UnknownProgramVariable
+    ],
+    host_names: tuple[str, ...],
+):
+    use_counts: Counter[str] = Counter()
+    network_request = _request(
+        ("pkg", "install", "x"),
+        NetworkRequestTargetKind.PACKAGE_NAME,
+        ContentSaved(None),
+    )
+
+    assert (
+        treat_request_without_host_name_as_sent_to_default_registry_host(
+            network_request,
+            PackageRegistry("reg", ("reg.org",)),
+            changes_package_registry_by_variable_name,
+            use_counts=use_counts,
+        )
+        == host_names
+    )
+    assert use_counts == Counter(
+        {treat_request_without_host_name_as_sent_to_default_registry_host.__name__: 1}
+    )
+
+
+def test_variables_do_not_matter_for_a_local_path_or_a_program_without_a_registry():
+    use_counts: Counter[str] = Counter()
+    local_path_request = dataclasses.replace(
+        _request(
+            ("pkg", "install", "."),
+            NetworkRequestTargetKind.PACKAGE_NAME,
+            ContentSaved(None),
+        ),
+        target=UnknownNetworkRequestTarget(
+            UnknownNetworkRequestTargetReason.LOCAL_PATH
+        ),
+    )
+    request = _request(
+        ("pkg", "install", "x"),
+        NetworkRequestTargetKind.PACKAGE_NAME,
+        ContentSaved(None),
+    )
+
+    for network_request, package_registry in (
+        (local_path_request, PackageRegistry("reg", ("reg.org",))),
+        (request, UnknownPackageRegistry()),
+        (request, None),
+    ):
+        assert (
+            treat_request_without_host_name_as_sent_to_default_registry_host(
+                network_request,
+                package_registry,
+                {"MODE": False},
+                use_counts=use_counts,
+            )
+            == ()
+        )

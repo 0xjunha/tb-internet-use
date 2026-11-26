@@ -177,7 +177,10 @@ def _extract_program_network_requests(
         no_network_request_counts[NoNetworkRequestReason.OPTION_SENDS_NO_REQUEST] += 1
         return ()
     source = FromCommand(
-        ran_command.shell_command.id, ran_text_source, program_invocation
+        ran_command.shell_command.id,
+        ran_text_source,
+        program_invocation,
+        ran_command.shell_command.variable_assignments,
     )
     tool_call_key = expanded_tool_call.tool_call.harness_tool_call.key
     if program_invocation.unread_words:
@@ -266,7 +269,10 @@ def _extract_public_url_network_requests(
         no_network_request_counts[NoNetworkRequestReason.NO_URL_THAT_MAY_BE_PUBLIC] += 1
         return ()
     source = FromCommand(
-        ran_command.shell_command.id, ran_text_source, program_invocation
+        ran_command.shell_command.id,
+        ran_text_source,
+        program_invocation,
+        ran_command.shell_command.variable_assignments,
     )
     tool_call_key = expanded_tool_call.tool_call.harness_tool_call.key
     return tuple(

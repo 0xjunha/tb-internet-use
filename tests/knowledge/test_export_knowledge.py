@@ -14,8 +14,10 @@ from tb_internet_use.export.model import (
     NetworkRequestSender,
     PackageRegistry,
     PublicHost,
+    UnknownChangesPackageRegistry,
     UnknownNetworkRequestSender,
     UnknownPackageRegistry,
+    UnknownProgramVariable,
     UnknownPublicHost,
 )
 from tb_internet_use.knowledge.catalog import KnowledgeUses
@@ -27,6 +29,7 @@ from tb_internet_use.knowledge.export_knowledge import (
     EXPORT_CATALOGS_DIR,
     HARNESS_WEB_TOOLS_CSV,
     PROGRAM_PACKAGE_REGISTRIES_CSV,
+    PROGRAM_VARIABLES_CSV,
     PUBLIC_HOSTS_CSV,
     ExportKnowledge,
 )
@@ -41,6 +44,7 @@ _PUBLIC_HOSTS_HEADER = (
 )
 _HARNESS_WEB_TOOLS_HEADER = "harness,tool,sender,checked_against,reviewed,note"
 _PROGRAM_PACKAGE_REGISTRIES_HEADER = "program_name,subcommand,package_registry,package_registry_host_names,checked_against,reviewed,note"
+_PROGRAM_VARIABLES_HEADER = "program_name,subcommand,variable_name,changes_package_registry,checked_against,reviewed,note"
 # The values of `checked_against`, `reviewed` and `note`, from which no answer is made.
 _REVIEW_COLUMNS = ",a manual,yes,"
 
@@ -53,6 +57,7 @@ _CATALOGS_WITH_A_ROW = [
         _PROGRAM_PACKAGE_REGISTRIES_HEADER,
         "pkg,install,reg,reg.org",
     ),
+    (PROGRAM_VARIABLES_CSV, _PROGRAM_VARIABLES_HEADER, "pkg,install,PKG_INDEX,yes"),
 ]
 
 # `blank.org` has a blank service, so its row answers unknown. `hub.org` gives an API under `/api/` and `/api/search/` and a model hub at every other path. `api.org` has rows for paths alone, so another path of it has no row.
@@ -72,6 +77,13 @@ _PROGRAM_PACKAGE_REGISTRY_ROWS = (
     "pkg,install,reg,reg.org",
     "pkg,sub add,reg,reg.org mirror.reg.org",
     "pkg,blank,,",
+)
+# `PKG_INDEX` names another index of `pkg install`, `MODE` is read for something else, and `BLANK` has a blank answer.
+_PROGRAM_VARIABLE_ROWS = (
+    "pkg,install,PKG_INDEX,yes",
+    "pkg,install,MODE,no",
+    "pkg,sub add,PKG_INDEX,yes",
+    "pkg,install,BLANK,",
 )
 
 # (public host rows, web tool rows, program rows, a part of the error message)
@@ -98,6 +110,24 @@ _ROWS_THAT_CANNOT_LOAD = [
     ([], [], ["pkg,install,reg,Reg.org"], "not in lower case"),
 ]
 
+# (rows of program_variables.csv, a part of the error message)
+_PROGRAM_VARIABLE_ROWS_THAT_CANNOT_LOAD = [
+    ([",install,PKG_INDEX,yes"], "program_name is empty"),
+    (["pkg,sub  add,PKG_INDEX,yes"], "subcommand 'sub  add'"),
+    (["pkg,install,,yes"], "variable_name '' is no variable name"),
+    (
+        ["pkg,install,PKG_INDEX=x,yes"],
+        "variable_name 'PKG_INDEX=x' is no variable name",
+    ),
+    (["pkg,install,1X,yes"], "variable_name '1X' is no variable name"),
+    (["pkg,install,PKG_INDEX,unknown"], "not yes, no or blank"),
+    (["pkg,install,PKG_INDEX,Yes"], "not yes, no or blank"),
+    (
+        ["pkg,install,PKG_INDEX,yes", "pkg,install,PKG_INDEX,no"],
+        "two rows have the key",
+    ),
+]
+
 
 def _write_catalogs(
     tmp_path: Path,
@@ -105,8 +135,9 @@ def _write_catalogs(
     harness_web_tool_rows: list[str] | tuple[str, ...] = _HARNESS_WEB_TOOL_ROWS,
     program_package_registry_rows: list[str]
     | tuple[str, ...] = _PROGRAM_PACKAGE_REGISTRY_ROWS,
+    program_variable_rows: list[str] | tuple[str, ...] = _PROGRAM_VARIABLE_ROWS,
 ) -> Path:
-    """Write the three export CSVs into a folder and return the folder."""
+    """Write the four export CSVs into a folder and return the folder."""
     for file_name, header, rows in (
         (PUBLIC_HOSTS_CSV, _PUBLIC_HOSTS_HEADER, public_host_rows),
         (HARNESS_WEB_TOOLS_CSV, _HARNESS_WEB_TOOLS_HEADER, harness_web_tool_rows),
@@ -115,6 +146,7 @@ def _write_catalogs(
             _PROGRAM_PACKAGE_REGISTRIES_HEADER,
             program_package_registry_rows,
         ),
+        (PROGRAM_VARIABLES_CSV, _PROGRAM_VARIABLES_HEADER, program_variable_rows),
     ):
         lines = [header, *(row + _REVIEW_COLUMNS for row in rows)]
         (tmp_path / file_name).write_text("\n".join(lines) + "\n")
@@ -297,6 +329,56 @@ def test_package_registry_is_answered_only_by_the_row_of_the_very_subcommand_or_
     )
 
 
+def test_changes_package_registry_is_answered_only_by_the_row_of_the_very_subcommand_and_name_or_unknown_and_counted(
+    knowledge,
+):
+    install = _program_invocation("pkg", "install")
+    assert knowledge.changes_package_registry(install, "PKG_INDEX") is True
+    assert knowledge.changes_package_registry(install, "MODE") is False
+    assert (
+        knowledge.changes_package_registry(
+            _program_invocation("pkg", "sub", "add"), "PKG_INDEX"
+        )
+        is True
+    )
+    # A blank cell and a missing row are unknown in two types, so that a rule can take one and leave the other.
+    assert knowledge.changes_package_registry(install, "BLANK") == (
+        UnknownChangesPackageRegistry()
+    )
+    # A name in another case, another subcommand and a name without a row of the subcommand have no row.
+    assert knowledge.changes_package_registry(install, "pkg_index") == (
+        UnknownProgramVariable()
+    )
+    assert (
+        knowledge.changes_package_registry(
+            _program_invocation("pkg", "remove"), "PKG_INDEX"
+        )
+        == UnknownProgramVariable()
+    )
+    assert (
+        knowledge.changes_package_registry(
+            _program_invocation("pkg", "sub", "add"), "MODE"
+        )
+        == UnknownProgramVariable()
+    )
+
+    assert knowledge.uses.row_use_counts == Counter(
+        {
+            (PROGRAM_VARIABLES_CSV, ("pkg", "install", "PKG_INDEX")): 1,
+            (PROGRAM_VARIABLES_CSV, ("pkg", "install", "MODE")): 1,
+            (PROGRAM_VARIABLES_CSV, ("pkg", "sub add", "PKG_INDEX")): 1,
+            (PROGRAM_VARIABLES_CSV, ("pkg", "install", "BLANK")): 1,
+        }
+    )
+    assert knowledge.uses.unknown_input_counts == Counter(
+        {
+            (PROGRAM_VARIABLES_CSV, ("pkg", "install", "pkg_index")): 1,
+            (PROGRAM_VARIABLES_CSV, ("pkg", "remove", "PKG_INDEX")): 1,
+            (PROGRAM_VARIABLES_CSV, ("pkg", "sub add", "MODE")): 1,
+        }
+    )
+
+
 def test_each_lookup_adds_one_to_its_count(knowledge):
     for _ in range(3):
         knowledge.public_host("reg.org", url_path=None)
@@ -314,6 +396,7 @@ def test_each_knowledge_class_counts_only_its_own_lookups(tmp_path):
     first.public_host("reg.org", url_path=None)
     first.network_request_sender(HarnessTool("h", "search"))
     first.package_registry(_program_invocation("pkg", "install"))
+    first.changes_package_registry(_program_invocation("pkg", "install"), "MODE")
 
     assert second.uses == KnowledgeUses()
 
@@ -327,6 +410,20 @@ def test_row_that_export_rows_cannot_use_raises_when_the_catalogs_load(
 ):
     catalogs_dir = _write_catalogs(
         tmp_path, public_host_rows, harness_web_tool_rows, program_rows
+    )
+
+    with pytest.raises(ValueError, match=message):
+        ExportKnowledge(catalogs_dir=catalogs_dir)
+
+
+@pytest.mark.parametrize(
+    ("program_variable_rows", "message"), _PROGRAM_VARIABLE_ROWS_THAT_CANNOT_LOAD
+)
+def test_row_of_program_variables_that_export_rows_cannot_use_raises_when_the_catalogs_load(
+    tmp_path, program_variable_rows, message
+):
+    catalogs_dir = _write_catalogs(
+        tmp_path, program_variable_rows=program_variable_rows
     )
 
     with pytest.raises(ValueError, match=message):
@@ -373,7 +470,12 @@ def test_knowledge_class_module_can_be_the_first_import_of_a_process():
 
 @pytest.mark.parametrize(
     "file_name",
-    [PUBLIC_HOSTS_CSV, HARNESS_WEB_TOOLS_CSV, PROGRAM_PACKAGE_REGISTRIES_CSV],
+    [
+        PUBLIC_HOSTS_CSV,
+        HARNESS_WEB_TOOLS_CSV,
+        PROGRAM_PACKAGE_REGISTRIES_CSV,
+        PROGRAM_VARIABLES_CSV,
+    ],
 )
 def test_real_catalog_holds_no_invisible_control_characters(file_name):
     # Bytes, since reading text would turn a CR into a line break.
@@ -414,6 +516,38 @@ def test_real_catalogs_load_and_answer_for_the_rows_they_hold():
         real_knowledge.network_request_sender(HarnessTool("codex", "web_search_call"))
         == NetworkRequestSender.PROVIDER_SERVER
     )
+    assert (
+        real_knowledge.changes_package_registry(
+            _program_invocation("apt-get", "install"), "DEBIAN_FRONTEND"
+        )
+        is False
+    )
+    assert (
+        real_knowledge.changes_package_registry(
+            _program_invocation("go", "build"), "GOPROXY"
+        )
+        is True
+    )
+    assert (
+        real_knowledge.changes_package_registry(
+            _program_invocation("go", "build"), "GOPATH"
+        )
+        == UnknownChangesPackageRegistry()
+    )
+    # A documented index variable has a row although no trajectory sets it, in each case that npm reads.
+    assert (
+        real_knowledge.changes_package_registry(
+            _program_invocation("pip", "install"), "PIP_INDEX_URL"
+        )
+        is True
+    )
+    for variable_name in ("npm_config_registry", "NPM_CONFIG_REGISTRY"):
+        assert (
+            real_knowledge.changes_package_registry(
+                _program_invocation("npx"), variable_name
+            )
+            is True
+        )
 
 
 def test_every_real_web_tool_row_names_a_tool_of_the_harness_tool_catalog():
@@ -442,3 +576,34 @@ def test_every_real_program_row_names_a_program_and_subcommand_of_the_program_ca
     }
 
     assert program_package_registry_keys - program_behavior_keys == set()
+
+
+def test_every_real_program_variable_row_names_a_program_and_subcommand_with_a_package_registry_row():
+    # `export_rows` asks about a variable only for a program and subcommand that `program_package_registries.csv` gives a registry.
+    program_package_registry_keys = {
+        (row["program_name"], row["subcommand"])
+        for row in _real_csv_rows(EXPORT_CATALOGS_DIR, PROGRAM_PACKAGE_REGISTRIES_CSV)
+        if row["package_registry"]
+    }
+    program_variable_keys = {
+        (row["program_name"], row["subcommand"])
+        for row in _real_csv_rows(EXPORT_CATALOGS_DIR, PROGRAM_VARIABLES_CSV)
+    }
+
+    assert program_variable_keys - program_package_registry_keys == set()
+
+
+def test_every_real_program_and_subcommand_with_a_package_registry_has_a_variable_that_changes_it():
+    # A variable without a row gives the default hosts, so each program with a registry lists the documented variables that send its requests elsewhere or keep them from going out.
+    program_package_registry_keys = {
+        (row["program_name"], row["subcommand"])
+        for row in _real_csv_rows(EXPORT_CATALOGS_DIR, PROGRAM_PACKAGE_REGISTRIES_CSV)
+        if row["package_registry"]
+    }
+    keys_with_a_changing_variable = {
+        (row["program_name"], row["subcommand"])
+        for row in _real_csv_rows(EXPORT_CATALOGS_DIR, PROGRAM_VARIABLES_CSV)
+        if row["changes_package_registry"] == "yes"
+    }
+
+    assert program_package_registry_keys - keys_with_a_changing_variable == set()

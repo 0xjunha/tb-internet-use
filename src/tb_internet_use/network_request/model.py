@@ -17,7 +17,11 @@ from tb_internet_use.expanded_tool_call.model import (
     RanTextSource,
     UnknownProgramInvocation,
 )
-from tb_internet_use.tool_call.model import HarnessTool, ToolCallKey
+from tb_internet_use.tool_call.model import (
+    HarnessTool,
+    ShellCommandVariableAssignment,
+    ToolCallKey,
+)
 
 # Place of a request within its call, with what made it there.
 type NetworkRequestSource = FromCommand | FromCode | FromWebTool
@@ -137,6 +141,9 @@ class FromCommand:
     ran_text_source: RanTextSource
     # The reading of the words of the program that makes the request, one of the command's `RanCommand.program_invocations`, e.g. the one of `pip install` in `sudo uv run pip install x`.
     program_invocation: ProgramInvocation | UnknownProgramInvocation
+    # The `NAME=value` before the command name, which the first program of the command gets as variables and may pass on to the programs it runs, e.g. `PIP_INDEX_URL=https://a.org/simple` of `PIP_INDEX_URL=https://a.org/simple pip install x`.
+    # It exists because such a variable can change where a request whose words name no host goes, or whether it goes out, e.g. to another index than the default registry of pip.
+    variable_assignments: tuple[ShellCommandVariableAssignment, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

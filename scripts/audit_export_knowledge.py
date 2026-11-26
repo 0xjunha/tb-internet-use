@@ -47,6 +47,7 @@ from tb_internet_use.export.judgment_rules import (
     treat_url_request_to_package_registry_host_as_package,
     treat_url_request_to_search_engine_host_as_search,
     treat_url_request_without_path_or_query_to_package_registry_or_search_engine_host_as_connectivity_check,
+    treat_variable_without_program_variable_row_as_not_changing_package_registry,
     treat_web_tool_request_without_url_as_internet_use,
     treat_web_tool_url_without_host_name_as_unknown_internet_use,
 )
@@ -59,6 +60,8 @@ from tb_internet_use.export.model import (
     NetworkRequestSender,
     NetworkRequestSourceKind,
     PackageRegistry,
+    UnknownChangesPackageRegistry,
+    UnknownProgramVariable,
 )
 from tb_internet_use.export.parse_url_path import parse_url_path
 from tb_internet_use.export.parse_url_query import parse_url_query
@@ -323,7 +326,7 @@ def situation_counts_of(
 ) -> Counter[str]:
     """Count for one request row the situations of the rules and the lookups of `ExportKnowledge` that the equations of `EQUATIONS` set beside them, a situation under the name of its rule and any other count under the name of its equation, all but the situation of `treat_trial_with_success_line_shared_by_confirmed_requests_as_received`, which `audit_trial` counts for each trial.
 
-    The conditions read the columns of the row, as a reader of the CSV would, and the request only for its host names before redaction, its target kind and its program.
+    The conditions read the columns of the row, as a reader of the CSV would, and the request only for its host names before redaction, its target kind, its program and the variables before its command name.
     """
     row = network_request_row
     counts: Counter[str] = Counter()
@@ -441,6 +444,13 @@ def situation_counts_of(
     }
     for rule, is_situation in is_situation_of_rule.items():
         counts[rule.__name__] = int(is_situation)
+    counts[
+        treat_variable_without_program_variable_row_as_not_changing_package_registry.__name__
+    ] = len(
+        _variable_names_without_program_variable_row_of(
+            network_request, own_export_knowledge
+        )
+    )
     counts[treat_url_query_value_and_fragment_as_credential.__name__] = sum(
         any(
             "://" in piece and (f"={_REDACTED}" in piece or f"#{_REDACTED}" in piece)
@@ -513,7 +523,10 @@ def _default_registry_host_names_of(
     network_request: NetworkRequest,
     own_export_knowledge: ExportKnowledge,
 ) -> tuple[str, ...]:
-    """Give the hosts of the default registry that decided a row without a host name, from the `ExportKnowledge` of this script, or none when the row names no known registry or its target is a local path."""
+    """Give the hosts of the default registry that decided a row without a host name, from the `ExportKnowledge` of this script, or none when the row names no known registry, its target is a local path or a variable before its command name may change the registry, i.e. has the answer True or a blank `changes_package_registry` in `program_variables.csv`.
+
+    A variable without a row leaves the registry, as `treat_variable_without_program_variable_row_as_not_changing_package_registry` decides.
+    """
     source = network_request.source
     if (
         network_request.host_names
@@ -524,9 +537,51 @@ def _default_registry_host_names_of(
     ):
         return ()
     package_registry = own_export_knowledge.package_registry(source.program_invocation)
-    if isinstance(package_registry, PackageRegistry):
-        return package_registry.host_names
-    return ()
+    if not isinstance(package_registry, PackageRegistry):
+        return ()
+    for variable_assignment in source.variable_assignments:
+        changes_package_registry = own_export_knowledge.changes_package_registry(
+            source.program_invocation, variable_assignment.name
+        )
+        if changes_package_registry is True or isinstance(
+            changes_package_registry, UnknownChangesPackageRegistry
+        ):
+            return ()
+    return package_registry.host_names
+
+
+def _variable_names_without_program_variable_row_of(
+    network_request: NetworkRequest, own_export_knowledge: ExportKnowledge
+) -> tuple[str, ...]:
+    """List once each name of a variable before the command name of a request without a host name whose program has a default registry, when the name has no row of `program_variables.csv`, e.g. `PORT` of `PORT=3000 npx x`, from the `ExportKnowledge` of this script.
+
+    These are the names that `treat_variable_without_program_variable_row_as_not_changing_package_registry` is asked about, also for a target that is a local path.
+    """
+    source = network_request.source
+    if (
+        network_request.host_names
+        or network_request.target_kind != NetworkRequestTargetKind.PACKAGE_NAME
+        or not isinstance(source, FromCommand)
+        or not isinstance(source.program_invocation, ProgramInvocation)
+        or not isinstance(
+            own_export_knowledge.package_registry(source.program_invocation),
+            PackageRegistry,
+        )
+    ):
+        return ()
+    return tuple(
+        variable_name
+        for variable_name in dict.fromkeys(
+            variable_assignment.name
+            for variable_assignment in source.variable_assignments
+        )
+        if isinstance(
+            own_export_knowledge.changes_package_registry(
+                source.program_invocation, variable_name
+            ),
+            UnknownProgramVariable,
+        )
+    )
 
 
 def _host_scope_text_of(host_name: str) -> str:

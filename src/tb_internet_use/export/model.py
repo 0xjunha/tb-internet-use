@@ -257,6 +257,34 @@ class UnknownPackageRegistry:
         raise TypeError("the package registry of the program is not known")
 
 
+@dataclass(frozen=True, slots=True)
+class UnknownChangesPackageRegistry:
+    """Answer of `ExportKnowledge`, standing where True or False would, to whether a variable that a `NAME=value` before a command name gives a program can change where its package requests go or whether they go out, when its row of `program_variables.csv` leaves `changes_package_registry` blank, e.g. `GOPATH` of `go build`.
+
+    The documentation then names the variable but does not settle its effect, so `treat_request_without_host_name_as_sent_to_default_registry_host` gives such a command no host.
+    """
+
+    def __bool__(self) -> bool:
+        """Refuse to be read as True or False, so that `if` and `any` never take a blank cell for a variable that leaves the registry as it is."""
+        raise TypeError(
+            "whether the variable changes the package registry of the program is not known"
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class UnknownProgramVariable:
+    """Answer of `ExportKnowledge`, standing where True or False would, for a variable that a `NAME=value` before a command name gives a program and subcommand without a row of `program_variables.csv`, e.g. `PORT` of `PORT=3000 npx x`.
+
+    Most such names are read by the task's own programs, so no documentation of the program names them, and `treat_variable_without_program_variable_row_as_not_changing_package_registry` decides what they do to the registry.
+    """
+
+    def __bool__(self) -> bool:
+        """Refuse to be read as True or False, so that `if` and `any` never take a variable without a row for one that a row answers."""
+        raise TypeError(
+            "the program variable has no row of the program variable catalog"
+        )
+
+
 class NetworkRequestSourceKind(StrEnum):
     """Kind of place of a request within its call, one per member of `NetworkRequestSource`."""
 

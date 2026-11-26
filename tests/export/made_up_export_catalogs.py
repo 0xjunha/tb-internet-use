@@ -6,6 +6,7 @@ from pathlib import Path
 from tb_internet_use.knowledge.export_knowledge import (
     HARNESS_WEB_TOOLS_CSV,
     PROGRAM_PACKAGE_REGISTRIES_CSV,
+    PROGRAM_VARIABLES_CSV,
     PUBLIC_HOSTS_CSV,
 )
 
@@ -19,8 +20,9 @@ def write_made_up_export_catalogs(
     public_host_rows: Sequence[str],
     harness_web_tool_rows: Sequence[str],
     program_package_registry_rows: Sequence[str],
+    program_variable_rows: Sequence[str] = (),
 ) -> Path:
-    """Write the three export CSVs into a new folder and return the folder, each row given as its columns before `checked_against`, e.g. `pypi.org,,package_registry,pypi`."""
+    """Write the four export CSVs into a new folder and return the folder, each row given as its columns before `checked_against`, e.g. `pypi.org,,package_registry,pypi`."""
     catalogs_dir.mkdir()
     for file_name, header, rows in (
         (
@@ -37,6 +39,11 @@ def write_made_up_export_catalogs(
             PROGRAM_PACKAGE_REGISTRIES_CSV,
             "program_name,subcommand,package_registry,package_registry_host_names,checked_against,reviewed,note",
             program_package_registry_rows,
+        ),
+        (
+            PROGRAM_VARIABLES_CSV,
+            "program_name,subcommand,variable_name,changes_package_registry,checked_against,reviewed,note",
+            program_variable_rows,
         ),
     ):
         lines = [header, *(row + _REVIEW_COLUMNS for row in rows)]

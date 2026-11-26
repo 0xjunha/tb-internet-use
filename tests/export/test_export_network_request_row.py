@@ -1,5 +1,6 @@
-"""Tests for _export_network_request_row.py, with made-up requests and made-up catalogs, a case for each condition of internet use in the order of its module docstring and two for host names without a dot, then requests with hosts of two scopes or a web tool source beside a host, requests without a host and from no web tool, each judgment rule with its other answer, the result views and bounds of made-up results, and the text columns."""
+"""Tests for _export_network_request_row.py, with made-up requests and made-up catalogs, a case for each condition of internet use in the order of its module docstring and two for host names without a dot, then requests with hosts of two scopes or a web tool source beside a host, requests without a host and from no web tool, with and without variables before the command name, each judgment rule with its other answer, the result views and bounds of made-up results, and the text columns."""
 
+import dataclasses
 from collections import Counter
 from pathlib import Path
 
@@ -43,6 +44,7 @@ from tb_internet_use.export.judgment_rules import (
     treat_url_query_value_and_fragment_as_credential,
     treat_url_request_to_package_registry_host_as_package,
     treat_url_request_to_search_engine_host_as_search,
+    treat_variable_without_program_variable_row_as_not_changing_package_registry,
     treat_web_tool_request_without_url_as_internet_use,
     treat_web_tool_url_without_host_name_as_unknown_internet_use,
 )
@@ -57,6 +59,7 @@ from tb_internet_use.export.model import (
 from tb_internet_use.knowledge.export_knowledge import (
     HARNESS_WEB_TOOLS_CSV,
     PROGRAM_PACKAGE_REGISTRIES_CSV,
+    PROGRAM_VARIABLES_CSV,
     PUBLIC_HOSTS_CSV,
     ExportKnowledge,
 )
@@ -98,7 +101,12 @@ from tb_internet_use.network_request_result.model import (
     OutputLineKind,
     ShownContentEvidence,
 )
-from tb_internet_use.tool_call.model import ExecutionStatus, HarnessTool, ToolCallKey
+from tb_internet_use.tool_call.model import (
+    ExecutionStatus,
+    HarnessTool,
+    ShellCommandVariableAssignment,
+    ToolCallKey,
+)
 
 LOWER_AND_UPPER = MeasureBound.LOWER_AND_UPPER
 UPPER_ONLY = MeasureBound.UPPER_ONLY
@@ -125,6 +133,7 @@ WEB_TOOL_URL_WITHOUT_HOST_RULE = (
 DEFAULT_REGISTRY_RULE = (
     treat_request_without_host_name_as_sent_to_default_registry_host.__name__
 )
+VARIABLE_WITHOUT_ROW_RULE = treat_variable_without_program_variable_row_as_not_changing_package_registry.__name__
 TEMPLATED_HOST_RULE = treat_templated_host_name_as_unknown_internet_use.__name__
 SINGLE_LABEL_HOST_RULE = treat_single_label_host_name_as_not_internet_use.__name__
 RESERVED_HOST_RULE = treat_reserved_host_name_as_unknown_internet_use.__name__
@@ -174,6 +183,14 @@ PROGRAM_PACKAGE_REGISTRY_ROWS = (
     "npm,ci,npm,registry.npmjs.org",
     "apt-get,update,apt,deb.debian.org archive.ubuntu.com",
     "npx,,npm,registry.npmjs.org",
+    "go,build,go_module_proxy,proxy.golang.org",
+)
+# The made-up program variable catalog. `PORT` has no row, and `GOPATH` of `go build` a blank answer.
+PROGRAM_VARIABLE_ROWS = (
+    "pip,install,PIP_INDEX_URL,yes",
+    "pip,install,PYTHONPATH,no",
+    "apt-get,update,DEBIAN_FRONTEND,no",
+    "go,build,GOPATH,",
 )
 # A made-up package registry catalog whose default hosts are not public, e.g. a registry served inside the task environment.
 INTERNAL_PROGRAM_PACKAGE_REGISTRY_ROWS = (
@@ -202,6 +219,7 @@ def catalogs_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
         public_host_rows=PUBLIC_HOST_ROWS,
         harness_web_tool_rows=HARNESS_WEB_TOOL_ROWS,
         program_package_registry_rows=PROGRAM_PACKAGE_REGISTRY_ROWS,
+        program_variable_rows=PROGRAM_VARIABLE_ROWS,
     )
 
 
@@ -913,12 +931,194 @@ def test_a_host_that_the_words_name_decides_a_package_request_instead_of_the_def
     assert judgment_rule_use_counts == Counter()
 
 
+def _with_variable_assignments(
+    network_request: NetworkRequest, *names: str
+) -> NetworkRequest:
+    """Give a request of a command the `NAME=value` of each name before the command name, e.g. `PIP_INDEX_URL=x pip install requests`."""
+    source = network_request.source
+    assert isinstance(source, FromCommand)
+    return dataclasses.replace(
+        network_request,
+        source=dataclasses.replace(
+            source,
+            variable_assignments=tuple(
+                ShellCommandVariableAssignment(name, "x") for name in names
+            ),
+        ),
+    )
+
+
+APT_GET_UPDATE = _request(
+    _command(_program("apt-get", "update")), None, PACKAGE_NAME, ContentSaved(None)
+)
+GO_BUILD = _request(
+    _command(_program("go", "build")),
+    UnknownNetworkRequestTarget(UnknownNetworkRequestTargetReason.NAMED_IN_FILE),
+    PACKAGE_NAME,
+    ContentSaved(None),
+)
+# A variable without a row before an uncertain `npx tsc`, e.g. `PORT=3000 npx tsc`.
+NPX_TSC_WITH_PORT = _with_variable_assignments(NPX_TSC, "PORT")
+
+# (case, request, internet use, request bound, uses of rows of `program_variables.csv`, its unknown inputs, uses of `treat_variable_without_program_variable_row_as_not_changing_package_registry`)
+VARIABLE_ASSIGNMENT_CASES = [
+    (
+        "variable read for something else",
+        _with_variable_assignments(APT_GET_UPDATE, "DEBIAN_FRONTEND"),
+        True,
+        LOWER_AND_UPPER,
+        {("apt-get", "update", "DEBIAN_FRONTEND"): 1},
+        {},
+        0,
+    ),
+    (
+        "variable that names another index",
+        _with_variable_assignments(PIP_INSTALL_REQUESTS, "PIP_INDEX_URL"),
+        None,
+        UPPER_ONLY,
+        {("pip", "install", "PIP_INDEX_URL"): 1},
+        {},
+        0,
+    ),
+    # A row whose answer is blank keeps the command without a host, since the documentation names the variable without settling its effect.
+    (
+        "variable with a blank answer",
+        _with_variable_assignments(GO_BUILD, "GOPATH"),
+        None,
+        UPPER_ONLY,
+        {("go", "build", "GOPATH"): 1},
+        {},
+        0,
+    ),
+    # A variable without a row is still an unknown input, but the rule takes it as one that leaves the registry.
+    (
+        "variable without a row",
+        _with_variable_assignments(PIP_INSTALL_REQUESTS, "PORT"),
+        True,
+        LOWER_AND_UPPER,
+        {},
+        {("pip", "install", "PORT"): 1},
+        1,
+    ),
+    # The request of `npx` is uncertain, so it counts toward the upper bound only, also with its default host.
+    (
+        "variable without a row before npx",
+        NPX_TSC_WITH_PORT,
+        True,
+        UPPER_ONLY,
+        {},
+        {("npx", "", "PORT"): 1},
+        1,
+    ),
+    # Each name is asked once, also when the command assigns it twice, and a variable that names another index decides beside one without a row.
+    (
+        "variables of all answers",
+        _with_variable_assignments(
+            PIP_INSTALL_REQUESTS,
+            "PYTHONPATH",
+            "PORT",
+            "PIP_INDEX_URL",
+            "PYTHONPATH",
+            "PORT",
+        ),
+        None,
+        UPPER_ONLY,
+        {("pip", "install", "PYTHONPATH"): 1, ("pip", "install", "PIP_INDEX_URL"): 1},
+        {("pip", "install", "PORT"): 1},
+        1,
+    ),
+    # A host that the words name decides, so the variables are not asked about.
+    (
+        "host named in the words",
+        _with_variable_assignments(
+            _request(
+                _command(_program("pip", "install")),
+                "requests",
+                PACKAGE_NAME,
+                ContentSaved(None),
+                "pypi.org",
+            ),
+            "PIP_INDEX_URL",
+        ),
+        True,
+        LOWER_AND_UPPER,
+        {},
+        {},
+        0,
+    ),
+    # A program without a default registry is unknown with or without variables, so they are not asked about.
+    (
+        "program without a registry",
+        _with_variable_assignments(
+            _request(
+                _command(_program("conda", "install")),
+                "numpy",
+                PACKAGE_NAME,
+                ContentSaved(None),
+            ),
+            "PORT",
+        ),
+        None,
+        UPPER_ONLY,
+        {},
+        {},
+        0,
+    ),
+]
+
+
+@pytest.mark.parametrize(
+    (
+        "case",
+        "network_request",
+        "is_internet_use",
+        "request_measure_bound",
+        "program_variable_uses",
+        "program_variable_unknown_inputs",
+        "variable_without_row_rule_uses",
+    ),
+    VARIABLE_ASSIGNMENT_CASES,
+    ids=[case for case, *_ in VARIABLE_ASSIGNMENT_CASES],
+)
+def test_internet_use_of_a_package_command_without_a_host_follows_the_variables_before_its_name(
+    case: str,
+    network_request: NetworkRequest,
+    is_internet_use: bool | None,
+    request_measure_bound: MeasureBound,
+    program_variable_uses: dict[tuple[str, ...], int],
+    program_variable_unknown_inputs: dict[tuple[str, ...], int],
+    variable_without_row_rule_uses: int,
+    knowledge: ExportKnowledge,
+):
+    network_request_row, judgment_rule_use_counts = _exported(
+        _result(network_request), knowledge
+    )
+
+    assert (
+        judgment_rule_use_counts[VARIABLE_WITHOUT_ROW_RULE]
+        == variable_without_row_rule_uses
+    )
+    assert network_request_row.is_internet_use is is_internet_use
+    assert network_request_row.request_measure_bound == request_measure_bound
+    assert {
+        key: count
+        for (file_name, key), count in knowledge.uses.row_use_counts.items()
+        if file_name == PROGRAM_VARIABLES_CSV
+    } == program_variable_uses
+    assert {
+        key: count
+        for (file_name, key), count in knowledge.uses.unknown_input_counts.items()
+        if file_name == PROGRAM_VARIABLES_CSV
+    } == program_variable_unknown_inputs
+
+
 # (judgment rule, the answer it is patched to, request, internet use with that answer)
 OTHER_INTERNET_USE_ANSWER_CASES = [
     (WEB_TOOL_WITHOUT_URL_RULE, False, WEB_SEARCH, None),
     (UNLISTED_DOTTED_HOST_RULE, False, CURL_FILES_ACME, True),
     (WEB_TOOL_URL_WITHOUT_HOST_RULE, False, WEB_FETCH_FILE, True),
     (DEFAULT_REGISTRY_RULE, (), PIP_INSTALL_REQUESTS, None),
+    (VARIABLE_WITHOUT_ROW_RULE, False, NPX_TSC_WITH_PORT, None),
     (TEMPLATED_HOST_RULE, False, CURL_TEMPLATED_HOST, False),
     (SINGLE_LABEL_HOST_RULE, False, CURL_DB, None),
     (RESERVED_HOST_RULE, False, CURL_EXAMPLE, False),

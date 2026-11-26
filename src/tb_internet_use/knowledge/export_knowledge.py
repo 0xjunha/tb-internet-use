@@ -1,9 +1,10 @@
-"""Answer the questions of `export_rows` about public hosts, web tools and package registries from the export catalogs, counting every use of a row and every input without one.
+"""Answer the questions of `export_rows` about public hosts, web tools, package registries and the variables that may change them from the export catalogs, counting every use of a row and every input without one.
 
-A blank cell is unknown only in the column that answers the question of each file, i.e. `service`, `sender` and `package_registry`. A blank there gives the `Unknown…` answer of the row, which counts as a use of the row and not as an unknown input. A blank `path_prefix` is the row of every other path of its host. Every other column fails the load when it is blank where the README of the catalogs asks for a value.
+A blank cell is unknown only in the column that answers the question of each file, i.e. `service`, `sender`, `package_registry` and `changes_package_registry`. A blank there gives the `Unknown…` answer of the row, which counts as a use of the row and not as an unknown input. A blank `path_prefix` is the row of every other path of its host. Every other column fails the load when it is blank where the README of the catalogs asks for a value.
 """
 
 import functools
+import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -14,8 +15,10 @@ from tb_internet_use.export.model import (
     NetworkRequestSender,
     PackageRegistry,
     PublicHost,
+    UnknownChangesPackageRegistry,
     UnknownNetworkRequestSender,
     UnknownPackageRegistry,
+    UnknownProgramVariable,
     UnknownPublicHost,
 )
 from tb_internet_use.knowledge.catalog import Catalog, KnowledgeUses, load_catalog
@@ -25,6 +28,9 @@ EXPORT_CATALOGS_DIR = Path(__file__).parent / "catalogs" / "export"
 PUBLIC_HOSTS_CSV = "public_hosts.csv"
 HARNESS_WEB_TOOLS_CSV = "harness_web_tools.csv"
 PROGRAM_PACKAGE_REGISTRIES_CSV = "program_package_registries.csv"
+PROGRAM_VARIABLES_CSV = "program_variables.csv"
+# A variable name as shell grammar writes it before `=`, e.g. `PIP_INDEX_URL`.
+_VARIABLE_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
 
 class ExportKnowledge:
@@ -96,10 +102,28 @@ class ExportKnowledge:
         )
         return UnknownPackageRegistry() if row is None else row
 
+    def changes_package_registry(
+        self, program_invocation: ProgramInvocation, variable_name: str
+    ) -> bool | UnknownChangesPackageRegistry | UnknownProgramVariable:
+        """Answer whether a variable that a `NAME=value` before the command name gives a program and subcommand can change where its package requests go or whether they go out, e.g. True for `GOPROXY` of `go build` and False for `DEBIAN_FRONTEND` of `apt-get install`, `UnknownChangesPackageRegistry` for a row with a blank `changes_package_registry`, e.g. `GOPATH` of `go build`, or `UnknownProgramVariable` for a variable without a row, e.g. `PORT` of `npx`.
+
+        The row is the one whose `program_name` and `subcommand` are those of the invocation, as for `package_registry`, and whose `variable_name` is the name in its case, since variable names differ by case.
+        One lookup counts that row, or the same key as an unknown input.
+        """
+        row = self._catalogs.program_variables.lookup(
+            (
+                program_invocation.program_name,
+                " ".join(program_invocation.subcommand_words),
+                variable_name,
+            ),
+            self.uses,
+        )
+        return UnknownProgramVariable() if row is None else row
+
 
 @functools.cache
 def _load_export_catalogs(catalogs_dir: Path) -> _ExportCatalogs:
-    """Load the three export CSVs of a folder once per process, raising ValueError on a row that `export_rows` cannot use, and index the path prefixes of each host."""
+    """Load the four export CSVs of a folder once per process, raising ValueError on a row that `export_rows` cannot use, and index the path prefixes of each host."""
     public_hosts = load_catalog(
         catalogs_dir / PUBLIC_HOSTS_CSV,
         key_columns=("host_name", "path_prefix"),
@@ -124,6 +148,11 @@ def _load_export_catalogs(catalogs_dir: Path) -> _ExportCatalogs:
             key_columns=("program_name", "subcommand"),
             row_from_columns=_package_registry_from_columns,
         ),
+        program_variables=load_catalog(
+            catalogs_dir / PROGRAM_VARIABLES_CSV,
+            key_columns=("program_name", "subcommand", "variable_name"),
+            row_from_columns=_changes_package_registry_from_columns,
+        ),
     )
 
 
@@ -136,6 +165,7 @@ class _ExportCatalogs:
     path_prefixes_by_host_name: Mapping[str, tuple[str, ...]]
     harness_web_tools: Catalog[NetworkRequestSender | UnknownNetworkRequestSender]
     program_package_registries: Catalog[PackageRegistry | UnknownPackageRegistry]
+    program_variables: Catalog[bool | UnknownChangesPackageRegistry]
 
 
 def _longest_path_prefix_of(path_prefixes: Sequence[str], url_path: str | None) -> str:
@@ -211,6 +241,27 @@ def _package_registry_from_columns(
     if not package_registry_name:
         return UnknownPackageRegistry()
     return PackageRegistry(package_registry_name, host_names)
+
+
+def _changes_package_registry_from_columns(
+    columns: Mapping[str, str],
+) -> bool | UnknownChangesPackageRegistry:
+    """Read one row of `program_variables.csv`, raising ValueError on an empty program name, on subcommand words not split by one space, on a variable name that shell grammar cannot assign and on a `changes_package_registry` that is neither `yes`, `no` nor blank."""
+    _check_review_columns(columns)
+    if not columns["program_name"]:
+        raise ValueError("program_name is empty")
+    _check_words(columns, "subcommand")
+    variable_name = columns["variable_name"]
+    if not _VARIABLE_NAME.fullmatch(variable_name):
+        raise ValueError(f"variable_name {variable_name!r} is no variable name")
+    changes_package_registry = columns["changes_package_registry"]
+    if changes_package_registry == "":
+        return UnknownChangesPackageRegistry()
+    if changes_package_registry not in ("yes", "no"):
+        raise ValueError(
+            f"changes_package_registry is {changes_package_registry!r}, not yes, no or blank"
+        )
+    return changes_package_registry == "yes"
 
 
 def _check_review_columns(columns: Mapping[str, str]) -> None:

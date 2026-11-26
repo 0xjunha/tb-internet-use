@@ -29,7 +29,7 @@ def _load_script(name: str):
 run_pipeline = _load_script("run_pipeline")
 audit = _load_script("audit_export_knowledge")
 
-# Commands of made-up trials whose rows reach many rules, e.g. a request that runs only when its file is missing, a package of a variable, a program without a row, a discarded page with a query, a host without a dot, a reserved host beside a templated one, a clone of a repository and two downloads that share one line of success.
+# Commands of made-up trials whose rows reach many rules, e.g. a request that runs only when its file is missing, a package of a variable, a program without a row, a discarded page with a query, a host without a dot, a reserved host beside a templated one, a clone of a repository, two downloads that share one line of success and a package command with a variable before its name.
 _BASH_CALLS_OF_TRIAL = {
     "t1": [
         (
@@ -56,6 +56,8 @@ _BASH_CALLS_OF_TRIAL = {
         )
     ],
     "t4": None,
+    # A variable before the command name without a row, which a rule takes as one that leaves the default registry, so its dotted host is read, and one whose row leaves its answer blank, which leaves the default registry and its dotted host unread.
+    "t8": [("PORT=3000 npx x; GOPATH=/x go build", "")],
     # Two wget requests own one `saved` line, which only wget prints, so the trial counts in the lower bound of received content fetches although each request stays assumed. Their host has a row of `public_hosts.csv`, so they count in the lower bound of requests.
     "t6": [
         (
@@ -180,6 +182,7 @@ def test_every_equation_holds_on_the_rows_of_made_up_trials(
     # The made-up trials reach the rules, so the equations do not hold only because both sides are 0.
     for rule_name in (
         "treat_request_without_host_name_as_sent_to_default_registry_host",
+        "treat_variable_without_program_variable_row_as_not_changing_package_registry",
         "treat_single_label_host_name_as_not_internet_use",
         "treat_templated_host_name_as_unknown_internet_use",
         "treat_host_name_with_empty_label_as_unknown_internet_use",
@@ -210,6 +213,9 @@ def test_every_equation_holds_on_the_rows_of_made_up_trials(
         ["program_package_registries.csv", '["pip", "install"]', "2", "2", "1"],
         ["public_hosts.csv", '["files.rcsb.org", ""]', "2", "1", "1"],
         ["harness_web_tools.csv", '["claude-code", "WebFetch"]', "1", "1", "1"],
+        ["program_package_registries.csv", '["go", "build"]', "1", "1", "1"],
+        ["program_package_registries.csv", '["npx", ""]', "1", "1", "1"],
+        ["program_variables.csv", '["go", "build", "GOPATH"]', "1", "1", "1"],
         ["public_hosts.csv", '["github.com", ""]', "1", "1", "1"],
         ["public_hosts.csv", '["html.duckduckgo.com", ""]', "1", "1", "1"],
         ["public_hosts.csv", '["pypi.org", ""]', "1", "1", "1"],

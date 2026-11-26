@@ -1,4 +1,4 @@
-"""Tests for the checks that the types of export/model.py make when they are built, for the refusal of `UnknownPackageRegistry` to be read as True or False, and for the received bound that `trial_received_measure_bound_of` gives a request row."""
+"""Tests for the checks that the types of export/model.py make when they are built, for the refusal of `UnknownPackageRegistry`, `UnknownChangesPackageRegistry` and `UnknownProgramVariable` to be read as True or False, and for the received bound that `trial_received_measure_bound_of` gives a request row."""
 
 import dataclasses
 import functools
@@ -15,7 +15,9 @@ from tb_internet_use.export.model import (
     NetworkRequestSender,
     TrialCategoryMeasureRow,
     TrialRow,
+    UnknownChangesPackageRegistry,
     UnknownPackageRegistry,
+    UnknownProgramVariable,
     trial_received_measure_bound_of,
 )
 from tb_internet_use.trial.model import UnreadableTrajectoryReason
@@ -115,6 +117,17 @@ def test_unknown_package_registry_refuses_to_be_read_as_true_or_false():
     # It stands beside None, the answer for a request that `ExportKnowledge` is not asked about.
     with pytest.raises(TypeError):
         bool(UnknownPackageRegistry())
+
+
+@pytest.mark.parametrize(
+    "unknown_answer", [UnknownChangesPackageRegistry(), UnknownProgramVariable()]
+)
+def test_unknown_answers_about_a_program_variable_refuse_to_be_read_as_true_or_false(
+    unknown_answer: UnknownChangesPackageRegistry | UnknownProgramVariable,
+):
+    # They stand beside True and False, so that `any` never takes a blank cell or a variable without a row for one that leaves the registry as it is.
+    with pytest.raises(TypeError):
+        bool(unknown_answer)
 
 
 @pytest.mark.parametrize(

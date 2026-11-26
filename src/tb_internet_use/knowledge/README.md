@@ -31,6 +31,7 @@ The top level of `knowledge/` holds only [catalog.py](catalog.py), the knowledge
 | [catalogs/export/public_hosts.csv](catalogs/export/public_hosts.csv) | `ExportKnowledge` in [export_knowledge.py](export_knowledge.py) | One public host name | Which service does the host give, e.g. a package registry or code hosting? |
 | [catalogs/export/harness_web_tools.csv](catalogs/export/harness_web_tools.csv) | `ExportKnowledge` | One harness tool that can make web requests | Where are the requests of the tool sent from? |
 | [catalogs/export/program_package_registries.csv](catalogs/export/program_package_registries.csv) | `ExportKnowledge` | One program and subcommand that installs or looks up packages | Which registry, and which of its hosts, does it ask by default? |
+| [catalogs/export/program_variables.csv](catalogs/export/program_variables.csv) | `ExportKnowledge` | One variable that a `NAME=value` before a command name gives a program and subcommand | Can it change where the package requests of the program go or whether they go out? |
 
 The columns of the CSVs are described beside them, those of `tool_call/` in the [harness tool catalog](catalogs/tool_call/README.md), those of `expanded_tool_call/` in the [program catalog](catalogs/expanded_tool_call/README.md), those of `network_request/` in the [program request catalog](catalogs/network_request/README.md), those of `network_request_result/` in the [program output catalogs](catalogs/network_request_result/README.md) and those of `export/` in the [export catalog](catalogs/export/README.md).
 

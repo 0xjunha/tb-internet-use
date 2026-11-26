@@ -2,7 +2,7 @@
 
 import dataclasses
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import pytest
 
@@ -64,6 +64,7 @@ from tb_internet_use.tool_call.model import (
     ResultDestination,
     RunCommandAction,
     ShellCommand,
+    ShellCommandVariableAssignment,
     ToolCall,
     ToolCallKey,
     ToolCallResult,
@@ -611,6 +612,33 @@ def test_the_requests_of_an_unknown_program_carry_its_command_and_their_index():
         (FromCommand(5, CallCommandText(), mytool), 3),
         (FromCommand(5, CallCommandText(), mytool), 4),
     ]
+
+
+@pytest.mark.parametrize(
+    "program_invocation",
+    [
+        _program("pip", "install", arguments=("requests",)),
+        UnknownProgramInvocation("mytool", (U,)),
+    ],
+)
+def test_the_requests_of_a_command_carry_the_assignments_before_its_name(
+    program_invocation: ProgramInvocation | UnknownProgramInvocation,
+):
+    # The made-up command is `PIP_INDEX_URL=https://a.org/simple A=$(b) pip install requests`.
+    variable_assignments = (
+        ShellCommandVariableAssignment("PIP_INDEX_URL", "https://a.org/simple"),
+        ShellCommandVariableAssignment("A", None),
+    )
+    ran_command = replace(
+        _command(program_invocation),
+        shell_command=ShellCommand(
+            0, ("pip",), variable_assignments=variable_assignments
+        ),
+    )
+    (network_request,) = _extract(ran_command).network_requests
+    assert network_request.source == FromCommand(
+        0, CallCommandText(), program_invocation, variable_assignments
+    )
 
 
 def test_a_url_whose_host_cannot_be_read_gives_an_uncertain_request_without_a_host():

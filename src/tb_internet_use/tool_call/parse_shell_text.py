@@ -54,6 +54,7 @@ from tb_internet_use.tool_call.model import (
     ResultDestination,
     RunCondition,
     ShellCommand,
+    ShellCommandVariableAssignment,
     UnreadableShellText,
     VariableAssignment,
 )
@@ -419,7 +420,9 @@ class _ShellTextWalker:
         deciding_command_ids: _DecidingCommandIds = None
         if command_words:
             deciding_command_ids = (
-                self._append_shell_command_returning_id(command_words, scope),
+                self._append_shell_command_returning_id(
+                    command_words, _variable_assignments_of(node), scope
+                ),
             )
         substitution_scope = scope.scope_for_substitution()
         for word_node in word_nodes:
@@ -813,18 +816,10 @@ class _ShellTextWalker:
 
         The assignment exits as its last `$(...)` does.
         """
-        name = node.child_by_field_name("name")
+        name_and_literal_value = _name_and_literal_value_of(node)
+        if name_and_literal_value is not None:
+            self._record_variable_assignment(*name_and_literal_value)
         value = node.child_by_field_name("value")
-        appends = any(child.type == "+=" for child in node.children)
-        # Bash does not split an assigned word, so {a,b} stays literal here.
-        is_literal = not appends and (
-            value is None or not (value.type == "array" or _has_expansion(value))
-        )
-        if name is not None:
-            literal = _word_value_of(value) if value is not None else ""
-            self._record_variable_assignment(
-                _node_text_of(name), literal if is_literal else None
-            )
         if value is None:
             return None
         substitutions = _command_substitutions_of(value)
@@ -876,7 +871,10 @@ class _ShellTextWalker:
         )
 
     def _append_shell_command_returning_id(
-        self, command_words: Sequence[_CommandWord], scope: _Scope
+        self,
+        command_words: Sequence[_CommandWord],
+        variable_assignments: tuple[ShellCommandVariableAssignment, ...],
+        scope: _Scope,
     ) -> int:
         """Add one command and return its id."""
         word_parts = _word_parts_of_command_words(command_words)
@@ -885,6 +883,7 @@ class _ShellTextWalker:
             words=tuple(
                 "".join(map(_command_word_value_of, parts)) for parts in word_parts
             ),
+            variable_assignments=variable_assignments,
             expansion_word_indexes=tuple(
                 index
                 for index, parts in enumerate(word_parts)
@@ -1856,6 +1855,43 @@ def _command_word_nodes_of(node: Node) -> list[Node]:
     name_words = name.named_children[:1] if name is not None else []
     words = [*name_words, *node.children_by_field_name("argument")]
     return [w for w in words if not w.is_missing and w.end_byte > w.start_byte]
+
+
+def _variable_assignments_of(
+    command_node: Node,
+) -> tuple[ShellCommandVariableAssignment, ...]:
+    """List the `NAME=value` that tree-sitter puts before the name of a command, in text order, e.g. A and B of `A=1 B=$(b) c`.
+
+    A `NAME=value` after the name is a word of the command, e.g. `A=1` of `env A=1 c`.
+    """
+    variable_assignments: list[ShellCommandVariableAssignment] = []
+    for child in command_node.named_children:
+        if child.type != "variable_assignment":
+            continue
+        name_and_literal_value = _name_and_literal_value_of(child)
+        if name_and_literal_value is not None:
+            variable_assignments.append(
+                ShellCommandVariableAssignment(*name_and_literal_value)
+            )
+    return tuple(variable_assignments)
+
+
+def _name_and_literal_value_of(assignment_node: Node) -> tuple[str, str | None] | None:
+    """Give the name of a `NAME=value` and its value when the value is literal, else None for the value, e.g. `("A", None)` for `A=$(date)`, `A+=x` or `A=(x y)`.
+
+    Gives None when tree-sitter found no name.
+    Bash does not split an assigned word, so `{a,b}` stays literal here.
+    """
+    name = assignment_node.child_by_field_name("name")
+    if name is None:
+        return None
+    value = assignment_node.child_by_field_name("value")
+    appends = any(child.type == "+=" for child in assignment_node.children)
+    is_literal = not appends and (
+        value is None or not (value.type == "array" or _has_expansion(value))
+    )
+    literal = _word_value_of(value) if value is not None else ""
+    return _node_text_of(name), literal if is_literal else None
 
 
 def _word_value_of(word_node: Node) -> str:

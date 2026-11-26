@@ -10,12 +10,14 @@ A rule is provisional until the user decides it. The last paragraph of each docs
 """
 
 from collections import Counter
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 
 from tb_internet_use.export.model import (
     NetworkRequestRow,
     PackageRegistry,
+    UnknownChangesPackageRegistry,
     UnknownPackageRegistry,
+    UnknownProgramVariable,
 )
 from tb_internet_use.network_request.model import (
     NetworkRequest,
@@ -192,9 +194,31 @@ def treat_web_tool_url_without_host_name_as_unknown_internet_use(
     return True
 
 
+def treat_variable_without_program_variable_row_as_not_changing_package_registry(
+    network_request: NetworkRequest, variable_name: str, *, use_counts: Counter[str]
+) -> bool:
+    """Take a variable without a row of `program_variables.csv` that a `NAME=value` before the command name gives a program with a default registry as one that does not change that registry, e.g. `PORT` of `PORT=3000 npx x`.
+
+    Nearly all such names are read by the task's own programs, e.g. `PORT` or `AUDIT_URL` before `npx` and `ITERS` or `MODE` before `sbt`, so no documentation of the program names them and no catalog can list them. The catalog holds every variable that the documentation of the program names as a setting of its index, registry, proxy, offline mode or configuration file, whether or not a trajectory sets it, in each case of the name that the documentation gives, e.g. `PIP_INDEX_URL` of `pip install` or both `npm_config_registry` and `NPM_CONFIG_REGISTRY` of `npx`.
+    `export_network_request_row` asks it once for each name of a request without a host name whose program and subcommand have a `PackageRegistry`, when `ExportKnowledge.changes_package_registry` answers `UnknownProgramVariable` for the name.
+    On `True` the answer for the name is False, so `treat_request_without_host_name_as_sent_to_default_registry_host` reads it as it reads `DEBIAN_FRONTEND` of `apt-get install`. On `False` the answer stays `UnknownProgramVariable`, and that rule gives the command no host.
+    A row whose `changes_package_registry` is blank is not asked about, since the documentation names its variable without settling the effect, e.g. `GOPATH` of `go build`, whose command then gets no host.
+    A use is such a name of a request.
+
+    Decided. The user decided on 2026-11-25 that a variable without a row does not change the registry, since such names are the task's own and cannot be listed, while the variables that programs read for their registry are in the catalog. Before, 204 such names in 3,104 lookups of the 21,450 Terminal-Bench 4.1 trials gave their commands no host.
+    """
+    use_counts[
+        treat_variable_without_program_variable_row_as_not_changing_package_registry.__name__
+    ] += 1
+    return True
+
+
 def treat_request_without_host_name_as_sent_to_default_registry_host(
     network_request: NetworkRequest,
     package_registry: PackageRegistry | UnknownPackageRegistry | None,
+    changes_package_registry_by_variable_name: Mapping[
+        str, bool | UnknownChangesPackageRegistry | UnknownProgramVariable
+    ],
     *,
     use_counts: Counter[str],
 ) -> tuple[str, ...]:
@@ -203,12 +227,14 @@ def treat_request_without_host_name_as_sent_to_default_registry_host(
     A program that installs packages usually names no host, and whether the request went out at all is decided from its output lines when results are decided.
     `export_network_request_row` asks it for each request without a host name whose source is no web tool. It gives the hosts the same reading as hosts that the words name.
     `package_registry` is the answer of `ExportKnowledge.package_registry`, or None for a request that `ExportKnowledge` is not asked about, e.g. `git fetch origin`.
-    It gives the host names of a `PackageRegistry`, e.g. `deb.debian.org archive.ubuntu.com security.ubuntu.com` for `apt-get update`, also when a file names the targets, e.g. `pip install -r reqs.txt`.
+    `changes_package_registry_by_variable_name` holds the answer of `ExportKnowledge.changes_package_registry` for each variable that a `NAME=value` before the command name gives the program, e.g. for `DEBIAN_FRONTEND` of `DEBIAN_FRONTEND=noninteractive apt-get install -y x`, where False stands for an `UnknownProgramVariable` that `treat_variable_without_program_variable_row_as_not_changing_package_registry` took as one that does not change the registry, e.g. for `PORT` of `PORT=3000 npx x`. It is empty for a request with no `PackageRegistry` and for a command without such a `NAME=value`.
+    It gives the host names of a `PackageRegistry`, e.g. `deb.debian.org archive.ubuntu.com security.ubuntu.com` for `apt-get update`, also when a file names the targets, e.g. `pip install -r reqs.txt`, and when every such variable has the answer False, e.g. `DEBIAN_FRONTEND` for `apt-get install`.
+    It gives no host when a variable has the answer True, an `UnknownChangesPackageRegistry` or an `UnknownProgramVariable`, since the command itself then shows a setting that may send the request to another host or keep it from going out, e.g. `GOPROXY=http://localhost:3000 go build` for a local module proxy or `GOPATH=/x go build`, whose row is blank. A `NAME=value` that is a word of another program, e.g. of env in `env PIP_INDEX_URL=… pip install x`, and one before a command that runs the text of the request, e.g. `PIP_INDEX_URL=… bash setup.sh`, are not read.
     It gives no host for a target that is a local path, e.g. `pip install -e .`, since a local project may or may not ask a registry for what it depends on. It gives none either for `UnknownPackageRegistry` or None. Without a host the request's internet use is not known.
-    The other choices are no host for every request, which leaves all of them unknown, or the registry hosts for a local path too.
+    The other choices are no host for every request, which leaves all of them unknown, the registry hosts for a local path too, the registry hosts whatever the variables, or the host that a variable names, e.g. `localhost` for the local module proxy above, which needs a fact of how each program reads the value of each variable.
     A use is such a request.
 
-    Provisional. The user chose on 2026-11-18 to send a request of a program and subcommand with a registry row to the registry hosts. Leaving a local path and a request without a row unknown claims least.
+    Provisional. The user chose on 2026-11-18 to send a request of a program and subcommand with a registry row to the registry hosts. Leaving a local path, a request without a row and a request with a variable that may change the registry unknown claims least, and keeps a request to a local index out of the lower bound.
     """
     use_counts[
         treat_request_without_host_name_as_sent_to_default_registry_host.__name__
@@ -219,9 +245,18 @@ def treat_request_without_host_name_as_sent_to_default_registry_host(
         and target.reason == UnknownNetworkRequestTargetReason.LOCAL_PATH
     ):
         return ()
-    if isinstance(package_registry, PackageRegistry):
-        return package_registry.host_names
-    return ()
+    if not isinstance(package_registry, PackageRegistry):
+        return ()
+    if any(
+        isinstance(
+            changes_package_registry,
+            UnknownChangesPackageRegistry | UnknownProgramVariable,
+        )
+        or changes_package_registry
+        for changes_package_registry in changes_package_registry_by_variable_name.values()
+    ):
+        return ()
+    return package_registry.host_names
 
 
 def treat_dotted_host_name_without_public_host_row_as_unknown_internet_use(
