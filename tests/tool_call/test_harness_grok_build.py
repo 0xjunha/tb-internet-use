@@ -276,9 +276,12 @@ RESULT_FORMAT_CASES: list[tuple[str, str, ToolCallResult]] = [
     ),
     (
         "get_command_or_subagent_output",
-        "=== Multi-wait (wait_all) ===\n--- Task a1 [completed] ---\nx\n--- Task b2 [completed] ---\ny",
+        (
+            "=== Multi-wait (wait_all) ===\n--- Task a1 [completed] ---\nCommand: echo x\nDuration: 0.1s\nExit Code: 0\nx\n\n"
+            "--- Task b2 [completed] ---\nCommand: echo y\nDuration: 0.1s\nExit Code: 0\ny\n\n\n2/2 tasks completed (wait_all)"
+        ),
         ToolCallResult(
-            "--- Task a1 [completed] ---\nx\n--- Task b2 [completed] ---\ny",
+            "x\ny",
             S.FINISHED,
             handles=(
                 ExecutionHandle(ExecutionHandleKind.COMMAND, "a1"),
@@ -616,6 +619,37 @@ def test_a_read_file_error_of_no_declared_format_is_no_listing():
     ).result
     assert tool_call_result is not None
     assert tool_call_result.harness_result_format == UnmatchedFormat.UNKNOWN
+
+
+def test_wait_on_several_tasks_keeps_only_the_output_of_each_task():
+    # The command, which may take several lines, the duration, the exit code, the note after a task that still runs and the count of ended tasks are text of Grok Build.
+    raw_text = (
+        "=== Multi-wait (wait_all) ===\n--- Task a1 [completed] ---\n"
+        'Command: curl -s http://localhost:5000/api/v1 | grep "HTTP/1.1 200"\n'
+        "Duration: 1.2s\nExit Code: 0\nHTTP/1.1 200 OK\n\n"
+        "--- Task b2 [running] ---\nCommand: python train.py \\\n  --epochs 3\nDuration: 30.0s\nepoch 1\n\n\n"
+        "Waited the requested 30s; the task is still running. You will be notified automatically when the task completes.\n\n"
+        "1/2 tasks completed (wait_all)"
+    )
+    tool_call_result = _converted(
+        _harness_tool_call(
+            "get_command_or_subagent_output", {"task_ids": ["a1", "b2"]}, raw_text
+        )
+    ).result
+    assert tool_call_result is not None
+    assert (tool_call_result.tool_output_text, tool_call_result.exit_code) == (
+        "HTTP/1.1 200 OK\nepoch 1",
+        None,
+    )
+    # A part that is not laid out that way keeps the text as it is.
+    unexpected = raw_text.replace("Duration: 30.0s", "Took 30.0s")
+    tool_call_result = _converted(
+        _harness_tool_call(
+            "get_command_or_subagent_output", {"task_ids": ["a1", "b2"]}, unexpected
+        )
+    ).result
+    assert tool_call_result is not None
+    assert tool_call_result.tool_output_text == unexpected.split("\n", 1)[1]
 
 
 def test_a_wait_on_several_tasks_takes_their_shared_state_and_every_task_id():

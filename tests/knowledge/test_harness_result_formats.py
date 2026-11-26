@@ -142,8 +142,8 @@ FORMATS_BY_JUDGMENT_RULE: dict[str, list[tuple[str, str, str]]] = {
         ("muse-code", "edit_file", "rejected"),
     ],
     "treat_web_fetch_text_as_finished": [
+        ("claude-code", "WebFetch", "page_truncated"),
         ("claude-code", "WebFetch", "page"),
-        ("muse-code", "web_fetch", "page"),
     ],
     "treat_cut_off_web_search_as_finished": [("claude-code", "WebSearch", "cut_off")],
     "treat_script_syntax_error_as_not_run": [("codex", "exec", "failed_syntax")],
@@ -170,10 +170,24 @@ FORMATS_BY_JUDGMENT_RULE: dict[str, list[tuple[str, str, str]]] = {
         ("grok-build", "get_command_or_subagent_output", "failed_signaled_empty"),
         ("grok-build", "get_command_or_subagent_output", "failed_signaled"),
     ],
-    "treat_accepted_stop_request_as_killed": [("muse-code", "work_stop", "accepted")],
+    "treat_bash_exit_code_144_as_finished": [
+        ("claude-code", "Bash", "exit_code_144"),
+        ("claude-code", "Bash", "exit_code_144_silent"),
+    ],
+    "treat_action_not_executed_result_as_unknown_status": [
+        ("mini-swe-agent", "bash", "not_executed")
+    ],
+    "treat_accepted_stop_request_as_killed": [
+        ("devin", "kill_shell", "killed"),
+        ("muse-code", "work_stop", "accepted"),
+    ],
     "treat_idle_subagent_as_unknown_status": [("copilot-cli", "read_agent", "idle")],
+    "treat_completed_await_without_exit_code_as_finished": [
+        ("cursor-cli", "awaitToolCall", "complete_without_exit_code")
+    ],
     "treat_stop_request_for_ended_work_as_finished": [
-        ("muse-code", "work_stop", "already_ended")
+        ("grok-build", "kill_command_or_subagent", "already_exited"),
+        ("muse-code", "work_stop", "already_ended"),
     ],
 }
 

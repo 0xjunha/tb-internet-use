@@ -34,7 +34,7 @@ RESULT_FORMAT_CASES: list[tuple[str, dict[str, Any], ToolCallResult]] = [
         "bash",
         {"output": "", "returncode": -1, "exception_info": "action was not executed"},
         ToolCallResult(
-            "", S.NOT_RUN, harness_result_format=MatchedFormat("not_executed")
+            None, S.UNKNOWN, harness_result_format=MatchedFormat("not_executed")
         ),
     ),
     (

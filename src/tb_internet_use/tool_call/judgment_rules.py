@@ -86,7 +86,7 @@ def treat_bash_output_without_exit_code_line_as_finished(
     It rests on Claude Code `Bash`, which writes `Exit code N` before the output only in a result it marked as an error.
     A result without the line may still come from a command that was stopped, since nothing in the text says how it ended.
     The same holds for a result that only says the output was too large and names the file it was saved to.
-    A command that Claude Code moved to the background, also after a timeout, has a result of its own, which the formats `background` and `background_timeout` read as running.
+    A command that Claude Code moved to the background, also after a timeout, has a result of its own, which the formats `background` and `background_timeout` read as running, unless it printed before its timeout ended. Then the text shows the output before the notice, and the Claude Code converter reads the result as running after this rule, since its structured result names the background task in `backgroundTaskId`. Such a result is a use too.
     Only a finished status gets exit code 0 by `treat_bash_output_without_exit_code_line_as_exit_code_0`, so the two rules together make a later use of a saved file sure evidence.
     A use is a result of the format `bare_output`, `persisted_output_cut_preview`, `persisted_output` or `persisted_output_partial`.
 
@@ -112,6 +112,22 @@ def treat_bash_output_without_exit_code_line_as_exit_code_0(
     return replace(tool_call_result, exit_code=0)
 
 
+def treat_bash_exit_code_144_as_finished(
+    tool_call_result: ToolCallResult, *, use_counts: Counter[str]
+) -> ToolCallResult:
+    """Read a command result that starts with `Exit code 144` as a finished command.
+
+    It rests on Claude Code `Bash`, whose result shows this code for commands that hold `kill`, `pkill` or `killall` in 410 of the 413 such results of 2,000 random Terminal-Bench 4.1 trials, e.g. `pkill -f server.py; curl -s https://a.org/x`.
+    Such a command can stop the shell that runs it when its pattern matches the command line of that shell, and then the commands after it never run. The text looks the same for a command that exited with 144 itself, so it does not say whether the command finished or was stopped.
+    The formats leave 144 out of `exit_code`, which holds only a code that the command gave itself, as for the `Exit code 143` of a command that timed out.
+    A use is a result of the format `exit_code_144` or `exit_code_144_silent`.
+
+    Provisional. It keeps the status of the earlier code, which also kept 144 as the exit code.
+    """
+    use_counts[treat_bash_exit_code_144_as_finished.__name__] += 1
+    return replace(tool_call_result, execution_status=ExecutionStatus.FINISHED)
+
+
 def treat_script_syntax_error_as_not_run(
     tool_call_result: ToolCallResult, *, use_counts: Counter[str]
 ) -> ToolCallResult:
@@ -125,6 +141,22 @@ def treat_script_syntax_error_as_not_run(
     """
     use_counts[treat_script_syntax_error_as_not_run.__name__] += 1
     return replace(tool_call_result, execution_status=ExecutionStatus.NOT_RUN)
+
+
+def treat_action_not_executed_result_as_unknown_status(
+    tool_call_result: ToolCallResult, *, use_counts: Counter[str]
+) -> ToolCallResult:
+    """Read a result that says the action was not executed as one whose status is unknown.
+
+    It rests on mini-swe-agent `bash`, which stops the actions of a step after the one whose output starts with the line `COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT` and that exited 0, the sign that the agent submits, and fills the result of that action and of every later one of the step with `action was not executed`, as a review of 2026-11-24 read in the source of mini-swe-agent 2.4.6. So the action that submitted did run.
+    Each of the 321 such results in 2,000 random Terminal-Bench 4.1 trials is the only one of its step and holds the sign in its command, e.g. `echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT`, so each comes from an action that ran, and none from a later action of the step.
+    The format gives no tool output text, since the empty `output` of such a result is not what the command printed.
+    A use is a result of the format `not_executed`.
+
+    Decided. The user decided on 2026-11-25 that the status is unknown, since the command ran but the result holds neither its output nor its exit code. The earlier code read such a result as `NOT_RUN`, which made every request of the command a failure.
+    """
+    use_counts[treat_action_not_executed_result_as_unknown_status.__name__] += 1
+    return replace(tool_call_result, execution_status=ExecutionStatus.UNKNOWN)
 
 
 def treat_web_search_call_without_content_as_finished(
@@ -175,8 +207,8 @@ def treat_web_fetch_text_as_finished(
 ) -> ToolCallResult:
     """Read a web fetch result that is only page text as a finished fetch.
 
-    It rests on Claude Code `WebFetch`, whose result is any text when no other format of the tool fits, e.g. the page as the model summed it up, and on Muse Code `web_fetch`, whose result is the page text without a header of the harness.
-    A use is a result of the format `page`.
+    It rests on Claude Code `WebFetch`, whose result is any text when no other format of the tool fits, e.g. the page as the model summed it up, with no line of the harness that says how the fetch went.
+    A use is a result of the format `page` or `page_truncated`.
 
     Provisional. It keeps the choice of the earlier code.
     """
@@ -217,8 +249,9 @@ def treat_accepted_stop_request_as_killed(
 ) -> ToolCallResult:
     """Read an accepted request to stop background work as work that was killed.
 
-    It rests on Muse Code `work_stop`, whose result has the `status` `accepted` and does not say whether the work then stopped.
-    A use is a result of the format `accepted`.
+    It rests on Muse Code `work_stop`, whose result has the `status` `accepted` and does not say whether the work then stopped, and on Devin `kill_shell`, whose result `Shell sh1 terminated successfully` does not say whether the command of the shell still ran.
+    Devin writes that sentence also for a shell whose command had already exited, e.g. after a `get_output` of the same shell that showed its exit code.
+    A use is a result of the format `accepted` of Muse Code `work_stop` or `killed` of Devin `kill_shell`.
 
     Provisional. It keeps the choice of the earlier code.
     """
@@ -255,6 +288,21 @@ def treat_tool_failure_message_as_not_run(
     return replace(tool_call_result, execution_status=ExecutionStatus.NOT_RUN)
 
 
+def treat_completed_await_without_exit_code_as_finished(
+    tool_call_result: ToolCallResult, *, use_counts: Counter[str]
+) -> ToolCallResult:
+    """Read a wait whose result says that the command is complete but gives no exit code as a finished command.
+
+    It rests on Cursor CLI `awaitToolCall`, whose result holds `success.complete` with an `exitCode` when the awaited command exited.
+    Each of the 8 such results without an `exitCode` in the Cursor CLI trials of Terminal-Bench 3.0 and 4.0 comes within three calls after a `kill`, `pkill` or `killall`, so the command may have been stopped by a signal, and the result does not say whether it ended on its own.
+    A use is a result of the format `complete_without_exit_code`.
+
+    Provisional. It keeps the choice of the earlier code.
+    """
+    use_counts[treat_completed_await_without_exit_code_as_finished.__name__] += 1
+    return replace(tool_call_result, execution_status=ExecutionStatus.FINISHED)
+
+
 def treat_shell_id_with_exit_code_as_running(
     tool_call_result: ToolCallResult, *, use_counts: Counter[str]
 ) -> ToolCallResult:
@@ -275,8 +323,10 @@ def treat_stop_request_for_ended_work_as_finished(
 ) -> ToolCallResult:
     """Read a request to stop background work that had already ended as work that finished.
 
-    It rests on Muse Code `work_stop`, whose result has the `status` `already_terminal` and does not say how the work ended, e.g. whether it exited or was stopped earlier.
-    A use is a result of the format `already_ended`.
+    It rests on Muse Code `work_stop` and Grok Build `kill_command_or_subagent`, whose results say that the work had ended before the request but not for sure how.
+    Muse Code writes the `status` `already_terminal` and a `terminal`, which is `completed` in both such results of the Terminal-Bench 4.1 trajectories. Its `bash` results give `completed` to a command that exited, and it is not known whether Muse Code writes it also for work that its time limit stopped, e.g. a `monitor` whose timeout ran out.
+    Grok Build writes `already_exited: Task had already completed`, and it says `completed` also for a task that a signal stopped, e.g. in a `system-reminder` of the format `terminated`.
+    A use is a result of the format `already_ended` of Muse Code `work_stop` or `already_exited` of Grok Build `kill_command_or_subagent`.
 
     Provisional. It keeps the choice of the earlier code.
     """

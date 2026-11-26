@@ -84,6 +84,13 @@ _SHELL_TOOL_CALL = HarnessResultFormatList[JsonObject](
     )
 )
 
+
+def _regex_match_text_of(matched_values: MatchedValues) -> str | None:
+    """Give the text that the pattern of a wait matched, or None for a wait without a match, whose output stays in the output file."""
+    regex_match = matched_values.get("tool_output")
+    return regex_match if isinstance(regex_match, str) else None
+
+
 _AWAIT_TOOL_CALL = HarnessResultFormatList[JsonObject](
     (
         Json(
@@ -91,6 +98,21 @@ _AWAIT_TOOL_CALL = HarnessResultFormatList[JsonObject](
             S.UNKNOWN,
             present_paths=("success.complete",),
             condition=JsonCondition("success.complete.taskId", "==", ""),
+        ),
+        # Without an exit code the result does not say how the command ended, e.g. after a `kill` of it.
+        Json(
+            "complete_without_exit_code",
+            value_paths={
+                "tool_output": "success.complete.regexMatch",
+                "handle": "success.complete.taskId",
+                "output_path": "success.complete.outputFilePath",
+            },
+            judgment_rule="treat_completed_await_without_exit_code_as_finished",
+            present_paths=("success.complete",),
+            absent_paths=("success.complete.exitCode",),
+            condition=JsonCondition("success.complete.taskId", "!=", ""),
+            fixed_handle_kind=ExecutionHandleKind.COMMAND,
+            text_from_matched_values=_regex_match_text_of,
         ),
         # A poll whose pattern matched nothing holds no text of the output, which stays in the output file.
         Json(

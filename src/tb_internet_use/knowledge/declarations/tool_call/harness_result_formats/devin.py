@@ -264,7 +264,7 @@ _KILL_SHELL = HarnessResultFormatList[str](
         Text(
             "killed",
             "Shell {handle:id} terminated successfully",
-            S.KILLED,
+            judgment_rule="treat_accepted_stop_request_as_killed",
             fixed_handle_kind=ExecutionHandleKind.COMMAND,
             no_tool_output_text=True,
         ),

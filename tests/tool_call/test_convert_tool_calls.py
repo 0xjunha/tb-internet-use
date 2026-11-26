@@ -41,14 +41,22 @@ from tb_internet_use.tool_call.parse_shell_text import parse_shell_text
 S = ExecutionStatus
 
 
-def _claude_code_result(text: str, structured_result: dict[str, Any] | None = None):
-    """Give a Claude Code result as Harbor writes it, with the original text and, when given, the structured result in the metadata."""
+def _claude_code_result(
+    text: str,
+    structured_result: dict[str, Any] | None = None,
+    *,
+    is_marked_as_error: bool = False,
+):
+    """Give a Claude Code result as Harbor writes it, with the original text and, when given, the structured result in the metadata and the mark of a result that Claude Code judged an error."""
     metadata: dict[str, Any] = {
         "raw_tool_result": {"type": "tool_result", "content": text}
     }
     if structured_result is not None:
         metadata["tool_use_result"] = structured_result
-    return {"content": text, "extra": {"tool_result_metadata": metadata}}
+    extra: dict[str, Any] = {"tool_result_metadata": metadata}
+    if is_marked_as_error:
+        extra["tool_result_is_error"] = True
+    return {"content": text, "extra": extra}
 
 
 def _codex_script_result(state: str, printed: str) -> dict[str, Any]:
@@ -108,6 +116,14 @@ JUDGMENT_RULE_CASES: list[
             "treat_bash_output_without_exit_code_line_as_exit_code_0": 1,
         },
     ),
+    # A command with `pkill` may have stopped its own shell, so 144 is no exit code of the command.
+    (
+        "claude-code",
+        "Bash",
+        _claude_code_result("Exit code 144", is_marked_as_error=True),
+        (S.FINISHED, None),
+        {"treat_bash_exit_code_144_as_finished": 1},
+    ),
     (
         "claude-code",
         "Read",
@@ -128,6 +144,16 @@ JUDGMENT_RULE_CASES: list[
         _codex_script_result("Script failed", "Script error:\nSyntaxError: oops"),
         (S.NOT_RUN, None),
         {"treat_script_syntax_error_as_not_run": 1},
+    ),
+    # mini-swe-agent writes this also for the action that submitted, which ran, without its output or exit code.
+    (
+        "mini-swe-agent",
+        "bash",
+        {
+            "content": '{"output": "", "returncode": -1, "exception_info": "action was not executed"}'
+        },
+        (S.UNKNOWN, None),
+        {"treat_action_not_executed_result_as_unknown_status": 1},
     ),
     (
         "codex",
@@ -229,10 +255,36 @@ JUDGMENT_RULE_CASES: list[
         (S.RUNNING, None),
         {"treat_shell_id_with_exit_code_as_running": 1},
     ),
+    # Devin writes this also for a shell whose command had already exited.
+    (
+        "devin",
+        "kill_shell",
+        {"content": "Shell sh1 terminated successfully"},
+        (S.KILLED, None),
+        {"treat_accepted_stop_request_as_killed": 1},
+    ),
+    # A wait without an exit code does not say how the command ended, e.g. after a `kill` of it.
+    (
+        "cursor-cli",
+        "awaitToolCall",
+        {
+            "content": '{"success": {"complete": {"taskId": "9", "outputFilePath": "/t.out"}}}'
+        },
+        (S.FINISHED, None),
+        {"treat_completed_await_without_exit_code_as_finished": 1},
+    ),
     (
         "muse-code",
         "work_stop",
         {"content": '{"status": "already_terminal", "work_id": "w1"}'},
+        (S.FINISHED, None),
+        {"treat_stop_request_for_ended_work_as_finished": 1},
+    ),
+    # Grok Build says completed also for a task that a signal stopped.
+    (
+        "grok-build",
+        "kill_command_or_subagent",
+        {"content": "already_exited: Task had already completed"},
         (S.FINISHED, None),
         {"treat_stop_request_for_ended_work_as_finished": 1},
     ),

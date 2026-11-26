@@ -8,8 +8,11 @@ import pytest
 
 from tb_internet_use.tool_call.judgment_rules import (
     treat_accepted_stop_request_as_killed,
+    treat_action_not_executed_result_as_unknown_status,
+    treat_bash_exit_code_144_as_finished,
     treat_bash_output_without_exit_code_line_as_exit_code_0,
     treat_bash_output_without_exit_code_line_as_finished,
+    treat_completed_await_without_exit_code_as_finished,
     treat_cut_off_web_search_as_finished,
     treat_exit_code_130_after_ctrl_c_as_killed,
     treat_failed_file_tool_call_as_not_run,
@@ -59,6 +62,7 @@ UNDECIDED = ToolCallResult("out", harness_result_format=MatchedFormat("f"))
 # The rules that set one status whatever the result. `JUDGMENT_RULE_CASES` of the tests of `convert_tool_calls` checks which status each sets.
 RULES_THAT_SET_ONE_STATUS: list[JudgmentRule] = [
     treat_bash_output_without_exit_code_line_as_finished,
+    treat_bash_exit_code_144_as_finished,
     treat_script_syntax_error_as_not_run,
     treat_web_search_call_without_content_as_finished,
     treat_failed_file_tool_call_as_not_run,
@@ -71,6 +75,7 @@ RULES_THAT_SET_ONE_STATUS: list[JudgmentRule] = [
     treat_shell_id_with_exit_code_as_running,
     treat_stop_request_for_ended_work_as_finished,
     treat_cut_off_web_search_as_finished,
+    treat_completed_await_without_exit_code_as_finished,
 ]
 
 
@@ -124,12 +129,21 @@ def test_a_status_rule_keeps_every_other_field_and_counts_once(
     assert use_counts == Counter({judgment_rule.__name__: 1})
 
 
-def test_an_idle_subagent_has_an_unknown_status_whatever_its_format_stated_and_counts_once():
+@pytest.mark.parametrize(
+    "judgment_rule",
+    [
+        treat_idle_subagent_as_unknown_status,
+        treat_action_not_executed_result_as_unknown_status,
+    ],
+)
+def test_a_rule_of_an_unknown_status_sets_it_whatever_the_format_stated_and_counts_once(
+    judgment_rule: JudgmentRule,
+):
     use_counts: Counter[str] = Counter()
-    assert treat_idle_subagent_as_unknown_status(
+    assert judgment_rule(
         replace(UNDECIDED, execution_status=S.FINISHED), use_counts=use_counts
     ) == replace(UNDECIDED, execution_status=S.UNKNOWN)
-    assert use_counts == Counter({"treat_idle_subagent_as_unknown_status": 1})
+    assert use_counts == Counter({judgment_rule.__name__: 1})
 
 
 def test_a_finished_bash_output_without_exit_code_line_gets_exit_code_0_and_counts_once():

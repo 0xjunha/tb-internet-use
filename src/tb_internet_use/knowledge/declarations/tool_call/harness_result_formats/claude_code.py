@@ -151,6 +151,18 @@ _BASH_ERROR = HarnessResultFormatList[str](
             "Exit code {code:int}\nCommand timed out after {after:rest_of_line}",
             S.TIMED_OUT,
         ),
+        # Nearly every command with this code holds `kill`, `pkill` or `killall`, which can stop the shell that runs it, so the code fills no exit_code and a rule decides the status.
+        Text(
+            "exit_code_144",
+            "Exit code 144\n{tool_output:text}",
+            judgment_rule="treat_bash_exit_code_144_as_finished",
+            truncation_marker=_CUT_MARKER,
+        ),
+        Text(
+            "exit_code_144_silent",
+            "Exit code 144",
+            judgment_rule="treat_bash_exit_code_144_as_finished",
+        ),
         Text(
             "exited",
             "Exit code {exit_code:int}\n{tool_output:text}",
@@ -327,9 +339,20 @@ _EDIT = HarnessResultFormatList[str](
     )
 )
 
+# Claude Code writes this note after an answer that covers only part of the page, which a later call can read on from the offset it names.
+_WEB_FETCH_NOTE = (
+    "\n\n[WebFetch note: this page's text is {length:int} characters long and the answer above covers only characters {start:int} to {end:int}; "
+    "the final {left:int} were not read — to read on, call WebFetch again with the same url and offset: {offset:int}.]"
+)
 _WEB_FETCH = HarnessResultFormatList[str](
     (
         _TOOL_USE_ERROR,
+        # Claude Code refuses the url before any fetch.
+        Text(
+            "refused_localhost",
+            "WebFetch cannot fetch localhost or other hostnames without a dot. {hint:text}",
+            S.NOT_RUN,
+        ),
         Text("no_model_response", "No response from model", S.FINISHED),
         Text(
             "no_model_response_binary_saved",
@@ -341,12 +364,45 @@ _WEB_FETCH = HarnessResultFormatList[str](
             "The server returned HTTP {http_status:int} {reason:rest_of_line}\n\nThe response body was not retrieved. {detail:text}",
             S.FINISHED,
         ),
+        # The server answered with a redirect, which Claude Code did not follow, so the text holds no page.
+        Text(
+            "redirected",
+            "REDIRECT DETECTED: The URL redirects to a location that was not fetched automatically.\n\n"
+            "    Original URL: {original_url:line}\n"
+            "    Redirect URL (from the server's Location header — server-supplied, not verified): {redirect_url:line}\n"
+            "    Status: {http_status:int} {reason:line}\n\n{hint:text}",
+            S.FINISHED,
+        ),
+        # The page was fetched, but the offset of the call is past its end, so the text holds no page.
+        Text(
+            "offset_past_end",
+            "Nothing left to read from offset {offset:int}: this page's text is {length:int} characters long.",
+            S.FINISHED,
+        ),
         Text("api_error", "API Error: {detail:text}", S.FINISHED),
         Text("connection_error", "connect {error:rest_of_line}", S.FINISHED),
+        # Errors of the fetch after it connected, e.g. of TLS or of a response over the size limit.
+        Text("certificate_error", "unable to verify the first certificate", S.FINISHED),
+        Text(
+            "ssl_error",
+            "error:{code:word}:SSL routines:{detail:rest_of_line}",
+            S.FINISHED,
+        ),
+        Text(
+            "content_too_large",
+            "maxContentLength size of {limit:int} exceeded",
+            S.FINISHED,
+        ),
         Text(
             "page_binary_saved",
             "{tool_output:text}\n\n[Binary content ({detail:line_without_brackets}) also saved to {output_path:line_without_brackets}]",
             S.FINISHED,
+        ),
+        Text(
+            "page_truncated",
+            "{tool_output:text}" + _WEB_FETCH_NOTE,
+            judgment_rule="treat_web_fetch_text_as_finished",
+            is_truncated=True,
         ),
         Text(
             "page",

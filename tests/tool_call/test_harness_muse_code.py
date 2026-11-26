@@ -77,6 +77,8 @@ _BACKGROUND = {
     "truncated": False,
 }
 _READ_HEAD = "Read text file `/f` (lines 1-2 of 9)"
+# What Muse Code writes after a fetched page, with made-up values.
+_PAGE_SOURCE = "\n\nSource: https://a.org/docs\nStatus: 200 OK\nContent-Type: text/html\nFetched: 1200 bytes\n"
 
 # One made-up result per declared result format of Muse Code, built from the format, and the `ToolCallResult` it converts to.
 # (tool, result text or the object of the JSON text in the trajectory, expected result)
@@ -210,6 +212,33 @@ RESULT_FORMAT_CASES: list[tuple[str, str | dict[str, Any], ToolCallResult]] = [
             harness_result_format=_format("background"),
         ),
     ),
+    # The output came in an earlier chunk that the trajectory does not hold, so "" is not what the command printed.
+    (
+        "bash_input",
+        _shell(
+            "completed",
+            "",
+            exit_code=0,
+            original_output_bytes=721,
+            terminal_already_reported=True,
+        ),
+        ToolCallResult(
+            None, S.FINISHED, 0, harness_result_format=_format("end_already_reported")
+        ),
+    ),
+    (
+        "bash_input",
+        _shell(
+            "failed",
+            "",
+            exit_code=1,
+            original_output_bytes=8892,
+            terminal_already_reported=True,
+        ),
+        ToolCallResult(
+            None, S.FINISHED, 1, harness_result_format=_format("end_already_reported")
+        ),
+    ),
     (
         "bash_input",
         _shell("completed", "ok", exit_code=0),
@@ -289,11 +318,47 @@ RESULT_FORMAT_CASES: list[tuple[str, str | dict[str, Any], ToolCallResult]] = [
         "tool failed: web_fetch failed: request failed: error sending request for url (https://a.org/): operation timed out",
         ToolCallResult("", S.FINISHED, harness_result_format=_format("request_failed")),
     ),
+    # A PDF that Muse Code saved without its text.
     (
         "web_fetch",
-        "# A page\n\ntext",
+        "Binary content (application/pdf, 1200 bytes) saved to: /t/page.pdf"
+        + _PAGE_SOURCE
+        + "Prompt not applied: binary content cannot be summarized; read the saved file with an appropriate tool instead.",
         ToolCallResult(
-            "# A page\n\ntext", S.FINISHED, harness_result_format=_format("page")
+            None,
+            S.FINISHED,
+            http_status=200,
+            output_path="/t/page.pdf",
+            harness_result_format=_format("binary_saved"),
+        ),
+    ),
+    (
+        "web_fetch",
+        "# A page\n\ntext\n\n[Answer truncated]"
+        + _PAGE_SOURCE
+        + "Processed: 300 chars\nCache: miss\nTruncated: true\n<system-reminder>\nFull output saved to: /t/page.txt\n"
+        "Full output is longer than the visible window.\n"
+        "Use bash tools like head, tail, cat, sed, or grep to inspect and search the full output.\n</system-reminder>",
+        ToolCallResult(
+            "# A page\n\ntext",
+            S.FINISHED,
+            http_status=200,
+            output_path="/t/page.txt",
+            is_truncated=True,
+            harness_result_format=_format("page_truncated"),
+        ),
+    ),
+    (
+        "web_fetch",
+        "# A page\n\ntext"
+        + _PAGE_SOURCE
+        + "Processed: 14 chars\nCache: miss\nTruncated: false",
+        ToolCallResult(
+            "# A page\n\ntext",
+            S.FINISHED,
+            http_status=200,
+            is_truncated=False,
+            harness_result_format=_format("page"),
         ),
     ),
     (

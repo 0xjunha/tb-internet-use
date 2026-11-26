@@ -87,6 +87,16 @@ _BASH = HarnessResultFormatList[JsonObject](
 )
 _BASH_INPUT = HarnessResultFormatList[JsonObject](
     (
+        # Muse Code marks a poll that comes after the chunk that reported the end of the command, which the trajectory does not hold, e.g. a result of the chunk `exec-37-3` without `exec-37-2`.
+        # Its `output` is "" though the command printed, so it has no tool output text.
+        Json(
+            "end_already_reported",
+            S.FINISHED,
+            {"exit_code": "exit_code"},
+            present_paths=("exit_code",),
+            condition=JsonCondition("terminal_already_reported", "==", True),
+            no_tool_output_text=True,
+        ),
         _SHELL_EXITED,
         _SHELL_FAILED,
         Json(
@@ -137,6 +147,19 @@ _WEB_SEARCH = HarnessResultFormatList[JsonObject](
 )
 # Muse Code writes a failed fetch as a tool failure that says how far the request got.
 _WEB_FETCH_FAILED = "tool failed: web_fetch failed: "
+# Muse Code ends a fetched page with what the server answered, and a page it cut with the file that holds the whole page.
+_WEB_FETCH_SOURCE = (
+    "\n\nSource: {url:line}\nStatus: {http_status:int} {reason:line}\n"
+    "Content-Type: {content_type:line}\nFetched: {fetched_bytes:int} bytes\n"
+)
+_WEB_FETCH_PAGE_TAIL = (
+    "Processed: {processed_chars:int} chars\nCache: {cache:line}\nTruncated: "
+)
+_WEB_FETCH_SAVED_PAGE = (
+    "\n<system-reminder>\nFull output saved to: {output_path:line}\n"
+    "Full output is longer than the visible window.\n"
+    "Use bash tools like head, tail, cat, sed, or grep to inspect and search the full output.\n</system-reminder>"
+)
 _WEB_FETCH = HarnessResultFormatList[str](
     (
         Text(
@@ -150,9 +173,28 @@ _WEB_FETCH = HarnessResultFormatList[str](
             S.FINISHED,
         ),
         Text(
+            "binary_saved",
+            "Binary content ({detail:line_without_brackets}) saved to: {output_path:line}"
+            + _WEB_FETCH_SOURCE
+            + "Prompt not applied: {note:rest_of_line}",
+            S.FINISHED,
+            no_tool_output_text=True,
+        ),
+        Text(
+            "page_truncated",
+            "{tool_output:text}\n\n[Answer truncated]"
+            + _WEB_FETCH_SOURCE
+            + _WEB_FETCH_PAGE_TAIL
+            + "true"
+            + _WEB_FETCH_SAVED_PAGE,
+            S.FINISHED,
+            is_truncated=True,
+        ),
+        Text(
             "page",
-            "{tool_output:text}",
-            judgment_rule="treat_web_fetch_text_as_finished",
+            "{tool_output:text}" + _WEB_FETCH_SOURCE + _WEB_FETCH_PAGE_TAIL + "false",
+            S.FINISHED,
+            is_truncated=False,
         ),
     )
 )

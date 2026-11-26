@@ -241,7 +241,9 @@ _KILL = HarnessResultFormatList[str](
     (
         Text("killed", "killed: Task was terminated successfully", S.KILLED),
         Text(
-            "already_exited", "already_exited: Task had already completed", S.FINISHED
+            "already_exited",
+            "already_exited: Task had already completed",
+            judgment_rule="treat_stop_request_for_ended_work_as_finished",
         ),
         Text(
             "unknown_task",

@@ -91,7 +91,7 @@ copilot-cli,tool_search_tool,OtherAction,,"all 3 tool calls in the trajectories 
 copilot-cli,view,Deferred,,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",agents,"Reads a file or lists a folder, which only the result tells."
 cursor-cli,awaitToolCall,PollAction,no,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 cursor-cli,deleteToolCall,DeleteFileAction,,8 sampled tool calls in the trajectories (terminal-bench 2026-10-08),agents,
-cursor-cli,editToolCall,EditFileAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
+cursor-cli,editToolCall,Deferred,,"all 4,013 editToolCall results with success in the trajectories (terminal-bench 2026-10-08), of which 524 have a diffString from /dev/null and a streamContent equal to afterFullFileContent",,"Writes a new file or replaces text in a file, which only the diff of the result tells."
 cursor-cli,globToolCall,ListFilesAction,,8 sampled tool calls in the trajectories (terminal-bench 2026-10-08),agents,
 cursor-cli,grepToolCall,SearchFilesAction,,8 sampled tool calls in the trajectories (terminal-bench 2026-10-08),agents,
 cursor-cli,listMcpResourcesToolCall,OtherAction,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,

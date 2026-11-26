@@ -252,6 +252,21 @@ RESULT_FORMAT_CASES: list[tuple[str, dict[str, Any], ToolCallResult]] = [
             "", S.TIMED_OUT, harness_result_format=_format("timed_out_silent")
         ),
     ),
+    # 144 nearly always comes from a command that may have stopped its own shell, so it is no exit code of the command.
+    (
+        "Bash",
+        _result("Exit code 144\nstarted", is_error=True),
+        ToolCallResult(
+            "started", S.FINISHED, harness_result_format=_format("exit_code_144")
+        ),
+    ),
+    (
+        "Bash",
+        _result("Exit code 144", is_error=True),
+        ToolCallResult(
+            "", S.FINISHED, harness_result_format=_format("exit_code_144_silent")
+        ),
+    ),
     (
         "Bash",
         _result("Exit code 2\nboom", is_error=True),
@@ -514,6 +529,15 @@ RESULT_FORMAT_CASES: list[tuple[str, dict[str, Any], ToolCallResult]] = [
         ),
         _finished_result("replaced_all_note"),
     ),
+    # Claude Code refuses the url before any fetch.
+    (
+        "WebFetch",
+        _result(
+            "WebFetch cannot fetch localhost or other hostnames without a dot. To reach a local server, use Bash with curl instead.",
+            is_error=True,
+        ),
+        _not_run_result("refused_localhost"),
+    ),
     (
         "WebFetch",
         _result("No response from model"),
@@ -542,11 +566,51 @@ RESULT_FORMAT_CASES: list[tuple[str, dict[str, Any], ToolCallResult]] = [
             harness_result_format=_format("http_error_body_not_retrieved"),
         ),
     ),
+    # The harness text of a redirect that was not followed holds no page.
+    (
+        "WebFetch",
+        _result(
+            "REDIRECT DETECTED: The URL redirects to a location that was not fetched automatically.\n\n"
+            "    Original URL: https://a.org/x\n"
+            "    Redirect URL (from the server's Location header — server-supplied, not verified): https://b.org/x\n"
+            "    Status: 301 Moved Permanently\n\n"
+            "    To complete your request, I need to fetch content from the redirected URL. Please use WebFetch again with these parameters:\n"
+            '    - url: "https://b.org/x"'
+        ),
+        ToolCallResult(
+            "", S.FINISHED, http_status=301, harness_result_format=_format("redirected")
+        ),
+    ),
+    (
+        "WebFetch",
+        _result(
+            "Nothing left to read from offset 500000: this page's text is 291936 characters long."
+        ),
+        _finished_result("offset_past_end"),
+    ),
     ("WebFetch", _result("API Error: 500 upstream"), _finished_result("api_error")),
     (
         "WebFetch",
         _result("connect ECONNREFUSED 1.2.3.4:443"),
         _finished_result("connection_error"),
+    ),
+    (
+        "WebFetch",
+        _result("unable to verify the first certificate", is_error=True),
+        _finished_result("certificate_error"),
+    ),
+    (
+        "WebFetch",
+        _result(
+            "error:10000458:SSL routines:OPENSSL_internal:TLSV1_ALERT_UNRECOGNIZED_NAME",
+            is_error=True,
+        ),
+        _finished_result("ssl_error"),
+    ),
+    (
+        "WebFetch",
+        _result("maxContentLength size of 10485760 exceeded", is_error=True),
+        _finished_result("content_too_large"),
     ),
     (
         "WebFetch",
@@ -556,6 +620,20 @@ RESULT_FORMAT_CASES: list[tuple[str, dict[str, Any], ToolCallResult]] = [
             S.FINISHED,
             output_path="/tmp/page.pdf",
             harness_result_format=_format("page_binary_saved"),
+        ),
+    ),
+    # The note of the harness leaves the answer, which covers only part of the page.
+    (
+        "WebFetch",
+        _result(
+            "A page about tests.\n\n[WebFetch note: this page's text is 471126 characters long and the answer above covers only characters 0 to 100000; "
+            "the final 371126 were not read — to read on, call WebFetch again with the same url and offset: 100000.]"
+        ),
+        ToolCallResult(
+            "A page about tests.",
+            S.FINISHED,
+            is_truncated=True,
+            harness_result_format=_format("page_truncated"),
         ),
     ),
     (
@@ -1035,6 +1113,38 @@ def test_bash_structured_result_gives_the_task_and_the_saved_output():
         "/tmp/p.txt",
         True,
     )
+
+
+def test_bash_output_before_the_notice_of_a_timeout_is_running_only_when_the_structured_result_names_the_task():
+    block = (
+        "started\nCommand did not complete within its 120s timeout and was moved to the background (ID: b2)."
+        " Output is being written to: /tmp/b2.output. You will be notified when it completes."
+    )
+    structured_result = {
+        "stdout": "started",
+        "backgroundTaskId": "b2",
+        "timedOutAfterMs": 120000,
+        "interrupted": False,
+    }
+    judgment_rule_use_counts: Counter[str] = Counter()
+    tool_call_result = _counted_bash_result_of(
+        block,
+        structured_result,
+        knowledge=ToolCallKnowledge(),
+        judgment_rule_use_counts=judgment_rule_use_counts,
+    )
+    assert tool_call_result == ToolCallResult(
+        "started",
+        S.RUNNING,
+        handles=(ExecutionHandle(ExecutionHandleKind.COMMAND, "b2"),),
+        harness_result_format=_format("bare_output"),
+    )
+    assert judgment_rule_use_counts[EXIT_CODE_0_RULE] == 0
+    # A command whose output only quotes such a notice ended.
+    del structured_result["backgroundTaskId"], structured_result["timedOutAfterMs"]
+    quoted = _bash(block, structured_result)
+    assert quoted is not None
+    assert (quoted.execution_status, quoted.exit_code) == (S.FINISHED, 0)
 
 
 def test_bash_structured_result_does_not_touch_an_unmatched_result():

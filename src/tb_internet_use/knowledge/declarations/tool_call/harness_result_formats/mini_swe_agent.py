@@ -30,7 +30,14 @@ _EXITED_CONDITION = JsonCondition("returncode", ">", -1)
 
 _BASH = HarnessResultFormatList[JsonObject](
     (
-        Json("not_executed", S.NOT_RUN, condition=_NOT_EXECUTED_CONDITION),
+        # mini-swe-agent writes this also for the action that submitted, which ran, so a rule decides the status.
+        # Its `output` is "" though the command may have printed, so it has no tool output text.
+        Json(
+            "not_executed",
+            judgment_rule="treat_action_not_executed_result_as_unknown_status",
+            condition=_NOT_EXECUTED_CONDITION,
+            no_tool_output_text=True,
+        ),
         Json(
             "timed_out",
             S.TIMED_OUT,

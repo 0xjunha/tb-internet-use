@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, ClassVar, Self
 
 import pytest
+from made_up_harness_tool_calls import build_copilot_cli_bash_call_not_executed
 
 from tb_internet_use.expanded_tool_call.model import ExpandedToolCall
 from tb_internet_use.knowledge.catalog import KnowledgeUses
@@ -90,14 +91,8 @@ _MADE_UP_TRIAL = (
     _bash_call(3, "pip3 install x", "bash: pip3: command not found", returncode=127),
     # A line that no request owns, in the output of a script the trial does not hold.
     _bash_call(4, "./setup.sh", "Downloading torch-2.3.0.whl"),
-    # A call that did not run.
-    HarnessToolCall(
-        _key(5),
-        HarnessTool("mini-swe-agent", "bash"),
-        "5",
-        {"command": "curl https://c.org/z"},
-        {"content": json.dumps({"exception_info": "action was not executed"})},
-    ),
+    # A call that did not run, which only another harness writes, since a mini-swe-agent result that says the action was not executed has an unknown status.
+    build_copilot_cli_bash_call_not_executed(_key(5), "curl https://c.org/z"),
     # Exit code 0 of the text shows that sudo and curl ran, since sudo ends with the exit code of curl.
     _bash_call(6, "sudo curl -s -o y https://f.org/b", ""),
     # Exit code 0 of the text does not show that the curl of the next four calls ran. They are curl before a pipe, curl in a loop, curl under timeout, whose row leaves `exits_with_exit_code_of_next_program` blank, and curl in a file that bash runs.

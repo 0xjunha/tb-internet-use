@@ -32,6 +32,7 @@ from tb_internet_use.tool_call.model import (
     UnmatchedFormat,
     WebFetchAction,
     WebSearchAction,
+    WriteFileAction,
 )
 from tb_internet_use.tool_call.parse_shell_text import parse_shell_text
 
@@ -150,6 +151,37 @@ RESULT_FORMAT_CASES: list[tuple[str, dict[str, Any], ToolCallResult]] = [
             }
         },
         ToolCallResult("", S.UNKNOWN, harness_result_format=_format("no_task")),
+    ),
+    # Without an exit code the result does not say how the command ended, and without a match it holds no text of the output.
+    (
+        "awaitToolCall",
+        {"success": {"complete": {"taskId": "9", "outputFilePath": "/t.out"}}},
+        ToolCallResult(
+            None,
+            S.FINISHED,
+            handles=_command_handles("9"),
+            output_path="/t.out",
+            harness_result_format=_format("complete_without_exit_code"),
+        ),
+    ),
+    (
+        "awaitToolCall",
+        {
+            "success": {
+                "complete": {
+                    "taskId": "9",
+                    "outputFilePath": "/t.out",
+                    "regexMatch": "done",
+                }
+            }
+        },
+        ToolCallResult(
+            "done",
+            S.FINISHED,
+            handles=_command_handles("9"),
+            output_path="/t.out",
+            harness_result_format=_format("complete_without_exit_code"),
+        ),
     ),
     # Without a match the poll holds no text of the output, which stays in the output file.
     (
@@ -314,6 +346,7 @@ ACTION_CASES: list[tuple[str, dict[str, Any], ToolCallAction]] = [
         {"path": "/app/a.py", "offset": 10, "limit": 20},
         ReadFileAction("/app/a.py", 10, 20),
     ),
+    # Without a result nothing tells that the edit created the file.
     (
         "editToolCall",
         {"path": "/app/a.py", "streamContent": "x = 2\n"},
@@ -418,6 +451,75 @@ def test_a_result_of_each_declared_format_converts_to_its_fields(
     tool: str, result: dict[str, Any], expected: ToolCallResult
 ):
     assert _converted(_harness_tool_call(tool, {}, result)).result == expected
+
+
+_PAGE_REFERENCE = {"title": "t1", "url": "u1", "chunk": "page text"}
+_SAVED_PAGE_REFERENCE = {
+    "title": "t2",
+    "url": "u2",
+    "chunk": "Full page text written to file: /t/p.md\nSize: 1.0 KB, 20 lines",
+}
+
+
+@pytest.mark.parametrize(
+    ("references", "is_truncated"),
+    [([_PAGE_REFERENCE], None), ([_PAGE_REFERENCE, _SAVED_PAGE_REFERENCE], True)],
+)
+def test_web_search_is_truncated_when_a_reference_holds_only_the_file_of_a_saved_page(
+    references: list[dict[str, str]], is_truncated: bool | None
+):
+    tool_call = _converted(
+        _harness_tool_call(
+            "webSearchToolCall",
+            {"searchTerm": "q"},
+            {"success": {"references": references}},
+        )
+    )
+    assert tool_call.result is not None
+    assert (tool_call.result.harness_result_format, tool_call.result.is_truncated) == (
+        _format("results"),
+        is_truncated,
+    )
+
+
+def _edit_result(diff: str) -> dict[str, Any]:
+    """Give the result of an `editToolCall` with made-up values and the given diff."""
+    return {
+        "success": {
+            "path": "/app/a.py",
+            "linesAdded": 1,
+            "linesRemoved": 0,
+            "diffString": diff,
+            "afterFullFileContent": "x = 2\n",
+        }
+    }
+
+
+@pytest.mark.parametrize(
+    ("diff", "action"),
+    [
+        (
+            "--- /dev/null\n+++ b//app/a.py\n@@ -0,0 +1 @@\n+x = 2",
+            WriteFileAction("/app/a.py", "x = 2\n"),
+        ),
+        (
+            "--- a//app/a.py\n+++ b//app/a.py\n@@ -1 +1 @@\n-x = 1\n+x = 2",
+            EditFileAction("/app/a.py", None, "x = 2\n"),
+        ),
+    ],
+    ids=["created the file", "changed the file"],
+)
+def test_an_edit_that_created_its_file_writes_the_whole_file(
+    diff: str, action: ToolCallAction
+):
+    tool_call = _converted(
+        _harness_tool_call(
+            "editToolCall",
+            {"path": "/app/a.py", "streamContent": "x = 2\n"},
+            _edit_result(diff),
+        )
+    )
+    assert tool_call.action == action
 
 
 def test_await_polls_the_task_its_result_names():

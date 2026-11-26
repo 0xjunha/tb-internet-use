@@ -47,8 +47,6 @@ copilot-cli,rg,paths,paths,,"tool calls in the trajectories (terminal-bench 4.1,
 copilot-cli,stop_bash,shellId,handles,command,"tool calls in the trajectories (terminal-bench 4.1, 2026-11-19)",agents,a bash shell session
 cursor-cli,awaitToolCall,taskId,handles,command,tool calls in the trajectories (terminal-bench 2026-10-08),yes,a background shell
 cursor-cli,deleteToolCall,path,path,,8 sampled tool calls in the trajectories (terminal-bench 2026-10-08),agents,
-cursor-cli,editToolCall,path,path,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
-cursor-cli,editToolCall,streamContent,new,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,
 cursor-cli,globToolCall,targetDirectory,path,,8 sampled tool calls in the trajectories (terminal-bench 2026-10-08),agents,
 cursor-cli,grepToolCall,path,paths,,8 sampled tool calls in the trajectories (terminal-bench 2026-10-08),agents,
 cursor-cli,readToolCall,limit,limit,,tool calls in the trajectories (terminal-bench 2026-10-08),yes,

@@ -201,9 +201,19 @@ def _result_from_structured_bash(
     knowledge: ToolCallKnowledge,
     judgment_rule_use_counts: Counter[str],
 ) -> ToolCallResult:
-    """Prefer the structured stdout, task id and saved-output path over what the text showed."""
+    """Prefer the structured stdout, task id and saved-output path over what the text showed, and read a command whose structured result names a background task as running.
+
+    Claude Code moves a command to the background when its timeout ends, and when the command printed before that, the text shows the output and then the notice, which no format reads, so the format `bare_output` takes it as finished.
+    The structured result then names the task in `backgroundTaskId`, while the result of a command whose output only quotes such a notice has none.
+    """
     saved_to = structured_result.get("persistedOutputPath")
     task_id = structured_result.get("backgroundTaskId")
+    if (
+        task_id
+        and tool_call_result.execution_status is S.FINISHED
+        and tool_call_result.exit_code is None
+    ):
+        tool_call_result = replace(tool_call_result, execution_status=S.RUNNING)
     if (
         tool_call_result.exit_code is None
         and tool_call_result.execution_status is S.FINISHED

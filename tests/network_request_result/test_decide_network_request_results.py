@@ -1,4 +1,4 @@
-"""Tests for _decide_network_request_results.py, with made-up mini-swe-agent and Claude Code calls run through `convert_tool_calls`, `expand_tool_calls` and `extract_network_requests` on the knowledge classes made from the catalogs of the repo.
+"""Tests for _decide_network_request_results.py, with made-up mini-swe-agent, Claude Code and Copilot CLI calls run through `convert_tool_calls`, `expand_tool_calls` and `extract_network_requests` on the knowledge classes made from the catalogs of the repo.
 
 The cases use programs and options whose rows the catalogs hold, e.g. `pip install` and `wget` without options, so that the results rest on the rows and not on a missing one.
 """
@@ -8,6 +8,7 @@ from collections import Counter
 from dataclasses import dataclass
 
 import pytest
+from made_up_harness_tool_calls import build_copilot_cli_bash_call_not_executed
 
 from tb_internet_use.expanded_tool_call.model import ExpandedToolCall, FileUseKind
 from tb_internet_use.knowledge.network_request_result_knowledge import (
@@ -319,12 +320,8 @@ WHOLE_RESULT_CASES = [
                 "",
                 returncode=0,
             ),
-            HarnessToolCall(
-                _key(2),
-                HarnessTool("mini-swe-agent", "bash"),
-                "2",
-                {"command": "curl https://c.org/z; pip install w"},
-                {"content": json.dumps({"exception_info": "action was not executed"})},
+            build_copilot_cli_bash_call_not_executed(
+                _key(2), "curl https://c.org/z; pip install w"
             ),
         ),
         [
@@ -364,6 +361,40 @@ WHOLE_RESULT_CASES = [
         ],
         Counter({"treat_command_without_own_evidence_as_no_evidence_of_run": 1}),
         id="exit 0 of a ; b shows the last command, and a call not run fails all its requests",
+    ),
+    # mini-swe-agent writes that the action was not executed also for the action that submitted, which ran, so its request gets no evidence instead of a failure.
+    pytest.param(
+        (
+            HarnessToolCall(
+                _key(1),
+                HarnessTool("mini-swe-agent", "bash"),
+                "1",
+                {
+                    "command": "curl -s -o z https://c.org/z && echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT"
+                },
+                {
+                    "content": json.dumps(
+                        {
+                            "output": "",
+                            "returncode": -1,
+                            "exception_info": "action was not executed",
+                        }
+                    )
+                },
+            ),
+        ),
+        [
+            (
+                NetworkRequestCertainty.CONFIRMED,
+                _ATTEMPTED,
+                _NOT_VISIBLE,
+                _CONFIRMED,
+                (),
+                (),
+            ),
+        ],
+        Counter({"treat_command_without_own_evidence_as_no_evidence_of_run": 1}),
+        id="a request of the action that submitted, whose result says it was not executed, is not visible",
     ),
     pytest.param(
         (

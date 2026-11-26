@@ -33,6 +33,7 @@ from tb_internet_use.tool_call.harnesses.harness_tool_call_converter import (
 from tb_internet_use.tool_call.harnesses.muse_code import MuseCodeConverter
 from tb_internet_use.tool_call.model import (
     DEFERRED,
+    EditFileAction,
     ExecutionStatus,
     HarnessTool,
     HarnessToolCall,
@@ -76,6 +77,7 @@ DEFERRED_ACTION_WITHOUT_ARGUMENTS = {
     HarnessTool("codex", "web_search_call"): UnknownAction(),
     HarnessTool("copilot-cli", "apply_patch"): UnknownAction(),
     HarnessTool("copilot-cli", "view"): ReadFileAction(),
+    HarnessTool("cursor-cli", "editToolCall"): EditFileAction(),
     HarnessTool("cursor-cli", "mcpToolCall"): UnknownAction(),
     HarnessTool("grok-build", "system-reminder"): UnknownAction(),
 }
