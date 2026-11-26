@@ -3,7 +3,10 @@
 from collections import Counter
 from dataclasses import dataclass
 
-from tb_internet_use.expanded_tool_call import expand_tool_calls
+from tb_internet_use.expanded_tool_call import _expand_ran_texts, expand_tool_calls
+from tb_internet_use.expanded_tool_call.judgment_rules import (
+    treat_last_command_of_starter_as_reader_of_typed_text,
+)
 from tb_internet_use.expanded_tool_call.model import (
     ArgumentText,
     CallCommandText,
@@ -864,8 +867,16 @@ def test_a_request_still_owns_its_line_in_a_place_that_may_show_file_content():
     assert owner_targets_of(decided) == [("https://a.org/x",)]
 
 
-def test_code_typed_through_a_poll_owns_lines_of_the_typing_call_and_of_later_places_of_the_starter():
+def test_code_typed_through_a_poll_owns_lines_of_the_typing_call_and_of_later_places_of_the_starter(
+    monkeypatch,
+):
     # Call 1 starts `python3`, call 2 types `requests.get(u)` into it, call 3 polls it and call 4 runs `ls`. Each result shows `Connection refused`.
+    # The typed text is code only on the other answer of the rule on the reader of typed text, which takes `python3` as its reader.
+    monkeypatch.setattr(
+        _expand_ran_texts,
+        treat_last_command_of_starter_as_reader_of_typed_text.__name__,
+        lambda *, use_counts: True,
+    )
     handle = ExecutionHandle(ExecutionHandleKind.COMMAND, "s")
     running = ToolCallResult(
         tool_output_text="Connection refused",

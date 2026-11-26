@@ -781,7 +781,7 @@ def test_variable_values_of_the_command_give_its_targets():
     extraction = _extract(
         _command(pip, variable_values=(VariableValues("A", ("1", "2"), False, False),))
     )
-    assert _targets(extraction.network_requests) == ["pkg1", "pkg2"]
+    assert _targets(extraction.network_requests) == [VALUE_SET_AT_RUN_TIME]
     assert extraction.judgment_rule_use_counts == Counter(
         {treat_values_outside_their_for_loop_as_one_request_each.__name__: 1}
     )

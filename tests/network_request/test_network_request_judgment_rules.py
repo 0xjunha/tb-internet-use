@@ -61,13 +61,16 @@ def test_single_label_or_templated_host_name_is_read_as_possibly_public_and_coun
     )
 
 
-def test_values_outside_their_for_loop_each_give_a_request_and_are_counted():
+def test_values_outside_their_for_loop_give_no_request_of_their_own_and_are_counted():
     use_counts: Counter[str] = Counter()
     branches = VariableValues("A", ("1", "2"), False, False)
 
-    assert treat_values_outside_their_for_loop_as_one_request_each(
-        branches, use_counts=use_counts
-    ) == ("1", "2")
+    assert (
+        treat_values_outside_their_for_loop_as_one_request_each(
+            branches, use_counts=use_counts
+        )
+        == ()
+    )
     assert use_counts == Counter(
         {"treat_values_outside_their_for_loop_as_one_request_each": 1}
     )

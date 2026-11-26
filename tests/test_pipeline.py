@@ -854,7 +854,7 @@ def _run_steps_of_trial_with_new_counters(
 def test_runs_every_step_on_a_trial_folder_and_keeps_the_counters_of_each_step_apart(
     tmp_path, write_trial_folder
 ):
-    # wget runs only when x.tgz is missing, pip installs packages of a variable, and mytool has no row of a catalog. A later call runs a script whose text the trial does not hold, which prints a download line that no request owns.
+    # wget runs only when x.tgz is missing, pip installs packages of a variable, which a rule reads as unread words, and mytool has no row of a catalog. A later call runs a script whose text the trial does not hold, which prints a download line that no request owns.
     trial_dir = write_trial_folder(
         tmp_path,
         "trial-1",
@@ -906,8 +906,8 @@ def test_runs_every_step_on_a_trial_folder_and_keeps_the_counters_of_each_step_a
         (row.category, row.request_measure_bound) for row in trial_category_measure_rows
     } == {
         (NetworkRequestCategory.CONTENT_FETCH, MeasureBound.LOWER_AND_UPPER),
-        (NetworkRequestCategory.PACKAGE, MeasureBound.LOWER_AND_UPPER),
-        # mytool is an uncertain request.
+        # pip and mytool are uncertain requests.
+        (NetworkRequestCategory.PACKAGE, MeasureBound.UPPER_ONLY),
         (NetworkRequestCategory.OTHER_WEB, MeasureBound.UPPER_ONLY),
     }
     # Every step uses a rule of its own and counts no rule of another step, except that `export_rows` counts the rule of `extract_network_requests` that reads a dotted host name as public.

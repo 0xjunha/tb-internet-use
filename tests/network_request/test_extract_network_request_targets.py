@@ -429,7 +429,7 @@ def test_the_next_program_is_the_target_of_npx():
         ),
         pytest.param(
             _invocation("pip", ("install",), arguments=("pkg$A",)),
-            [("pkg1", PACKAGE_NAME, ()), ("pkg2", PACKAGE_NAME, ())],
+            [(VALUE_SET_AT_RUN_TIME, PACKAGE_NAME, ())],
             1,
             id="pip install pkg$A after A=1 or A=2",
         ),
@@ -536,18 +536,19 @@ def test_targets_of_words_with_variables(
     )
 
 
-def test_values_outside_their_for_loop_give_one_unknown_target_when_the_rule_gives_none(
+def test_values_outside_their_for_loop_give_a_target_each_when_the_rule_gives_them_all(
     monkeypatch: pytest.MonkeyPatch,
 ):
     monkeypatch.setattr(
         _extract_network_request_targets,
         VALUES_OUTSIDE_LOOP_RULE_NAME,
-        lambda variable_values, *, use_counts: (),
+        lambda variable_values, *, use_counts: variable_values.values,
     )
     pip_install = _invocation("pip", ("install",), arguments=("pkg$A",))
 
     assert _targets(pip_install, variable_values=(BRANCHES,)) == (
-        (VALUE_SET_AT_RUN_TIME, PACKAGE_NAME, ()),
+        ("pkg1", PACKAGE_NAME, ()),
+        ("pkg2", PACKAGE_NAME, ()),
     )
 
 

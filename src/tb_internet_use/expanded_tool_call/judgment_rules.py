@@ -38,12 +38,13 @@ def treat_word_with_expansion_as_one_argument(
     `expand_program_invocations` asks it for each word of `ShellCommand.expansion_word_indexes` that ends as an argument or as the value of an option, once all words of its program are placed.
     It does not ask it for the program word, which is an `UnknownProgramInvocation`, for a skipped `NAME=value` word, or for a word whose place makes it a cluster of one-letter options, which is unread.
     On `True` the word is one argument or one value, and on `False` it and the words after it are unread words, from the word of the option for a value.
+    It returns `False`, so the rule is asked once per command, for the first such word.
     A use is such a word.
 
-    Provisional. It keeps the choice of the earlier code, which read such a word as one argument.
+    Decided. The user decided on 2026-11-24 that such a word starts the unread words, since its value may hold options, e.g. `--no-index --find-links /wheels` in `$OPTS` of `pip install $OPTS requests`, so reading it as one argument puts in the lower bound a target and a default host that the trajectory does not show. The earlier code read it as one argument.
     """
     use_counts[treat_word_with_expansion_as_one_argument.__name__] += 1
-    return True
+    return False
 
 
 def treat_poll_as_reading_latest_earlier_start_of_handle(
@@ -54,12 +55,13 @@ def treat_poll_as_reading_latest_earlier_start_of_handle(
     A harness can give a handle id again once the work it named has ended, and the trajectory does not say which of the starts a poll means.
     `expand_poll_links` asks it for each handle of a poll that more than one earlier call of the poll's trajectory started.
     On `True` the poll is linked to the latest of them, and on `False` to none, so that handle of the poll has no starter.
+    It returns `False`.
     A use is such a handle of a poll.
 
-    Provisional. It keeps the choice of the earlier code, which linked a poll to the latest earlier call that started the id.
+    Decided. The user decided on 2026-11-24 to link such a poll to none of the starts, since the trajectory does not say which start it reads, and a link to the wrong one gives a request the output of another call as evidence that it received, e.g. `Successfully installed x-1.0` that an earlier `pip install --index-url http://localhost:8080/simple x` printed. The earlier code linked a poll to the latest earlier call that started the id.
     """
     use_counts[treat_poll_as_reading_latest_earlier_start_of_handle.__name__] += 1
-    return True
+    return False
 
 
 def treat_calls_of_other_trajectory_as_not_linked(*, use_counts: Counter[str]) -> bool:
@@ -220,12 +222,13 @@ def treat_last_command_of_starter_as_reader_of_typed_text(
     The last command is that of the last text the starting call holds itself, i.e. its command string or its script step with the highest index.
     `expand_ran_texts` asks it for each typed text whose poll has exactly one starting call.
     On `True` that program decides whether and how the text runs. On `False` the text is an `UnknownRanText` with the reason `LANGUAGE_NOT_KNOWN`, whatever reads it.
+    It returns `False`.
     A use is such a typed text.
 
-    Provisional. The earlier code read every typed text as shell text, which made commands of text typed into programs that run none, e.g. gdb, so this rule claims less.
+    Decided. The user decided on 2026-11-24 that every such text is of a language not known, since a program that an earlier poll started may read it instead, e.g. cat after `cat > notes.txt` typed into a running bash, and the code does not follow such a change of reader. The earlier code read every typed text as shell text.
     """
     use_counts[treat_last_command_of_starter_as_reader_of_typed_text.__name__] += 1
-    return True
+    return False
 
 
 def treat_command_under_run_condition_as_run(*, use_counts: Counter[str]) -> bool:
@@ -249,15 +252,16 @@ def treat_use_of_path_that_fits_several_written_files_as_use_of_each(
 
     The working folder of the call is not in the trajectory, so the text does not say which file was used.
     `expand_ran_texts` asks it for such a use.
-    On `True` the use goes on each written file with `fits_several_written_files` set. On `False` it would go on none of them.
+    On `True` the use goes on each written file with `fits_several_written_files` set. On `False` it goes on none of them, so it is a use of a file without a known writer.
+    It returns `False`.
     A use is such a use of a file.
 
-    Provisional. The earlier code recorded such a read on each file without a mark.
+    Decided. The user decided on 2026-11-24 that such a use goes on none of the files, since the mark `fits_several_written_files` is not read where the lines of a shown file get their owners, so a use on each lets a request that wrote one of the files own alone a line that another file held. The earlier code recorded such a read on each file without a mark.
     """
     use_counts[
         treat_use_of_path_that_fits_several_written_files_as_use_of_each.__name__
     ] += 1
-    return True
+    return False
 
 
 def treat_file_not_named_by_command_words_as_untouched(
@@ -282,13 +286,14 @@ def treat_copy_with_two_arguments_as_same_content(*, use_counts: Counter[str]) -
 
     The command may fail, and a `mv` removes its source, which the text does not show.
     `expand_ran_texts` asks it for each such copy.
-    On `True` the copy has the content of the source, unknown when that is unknown. On `False` the copy would have unknown content.
+    On `True` the copy has the content of the source, unknown when that is unknown. On `False` the copy has unknown content.
+    It returns `False`. The source stays as it was on either answer.
     A use is such a copy.
 
-    Provisional. It keeps the choice of the earlier code, which copied the known content and left the source.
+    Decided. The user decided on 2026-11-24 that the copy has unknown content, since the code does not read whether the copy failed, e.g. `cp fetch.sh /usr/local/bin/run.sh` under `Permission denied`, so a later run would follow content that may never have been copied. The earlier code copied the known content and left the source.
     """
     use_counts[treat_copy_with_two_arguments_as_same_content.__name__] += 1
-    return True
+    return False
 
 
 def treat_outer_assignment_as_not_visible_in_new_shell(
@@ -329,15 +334,16 @@ def treat_extension_of_file_without_interpreter_line_as_its_language(
 
     Without a `#!` line the kernel does not run the file by its extension, and the shell may run it as shell text.
     `expand_ran_texts` asks it for each such file with known content.
-    On `True` the language is that of its extension in `code_runners.csv`, and the text is an `UnknownRanText` with the reason `LANGUAGE_NOT_KNOWN` when the extension has no row. On `False` the language would be unknown.
+    On `True` the language is that of its extension in `code_runners.csv`, and the text is an `UnknownRanText` with the reason `LANGUAGE_NOT_KNOWN` when the extension has no row. On `False` the language is unknown.
+    It returns `False`. It is asked before the extension is looked at, so a file without an extension counts too, e.g. `./run`.
     A use is such a file.
 
-    Provisional. It keeps the choice of the earlier code, which read such a file by its extension.
+    Decided. The user decided on 2026-11-24 that the language of such a file is unknown, since the kernel does not run a file by its extension, e.g. `./get.py` without a `#!` line runs as shell text and fails at `import requests`. The earlier code read such a file by its extension.
     """
     use_counts[
         treat_extension_of_file_without_interpreter_line_as_its_language.__name__
     ] += 1
-    return True
+    return False
 
 
 def treat_script_step_output_as_shown_in_call_result(
@@ -347,13 +353,14 @@ def treat_script_step_output_as_shown_in_call_result(
 
     The trajectory has one result for the whole script, and what the script prints is up to its code, so it does not say whether the output of a step reached that result.
     `expand_output_places` asks it for each step of a tool script, i.e. a `RunCommandAction` step or a poll step that types text, with a command whose output ends in the result, when the result of the call has tool output text and is not `NOT_RUN`. `step_index` is 0-based.
-    On `True` the call's result is a place of those commands. On `False` it is not, and neither is a later read of the file where the harness saved that result.
+    On `True` the call's result is a place of those commands. On `False` it is not, and neither is a later read of the file where the harness saved that result, so a step that shows a file, e.g. `cat build.log`, shows it nowhere.
+    It returns `False`. The later polls of a handle that the script started stay places on either answer.
     A use is such a step.
 
-    Provisional. It keeps the choice of the earlier code, which took the result of a call as the result of all of its commands, script steps included.
+    Decided. The user decided on 2026-11-24 that the result is no place of the step's commands, since the script's code decides what its result prints, so a line there may come from anything but the step, e.g. a log that the code reads itself. The earlier code took the result of a call as the result of all of its commands, script steps included.
     """
     use_counts[treat_script_step_output_as_shown_in_call_result.__name__] += 1
-    return True
+    return False
 
 
 def treat_poll_result_as_showing_every_command_of_starter(
@@ -364,12 +371,13 @@ def treat_poll_result_as_showing_every_command_of_starter(
     The trajectory does not say which of several commands of the starting call the handle names, or which of them are still printing when the poll reads.
     `expand_output_places` asks it for each pair of such a group of more than one command and a later poll whose result can show output, i.e. one with tool output text that is not `NOT_RUN`. A group is the commands of the starting call, with every later poll of a handle it started, or the commands that one poll typed into it, with every later poll of a handle that the typing poll names.
     On `True` the poll's result is a place of all of them. On `False` it is a place of none of them.
+    It returns `False`. A group of one command is a place of the poll without the rule.
     A use is such a pair.
 
-    Provisional. It keeps the choice of the earlier code, which linked the later polls of a handle to the call that started it as a whole, and those after typed input to that input.
+    Decided. The user decided on 2026-11-24 that such a result shows none of them, since a poll of one handle shows only the output of what that handle names, e.g. one of the two sessions that a Codex `exec` script started. The earlier code linked the later polls of a handle to the call that started it as a whole, and those after typed input to that input.
     """
     use_counts[treat_poll_result_as_showing_every_command_of_starter.__name__] += 1
-    return True
+    return False
 
 
 def treat_read_of_output_path_of_several_calls_as_showing_each(

@@ -13,7 +13,13 @@ from pathlib import Path
 
 import pytest
 
-from tb_internet_use.expanded_tool_call import expand_tool_calls
+from tb_internet_use.expanded_tool_call import (
+    _expand_program_invocations,
+    expand_tool_calls,
+)
+from tb_internet_use.expanded_tool_call.judgment_rules import (
+    treat_word_with_expansion_as_one_argument,
+)
 from tb_internet_use.expanded_tool_call.model import (
     ArgumentText,
     CallCommandText,
@@ -85,6 +91,9 @@ NAMED_IN_FILE = UnknownNetworkRequestTarget(
 )
 VALUE_SET_AT_RUN_TIME = UnknownNetworkRequestTarget(
     UnknownNetworkRequestTargetReason.VALUE_SET_AT_RUN_TIME
+)
+UNREAD_WORDS = UnknownNetworkRequestTarget(
+    UnknownNetworkRequestTargetReason.UNREAD_WORDS
 )
 FINISHED = ToolCallResult(
     tool_output_text="", execution_status=ExecutionStatus.FINISHED, exit_code=0
@@ -580,6 +589,28 @@ def test_the_example_trial_gives_one_request_per_downloaded_url_and_package_and_
             [(NAMED_IN_FILE, PACKAGE_NAME)],
             id="targets in a file",
         ),
+        # A word with an expansion starts the unread words by a rule, so the loop gives one request whose target is unread.
+        pytest.param(
+            "for p in A B C; do pip install $p; done",
+            [(UNREAD_WORDS, PACKAGE_NAME)],
+            id="loop values shown",
+        ),
+    ],
+)
+def test_a_command_gives_one_request_per_target_it_shows_and_one_when_it_shows_none(
+    catalogs_dir, command_text, expected_targets
+):
+    network_requests = _requests(catalogs_dir, command_text)
+
+    assert [
+        (network_request.target, network_request.target_kind)
+        for network_request in network_requests
+    ] == expected_targets
+
+
+@pytest.mark.parametrize(
+    ("command_text", "expected_targets"),
+    [
         pytest.param(
             "for p in A B C; do pip install $p; done",
             [("A", PACKAGE_NAME), ("B", PACKAGE_NAME), ("C", PACKAGE_NAME)],
@@ -592,9 +623,14 @@ def test_the_example_trial_gives_one_request_per_downloaded_url_and_package_and_
         ),
     ],
 )
-def test_a_command_gives_one_request_per_target_it_shows_and_one_when_it_shows_none(
-    catalogs_dir, command_text, expected_targets
+def test_a_loop_gives_one_request_per_value_when_a_word_with_an_expansion_is_one_word(
+    catalogs_dir, monkeypatch, command_text, expected_targets
 ):
+    monkeypatch.setattr(
+        _expand_program_invocations,
+        treat_word_with_expansion_as_one_argument.__name__,
+        lambda word, *, use_counts: True,
+    )
     network_requests = _requests(catalogs_dir, command_text)
 
     assert [

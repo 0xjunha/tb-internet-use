@@ -1482,7 +1482,7 @@ def _expand_ran_text_of_file_run_by_path(
     """Follow the text of a file that a command runs by its path, e.g. `./run` or `/app/run.sh`, when no row covers the program word at the 0-based `program_word_index`, in the language that its `#!` line names.
 
     A program word without `/` names a program and not a file, e.g. `run.sh`.
-    Without a `#!` line a rule reads the language of the extension. The text runs in a new shell when it is shell text, with the options of the `#!` line, e.g. `-e` of `#!/bin/bash -e`.
+    Without a `#!` line a rule says whether the language is that of the extension or not known. The text runs in a new shell when it is shell text, with the options of the `#!` line, e.g. `-e` of `#!/bin/bash -e`.
     """
     shell_command = command_reading.shell_command
     if "/" not in shell_command.words[program_word_index]:
@@ -1915,7 +1915,7 @@ class TrialFileContents:
         *,
         may_have_run: bool,
     ) -> FileTouch | None:
-        """Record the copy that a command with exactly two arguments makes, e.g. g.sh of `cp f.sh g.sh`, with the content of the source by a rule, and record no use of the source."""
+        """Record the copy that a command with exactly two arguments makes, e.g. g.sh of `cp f.sh g.sh`, with unknown content or the content of the source as a rule says, and record no use of the source."""
         if self._is_glob(source_path):
             return None
         content = (

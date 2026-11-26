@@ -14,7 +14,10 @@ from typing import Any, ClassVar, Self
 
 import pytest
 
-from tb_internet_use.expanded_tool_call import expand_tool_calls
+from tb_internet_use.expanded_tool_call import _expand_ran_texts, expand_tool_calls
+from tb_internet_use.expanded_tool_call.judgment_rules import (
+    treat_last_command_of_starter_as_reader_of_typed_text,
+)
 from tb_internet_use.expanded_tool_call.model import (
     ExpandedToolCall,
     FileText,
@@ -617,8 +620,14 @@ def test_a_broken_input_makes_its_equation_differ(knowledge, equation, broken_in
 
 
 def test_text_typed_into_a_program_that_runs_no_text_is_counted_by_the_row_of_that_program(
-    knowledge,
+    knowledge, monkeypatch
 ):
+    # The row of the reading program is asked only on the other answer of the rule on the reader of typed text.
+    monkeypatch.setattr(
+        _expand_ran_texts,
+        treat_last_command_of_starter_as_reader_of_typed_text.__name__,
+        lambda *, use_counts: True,
+    )
     tool_calls = (
         _call(
             1,

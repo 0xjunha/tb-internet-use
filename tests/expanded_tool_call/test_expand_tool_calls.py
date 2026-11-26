@@ -8,7 +8,13 @@ from pathlib import Path
 
 import pytest
 
-from tb_internet_use.expanded_tool_call import expand_tool_calls
+from tb_internet_use.expanded_tool_call import (
+    _expand_program_invocations,
+    expand_tool_calls,
+)
+from tb_internet_use.expanded_tool_call.judgment_rules import (
+    treat_word_with_expansion_as_one_argument,
+)
 from tb_internet_use.expanded_tool_call.model import (
     ArgumentText,
     CallCommandText,
@@ -763,7 +769,13 @@ def test_a_file_whose_content_is_not_in_the_trajectory_is_run_but_unknown(knowle
     ]
 
 
-def test_a_value_set_at_run_time_is_unknown(knowledge):
+def test_a_value_set_at_run_time_is_unknown(knowledge, monkeypatch):
+    # The text of bash -c is followed only on the other answer of the rule on words with an expansion, which reads `"$CMD"` as one argument.
+    monkeypatch.setattr(
+        _expand_program_invocations,
+        treat_word_with_expansion_as_one_argument.__name__,
+        lambda word, *, use_counts: True,
+    )
     substitution, built_text = _expand(
         knowledge, _call(1, "curl $(cat urls.txt)"), _call(2, 'bash -c "$CMD"')
     )
@@ -819,7 +831,7 @@ def test_a_file_that_chmod_makes_executable_runs_as_written_on_the_real_catalog(
     """Run on the real catalog folder, whose chmod row says what its file arguments are, so that a blank or wrong role there fails here."""
     expanded_tool_calls = _expand(
         ExpandedToolCallKnowledge(),
-        _call(1, WriteFileAction("f.sh", "curl a")),
+        _call(1, WriteFileAction("f.sh", "#!/bin/bash\ncurl a")),
         _call(2, running_text),
     )
 

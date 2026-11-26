@@ -5,13 +5,14 @@ from pathlib import Path
 
 import pytest
 
-from tb_internet_use.expanded_tool_call import _expand_output_places
+from tb_internet_use.expanded_tool_call import _expand_output_places, _expand_ran_texts
 from tb_internet_use.expanded_tool_call._expand_output_places import (
     expand_output_places,
 )
 from tb_internet_use.expanded_tool_call._expand_poll_links import expand_poll_links
 from tb_internet_use.expanded_tool_call._expand_ran_texts import expand_ran_texts
 from tb_internet_use.expanded_tool_call.judgment_rules import (
+    treat_last_command_of_starter_as_reader_of_typed_text,
     treat_poll_result_as_showing_every_command_of_starter,
     treat_read_of_output_path_of_several_calls_as_showing_each,
     treat_script_step_output_as_shown_in_call_result,
@@ -43,6 +44,9 @@ SCRIPT_STEP_RULE_NAME = treat_script_step_output_as_shown_in_call_result.__name_
 EVERY_COMMAND_RULE_NAME = treat_poll_result_as_showing_every_command_of_starter.__name__
 SEVERAL_CALLS_RULE_NAME = (
     treat_read_of_output_path_of_several_calls_as_showing_each.__name__
+)
+TYPED_TEXT_READER_RULE_NAME = (
+    treat_last_command_of_starter_as_reader_of_typed_text.__name__
 )
 HANDLE = ExecutionHandle(ExecutionHandleKind.COMMAND, "h1")
 OTHER_HANDLE = ExecutionHandle(ExecutionHandleKind.COMMAND, "h2")
@@ -165,9 +169,20 @@ def _expand(
     )
 
 
-def _answer_false(monkeypatch: pytest.MonkeyPatch, rule_name: str) -> None:
-    """Make a rule of `_expand_output_places` take the other answer."""
-    monkeypatch.setattr(_expand_output_places, rule_name, lambda *_, use_counts: False)
+def _answer(monkeypatch: pytest.MonkeyPatch, rule_name: str, answer: bool) -> None:
+    """Make a rule of `_expand_output_places` give an answer, e.g. the other one."""
+    monkeypatch.setattr(_expand_output_places, rule_name, lambda *_, use_counts: answer)
+
+
+def _read_typed_text_by_last_command_of_starter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Make typed text run as the last command of the starting call reads it, the other answer of the rule that `expand_ran_texts` asks, so that typed commands have output to place."""
+    monkeypatch.setattr(
+        _expand_ran_texts,
+        TYPED_TEXT_READER_RULE_NAME,
+        lambda *, use_counts: True,
+    )
 
 
 # (case id, the text of one call, the ids of its commands whose output its own result shows, None for no place)
@@ -272,19 +287,22 @@ def test_later_polls_of_a_started_handle_show_its_output(
     assert output_places[1:] == ((), (), (), (), ())
 
 
-def test_a_poll_shows_every_command_of_the_starter_by_a_rule(
+def test_a_poll_shows_no_command_of_a_starter_of_several_by_a_rule(
     knowledge: ExpandedToolCallKnowledge, monkeypatch: pytest.MonkeyPatch
 ):
     calls = (_call(1, "curl a; curl b > /dev/null 2>&1; curl c", RUNNING), _poll(2))
     use_counts: Counter[str] = Counter()
 
     output_places = _expand(knowledge, *calls, judgment_rule_use_counts=use_counts)
-    _answer_false(monkeypatch, EVERY_COMMAND_RULE_NAME)
-    output_places_on_false = _expand(knowledge, *calls)
+    _answer(monkeypatch, EVERY_COMMAND_RULE_NAME, True)
+    output_places_on_true = _expand(knowledge, *calls)
 
-    assert output_places[0] == (OutputPlace(K1, (0, 2)), OutputPlace(K2, (0, 2)))
+    assert output_places[0] == (OutputPlace(K1, (0, 2)),)
     assert use_counts == Counter({EVERY_COMMAND_RULE_NAME: 1})
-    assert output_places_on_false[0] == (OutputPlace(K1, (0, 2)),)
+    assert output_places_on_true[0] == (
+        OutputPlace(K1, (0, 2)),
+        OutputPlace(K2, (0, 2)),
+    )
 
 
 def test_a_poll_of_one_command_asks_no_rule(knowledge: ExpandedToolCallKnowledge):
@@ -301,8 +319,9 @@ def test_a_poll_of_one_command_asks_no_rule(knowledge: ExpandedToolCallKnowledge
 
 
 def test_typed_text_shows_in_its_own_poll_and_the_later_polls_of_the_same_starter(
-    knowledge: ExpandedToolCallKnowledge,
+    knowledge: ExpandedToolCallKnowledge, monkeypatch: pytest.MonkeyPatch
 ):
+    _read_typed_text_by_last_command_of_starter(monkeypatch)
     output_places = _expand(
         knowledge,
         _call(1, "bash", RUNNING),
@@ -322,8 +341,9 @@ def test_typed_text_shows_in_its_own_poll_and_the_later_polls_of_the_same_starte
 
 
 def test_typed_text_shows_only_in_later_polls_of_a_handle_the_typing_poll_names(
-    knowledge: ExpandedToolCallKnowledge,
+    knowledge: ExpandedToolCallKnowledge, monkeypatch: pytest.MonkeyPatch
 ):
+    _read_typed_text_by_last_command_of_starter(monkeypatch)
     output_places = _expand(
         knowledge,
         _call(
@@ -340,16 +360,20 @@ def test_typed_text_shows_only_in_later_polls_of_a_handle_the_typing_poll_names(
 def test_several_typed_commands_ask_the_rule_once_per_later_poll(
     knowledge: ExpandedToolCallKnowledge, monkeypatch: pytest.MonkeyPatch
 ):
+    _read_typed_text_by_last_command_of_starter(monkeypatch)
     calls = (_call(1, "bash", RUNNING), _poll(2, "curl a; curl b\n"), _poll(3))
     use_counts: Counter[str] = Counter()
 
     output_places = _expand(knowledge, *calls, judgment_rule_use_counts=use_counts)
-    _answer_false(monkeypatch, EVERY_COMMAND_RULE_NAME)
-    output_places_on_false = _expand(knowledge, *calls)
+    _answer(monkeypatch, EVERY_COMMAND_RULE_NAME, True)
+    output_places_on_true = _expand(knowledge, *calls)
 
-    assert output_places[1] == (OutputPlace(K2, (0, 1)), OutputPlace(K3, (0, 1)))
+    assert output_places[1] == (OutputPlace(K2, (0, 1)),)
     assert use_counts == Counter({EVERY_COMMAND_RULE_NAME: 1})
-    assert output_places_on_false[1] == (OutputPlace(K2, (0, 1)),)
+    assert output_places_on_true[1] == (
+        OutputPlace(K2, (0, 1)),
+        OutputPlace(K3, (0, 1)),
+    )
 
 
 def test_script_steps_show_in_the_script_result_by_a_rule(
@@ -370,28 +394,33 @@ def test_script_steps_show_in_the_script_result_by_a_rule(
     use_counts: Counter[str] = Counter()
 
     output_places = _expand(knowledge, *calls, judgment_rule_use_counts=use_counts)
-    _answer_false(monkeypatch, SCRIPT_STEP_RULE_NAME)
-    output_places_on_false = _expand(knowledge, *calls)
+    _answer(monkeypatch, SCRIPT_STEP_RULE_NAME, True)
+    _answer(monkeypatch, EVERY_COMMAND_RULE_NAME, True)
+    output_places_on_true = _expand(knowledge, *calls)
 
-    assert output_places[0] == (OutputPlace(K1, (0, 1)), OutputPlace(K2, (0, 1)))
+    assert output_places[0] == ()
     assert use_counts == Counter({SCRIPT_STEP_RULE_NAME: 2, EVERY_COMMAND_RULE_NAME: 1})
-    assert output_places_on_false[0] == (OutputPlace(K2, (0, 1)),)
+    assert output_places_on_true[0] == (
+        OutputPlace(K1, (0, 1)),
+        OutputPlace(K2, (0, 1)),
+    )
 
 
 def test_text_typed_by_a_script_step_asks_the_script_rule(
     knowledge: ExpandedToolCallKnowledge, monkeypatch: pytest.MonkeyPatch
 ):
+    _read_typed_text_by_last_command_of_starter(monkeypatch)
     script = RunToolScriptAction("...", (PollAction((HANDLE,), "curl u\n"),))
     calls = (_call(1, "bash", RUNNING), _call(2, script), _poll(3))
     use_counts: Counter[str] = Counter()
 
     output_places = _expand(knowledge, *calls, judgment_rule_use_counts=use_counts)
-    _answer_false(monkeypatch, SCRIPT_STEP_RULE_NAME)
-    output_places_on_false = _expand(knowledge, *calls)
+    _answer(monkeypatch, SCRIPT_STEP_RULE_NAME, True)
+    output_places_on_true = _expand(knowledge, *calls)
 
-    assert output_places[1] == (OutputPlace(K2, (0,)), OutputPlace(K3, (0,)))
+    assert output_places[1] == (OutputPlace(K3, (0,)),)
     assert use_counts == Counter({SCRIPT_STEP_RULE_NAME: 1})
-    assert output_places_on_false[1] == (OutputPlace(K3, (0,)),)
+    assert output_places_on_true[1] == (OutputPlace(K2, (0,)), OutputPlace(K3, (0,)))
 
 
 def test_commands_of_a_file_that_a_script_step_runs_ask_the_script_rule_once(
@@ -404,12 +433,12 @@ def test_commands_of_a_file_that_a_script_step_runs_ask_the_script_rule_once(
     use_counts: Counter[str] = Counter()
 
     output_places = _expand(knowledge, *calls, judgment_rule_use_counts=use_counts)
-    _answer_false(monkeypatch, SCRIPT_STEP_RULE_NAME)
-    output_places_on_false = _expand(knowledge, *calls)
+    _answer(monkeypatch, SCRIPT_STEP_RULE_NAME, True)
+    output_places_on_true = _expand(knowledge, *calls)
 
-    assert output_places[1] == (OutputPlace(K2, (0, 1)),)
+    assert output_places[1] == ()
     assert use_counts == Counter({SCRIPT_STEP_RULE_NAME: 1})
-    assert output_places_on_false[1] == ()
+    assert output_places_on_true[1] == (OutputPlace(K2, (0, 1)),)
 
 
 def test_commands_of_a_file_belong_to_the_script_step_that_runs_it(
@@ -432,8 +461,9 @@ def test_commands_of_a_file_belong_to_the_script_step_that_runs_it(
 
 
 def test_text_typed_into_another_handle_is_no_output_of_what_the_typing_call_started(
-    knowledge: ExpandedToolCallKnowledge,
+    knowledge: ExpandedToolCallKnowledge, monkeypatch: pytest.MonkeyPatch
 ):
+    _read_typed_text_by_last_command_of_starter(monkeypatch)
     started_handle = ExecutionHandle(ExecutionHandleKind.COMMAND, "h2")
     script = RunToolScriptAction(
         "...",
@@ -446,8 +476,8 @@ def test_text_typed_into_another_handle_is_no_output_of_what_the_typing_call_sta
         _call(3, PollAction((started_handle,)), FINISHED),
     )
 
-    # The command of the script step has the id 0 and the typed command the id 1.
-    assert output_places[1] == (OutputPlace(K2, (0, 1)), OutputPlace(K3, (0,)))
+    # The command of the script step has the id 0 and the typed command the id 1. The script's own result shows neither, by the rule on script steps.
+    assert output_places[1] == (OutputPlace(K3, (0,)),)
 
 
 def test_text_typed_by_a_poll_that_did_not_run_shows_nowhere(
@@ -511,7 +541,7 @@ def test_a_read_of_the_output_file_of_several_calls_shows_each_by_a_rule(
     use_counts: Counter[str] = Counter()
 
     output_places = _expand(knowledge, *calls, judgment_rule_use_counts=use_counts)
-    _answer_false(monkeypatch, SEVERAL_CALLS_RULE_NAME)
+    _answer(monkeypatch, SEVERAL_CALLS_RULE_NAME, False)
     output_places_on_false = _expand(knowledge, *calls)
 
     assert output_places[:2] == (

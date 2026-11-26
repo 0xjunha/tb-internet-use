@@ -32,9 +32,16 @@ from tb_internet_use.expanded_tool_call.judgment_rules import (
     treat_word_with_expansion_as_one_argument,
 )
 
-# (rule, the rule with its arguments before `use_counts`) for the rules that `expand_ran_texts` asks.
-EXPAND_RAN_TEXTS_RULES: list[tuple[Callable[..., bool], Callable[..., bool]]] = [
-    (rule, partial(rule, *arguments))
+# The rules of `expand_ran_texts` whose answer is False.
+RULES_ANSWERING_FALSE = (
+    treat_last_command_of_starter_as_reader_of_typed_text,
+    treat_use_of_path_that_fits_several_written_files_as_use_of_each,
+    treat_copy_with_two_arguments_as_same_content,
+    treat_extension_of_file_without_interpreter_line_as_its_language,
+)
+# (rule, the rule with its arguments before `use_counts`, its answer) for the rules that `expand_ran_texts` asks.
+EXPAND_RAN_TEXTS_RULES: list[tuple[Callable[..., bool], Callable[..., bool], bool]] = [
+    (rule, partial(rule, *arguments), rule not in RULES_ANSWERING_FALSE)
     for rule, arguments in [
         (treat_path_that_ends_another_as_same_file, ("fetch.sh", "/app/fetch.sh")),
         (treat_path_that_fits_several_written_files_as_unknown_text, ("fetch.sh",)),
@@ -68,17 +75,19 @@ def test_values_outside_their_for_loop_are_read_as_one_of_them_and_counted():
     )
 
 
-def test_word_with_an_expansion_is_read_as_one_argument_and_counted():
+def test_word_with_an_expansion_is_not_read_as_one_argument_and_counted():
     use_counts: Counter[str] = Counter()
 
-    assert treat_word_with_expansion_as_one_argument("$OPTS", use_counts=use_counts)
+    assert not treat_word_with_expansion_as_one_argument("$OPTS", use_counts=use_counts)
     assert use_counts == Counter({"treat_word_with_expansion_as_one_argument": 1})
 
 
-def test_poll_is_linked_to_the_latest_earlier_start_of_its_handle_and_counted():
+def test_poll_is_not_linked_to_the_latest_earlier_start_of_its_handle_and_counted():
     use_counts: Counter[str] = Counter()
 
-    assert treat_poll_as_reading_latest_earlier_start_of_handle(use_counts=use_counts)
+    assert not treat_poll_as_reading_latest_earlier_start_of_handle(
+        use_counts=use_counts
+    )
     assert use_counts == Counter(
         {"treat_poll_as_reading_latest_earlier_start_of_handle": 1}
     )
@@ -112,32 +121,36 @@ def test_first_poll_that_saw_the_end_gives_the_command_text_status_and_counted()
 
 
 @pytest.mark.parametrize(
-    ("rule", "asked_rule"),
+    ("rule", "asked_rule", "answer"),
     EXPAND_RAN_TEXTS_RULES,
-    ids=[rule.__name__ for rule, _ in EXPAND_RAN_TEXTS_RULES],
+    ids=[rule.__name__ for rule, _, _ in EXPAND_RAN_TEXTS_RULES],
 )
-def test_rule_of_expand_ran_texts_takes_the_choice_it_names_and_is_counted(
-    rule: Callable[..., bool], asked_rule: Callable[..., bool]
+def test_rule_of_expand_ran_texts_gives_its_answer_and_is_counted(
+    rule: Callable[..., bool], asked_rule: Callable[..., bool], answer: bool
 ):
     use_counts: Counter[str] = Counter()
 
-    assert asked_rule(use_counts=use_counts) is True
+    assert asked_rule(use_counts=use_counts) is answer
     assert use_counts == Counter({rule.__name__: 1})
 
 
-def test_script_step_output_is_shown_in_the_call_result_and_counted():
+def test_script_step_output_is_not_shown_in_the_call_result_and_counted():
     use_counts: Counter[str] = Counter()
 
-    assert treat_script_step_output_as_shown_in_call_result(0, use_counts=use_counts)
+    assert not treat_script_step_output_as_shown_in_call_result(
+        0, use_counts=use_counts
+    )
     assert use_counts == Counter(
         {"treat_script_step_output_as_shown_in_call_result": 1}
     )
 
 
-def test_poll_result_shows_every_command_of_the_starter_and_counted():
+def test_poll_result_shows_no_command_of_the_starter_and_counted():
     use_counts: Counter[str] = Counter()
 
-    assert treat_poll_result_as_showing_every_command_of_starter(use_counts=use_counts)
+    assert not treat_poll_result_as_showing_every_command_of_starter(
+        use_counts=use_counts
+    )
     assert use_counts == Counter(
         {"treat_poll_result_as_showing_every_command_of_starter": 1}
     )

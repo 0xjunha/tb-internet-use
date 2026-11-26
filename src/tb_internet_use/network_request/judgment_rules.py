@@ -78,14 +78,14 @@ def treat_values_outside_their_for_loop_as_one_request_each(
 
     The trial does not show which of the values the command ran with, since `takes_each_value_in_turn` is False.
     `extract_network_request_targets` asks it for a target word whose only variable of several values is such a variable.
-    It returns the values that each give a request, here all of them, so the requests may count targets that never ran and the lower bound may be too high.
-    Were it to return no value, the word would give one request whose target is unknown.
+    It returns the values that each give a request, here none, so the word gives one request whose target is unknown, with the reason `VALUE_SET_AT_RUN_TIME`, and no host is read from it.
+    Were it to return all the values, each would give a request of its own, so the requests may count targets that never ran and the lower bound may be too high.
     A use is such a target word.
 
-    Provisional. It keeps the choice of the earlier code, which made a target of each value.
+    Decided. The user decided on 2026-11-24 to return no value, since the trial does not show which value the command ran with, e.g. `U` of `curl -s $U -o x` after `U=http://localhost:8000/x` in one if branch and `U=https://a.org/x` in the other. The earlier code made a target of each value.
     """
     use_counts[treat_values_outside_their_for_loop_as_one_request_each.__name__] += 1
-    return variable_values.values
+    return ()
 
 
 def treat_url_of_namespace_host_as_no_target(

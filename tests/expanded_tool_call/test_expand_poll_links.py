@@ -112,7 +112,7 @@ def test_polls_of_a_background_command_are_linked_to_its_start_whether_they_read
     assert judgment_rule_use_counts == Counter()
 
 
-def test_a_handle_id_started_again_links_later_polls_to_the_latest_start():
+def test_a_handle_id_started_again_leaves_later_polls_without_starter():
     first_start, first_poll = _tool_call(1, START, "h1"), _tool_call(2, _poll("h1"))
     second_start, second_poll = _tool_call(3, START, "h1"), _tool_call(4, _poll("h1"))
     poll_links, judgment_rule_use_counts = _expand(
@@ -120,11 +120,10 @@ def test_a_handle_id_started_again_links_later_polls_to_the_latest_start():
     )
     assert poll_links.starter_tool_call_keys_of_poll == {
         (_key(first_poll), None): (_key(first_start),),
-        (_key(second_poll), None): (_key(second_start),),
+        (_key(second_poll), None): (),
     }
     assert poll_links.poll_tool_call_keys_of_starter == {
         _key(first_start): (_key(first_poll),),
-        _key(second_start): (_key(second_poll),),
     }
     # Only the second poll comes after two starts of h1.
     assert judgment_rule_use_counts == Counter({LATEST_START_RULE_NAME: 1})
@@ -370,18 +369,20 @@ def test_a_poll_of_a_subagent_that_no_call_started_has_no_starter():
     assert judgment_rule_use_counts == Counter()
 
 
-def test_the_other_choice_of_the_latest_start_rule_leaves_a_reused_handle_without_starter(
+def test_the_other_choice_of_the_latest_start_rule_links_a_reused_handle_to_the_latest_start(
     monkeypatch: pytest.MonkeyPatch,
 ):
     monkeypatch.setattr(
         _expand_poll_links,
         LATEST_START_RULE_NAME,
-        lambda *, use_counts: False,
+        lambda *, use_counts: True,
     )
     first_start, second_start = _tool_call(1, START, "h1"), _tool_call(2, START, "h1")
     poll = _tool_call(3, _poll("h1"))
     poll_links, _ = _expand(first_start, second_start, poll)
-    assert poll_links == PollLinks({(_key(poll), None): ()}, {})
+    assert poll_links == PollLinks(
+        {(_key(poll), None): (_key(second_start),)}, {_key(second_start): (_key(poll),)}
+    )
 
 
 def test_the_other_choice_of_the_other_trajectory_rule_links_to_the_latest_earlier_start_of_the_trial(
@@ -392,16 +393,16 @@ def test_the_other_choice_of_the_other_trajectory_rule_links_to_the_latest_earli
         OTHER_TRAJECTORY_RULE_NAME,
         lambda *, use_counts: False,
     )
-    first_start, second_start = _tool_call(1, START, "h1"), _tool_call(2, START, "h1")
-    subagent_poll = _tool_call(3, _poll("h1"), trajectory_id="main/sub0")
-    later_start = _tool_call(4, START, "h1")
+    first_start = _tool_call(1, START, "h1")
+    subagent_poll = _tool_call(2, _poll("h1"), trajectory_id="main/sub0")
+    later_start = _tool_call(3, START, "h1")
     poll_links, judgment_rule_use_counts = _expand(
-        first_start, second_start, subagent_poll, later_start
+        first_start, subagent_poll, later_start
     )
     assert poll_links.starter_tool_call_keys_of_poll == {
-        (_key(subagent_poll), None): (_key(second_start),)
+        (_key(subagent_poll), None): (_key(first_start),)
     }
-    assert judgment_rule_use_counts == Counter({LATEST_START_RULE_NAME: 1})
+    assert judgment_rule_use_counts == Counter()
 
 
 def test_the_other_choice_of_the_script_poll_step_rule_reads_the_handles_its_script_result_names(

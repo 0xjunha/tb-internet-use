@@ -247,8 +247,8 @@ BROKEN_FILE_CASES = [
     (
         "measure_rows_differing_from_their_strongest_request_rows",
         "trial_category_measure_rows.csv",
-        "t1,package,task_environment,lower_and_upper",
         "t1,package,task_environment,upper_only",
+        "t1,package,task_environment,lower_and_upper",
     ),
     # The rows of t6 lose their mark, so the main measure line of t6, counted in the lower bound of received by its shared line, rests on no request row.
     (

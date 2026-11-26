@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from tb_internet_use.expanded_tool_call import _expand_ran_texts
 from tb_internet_use.expanded_tool_call._expand_poll_links import expand_poll_links
 from tb_internet_use.expanded_tool_call._expand_ran_texts import (
     FileTouch,
@@ -15,6 +16,9 @@ from tb_internet_use.expanded_tool_call._expand_ran_texts import (
 )
 from tb_internet_use.expanded_tool_call._expand_written_files import (
     expand_written_files,
+)
+from tb_internet_use.expanded_tool_call.judgment_rules import (
+    treat_use_of_path_that_fits_several_written_files_as_use_of_each,
 )
 from tb_internet_use.expanded_tool_call.model import (
     FileUse,
@@ -406,27 +410,32 @@ def test_a_use_after_an_append_belongs_to_both_writes(
     )
 
 
-def test_a_use_whose_path_fits_several_written_files_is_on_each_and_marked(
+@pytest.mark.parametrize("is_use_of_each", [False, True])
+def test_a_use_whose_path_fits_several_written_files_is_on_none_or_on_each_and_marked(
     knowledge: ExpandedToolCallKnowledge,
+    monkeypatch: pytest.MonkeyPatch,
+    is_use_of_each: bool,
 ):
+    monkeypatch.setattr(
+        _expand_ran_texts,
+        treat_use_of_path_that_fits_several_written_files_as_use_of_each.__name__,
+        lambda path, *, use_counts: is_use_of_each,
+    )
     written_files = _written_files(
         knowledge,
         _calls("echo a > /a/fetch.log", "echo b > /b/fetch.log", "cat fetch.log"),
     )
 
+    file_uses = (FileUse(K3, 0, Kind.SHOWS_CONTENT, True),) if is_use_of_each else ()
     assert written_files == (
         (
             WrittenFile(
-                "/a/fetch.log",
-                (WrittenFileWriter(0, Channel.STDOUT),),
-                (FileUse(K3, 0, Kind.SHOWS_CONTENT, True),),
+                "/a/fetch.log", (WrittenFileWriter(0, Channel.STDOUT),), file_uses
             ),
         ),
         (
             WrittenFile(
-                "/b/fetch.log",
-                (WrittenFileWriter(0, Channel.STDOUT),),
-                (FileUse(K3, 0, Kind.SHOWS_CONTENT, True),),
+                "/b/fetch.log", (WrittenFileWriter(0, Channel.STDOUT),), file_uses
             ),
         ),
         (),

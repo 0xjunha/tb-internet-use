@@ -504,11 +504,12 @@ INVOCATION_CASES = [
             ),
         ),
     ),
+    # A word with an expansion starts the unread words by a rule, since its value may hold options.
     (
         "curl $OPTS u",
         ("curl", "$OPTS", "u"),
         (1,),
-        (_program_invocation("curl", arguments=("$OPTS", "u")),),
+        (_program_invocation("curl", unread_words=("$OPTS", "u")),),
     ),
     # The cases of the old tests of the programs past wrappers, of shell texts and of option values.
     (
@@ -710,12 +711,12 @@ INVOCATION_CASES = [
             ),
         ),
     ),
-    # The letters of -$n come from a variable when the command runs, so it is one argument.
+    # The letters of -$n come from a variable when the command runs, so it is an argument, which a rule makes unread with the words after it.
     (
         "tail -$n log",
         ("tail", "-$n", "log"),
         (1,),
-        (_program_invocation("tail", arguments=("-$n", "log")),),
+        (_program_invocation("tail", unread_words=("-$n", "log")),),
     ),
     # -pe has a row of its own, so its letters are not read apart.
     (
@@ -915,12 +916,6 @@ INVOCATION_CASES = [
             ),
         ),
     ),
-    (
-        "bash -c $CMD",
-        ("bash", "-c", "$CMD"),
-        (2,),
-        (_program_invocation("bash", options=(_option("-c"),), arguments=("$CMD",)),),
-    ),
     # The words after the text of -c are arguments of that text, not options of bash.
     (
         "bash -c text name a",
@@ -964,17 +959,6 @@ INVOCATION_CASES = [
     ),
     ("sed -e", ("sed", "-e"), (), (_program_invocation("sed", unread_words=("-e",)),)),
     ("tar xf", ("tar", "xf"), (), (_program_invocation("tar", unread_words=("xf",)),)),
-    # The value of the cluster word is a word with an expansion, which is read as one value.
-    (
-        "tar xzf $F",
-        ("tar", "xzf", "$F"),
-        (2,),
-        (
-            _program_invocation(
-                "tar", options=(_option("-x"), _option("-z"), _option("-f", "$F"))
-            ),
-        ),
-    ),
     # The letters of $X are known only when the command runs, so it is unread with the words after it.
     (
         "tar $X a",
@@ -1227,7 +1211,7 @@ ROLE_CASES = [
         "curl $OPTS u",
         ("curl", "$OPTS", "u"),
         (1,),
-        (None, ProgramWordRole.OTHER, ProgramWordRole.OTHER),
+        (None, UNKNOWN_ROLE, UNKNOWN_ROLE),
     ),
     # The value `-` of an option whose row names a file stands for stdout, which the row cannot say, in each of its three spellings.
     (
@@ -1264,7 +1248,7 @@ ROLE_CASES = [
         "bash -c $CMD",
         ("bash", "-c", "$CMD"),
         (2,),
-        (None, None, ProgramWordRole.RUN_TEXT),
+        (None, None, UNKNOWN_ROLE),
     ),
     (
         "bash -c text name a",
@@ -1280,7 +1264,7 @@ ROLE_CASES = [
     ),
     ("curl -fo", ("curl", "-fo"), (), (None, UNKNOWN_ROLE)),
     ("tar xf", ("tar", "xf"), (), (None, UNKNOWN_ROLE)),
-    ("tar xzf $F", ("tar", "xzf", "$F"), (2,), (None, None, ProgramWordRole.USED_FILE)),
+    ("tar xzf $F", ("tar", "xzf", "$F"), (2,), (None, UNKNOWN_ROLE, UNKNOWN_ROLE)),
     ("late a -m", ("late", "a", "-m"), (), (None, UNKNOWN_ROLE, UNKNOWN_ROLE)),
     ("sudo $P u", ("sudo", "$P", "u"), (1,), (None, None, UNKNOWN_ROLE)),
 ]
@@ -1566,7 +1550,8 @@ def test_program_word_with_an_expansion_is_not_asked_of_the_knowledge_class(
     ("words", "expansion_word_indexes", "rule_use_count"),
     [
         (("curl", "$OPTS", "u"), (1,), 1),
-        (("curl", "$A", "$B"), (1, 2), 2),
+        # The first word makes the words after it unread, so the second is not asked.
+        (("curl", "$A", "$B"), (1, 2), 1),
         (("bash", "-c", "$CMD"), (2,), 1),
         # The value of an option is read as one word like an argument.
         (("curl", "-o", "$F", "u"), (2,), 1),
@@ -1579,7 +1564,7 @@ def test_program_word_with_an_expansion_is_not_asked_of_the_knowledge_class(
         (("late", "a", "-p", "b", "$X"), (4,), 0),
     ],
 )
-def test_rule_on_words_with_an_expansion_is_counted_once_per_word_read_as_one_argument_or_value(
+def test_rule_on_words_with_an_expansion_is_counted_once_per_word_it_reads(
     catalogs_dir, words, expansion_word_indexes, rule_use_count
 ):
     expansion = _expansion_of(catalogs_dir, words, expansion_word_indexes)
@@ -1588,46 +1573,71 @@ def test_rule_on_words_with_an_expansion_is_counted_once_per_word_read_as_one_ar
     )
 
 
+# (words, indexes of the words with an expansion, the program invocation by the rule's answer, the same on the other answer)
+EXPANSION_WORD_CASES = [
+    (
+        ("curl", "-s", "$OPTS", "u"),
+        (2,),
+        _program_invocation(
+            "curl", options=(_option("-s"),), unread_words=("$OPTS", "u")
+        ),
+        _program_invocation("curl", options=(_option("-s"),), arguments=("$OPTS", "u")),
+    ),
+    # For a value, the option that would take it is unread too.
+    (
+        ("curl", "-s", "-o", "$F", "u"),
+        (3,),
+        _program_invocation(
+            "curl", options=(_option("-s"),), unread_words=("-o", "$F", "u")
+        ),
+        _program_invocation(
+            "curl", options=(_option("-s"), _option("-o", "$F")), arguments=("u",)
+        ),
+    ),
+    (
+        ("bash", "-c", "$CMD"),
+        (2,),
+        _program_invocation("bash", options=(_option("-c"),), unread_words=("$CMD",)),
+        _program_invocation("bash", options=(_option("-c"),), arguments=("$CMD",)),
+    ),
+    (
+        ("tar", "xzf", "$F"),
+        (2,),
+        _program_invocation("tar", unread_words=("xzf", "$F")),
+        _program_invocation(
+            "tar", options=(_option("-x"), _option("-z"), _option("-f", "$F"))
+        ),
+    ),
+]
+
+
 @pytest.mark.parametrize(
-    ("words", "expansion_word_indexes", "program_invocation", "roles"),
-    [
-        (
-            ("curl", "-s", "$OPTS", "u"),
-            (2,),
-            _program_invocation(
-                "curl", options=(_option("-s"),), unread_words=("$OPTS", "u")
-            ),
-            (None, None, UNKNOWN_ROLE, UNKNOWN_ROLE),
-        ),
-        # For a value, the option that would take it is unread too.
-        (
-            ("curl", "-s", "-o", "$F", "u"),
-            (3,),
-            _program_invocation(
-                "curl", options=(_option("-s"),), unread_words=("-o", "$F", "u")
-            ),
-            (None, None, UNKNOWN_ROLE, UNKNOWN_ROLE, UNKNOWN_ROLE),
-        ),
-    ],
+    (
+        "words",
+        "expansion_word_indexes",
+        "program_invocation",
+        "program_invocation_on_true",
+    ),
+    EXPANSION_WORD_CASES,
 )
-def test_word_with_an_expansion_and_the_words_after_it_are_unread_when_the_rule_says_no(
+def test_word_with_an_expansion_starts_the_unread_words_and_is_one_word_on_the_other_answer(
     catalogs_dir,
     monkeypatch,
     words,
     expansion_word_indexes,
     program_invocation,
-    roles,
+    program_invocation_on_true,
 ):
+    expansion = _expansion_of(catalogs_dir, words, expansion_word_indexes)
     monkeypatch.setattr(
         _expand_program_invocations,
         EXPANSION_RULE_NAME,
-        lambda word, *, use_counts: False,
+        lambda word, *, use_counts: True,
     )
-
-    expansion = _expansion_of(catalogs_dir, words, expansion_word_indexes)
+    expansion_on_true = _expansion_of(catalogs_dir, words, expansion_word_indexes)
 
     assert expansion.program_invocations == (program_invocation,)
-    assert expansion.roles == roles
+    assert expansion_on_true.program_invocations == (program_invocation_on_true,)
 
 
 def test_wrapper_chain_shell_option_with_a_plus_and_echo_are_read_on_the_real_catalogs():

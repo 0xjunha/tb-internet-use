@@ -138,11 +138,12 @@ VARIABLE_VALUE_CASES = [
         (VariableValues("U", ("a.org",), False, False),),
         0,
     ),
+    # The word with an expansion is unread by a rule, so read may set any name.
     (
         "word of read with an expansion",
         "U=a.org; read $X; curl $U",
-        (VariableValues("U", ("a.org",), False, False),),
-        0,
+        (VariableValues("U", ("a.org",), False, True),),
+        1,
     ),
     (
         "read of a program without a row",
@@ -271,11 +272,10 @@ def test_names_set_at_run_time_go_before_the_first_later_assignment_in_word_orde
 ):
     knowledge = ExpandedToolCallKnowledge(catalogs_dir=catalogs_dir)
     variable_assignments = expand_ran_commands(
-        _parsed_shell_text_of("X=x; read A B; read -r C $D; A=a; curl $A; Y=y"),
+        _parsed_shell_text_of("X=x; read A B; read -r C; A=a; curl $A; Y=y"),
         knowledge=knowledge,
         judgment_rule_use_counts=Counter(),
     ).variable_assignments
-    # The word `$D` names a variable only when read runs, so it gives no assignment.
     assert variable_assignments == (
         VariableAssignment("X", "x", 0, None),
         VariableAssignment("A", None, 1, None),
@@ -313,8 +313,9 @@ def test_rules_of_the_pieces_are_counted_in_the_counter_that_is_passed(catalogs_
         knowledge=knowledge,
         judgment_rule_use_counts=judgment_rule_use_counts,
     )
+    # The first word with an expansion makes the words after it unread, so the rule on such words is asked once.
     assert judgment_rule_use_counts == Counter(
-        {EXPANSION_RULE_NAME: 2, OUTSIDE_LOOP_RULE_NAME: 1}
+        {EXPANSION_RULE_NAME: 1, OUTSIDE_LOOP_RULE_NAME: 1}
     )
 
 
