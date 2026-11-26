@@ -77,7 +77,7 @@ def build_program_option_behavior(
     *,
     takes_value: bool,
     value_role: ProgramWordRole | UnknownProgramWordRole | None,
-    changed_option_name: str | None = None,
+    changed_option_names: tuple[str, ...] = (),
     changed_option_value_role: ProgramWordRole | UnknownProgramWordRole | None = None,
 ) -> ProgramOptionBehavior:
     return ProgramOptionBehavior(
@@ -86,7 +86,7 @@ def build_program_option_behavior(
         argument_role_with_option=None,
         first_argument_role_with_option=None,
         last_argument_role_with_option=None,
-        changed_option_name=changed_option_name,
+        changed_option_names=changed_option_names,
         changed_option_value_role=changed_option_value_role,
         gives_arguments_at_run_time=False,
         next_program_end_words=(),
@@ -210,31 +210,31 @@ def test_program_option_behavior_has_a_value_role_exactly_when_the_option_takes_
 
 
 @pytest.mark.parametrize(
-    ("changed_option_name", "changed_option_value_role", "is_accepted"),
+    ("changed_option_names", "changed_option_value_role", "is_accepted"),
     [
-        ("-f", ProgramWordRole.WRITTEN_FILE, True),
-        ("-f", UnknownProgramWordRole(), True),
-        (None, None, True),
-        ("-f", None, False),
-        (None, ProgramWordRole.WRITTEN_FILE, False),
+        (("-f",), ProgramWordRole.WRITTEN_FILE, True),
+        (("-o", "--output"), UnknownProgramWordRole(), True),
+        ((), None, True),
+        (("-o", "--output"), None, False),
+        ((), ProgramWordRole.WRITTEN_FILE, False),
     ],
 )
-def test_program_option_behavior_names_a_changed_option_exactly_when_it_gives_its_value_a_role(
-    changed_option_name: str | None,
+def test_program_option_behavior_names_changed_options_exactly_when_it_gives_their_values_a_role(
+    changed_option_names: tuple[str, ...],
     changed_option_value_role: ProgramWordRole | UnknownProgramWordRole | None,
     is_accepted: bool,
 ):
-    def build_option_behavior_with_changed_option() -> ProgramOptionBehavior:
+    def build_option_behavior_with_changed_options() -> ProgramOptionBehavior:
         return build_program_option_behavior(
             takes_value=False,
             value_role=None,
-            changed_option_name=changed_option_name,
+            changed_option_names=changed_option_names,
             changed_option_value_role=changed_option_value_role,
         )
 
     if is_accepted:
-        behavior = build_option_behavior_with_changed_option()
-        assert behavior.changed_option_name == changed_option_name
+        behavior = build_option_behavior_with_changed_options()
+        assert behavior.changed_option_names == changed_option_names
     else:
         with pytest.raises(ValueError):
-            build_option_behavior_with_changed_option()
+            build_option_behavior_with_changed_options()

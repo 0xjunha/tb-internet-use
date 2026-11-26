@@ -90,7 +90,7 @@ _OPTION_ROW_CELLS = {
     "argument_role_with_option": "program",
     "first_argument_role_with_option": "same",
     "last_argument_role_with_option": "copy_destination",
-    "changed_option_name": "-f",
+    "changed_option_names": "-f --file",
     "changed_option_value_role": "used_file",
     "gives_arguments_at_run_time": "yes",
     "exits_with_exit_code_of_next_program_with_option": "no",
@@ -105,7 +105,7 @@ _PROGRAM_OPTION_BEHAVIOR = ProgramOptionBehavior(
     argument_role_with_option=ProgramWordRole.PROGRAM,
     first_argument_role_with_option=SameAsArgumentRole(),
     last_argument_role_with_option=ProgramWordRole.COPY_DESTINATION,
-    changed_option_name="-f",
+    changed_option_names=("-f", "--file"),
     changed_option_value_role=ProgramWordRole.USED_FILE,
     gives_arguments_at_run_time=True,
     next_program_end_words=(";", "+"),
@@ -119,7 +119,7 @@ _UNCHANGING_OPTION_ROW_CELLS = {
     "argument_role_with_option": "unchanged",
     "first_argument_role_with_option": "unchanged",
     "last_argument_role_with_option": "unchanged",
-    "changed_option_name": "none",
+    "changed_option_names": "none",
     "changed_option_value_role": "none",
     "gives_arguments_at_run_time": "no",
     "exits_with_exit_code_of_next_program_with_option": "unchanged",
@@ -132,7 +132,7 @@ _OPTION_TAKING_NO_VALUE = ProgramOptionBehavior(
     argument_role_with_option=None,
     first_argument_role_with_option=None,
     last_argument_role_with_option=None,
-    changed_option_name=None,
+    changed_option_names=(),
     changed_option_value_role=None,
     gives_arguments_at_run_time=False,
     next_program_end_words=(),
@@ -207,7 +207,7 @@ _BLANK_OPTION_CELLS_THAT_ARE_UNKNOWN = [
 _OPTION_COLUMNS_THAT_CANNOT_BE_BLANK = [
     "takes_value",
     "value_role",
-    "changed_option_name",
+    "changed_option_names",
     "gives_arguments_at_run_time",
     "next_program_end_words",
     "checked_against",
@@ -1209,14 +1209,16 @@ def test_blank_role_or_exit_code_cell_of_an_option_row_is_unknown(
     assert getattr(option_behavior, column) == answer
 
 
-def test_blank_value_role_of_an_option_that_takes_a_value_is_unknown(tmp_path):
-    knowledge = _knowledge(
-        tmp_path, option_rows=[{**_OPTION_ROW_CELLS, "value_role": ""}]
-    )
+# A blank `changed_option_value_role` is unknown in a row that names changed options, e.g. `-o --output` in the row of `--output-dir` of curl, which puts their file in its folder.
+@pytest.mark.parametrize("column", ["value_role", "changed_option_value_role"])
+def test_blank_role_of_the_value_of_an_option_or_of_the_changed_options_is_unknown(
+    tmp_path, column
+):
+    knowledge = _knowledge(tmp_path, option_rows=[{**_OPTION_ROW_CELLS, column: ""}])
 
     option_behavior = _option_behavior_of(knowledge, _PROGRAM_BEHAVIOR, "-x")
 
-    assert option_behavior.value_role == UnknownProgramWordRole()
+    assert getattr(option_behavior, column) == UnknownProgramWordRole()
 
 
 def test_option_row_that_changes_nothing_answers_none_for_each_unchanged_cell(

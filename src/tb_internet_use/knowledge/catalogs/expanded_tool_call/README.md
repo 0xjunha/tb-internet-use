@@ -41,8 +41,8 @@ An option that prints help or a version and ends, e.g. `--version` of bash or `-
 | `value_role` | The role of the value, or `none` for an option that takes no value | Unknown, only for an option that takes a value |
 | `argument_role_with_option` | The role of each word that is no option while the option is there, or `unchanged` | Unknown |
 | `first_argument_role_with_option`, `last_argument_role_with_option` | The same for the first or last word, `same` or `unchanged` | Unknown |
-| `changed_option_name` | Another option whose value takes a role while this option is there, e.g. `-f` for `-x` of tar, or `none` | Fails the load |
-| `changed_option_value_role` | The role that value takes, or `none` with `changed_option_name` `none` | Unknown, only for a row that names an option in `changed_option_name` |
+| `changed_option_names` | Other options whose values take a role while this option is there, split by spaces, e.g. `-f` for `-x` of tar or `-o --output` for both names of one option, or `none` | Fails the load |
+| `changed_option_value_role` | The role those values take, or `none` with `changed_option_names` `none` | Unknown, only for a row that names options in `changed_option_names` |
 | `gives_arguments_at_run_time` | `yes` or `no`, as in `program_behaviors.csv` | Fails the load |
 | `exits_with_exit_code_of_next_program_with_option` | `yes`, `no`, or `unchanged` when the option keeps the cell of the program row | Unknown |
 | `next_program_end_words` | The words that end the next program, split by spaces, e.g. `; +`, or `none` | Fails the load |

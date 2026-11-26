@@ -568,7 +568,7 @@ def _program_option_behavior_from_columns(
             "last_argument_role_with_option",
             role_from_cell=_role_or_same_from_cell,
         ),
-        changed_option_name=_text_or_none_from_cell(columns, "changed_option_name"),
+        changed_option_names=_words_from_cell(columns, "changed_option_names"),
         changed_option_value_role=_role_or_none_from_cell(
             columns, "changed_option_value_role"
         ),

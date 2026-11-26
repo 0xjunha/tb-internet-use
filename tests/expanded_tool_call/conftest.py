@@ -41,7 +41,7 @@ _OPTION_ROW_DEFAULTS = {
     "argument_role_with_option": "unchanged",
     "first_argument_role_with_option": "unchanged",
     "last_argument_role_with_option": "unchanged",
-    "changed_option_name": "none",
+    "changed_option_names": "none",
     "changed_option_value_role": "none",
     "gives_arguments_at_run_time": "no",
     "exits_with_exit_code_of_next_program_with_option": "unchanged",

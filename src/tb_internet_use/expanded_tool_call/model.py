@@ -541,9 +541,9 @@ class ProgramOptionBehavior:
     last_argument_role_with_option: (
         ProgramWordRole | UnknownProgramWordRole | SameAsArgumentRole | None
     )
-    # The other option whose value gets another role when the command has this option, e.g. `-f` for `-x` of tar. None when the row says `none`.
-    changed_option_name: str | None
-    # The role that the value of that other option gets. None when the row names no other option.
+    # The other options whose values get another role when the command has this option, e.g. `-f` for `-x` of tar, or both names `-o` and `--output` of one option. Empty when the row says `none`.
+    changed_option_names: tuple[str, ...]
+    # The role that the values of those other options get. None when the row names no other option.
     changed_option_value_role: ProgramWordRole | UnknownProgramWordRole | None
     # It gives the next program arguments that the text does not hold, e.g. `-exec` of find.
     gives_arguments_at_run_time: bool
@@ -555,16 +555,14 @@ class ProgramOptionBehavior:
     )
 
     def __post_init__(self) -> None:
-        """Refuse a value role that disagrees with whether the option takes a value, e.g. one for `-s` of curl, and a changed option name without the role of its value or the other way round."""
+        """Refuse a value role that disagrees with whether the option takes a value, e.g. one for `-s` of curl, and changed option names without the role of their values or the other way round."""
         if (self.value_role is None) == self.takes_value:
             raise ValueError(
                 f"value role {self.value_role} with takes_value {self.takes_value}"
             )
-        if (self.changed_option_value_role is None) != (
-            self.changed_option_name is None
-        ):
+        if (self.changed_option_value_role is None) != (not self.changed_option_names):
             raise ValueError(
-                f"changed option {self.changed_option_name} with role {self.changed_option_value_role}"
+                f"changed options {self.changed_option_names} with role {self.changed_option_value_role}"
             )
 
 

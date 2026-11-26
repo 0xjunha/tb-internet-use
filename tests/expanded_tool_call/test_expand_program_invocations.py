@@ -216,6 +216,13 @@ PROGRAM_OPTION_BEHAVIOR_ROWS: list[dict[str, str]] = [
     ),
     {
         "program_name": "curl",
+        "option_name": "--output-dir",
+        **_TAKES_OTHER_VALUE,
+        "changed_option_names": "-o --output",
+        "changed_option_value_role": "",
+    },
+    {
+        "program_name": "curl",
         "option_name": "-O",
         "argument_role_with_option": "written_file_source",
     },
@@ -248,13 +255,13 @@ PROGRAM_OPTION_BEHAVIOR_ROWS: list[dict[str, str]] = [
     {
         "program_name": "tar",
         "option_name": "-c",
-        "changed_option_name": "-f",
+        "changed_option_names": "-f",
         "changed_option_value_role": "written_file",
     },
     {
         "program_name": "tar",
         "option_name": "-t",
-        "changed_option_name": "-f",
+        "changed_option_names": "-f",
         "changed_option_value_role": "read_file",
     },
     {
@@ -1091,7 +1098,7 @@ ROLE_CASES = [
         (),
         (None, None, None, None, UNKNOWN_ROLE),
     ),
-    # -c names -f in `changed_option_name`, so the value of -f is written and not used.
+    # -c names -f in `changed_option_names`, so the value of -f is written and not used.
     (
         "tar -cf a.tgz",
         ("tar", "-cf", "a.tgz"),
@@ -1135,6 +1142,19 @@ ROLE_CASES = [
         ("curl", "-O", "u"),
         (),
         (None, None, ProgramWordRole.WRITTEN_FILE_SOURCE),
+    ),
+    # --output-dir names both -o and --output in `changed_option_names` and leaves the role of their values blank, since the file is the value put in the folder, wherever --output-dir stands.
+    (
+        "curl --output-dir d -o f u",
+        ("curl", "--output-dir", "d", "-o", "f", "u"),
+        (),
+        (None, None, ProgramWordRole.OTHER, None, UNKNOWN_ROLE, ProgramWordRole.OTHER),
+    ),
+    (
+        "curl --output f --output-dir d u",
+        ("curl", "--output", "f", "--output-dir", "d", "u"),
+        (),
+        (None, None, UNKNOWN_ROLE, None, ProgramWordRole.OTHER, ProgramWordRole.OTHER),
     ),
     (
         "sudo bash -c 'curl u'",

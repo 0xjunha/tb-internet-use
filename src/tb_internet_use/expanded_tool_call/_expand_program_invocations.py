@@ -645,12 +645,12 @@ class _ProgramWordsState:
     def value_role_of(
         self, placed_program_option: _PlacedProgramOption
     ) -> ProgramWordRole | UnknownProgramWordRole | None:
-        """Give the role of the value of an option, from its row unless another option of the command names it in `changed_option_name`, unknown for a `-` that the row reads as a file, and None for an option that takes no value."""
+        """Give the role of the value of an option, from its row unless another option of the command names it in `changed_option_names`, unknown for a `-` that the row reads as a file, and None for an option that takes no value."""
         changed_roles = [
             other.program_option_behavior.changed_option_value_role
             for other in self.placed_program_options
-            if other.program_option_behavior.changed_option_name
-            == placed_program_option.name
+            if placed_program_option.name
+            in other.program_option_behavior.changed_option_names
         ]
         value_role = _answer_of_program_row_and_option_rows(
             placed_program_option.program_option_behavior.value_role,
