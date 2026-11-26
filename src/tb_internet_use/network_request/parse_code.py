@@ -4,7 +4,8 @@ Code that a command runs can send a request that no word of the command shows, e
 The code is read as text and never run, so a call is found by its form, a name right before `(`, and not by what the name is bound to.
 For example `r.get(u)` stays `r.get` after `import requests as r`.
 Whether a call sends a request is a fact of the code call catalog, so the reading knows no library.
-The one exception is the names that a Python text imports as a module and the bare names it binds to something else, which the reading records although they say nothing of a call on their own.
+The exceptions are the full names that the imports of a text bind to names and the bare names that a Python text binds to something else, which the reading records although they say nothing of a call on their own.
+So `r` of `r.get(u)` can be read as `requests` after `import requests as r`.
 A call such as `requests.get(rid)` has the form of a call of the library `requests` also where `requests` is a dict, and only these names tell the two apart, e.g. `requests = {}` and no `import requests` in the text.
 
 Text after a multi-line string, a template string or a block comment that never closes is not read, and `ParsedCode.unreadable_text_start` says from where.
@@ -13,6 +14,7 @@ Known limits
 - A JavaScript regular expression literal is read as code, since only a parser tells it from a division. So `//` in it starts a comment and a quote or backtick in it starts a string, e.g. in `/https?:\\/\\//` or `/`/`. A backtick that never closes sets `unreadable_text_start`.
 - A quote `'` or `"` that does not close ends at the line break, so the rest of its line is not read, e.g. `fetch(u)` in `x = /'/; fetch(u)`.
 - Python binds a name also as a tuple target, by `with … as` or `except … as`, as the variable of a comprehension or of a `for` that does not start its line, and after `;`, none of which is read, e.g. `requests` of `requests, n = load()`. An attribute such as `self.requests = {}` binds no bare name. A call through such a name stays the call of the module, e.g. `self.requests.get(rid)`.
+- An import is read at the start of a line or after `;`, by its form alone and outside comments, so a line of a multi-line string that starts with `import` counts too. A Python import that a backslash continues on the next line is read only up to the backslash, and `from a import *` binds no name that the text shows. A JavaScript `import { … }` is read only when its braces close on its line, and neither `import("y")` nor a call of a member of `require("y")` is read, e.g. `execSync` of `require("child_process").execSync(c)`.
 - A Python f-string that holds its own quote inside braces, e.g. `f"{d["k"]}"`, ends at that quote. A JavaScript template literal nested in `${}` ends the same way.
 """
 
@@ -38,8 +40,6 @@ _WHITESPACE = re.compile(r"\s+")
 _NUMBER = re.compile(r"\d[\w.]*")
 # The punctuation that reads from a name right after it, so that an argument that starts with the name does not start with its value, e.g. `[` of `urls[0] + path`.
 _PUNCTUATION_THAT_READS_FROM_A_NAME = frozenset({"(", ".", "["})
-# The calls whose value is the module that their first string names, e.g. `__import__("subprocess")`.
-_IMPORTING_CALL_NAMES = frozenset({"__import__", "importlib.import_module"})
 # The tokens right before a parameter of a `def` or `lambda`, e.g. `,` before `pk` in `def plan(requests, pk)`.
 _TOKENS_BEFORE_A_PARAMETER = frozenset({"(", ",", "*"})
 # What follows the variable of a `for` loop that is one bare name, e.g. ` in` of `for requests in batches:`.
@@ -137,12 +137,60 @@ BARE_NAME_PATTERN_OF_LANGUAGE = {
     CodeLanguage.PYTHON: _PYTHON_NAME,
     CodeLanguage.JAVASCRIPT: _JAVASCRIPT_NAME,
 }
-# A Python `import` statement at the start of a line, after optional indentation, up to the end of the statement, e.g. `import os, sys` in `    import os, sys  # x`.
-_PYTHON_IMPORT_STATEMENT = re.compile(r"^[ \t]*import[ \t]+([^#;\n]*)", re.MULTILINE)
+# A Python `import` statement at the start of a line or after `;`, after optional indentation, up to the end of the statement, e.g. `import os, sys` in `    import os, sys  # x`.
+_PYTHON_IMPORT_STATEMENT = re.compile(
+    r"(?:^|;)[ \t]*import[ \t]+([^#;\n]*)", re.MULTILINE
+)
 # One module of an import statement with its first dotted part and an optional `as` name, e.g. `urllib.request` or `requests as rq`.
 _PYTHON_IMPORTED_MODULE = re.compile(
-    rf"\s*({_PYTHON_NAME})(?:\.{_PYTHON_NAME})*(\s+as\s+{_PYTHON_NAME})?\s*"
+    rf"\s*(({_PYTHON_NAME})(?:\.{_PYTHON_NAME})*)(?:\s+as\s+({_PYTHON_NAME}))?\s*"
 )
+# The start of a Python `from` statement at the start of a line or after `;`, up to the names it imports, with its module, which may be relative, e.g. `from urllib.request import ` or `from .net import `.
+_PYTHON_FROM_IMPORT_START = re.compile(
+    rf"(?:^|;)[ \t]*from[ \t]+(\.*(?:{_PYTHON_NAME}(?:\.{_PYTHON_NAME})*)?)[ \t]+import[ \t]*",
+    re.MULTILINE,
+)
+# The names of a `from` statement in parentheses, which may span lines, e.g. `(urlopen,\n Request)`. A name list that holds another parenthesis is not read, so that a list that never closes is not read to the end of the code once for each such statement.
+_PYTHON_FROM_IMPORT_NAMES_IN_PARENTHESES = re.compile(r"\(([^()]*)\)")
+# The names of a `from` statement up to the end of the statement when they are not in parentheses, e.g. `urlopen, Request` of `from urllib.request import urlopen, Request  # x`.
+_PYTHON_FROM_IMPORT_NAMES = re.compile(r"[^#;\n(]*")
+# A comment in the parentheses of a `from` statement, e.g. `# for the port check`.
+_PYTHON_COMMENT = re.compile(r"#[^\n]*")
+# One name of a `from` statement with an optional `as` name, e.g. `urlopen` or `urlopen as fetch_url`.
+_PYTHON_IMPORTED_NAME = re.compile(
+    rf"\s*({_PYTHON_NAME})(?:\s+as\s+({_PYTHON_NAME}))?\s*"
+)
+# The calls whose value is the module that their first string names, with whether the value is the top-level package of a dotted name, as `__import__("os.path")` gives `os` while `importlib.import_module("os.path")` gives `os.path`.
+_IS_TOP_LEVEL_PACKAGE_OF_IMPORTING_CALL_NAME = {
+    "__import__": True,
+    "importlib.import_module": False,
+}
+# A Python assignment of one call that imports to a bare name, at the start of a line or after `;`, whose only argument is one string and which ends its statement, e.g. `sp = __import__("subprocess")`.
+_PYTHON_IMPORTING_CALL_ASSIGNMENT = re.compile(
+    rf"(?:^|;)[ \t]*({_PYTHON_NAME})[ \t]*=[ \t]*(__import__|importlib\.import_module)\([ \t]*(['\"])([^'\"\n]*)\3[ \t]*\)[ \t]*(?=;|\n|$)",
+    re.MULTILINE,
+)
+# A JavaScript `import` statement at the start of a line or after `;`, with what it binds and the module, e.g. `import { execSync } from "node:child_process"`, `import http from "http"` or `import * as cp from "child_process"`.
+_JAVASCRIPT_IMPORT_STATEMENT = re.compile(
+    rf"(?:^|;)[ \t]*import[ \t]*(?:\*[ \t]*as[ \t]+({_JAVASCRIPT_NAME})|\{{([^{{}};\n]*)\}}|({_JAVASCRIPT_NAME}))[ \t]*from[ \t]*(['\"])([^'\"\n]*)\4",
+    re.MULTILINE,
+)
+# A JavaScript binding of what `require` gives, a module or one of its members, to a bare name or to the names of braces, e.g. `cp = require("child_process")`, `{ execSync } = require("child_process")` or `run = require("child_process").execSync`.
+_JAVASCRIPT_REQUIRE_BINDING = re.compile(
+    rf"(?<![\w$.])(?:({_JAVASCRIPT_NAME})|\{{([^{{}};\n]*)\}})[ \t]*=[ \t]*require\([ \t]*(['\"])([^'\"\n]*)\3[ \t]*\)(?:\.({_JAVASCRIPT_NAME}))?"
+)
+# One name in the braces of a JavaScript `import` statement, with the name it is bound to when that differs, e.g. `execSync` or `execSync as run`.
+_JAVASCRIPT_IMPORTED_NAME = re.compile(
+    rf"\s*({_JAVASCRIPT_NAME})(?:\s+as\s+({_JAVASCRIPT_NAME}))?\s*"
+)
+# One name in the braces of a JavaScript `require` binding, with the name it is bound to when that differs, e.g. `execSync` or `execSync: run`.
+_JAVASCRIPT_REQUIRED_NAME = re.compile(
+    rf"\s*({_JAVASCRIPT_NAME})(?:\s*:\s*({_JAVASCRIPT_NAME}))?\s*"
+)
+# The prefix of a JavaScript module name that names a built-in module of Node.js, which is the same module without it, e.g. `node:child_process`.
+_NODE_BUILT_IN_MODULE_PREFIX = "node:"
+# Any character but a line break, which a comment is blanked out by before imports are read.
+_SPACES_OF_NON_LINE_BREAKS = re.compile(r"[^\n]")
 _SYNTAX_OF_LANGUAGE = {
     CodeLanguage.PYTHON: _CodeSyntax(
         dotted_name=re.compile(rf"{_PYTHON_NAME}(?:\.{_PYTHON_NAME})*"),
@@ -262,10 +310,12 @@ class _CodeReadingState:
     # The bare names that an assignment at the start of a line, a parameter of a `def` or `lambda` or the variable of a `for` loop binds, e.g. `requests` of `requests = {}`.
     names_bound_by_assignment_parameter_or_loop: set[str] = field(default_factory=set)
     unreadable_text_start: int | None = None
+    # The 0-based start and end of each comment, so that an import in a comment is not read, e.g. `// const fetch = require("node-fetch")`.
+    comment_spans: list[tuple[int, int]] = field(default_factory=list)
 
 
 def parse_code(code: str, code_language: CodeLanguage) -> ParsedCode:
-    """Find the calls of a code text with their strings and first argument, the assignments of one string or one call to a name at the start of a line, the modules that Python imports under their own name and the bare names that Python binds otherwise.
+    """Find the calls of a code text with their strings and first argument, the assignments of one string or one call to a name at the start of a line, the full names that its imports bind to names and the bare names that Python binds otherwise.
 
     A call is a name, bare or dotted, right before `(`, e.g. `requests.get(` or `fetch(`, outside strings and comments.
     A string belongs to the innermost call whose parentheses hold it, so in `print(requests.get("https://a.org/x"))` it belongs to `requests.get`.
@@ -280,37 +330,208 @@ def parse_code(code: str, code_language: CodeLanguage) -> ParsedCode:
     for open_bracket in reversed(state.open_brackets):
         if open_bracket.open_call is not None:
             _close_call_unreadable(state, open_bracket.open_call)
-    return _parsed_code_from(
-        state,
-        _imported_module_names_of(code)
-        if code_language == CodeLanguage.PYTHON
-        else frozenset(),
-    )
+    code_without_comments = _code_without_comments_of(code, state.comment_spans)
+    if code_language == CodeLanguage.PYTHON:
+        import_bindings = [
+            *_import_bindings_of_python_statements(code_without_comments),
+            *_import_bindings_of_python_importing_calls(code_without_comments),
+        ]
+    else:
+        import_bindings = _import_bindings_of_javascript_statements(
+            code_without_comments
+        )
+    return _parsed_code_from(state, _imported_full_names_by_name_of(import_bindings))
 
 
-def _imported_module_names_of(code: str) -> frozenset[str]:
-    """Find the names that the `import` statements of a Python text bind to the module of the same name, e.g. `os` and `sys` for `import os, sys` and `urllib` for `import urllib.request`.
+def _code_without_comments_of(code: str, comment_spans: list[tuple[int, int]]) -> str:
+    """Give the code with each comment replaced by spaces, keeping its line breaks so that lines still start where they did, e.g. `x = 1` and a blank line for `x = 1  # import requests as rq` and a line of `/* … */`."""
+    if not comment_spans:
+        return code
+    parts: list[str] = []
+    position = 0
+    for comment_start, comment_end in comment_spans:
+        parts.append(code[position:comment_start])
+        parts.append(
+            _SPACES_OF_NON_LINE_BREAKS.sub(" ", code[comment_start:comment_end])
+        )
+        position = comment_end
+    parts.append(code[position:])
+    return "".join(parts)
 
-    A statement counts on any line that starts with it after optional indentation, so an import inside a function or a `try` counts too, and so does a line of a multi-line string that starts with `import`.
-    A module imported under another name binds no name of its own, e.g. `requests` of `import requests as rq`, and neither does `from requests import get`.
-    A statement after `;` on its line is not read, e.g. `import sys` of `import os; import sys`.
+
+@dataclass(frozen=True, slots=True)
+class _ImportBinding:
+    """Binding of a name by one import of a code text, which `parse_code` gathers into `ParsedCode.imported_full_names_by_name`, e.g. `rq` to `requests` for `import requests as rq`."""
+
+    # The 0-based position of the import in the code, so that the full names of a name keep the order of the text.
+    position: int
+    name: str
+    # The dotted name of the module or of its member that the name stands for, e.g. `urllib.request.urlopen`.
+    full_name: str
+
+
+def _import_bindings_of_python_statements(code: str) -> list[_ImportBinding]:
+    """Find the names that the `import` and `from` statements of a Python text bind, e.g. `rq` to `requests` for `import requests as rq` or `fetch_url` to `urllib.request.urlopen` for `from urllib.request import urlopen as fetch_url`.
+
+    `import urllib.request` binds `urllib` to `urllib`, since only its first dotted part becomes a name, and a relative module keeps its dots, e.g. `.net.urlopen` for `urlopen` of `from .net import urlopen`.
+    A statement counts at the start of any line after optional indentation and after `;`, so an import inside a function or a `try` counts too, and so does `import json` of `import os; import json`.
+    The names of a `from` statement may span lines inside parentheses, e.g. `from urllib.request import (` with `urlopen,` and `Request,` on the next lines.
     """
-    imported_module_names: set[str] = set()
+    import_bindings: list[_ImportBinding] = []
     for import_statement_match in _PYTHON_IMPORT_STATEMENT.finditer(code):
         for imported_module_text in import_statement_match.group(1).split(","):
             imported_module_match = _PYTHON_IMPORTED_MODULE.fullmatch(
                 imported_module_text
             )
-            if (
-                imported_module_match is not None
-                and imported_module_match.group(2) is None
-            ):
-                imported_module_names.add(imported_module_match.group(1))
-    return frozenset(imported_module_names)
+            if imported_module_match is None:
+                continue
+            module_name, first_module_name_part, bound_name = (
+                imported_module_match.groups()
+            )
+            import_bindings.append(
+                _ImportBinding(
+                    import_statement_match.start(),
+                    first_module_name_part if bound_name is None else bound_name,
+                    first_module_name_part if bound_name is None else module_name,
+                )
+            )
+    for from_import_start_match in _PYTHON_FROM_IMPORT_START.finditer(code):
+        names_start = from_import_start_match.end()
+        names_in_parentheses_match = _PYTHON_FROM_IMPORT_NAMES_IN_PARENTHESES.match(
+            code, names_start
+        )
+        if names_in_parentheses_match is not None:
+            names_text = _PYTHON_COMMENT.sub("", names_in_parentheses_match.group(1))
+        else:
+            names_match = _PYTHON_FROM_IMPORT_NAMES.match(code, names_start)
+            assert names_match is not None  # The pattern matches an empty text.
+            names_text = names_match.group()
+        module_name = from_import_start_match.group(1)
+        for imported_name_text in names_text.split(","):
+            imported_name_match = _PYTHON_IMPORTED_NAME.fullmatch(imported_name_text)
+            if imported_name_match is None:
+                continue
+            imported_name, bound_name = imported_name_match.groups()
+            import_bindings.append(
+                _ImportBinding(
+                    from_import_start_match.start(),
+                    imported_name if bound_name is None else bound_name,
+                    _full_name_of_member(module_name, imported_name),
+                )
+            )
+    return import_bindings
+
+
+def _full_name_of_member(module_name: str, member_name: str) -> str:
+    """Give the full name of a member of a module, e.g. `urllib.request.urlopen`, `.net.urlopen` of the relative module `.net` or `.urlopen` of the relative module `.`."""
+    if module_name.endswith("."):
+        return module_name + member_name
+    return f"{module_name}.{member_name}"
+
+
+def _import_bindings_of_python_importing_calls(code: str) -> list[_ImportBinding]:
+    """Find the names that a Python text assigns a module to by a call that imports, e.g. `sp` to `subprocess` for `sp = __import__("subprocess")`.
+
+    `__import__` gives the top-level package of a dotted name, so `x = __import__("os.path")` binds `x` to `os`, while `x = importlib.import_module("os.path")` binds it to `os.path`.
+    """
+    import_bindings: list[_ImportBinding] = []
+    for importing_call_match in _PYTHON_IMPORTING_CALL_ASSIGNMENT.finditer(code):
+        name, importing_call_name, _, module_name = importing_call_match.groups()
+        is_top_level_package = _IS_TOP_LEVEL_PACKAGE_OF_IMPORTING_CALL_NAME[
+            importing_call_name
+        ]
+        import_bindings.append(
+            _ImportBinding(
+                importing_call_match.start(),
+                name,
+                module_name.split(".")[0] if is_top_level_package else module_name,
+            )
+        )
+    return import_bindings
+
+
+def _import_bindings_of_javascript_statements(code: str) -> list[_ImportBinding]:
+    """Find the names that the `import` statements and the `require` bindings of a JavaScript text bind, e.g. `execSync` to `child_process.execSync` for `const { execSync } = require("node:child_process")`.
+
+    A name bound to the default export or to all of a module stands for the module, e.g. `http` of `import http from "http"` or `cp` of `import * as cp from "child_process"`, as Node.js gives the module itself for both.
+    A module name with the prefix `node:` names the same built-in module, so the prefix is dropped.
+    """
+    import_bindings: list[_ImportBinding] = []
+    for import_statement_match in _JAVASCRIPT_IMPORT_STATEMENT.finditer(code):
+        namespace_name, names_text, default_name, _, module_name = (
+            import_statement_match.groups()
+        )
+        import_bindings += _javascript_import_bindings_of(
+            import_statement_match.start(),
+            _JAVASCRIPT_IMPORTED_NAME,
+            _javascript_module_name_of(module_name),
+            namespace_name or default_name,
+            names_text,
+        )
+    for require_binding_match in _JAVASCRIPT_REQUIRE_BINDING.finditer(code):
+        bound_name, names_text, _, module_name, member_name = (
+            require_binding_match.groups()
+        )
+        full_name = _javascript_module_name_of(module_name)
+        if member_name is not None:
+            full_name = f"{full_name}.{member_name}"
+        import_bindings += _javascript_import_bindings_of(
+            require_binding_match.start(),
+            _JAVASCRIPT_REQUIRED_NAME,
+            full_name,
+            bound_name,
+            names_text,
+        )
+    return import_bindings
+
+
+def _javascript_module_name_of(module_name: str) -> str:
+    """Give the module name that a JavaScript import names, without the prefix `node:` of a built-in module, e.g. `child_process` of `node:child_process`."""
+    return module_name.removeprefix(_NODE_BUILT_IN_MODULE_PREFIX)
+
+
+def _javascript_import_bindings_of(
+    position: int,
+    imported_name_pattern: re.Pattern[str],
+    full_name: str,
+    bound_name: str | None,
+    names_text: str | None,
+) -> list[_ImportBinding]:
+    """Give the names that one JavaScript `import` or `require` at a 0-based position binds, the bare name bound to what it gives or else each name in its braces bound to a member of it, read by the pattern of one name in such braces, e.g. `run` to `child_process.execSync` for `execSync as run` in `import { execSync as run } from "child_process"`."""
+    if bound_name is not None:
+        return [_ImportBinding(position, bound_name, full_name)]
+    import_bindings: list[_ImportBinding] = []
+    for imported_name_text in (names_text or "").split(","):
+        imported_name_match = imported_name_pattern.fullmatch(imported_name_text)
+        if imported_name_match is None:
+            continue
+        member_name, other_bound_name = imported_name_match.groups()
+        import_bindings.append(
+            _ImportBinding(
+                position,
+                member_name if other_bound_name is None else other_bound_name,
+                f"{full_name}.{member_name}",
+            )
+        )
+    return import_bindings
+
+
+def _imported_full_names_by_name_of(
+    import_bindings: list[_ImportBinding],
+) -> dict[str, tuple[str, ...]]:
+    """Give the distinct full names that the imports of a text bind to each name, in the order of the text, e.g. `("requests", "httpx")` for `http` of `import requests as http` in a `try` and `import httpx as http` in its `except`, since the text does not show which import ran."""
+    full_names_by_name: dict[str, dict[str, None]] = {}
+    for import_binding in sorted(
+        import_bindings, key=lambda import_binding: import_binding.position
+    ):
+        full_names_by_name.setdefault(import_binding.name, {})[
+            import_binding.full_name
+        ] = None
+    return {name: tuple(full_names) for name, full_names in full_names_by_name.items()}
 
 
 def _parsed_code_from(
-    state: _CodeReadingState, imported_module_names: frozenset[str]
+    state: _CodeReadingState, imported_full_names_by_name: dict[str, tuple[str, ...]]
 ) -> ParsedCode:
     """Build the reading of the code from the state at its end, turning the places of the opened calls into indexes of `ParsedCode.code_calls`, which leaves out the definitions written like calls."""
     code_call_index_of_opened_call_index: dict[int, int] = {}
@@ -319,7 +540,6 @@ def _parsed_code_from(
             code_call_index_of_opened_call_index[opened_call_index] = len(
                 code_call_index_of_opened_call_index
             )
-    imported_module_names |= _module_names_imported_by_calls_of(state)
     return ParsedCode(
         code_calls=tuple(
             code_call
@@ -341,28 +561,12 @@ def _parsed_code_from(
             )
             for call_assignment in state.call_assignments
         ),
-        imported_module_names=imported_module_names,
+        imported_full_names_by_name=imported_full_names_by_name,
         names_bound_by_assignment_parameter_or_loop=frozenset(
             state.names_bound_by_assignment_parameter_or_loop
         ),
         unreadable_text_start=state.unreadable_text_start,
     )
-
-
-def _module_names_imported_by_calls_of(state: _CodeReadingState) -> frozenset[str]:
-    """Find the names that a Python text assigns the module of the same name to by a call, e.g. `subprocess` of `subprocess = __import__("subprocess")` or of `subprocess = importlib.import_module("subprocess")`."""
-    if not state.code_syntax.records_bound_names:
-        return frozenset()
-    imported_module_names: set[str] = set()
-    for call_assignment in state.call_assignments:
-        code_call = state.code_calls[call_assignment.code_call_index]
-        if (
-            code_call is not None
-            and code_call.name in _IMPORTING_CALL_NAMES
-            and code_call.first_argument_string == call_assignment.name
-        ):
-            imported_module_names.add(call_assignment.name)
-    return frozenset(imported_module_names)
 
 
 def _read_token(state: _CodeReadingState, position: int) -> int:
@@ -377,6 +581,7 @@ def _read_token(state: _CodeReadingState, position: int) -> int:
         return whitespace_match.end()
     comment_end = _comment_end_of(state, position)
     if comment_end is not None:
+        state.comment_spans.append((position, comment_end))
         return comment_end
     if state.is_at_line_start:
         state.is_at_line_start = False

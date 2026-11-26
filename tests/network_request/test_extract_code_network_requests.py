@@ -54,6 +54,7 @@ UNKNOWN_CODE_CALL = NetworkRequestUncertaintyReason.UNKNOWN_CODE_CALL
 URL_OUTSIDE_CODE_CALL = NetworkRequestUncertaintyReason.URL_OUTSIDE_CODE_CALL
 PROGRAM_RUN_BY_CODE = NetworkRequestUncertaintyReason.PROGRAM_RUN_BY_CODE
 UNKNOWN_PROGRAM = NetworkRequestUncertaintyReason.UNKNOWN_PROGRAM
+ANOTHER_FUNCTION = NetworkRequestUncertaintyReason.CALL_NAME_MAY_BE_ANOTHER_FUNCTION
 U = "https://a.org/x"
 # The confirmed request of `requests.get(U)`, as (call name, target, target kind, hosts, uncertainty reason).
 REQUESTS_GET_U = ("requests.get", U, URL, ("a.org",), None)
@@ -61,13 +62,17 @@ REQUESTS_GET_U = ("requests.get", U, URL, ("a.org",), None)
 URLOPEN_OF_OBJECT = ("urlopen", BUILT_IN_CODE, URL, (), None)
 # The confirmed request of `urlopen` whose target `Request` holds as `U`.
 URLOPEN_U = ("urlopen", U, URL, ("a.org",), None)
+# The same request of `urllib.request.urlopen`, whose full name has a row of its own.
+DOTTED_URLOPEN_U = ("urllib.request.urlopen", U, URL, ("a.org",), None)
 # The request of a URL in code outside every call.
 OUTSIDE_U = (UNKNOWN_CALL, U, URL, ("a.org",), URL_OUTSIDE_CODE_CALL)
 NAMESPACE_RULE = "treat_url_of_namespace_host_as_no_target"
-CALL_NAME_RULE = "treat_call_name_that_ends_with_catalog_name_as_that_call"
-MODULE_IMPORT_RULE = (
-    "treat_call_of_module_name_that_code_binds_without_import_as_call_without_row"
+CALL_NAME_RULE = (
+    "treat_call_name_that_ends_with_catalog_name_as_uncertain_call_of_that_name"
 )
+MODULE_ROW_RULE = "treat_call_of_module_row_through_name_that_code_binds_without_import_as_call_without_row"
+# The request of a program run by code whose program `pip` may fetch, as (target, target kind, hosts, uncertainty reason) after the call name.
+PIP_RUN = (BUILT_IN_CODE, UNKNOWN_KIND, (), PROGRAM_RUN_BY_CODE)
 POSSIBLY_PUBLIC_RULE = "treat_single_label_or_templated_host_name_as_possibly_public"
 
 # The imports that every Python code of `_CASES` runs after, so that a call of a module keeps its row.
@@ -245,19 +250,21 @@ _CASES = [
     ),
     (
         "model name",
-        'AutoModel.from_pretrained("bert-base")',
+        'transformers.AutoTokenizer.from_pretrained("bert-base")',
         PYTHON,
-        [("from_pretrained", "bert-base", UNKNOWN_KIND, (), None)],
+        [
+            (
+                "transformers.AutoTokenizer.from_pretrained",
+                "bert-base",
+                UNKNOWN_KIND,
+                (),
+                None,
+            )
+        ],
     ),
     (
         "javascript fetch",
         f'await fetch("{U}")',
-        JAVASCRIPT,
-        [("fetch", U, URL, ("a.org",), None)],
-    ),
-    (
-        "javascript dotted fetch",
-        f'mylib.fetch("{U}")',
         JAVASCRIPT,
         [("fetch", U, URL, ("a.org",), None)],
     ),
@@ -279,19 +286,19 @@ _CASES = [
         "request object built with a dotted name",
         f'urllib.request.urlopen(urllib.request.Request("{U}"))',
         PYTHON,
-        [URLOPEN_U],
+        [DOTTED_URLOPEN_U],
     ),
     (
         "request object built with an imported name",
         f'from urllib.request import Request, urlopen\nurlopen(Request("{U}"))',
         PYTHON,
-        [URLOPEN_U],
+        [DOTTED_URLOPEN_U],
     ),
     (
         "request object assigned to a name",
         f'req = urllib.request.Request("{U}", data=b)\nurllib.request.urlopen(req)',
         PYTHON,
-        [URLOPEN_U],
+        [DOTTED_URLOPEN_U],
     ),
     (
         "request object of a name assigned a url",
@@ -546,11 +553,11 @@ _CASES = [
         "dotted call without visible url",
         "urllib.request.urlopen(req)",
         PYTHON,
-        [("urlopen", BUILT_IN_CODE, URL, (), None)],
+        [("urllib.request.urlopen", BUILT_IN_CODE, URL, (), None)],
     ),
     (
-        "two dotted calls of one row without visible url",
-        "a.urlopen(x)\nb.urlopen(y)",
+        "two calls of one row without visible url",
+        "urlopen(x)\nurlopen(y)",
         PYTHON,
         [("urlopen", BUILT_IN_CODE, URL, (), None)],
     ),
@@ -565,7 +572,7 @@ _CASES = [
 ]
 
 
-# (case, code, requests as in `_CASES`) of Python code that runs without `_PYTHON_IMPORTS`, so that a call of a module loses its row only when the code binds the module name to something else and does not import it.
+# (case, code, requests as in `_CASES`) of Python code that runs without `_PYTHON_IMPORTS`, so that a call of a row of a module loses its row only when the code binds the first name part to something else and does not import it, and a call of another row through such a name is uncertain.
 _IMPORT_CASES = [
     ("dict named after a module", "requests = {}\nprev = requests.get(rid)", []),
     (
@@ -631,11 +638,16 @@ _IMPORT_CASES = [
         f'requests.get("{U}")',
         [REQUESTS_GET_U],
     ),
-    # Known limit. An attribute binds no bare name, so the call keeps the row of `requests.get`.
+    # An attribute binds no bare name, so a call through a name that the text does not bind is an uncertain call of the row of its end.
     (
         "attribute named after a module",
         "self.requests = {}\nself.requests.get(rid)",
-        [("requests.get", BUILT_IN_CODE, URL, (), None)],
+        [("requests.get", BUILT_IN_CODE, URL, (), ANOTHER_FUNCTION)],
+    ),
+    (
+        "attribute named after a module of a parameter",
+        "def plan(ctx, rid):\n    return ctx.requests.get(rid)",
+        [],
     ),
     (
         "call that sends no request of a module name bound to something else",
@@ -650,7 +662,377 @@ _IMPORT_CASES = [
     (
         "call whose row names no module",
         f'urlopen = None\nurlopen("{U}")',
-        [("urlopen", U, URL, ("a.org",), None)],
+        [("urlopen", U, URL, ("a.org",), ANOTHER_FUNCTION)],
+    ),
+]
+
+
+# (case, code, language, requests as in `_CASES`) of code that runs without `_PYTHON_IMPORTS`, so that a call takes the row of the full name that an import of the text gives its first name part, and a call whose first part no import binds takes a row by the judgment rules.
+_CALL_NAME_RESOLUTION_CASES = [
+    # Python import statements.
+    (
+        "module imported",
+        f'import requests\nrequests.get("{U}")',
+        PYTHON,
+        [REQUESTS_GET_U],
+    ),
+    (
+        "dotted module imported",
+        f'import urllib.request\nurllib.request.urlopen("{U}")',
+        PYTHON,
+        [DOTTED_URLOPEN_U],
+    ),
+    (
+        "module imported under another name",
+        f'import requests as rq\nrq.get("{U}")',
+        PYTHON,
+        [REQUESTS_GET_U],
+    ),
+    (
+        "dotted module imported under another name",
+        f'import urllib.request as u\nu.urlopen("{U}")',
+        PYTHON,
+        [DOTTED_URLOPEN_U],
+    ),
+    (
+        "module imported under another name beside another module",
+        f'import os, requests as rq\nrq.get("{U}")',
+        PYTHON,
+        [REQUESTS_GET_U],
+    ),
+    (
+        "member imported",
+        f'from urllib.request import urlopen\nurlopen("{U}")',
+        PYTHON,
+        [DOTTED_URLOPEN_U],
+    ),
+    (
+        "member imported under another name",
+        f'from urllib.request import urlopen as fetch_url\nfetch_url("{U}")',
+        PYTHON,
+        [DOTTED_URLOPEN_U],
+    ),
+    (
+        "function of a dataset library imported",
+        'from datasets import load_dataset\nload_dataset("squad")',
+        PYTHON,
+        [("datasets.load_dataset", "squad", UNKNOWN_KIND, (), None)],
+    ),
+    (
+        "members imported",
+        f'from requests import get, post\npost("{U}")',
+        PYTHON,
+        [("requests.post", U, URL, ("a.org",), None)],
+    ),
+    (
+        "class imported",
+        'from transformers import AutoTokenizer\nAutoTokenizer.from_pretrained("bert-base")',
+        PYTHON,
+        [
+            (
+                "transformers.AutoTokenizer.from_pretrained",
+                "bert-base",
+                UNKNOWN_KIND,
+                (),
+                None,
+            )
+        ],
+    ),
+    (
+        "members imported on several lines",
+        f'from urllib.request import (\n    Request,\n    urlopen,\n)\nurlopen(Request("{U}"))',
+        PYTHON,
+        [DOTTED_URLOPEN_U],
+    ),
+    (
+        "member imported after another statement",
+        f'import json; import urllib.request as u; u.urlopen("{U}")',
+        PYTHON,
+        [DOTTED_URLOPEN_U],
+    ),
+    # A relative module is no library, so its member has no row of its own and only its end matches one.
+    (
+        "member of a relative module",
+        f'from .net import urlopen\nurlopen("{U}")',
+        PYTHON,
+        [("urlopen", U, URL, ("a.org",), ANOTHER_FUNCTION)],
+    ),
+    # Python calls that import.
+    (
+        "module imported by __import__ under another name",
+        'sp = __import__("subprocess")\nsp.run(["pip", "install", "x"])',
+        PYTHON,
+        [("subprocess.run", *PIP_RUN)],
+    ),
+    (
+        "module imported by importlib under another name",
+        f'r = importlib.import_module("requests")\nr.get("{U}")',
+        PYTHON,
+        [REQUESTS_GET_U],
+    ),
+    # JavaScript `require` bindings.
+    (
+        "module required",
+        'const cp = require("child_process");\ncp.execSync("pip install x")',
+        JAVASCRIPT,
+        [("child_process.execSync", *PIP_RUN)],
+    ),
+    (
+        "member required",
+        'const { execSync } = require("child_process");\nexecSync("pip install x")',
+        JAVASCRIPT,
+        [("child_process.execSync", *PIP_RUN)],
+    ),
+    (
+        "member required under another name",
+        'const { execSync: run } = require("child_process");\nrun("pip install x")',
+        JAVASCRIPT,
+        [("child_process.execSync", *PIP_RUN)],
+    ),
+    (
+        "member of a required module",
+        'const run = require("child_process").execSync;\nrun("pip install x")',
+        JAVASCRIPT,
+        [("child_process.execSync", *PIP_RUN)],
+    ),
+    # JavaScript `import` statements, whose prefix `node:` names the same module.
+    (
+        "default export imported",
+        f'import http from "node:http";\nhttp.get("{U}")',
+        JAVASCRIPT,
+        [("http.get", U, URL, ("a.org",), None)],
+    ),
+    (
+        "member imported in javascript",
+        f'import {{ get }} from "https";\nget("{U}")',
+        JAVASCRIPT,
+        [("https.get", U, URL, ("a.org",), None)],
+    ),
+    (
+        "member imported under another name in javascript",
+        'import { execSync as run } from "child_process";\nrun("pip install x")',
+        JAVASCRIPT,
+        [("child_process.execSync", *PIP_RUN)],
+    ),
+    (
+        "module imported whole",
+        'import * as cp from "node:child_process";\ncp.spawnSync("pip", ["install"])',
+        JAVASCRIPT,
+        [("child_process.spawnSync", *PIP_RUN)],
+    ),
+    # A full name from an import without a row of its own takes the row of its longest end as an uncertain call.
+    (
+        "imported class whose full name has no row",
+        'from transformers import GPT2TokenizerFast\nGPT2TokenizerFast.from_pretrained("gpt2")',
+        PYTHON,
+        [("from_pretrained", "gpt2", UNKNOWN_KIND, (), ANOTHER_FUNCTION)],
+    ),
+    (
+        "class of a module imported under another name whose full name has no row",
+        "import transformers as t\nt.SomeClass.from_pretrained(MODEL)",
+        PYTHON,
+        [("from_pretrained", BUILT_IN_CODE, UNKNOWN_KIND, (), ANOTHER_FUNCTION)],
+    ),
+    (
+        "method of a required object whose full name has no row",
+        f'const undici = require("undici");\nawait undici.fetch("{U}")',
+        JAVASCRIPT,
+        [("fetch", U, URL, ("a.org",), ANOTHER_FUNCTION)],
+    ),
+    # An end with the row of a module matches under an import of another module, e.g. a copy of the module that a package holds.
+    (
+        "module held by an imported package",
+        f'from pip._vendor import requests\nrequests.get("{U}")',
+        PYTHON,
+        [("requests.get", U, URL, ("a.org",), ANOTHER_FUNCTION)],
+    ),
+    # The import wins over an assignment, so the rule on rows of a module does not set the row of the end aside.
+    (
+        "module held by an imported module whose name the code also assigns",
+        f'import foo\nfoo = load()\nfoo.requests.get("{U}")',
+        PYTHON,
+        [("requests.get", U, URL, ("a.org",), ANOTHER_FUNCTION)],
+    ),
+    # A full name from an import whose ends have no row takes the row of the name as written as an uncertain call, since a module may give a function under the name of a row.
+    (
+        "default export required under the name of a global function",
+        'const fetch = require("node-fetch");\nawait fetch(base + path)',
+        JAVASCRIPT,
+        [("fetch", BUILT_IN_CODE, URL, (), ANOTHER_FUNCTION)],
+    ),
+    (
+        "default export imported under the name of a global function",
+        f'import fetch from "node-fetch";\nawait fetch("{U}")',
+        JAVASCRIPT,
+        [("fetch", U, URL, ("a.org",), ANOTHER_FUNCTION)],
+    ),
+    (
+        "default export required under the name of a global class",
+        'const WebSocket = require("ws");\nconst ws = new WebSocket(url)',
+        JAVASCRIPT,
+        [("WebSocket", BUILT_IN_CODE, URL, (), ANOTHER_FUNCTION)],
+    ),
+    (
+        "function of another module imported under the name of a row",
+        "from mylib import urlopen\nurlopen(u)",
+        PYTHON,
+        [("urlopen", BUILT_IN_CODE, URL, (), ANOTHER_FUNCTION)],
+    ),
+    (
+        "other module imported under the name of a module",
+        "import mylib as requests\nprev = requests.get(rid)",
+        PYTHON,
+        [("requests.get", BUILT_IN_CODE, URL, (), ANOTHER_FUNCTION)],
+    ),
+    # An import in a comment binds nothing, so the global function keeps its row.
+    (
+        "default export required in a comment",
+        f"// const fetch = require('node-fetch')\nfetch(\"{U}\")",
+        JAVASCRIPT,
+        [("fetch", U, URL, ("a.org",), None)],
+    ),
+    # A full name from an import, the name as written and their ends without a row make a call without a row.
+    (
+        "module imported under another name without a row",
+        f'import mylib as m\nm.compute("{U}")',
+        PYTHON,
+        [(UNKNOWN_CALL, U, URL, ("a.org",), UNKNOWN_CODE_CALL)],
+    ),
+    (
+        "module imported under another name without a row and without a url",
+        "import mylib as m\nm.compute(x)",
+        PYTHON,
+        [],
+    ),
+    # Imports that bind one name to several full names make an uncertain call of the row of the first full name with one.
+    (
+        "modules imported under one name whose rows differ",
+        (
+            "try:\n    import requests as http\nexcept ImportError:\n"
+            f'    import httpx as http\nhttp.get("{U}")'
+        ),
+        PYTHON,
+        [("requests.get", U, URL, ("a.org",), ANOTHER_FUNCTION)],
+    ),
+    (
+        "modules imported under one name of which only the second has a row",
+        (
+            "try:\n    import mylib as http\nexcept ImportError:\n"
+            "    import requests as http\nhttp.get(u)"
+        ),
+        PYTHON,
+        [("requests.get", BUILT_IN_CODE, URL, (), ANOTHER_FUNCTION)],
+    ),
+    (
+        "functions imported under one name of which the second has a row of its end",
+        (
+            "try:\n    from urllib.request import urlopen\nexcept ImportError:\n"
+            f'    from urllib2 import urlopen\nurlopen("{U}")'
+        ),
+        PYTHON,
+        [DOTTED_URLOPEN_U[:4] + (ANOTHER_FUNCTION,)],
+    ),
+    (
+        "modules imported under one name without a row",
+        (
+            "try:\n    import mylib as m\nexcept ImportError:\n"
+            "    import otherlib as m\nm.compute(x)"
+        ),
+        PYTHON,
+        [],
+    ),
+    # A whole name with a row whose first part the text neither imports nor binds keeps its row.
+    (
+        "object method whose object the text does not bind",
+        f'page.goto("{U}")',
+        PYTHON,
+        [("page.goto", U, URL, ("a.org",), None)],
+    ),
+    (
+        "global function",
+        f'fetch("{U}")',
+        JAVASCRIPT,
+        [("fetch", U, URL, ("a.org",), None)],
+    ),
+    # A row of the whole name after the text binds its first part, or of an end of the name, makes an uncertain call.
+    (
+        "object method whose object the text binds",
+        f'page = browser.new_page()\npage.goto("{U}")',
+        PYTHON,
+        [("page.goto", U, URL, ("a.org",), ANOTHER_FUNCTION)],
+    ),
+    (
+        "class method of an end with a row",
+        "tok = MyTok.from_pretrained(p)",
+        PYTHON,
+        [("from_pretrained", BUILT_IN_CODE, UNKNOWN_KIND, (), ANOTHER_FUNCTION)],
+    ),
+    (
+        "method of an object that a function gets",
+        "await route.fetch()",
+        JAVASCRIPT,
+        [("fetch", BUILT_IN_CODE, URL, (), ANOTHER_FUNCTION)],
+    ),
+    (
+        "global function through the global object",
+        f'globalThis.fetch("{U}")',
+        JAVASCRIPT,
+        [("fetch", U, URL, ("a.org",), ANOTHER_FUNCTION)],
+    ),
+    (
+        "object method of an attribute",
+        f'await this.page.goto("{U}")',
+        JAVASCRIPT,
+        [("page.goto", U, URL, ("a.org",), ANOTHER_FUNCTION)],
+    ),
+    (
+        "longest end with a row",
+        f'a.http.get("{U}")',
+        JAVASCRIPT,
+        [("http.get", U, URL, ("a.org",), ANOTHER_FUNCTION)],
+    ),
+    (
+        "module function of an object that the text does not bind",
+        f'foo.requests.get("{U}")',
+        PYTHON,
+        [("requests.get", U, URL, ("a.org",), ANOTHER_FUNCTION)],
+    ),
+    (
+        "uncertain calls without visible url",
+        "a.urlopen(x)\nb.urlopen(y)",
+        PYTHON,
+        [("urlopen", BUILT_IN_CODE, URL, (), ANOTHER_FUNCTION)],
+    ),
+    # A confirmed request of a row stays beside an uncertain one.
+    (
+        "confirmed and uncertain calls without visible url",
+        "self.page.goto(u)\npage.goto(v)",
+        PYTHON,
+        [
+            ("page.goto", BUILT_IN_CODE, URL, (), ANOTHER_FUNCTION),
+            ("page.goto", BUILT_IN_CODE, URL, (), None),
+        ],
+    ),
+    # An uncertain call of a row that sends no request may send one, so it is a call without a row.
+    (
+        "call that sends no request of an end with a row",
+        f'foo.urllib.parse.quote("{U}")',
+        PYTHON,
+        [(UNKNOWN_CALL, U, URL, ("a.org",), UNKNOWN_CODE_CALL)],
+    ),
+    # An uncertain call of a row that runs a program gives what any program run by code gives.
+    (
+        "program run of an end with a row",
+        'cp.execSync("pip install x")',
+        JAVASCRIPT,
+        [("execSync", *PIP_RUN)],
+    ),
+    # A module row of a name whose first part the text binds is set aside.
+    (
+        "module function of a parameter",
+        "def plan(ctx, rid):\n    return ctx.requests.get(rid)",
+        PYTHON,
+        [],
     ),
 ]
 
@@ -741,27 +1123,58 @@ def test_call_of_a_module_loses_its_row_only_when_the_code_binds_its_name_withou
     assert _summary(_extract(code)) == expected
 
 
-def test_call_of_a_bound_module_name_counts_the_rule_and_its_row():
+@pytest.mark.parametrize(
+    ("code", "code_language", "expected"),
+    [case[1:] for case in _CALL_NAME_RESOLUTION_CASES],
+    ids=[case[0] for case in _CALL_NAME_RESOLUTION_CASES],
+)
+def test_call_takes_the_row_of_the_full_name_from_imports_or_a_row_by_the_judgment_rules(
+    code, code_language, expected
+):
+    assert _summary(_extract(code, code_language)) == expected
+
+
+def test_call_of_a_module_row_through_a_bound_name_counts_the_rule_and_its_row():
     knowledge = NetworkRequestKnowledge()
     judgment_rule_use_counts: Counter[str] = Counter()
     no_network_request_counts: Counter[NoNetworkRequestReason] = Counter()
 
     _extract(
-        "requests = {}\nprev = requests.get(rid)\nself.requests.get(u)",
+        "requests = {}\nprev = requests.get(rid)\n"
+        "def plan(ctx):\n    return ctx.requests.get(rid)",
         knowledge=knowledge,
         judgment_rule_use_counts=judgment_rule_use_counts,
         no_network_request_counts=no_network_request_counts,
     )
 
-    assert judgment_rule_use_counts == Counter(
-        {CALL_NAME_RULE: 1, MODULE_IMPORT_RULE: 2}
-    )
+    # The rule on rows of a module sets both rows aside, so the rule on ends of names is not asked.
+    assert judgment_rule_use_counts == Counter({MODULE_ROW_RULE: 2})
     assert knowledge.uses == KnowledgeUses(
         row_use_counts=Counter({(CODE_CALLS_CSV, ("python", "requests.get")): 2})
     )
     assert no_network_request_counts == Counter(
         {NoNetworkRequestReason.NO_URL_THAT_MAY_BE_PUBLIC: 2}
     )
+
+
+def test_knowledge_class_is_asked_about_the_full_name_of_an_import_or_the_end_with_a_row():
+    knowledge = NetworkRequestKnowledge()
+    judgment_rule_use_counts: Counter[str] = Counter()
+
+    _extract(
+        "import mylib as m\nm.compute(x)\n"
+        "from transformers import AutoModel\nAutoModel.from_pretrained(name)",
+        knowledge=knowledge,
+        judgment_rule_use_counts=judgment_rule_use_counts,
+    )
+
+    assert knowledge.uses == KnowledgeUses(
+        row_use_counts=Counter({(CODE_CALLS_CSV, ("python", "from_pretrained")): 1}),
+        unknown_input_counts=Counter(
+            {(CODE_CALLS_CSV, ("python", "mylib.compute")): 1}
+        ),
+    )
+    assert judgment_rule_use_counts == Counter({CALL_NAME_RULE: 1})
 
 
 def test_request_of_a_known_call_is_confirmed_numbered_and_names_the_runner_and_the_code():
@@ -888,7 +1301,7 @@ def test_knowledge_class_is_asked_once_per_call_under_the_name_with_a_row_and_pr
     assert knowledge.uses == KnowledgeUses(
         row_use_counts=Counter(
             {
-                (CODE_CALLS_CSV, ("python", "urlopen")): 1,
+                (CODE_CALLS_CSV, ("python", "urllib.request.urlopen")): 1,
                 (CODE_CALLS_CSV, ("python", "subprocess.run")): 1,
                 (CODE_CALLS_CSV, ("python", "subprocess.check_call")): 1,
             }
@@ -923,16 +1336,45 @@ def test_namespace_url_gives_an_uncertain_request_when_the_rule_answers_no(
     ]
 
 
-def test_dotted_call_is_a_call_without_a_row_when_the_rule_answers_no(monkeypatch):
+@pytest.mark.parametrize(
+    ("answer", "code", "code_language", "expected"),
+    [
+        (
+            True,
+            f'u.urlopen("{U}")',
+            PYTHON,
+            [("urlopen", U, URL, ("a.org",), ANOTHER_FUNCTION)],
+        ),
+        (False, f'u.urlopen("{U}")', PYTHON, [URLOPEN_U]),
+        (
+            False,
+            f'page = browser.new_page()\npage.goto("{U}")',
+            PYTHON,
+            [("page.goto", U, URL, ("a.org",), None)],
+        ),
+        (False, f'x.urllib.parse.quote("{U}")', PYTHON, []),
+    ],
+    ids=[
+        "uncertain call",
+        "call of the row of an end",
+        "call of the row of a name whose first part the code binds",
+        "call that sends no request",
+    ],
+)
+def test_call_whose_name_ends_with_a_row_follows_the_answer_of_the_rule(
+    monkeypatch: pytest.MonkeyPatch,
+    answer: bool,
+    code: str,
+    code_language: CodeLanguage,
+    expected: list,
+):
     monkeypatch.setattr(
         _extract_code_network_requests,
         CALL_NAME_RULE,
-        lambda call_name, has_row, *, use_counts: None,
+        lambda call_name, *, use_counts: answer,
     )
 
-    assert _summary(_extract(f'urllib.request.urlopen("{U}")')) == [
-        (UNKNOWN_CALL, U, URL, ("a.org",), UNKNOWN_CODE_CALL)
-    ]
+    assert _summary(_extract(code, code_language)) == expected
 
 
 def test_reason_without_a_dropped_url_is_not_counted():

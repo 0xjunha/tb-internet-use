@@ -1,6 +1,7 @@
 """Extract the network requests of one Python or JavaScript code text from its calls and from the URLs it writes outside them, asking the code call catalog which calls fetch.
 
 Code is not split into commands, so a request is found by the call that sends it, e.g. `requests.get("https://a.org/x")`.
+A call is asked about under the full name that an import of the text gives its first name part, e.g. `requests.get` for `rq.get(u)` after `import requests as rq`, since a catalog row names a call by its full name.
 A URL that may be public and that no known call holds gives an uncertain request of its own, e.g. `BASE = "https://a.org"`, since whether the code fetches it depends on the flow of the code.
 """
 
@@ -19,8 +20,8 @@ from tb_internet_use.network_request._extract_command_network_requests import (
     urls_that_may_be_public,
 )
 from tb_internet_use.network_request.judgment_rules import (
-    treat_call_name_that_ends_with_catalog_name_as_that_call,
-    treat_call_of_module_name_that_code_binds_without_import_as_call_without_row,
+    treat_call_name_that_ends_with_catalog_name_as_uncertain_call_of_that_name,
+    treat_call_of_module_row_through_name_that_code_binds_without_import_as_call_without_row,
     treat_url_of_namespace_host_as_no_target,
 )
 from tb_internet_use.network_request.model import (
@@ -84,9 +85,10 @@ def extract_code_network_requests(
 ) -> tuple[NetworkRequest, ...]:
     """Extract the requests of one code text in the order of its calls, then those of the URLs that may be public outside every call.
 
-    A call that sends a request gives one confirmed request per call when its target is in the text, and one per call name and hosts when it is not, e.g. one for all the calls `requests.get(base + path)` and another for `requests.get('http://name:8069' + path)`.
+    A call that sends a request gives one confirmed request per call when its target is in the text, and one per call name, hosts and uncertainty reason when it is not, e.g. one for all the calls `requests.get(base + path)` and another for `requests.get('http://name:8069' + path)`.
     A call that holds the target of a request gives no request when a sending call reads the target from it, e.g. `Request` of `urlopen(Request(u))`.
-    A call without a row, a Python call whose row names a module that the text binds to something else and does not import, e.g. `requests.get(rid)` after `requests = {}`, or one that holds a target that no sending call reads, gives one uncertain request per URL that may be public or whose host cannot be read, and the text outside every call one per URL that may be public.
+    A call whose name a judgment rule matches to a row only at its end, also after an import gives its full name, or through a first name part that the text binds otherwise, gives an uncertain request, e.g. `self.page.goto(u)` or `GPT2TokenizerFast.from_pretrained(m)` after `from transformers import GPT2TokenizerFast`.
+    A call without a row, a Python call whose row names a module that the code reaches through a name that it binds to something else and does not import, e.g. `requests.get(rid)` after `requests = {}`, or one that holds a target that no sending call reads, gives one uncertain request per URL that may be public or whose host cannot be read, and the text outside every call one per URL that may be public.
     Text that `parse_code` could not read to its end holds no call that it read, so its URLs give requests as URLs outside every call, e.g. the URL after an unclosed backtick in ``x = `; fetch("https://a.org/x")``.
     Every request gets `UnknownReceivedContentDestination`, since what code does with the content is not read.
     """
@@ -95,8 +97,8 @@ def extract_code_network_requests(
     code_text_requests = _CodeTextRequests(
         tool_call_key, ran_code_text, first_index_in_tool_call
     )
-    code_call_labels = tuple(
-        _code_call_label_of(
+    code_call_labels_and_uncertainty_reasons = [
+        _code_call_label_and_uncertainty_reason_of(
             code_call,
             code_language,
             parsed_code,
@@ -104,6 +106,10 @@ def extract_code_network_requests(
             judgment_rule_use_counts,
         )
         for code_call in parsed_code.code_calls
+    ]
+    code_call_labels = tuple(
+        code_call_label
+        for code_call_label, _ in code_call_labels_and_uncertainty_reasons
     )
     target_holding_call_of_sending_call_index = {
         code_call_index: target_holding_call
@@ -123,8 +129,15 @@ def extract_code_network_requests(
         holding_call_index
         for holding_call_index, _ in target_holding_call_of_sending_call_index.values()
     }
-    for code_call_index, (code_call, code_call_label) in enumerate(
-        zip(parsed_code.code_calls, code_call_labels, strict=True)
+    for code_call_index, (
+        code_call,
+        (code_call_label, uncertainty_reason),
+    ) in enumerate(
+        zip(
+            parsed_code.code_calls,
+            code_call_labels_and_uncertainty_reasons,
+            strict=True,
+        )
     ):
         match code_call_label:
             case UnknownCodeCallLabel():
@@ -177,6 +190,7 @@ def extract_code_network_requests(
                     target_code_call_label,
                     parsed_code,
                     code_text_requests,
+                    uncertainty_reason=uncertainty_reason,
                 )
     for url in _select_urls_that_may_be_requested(
         _urls_outside_call_arguments(
@@ -205,10 +219,10 @@ class _CodeTextRequests:
     ran_code_text: RanCodeText
     first_index_in_tool_call: int
     network_requests: list[NetworkRequest] = field(default_factory=list)
-    # The call names, each with the hosts of its request, that already gave a request whose target the text does not show, so that a second such call of the name and hosts gives none.
-    # The hosts are part of it so that a call whose hosts are not known stays visible beside one whose hosts are, e.g. `requests.get(u)` beside `requests.get('http://name:8069' + path)`.
-    call_names_and_host_names_without_visible_target: set[
-        tuple[str, tuple[str, ...]]
+    # The call names, each with the hosts and the uncertainty reason of its request, that already gave a request whose target the text does not show, so that a second such call of the name, hosts and reason gives none.
+    # The hosts are part of it so that a call whose hosts are not known stays visible beside one whose hosts are, e.g. `requests.get(u)` beside `requests.get('http://name:8069' + path)`, and the reason so that a confirmed request stays beside an uncertain one, e.g. `page.goto(u)` beside `self.page.goto(u)`.
+    call_names_host_names_and_uncertainty_reasons_without_visible_target: set[
+        tuple[str, tuple[str, ...], NetworkRequestUncertaintyReason | None]
     ] = field(default_factory=set)
     # The string values whose assignment gave a call its target, so that their URLs are not counted again outside every call.
     target_assignment_values: set[str] = field(default_factory=set)
@@ -248,52 +262,153 @@ class _CodeTextRequests:
         )
 
 
-def _code_call_label_of(
+def _code_call_label_and_uncertainty_reason_of(
     code_call: CodeCall,
     code_language: CodeLanguage,
     parsed_code: ParsedCode,
     knowledge: NetworkRequestKnowledge,
     judgment_rule_use_counts: Counter[str],
-) -> CodeCallLabel | UnknownCodeCallLabel:
-    """Find the label of a call, from the row of the name that `_code_call_name_with_row` gives, or `UnknownCodeCallLabel` when it has no row or when the judgment rule sets aside a row whose module name the code binds to something else and does not import, e.g. for `requests.get(rid)` after `requests = {}`.
+) -> tuple[
+    CodeCallLabel | UnknownCodeCallLabel, NetworkRequestUncertaintyReason | None
+]:
+    """Find the label of a call from the row of the name it stands for, with the reason that the request it sends itself is uncertain, None when that request is confirmed or the call sends none itself.
 
-    A row that the rule sets aside still counts as a use of the row, since its `module_name` decided the call.
+    A call whose first name part an import of the text binds is read by `_imported_code_call_label_and_uncertainty_reason_of`.
+    Any other call takes the row of its name as written, else of the longest end of it with a row, e.g. `page.goto` for `self.page.goto`, and two judgment rules decide what it makes of the row.
+    A row of a module is set aside when the text binds the first name part to something else, e.g. for `requests.get(rid)` after `requests = {}`.
+    A row of an end of the name, or of the whole name after the text binds its first part, makes an uncertain call, e.g. `self.page.goto(u)` or `page.goto(u)` after `page = browser.new_page()`.
+    A whole name with a row whose first part the text neither imports nor binds keeps its row, e.g. `fetch(u)` or `subprocess.run(cmd)` after `from helpers import *`.
+    A row that a rule sets aside still counts as a use of the row, since it decided the call.
     """
-    code_call_label = knowledge.code_call_label(
-        code_language,
-        _code_call_name_with_row(
-            code_call, code_language, knowledge, judgment_rule_use_counts
-        ),
+    first_name_part, dot, name_rest = code_call.name.partition(".")
+    imported_full_names = parsed_code.imported_full_names_by_name.get(
+        first_name_part, ()
+    )
+    if imported_full_names:
+        return _imported_code_call_label_and_uncertainty_reason_of(
+            tuple(
+                imported_full_name + dot + name_rest
+                for imported_full_name in imported_full_names
+            ),
+            code_call.name,
+            code_language,
+            knowledge,
+            judgment_rule_use_counts,
+        )
+    catalog_call_name = _catalog_call_name_of(code_call.name, code_language, knowledge)
+    if catalog_call_name is None:
+        return knowledge.code_call_label(code_language, code_call.name), None
+    code_call_label = knowledge.code_call_label(code_language, catalog_call_name)
+    assert isinstance(code_call_label, CodeCallLabel)
+    names_bound_by_assignment_parameter_or_loop = (
+        parsed_code.names_bound_by_assignment_parameter_or_loop
     )
     if (
-        isinstance(code_call_label, CodeCallLabel)
-        and code_call_label.module_name is not None
-        and treat_call_of_module_name_that_code_binds_without_import_as_call_without_row(
-            code_call_label.module_name,
-            parsed_code.imported_module_names,
-            parsed_code.names_bound_by_assignment_parameter_or_loop,
+        catalog_call_name == code_call.name
+        and first_name_part not in names_bound_by_assignment_parameter_or_loop
+    ):
+        return code_call_label, None
+    if (
+        code_call_label.module_name is not None
+        and treat_call_of_module_row_through_name_that_code_binds_without_import_as_call_without_row(
+            first_name_part,
+            names_bound_by_assignment_parameter_or_loop,
             use_counts=judgment_rule_use_counts,
         )
     ):
-        return UnknownCodeCallLabel()
-    return code_call_label
+        return UnknownCodeCallLabel(), None
+    return _label_and_uncertainty_reason_of_call_that_may_be_another_function(
+        code_call.name,
+        code_call_label,
+        judgment_rule_use_counts=judgment_rule_use_counts,
+    )
 
 
-def _code_call_name_with_row(
-    code_call: CodeCall,
+def _imported_code_call_label_and_uncertainty_reason_of(
+    full_call_names: tuple[str, ...],
+    call_name: str,
     code_language: CodeLanguage,
     knowledge: NetworkRequestKnowledge,
     judgment_rule_use_counts: Counter[str],
-) -> str:
-    """Give the name to ask `NetworkRequestKnowledge` about, the name as written when it has a row, else the shorter name that the judgment rule picks, else the name as written, e.g. `urlopen` for `urllib.request.urlopen`."""
-    if knowledge.has_code_call_row(code_language, code_call.name):
-        return code_call.name
-    shorter_call_name = treat_call_name_that_ends_with_catalog_name_as_that_call(
-        code_call.name,
-        lambda call_name: knowledge.has_code_call_row(code_language, call_name),
-        use_counts=judgment_rule_use_counts,
+) -> tuple[
+    CodeCallLabel | UnknownCodeCallLabel, NetworkRequestUncertaintyReason | None
+]:
+    """Find the label of a call whose first name part imports bind, from the full names that they give in the order of the text, with the reason that the request it sends itself is uncertain, as `_code_call_label_and_uncertainty_reason_of` gives it.
+
+    Each full name takes its own row, else the row of its longest end, e.g. `urllib.request.urlopen` for `u.urlopen(x)` after `import urllib.request as u`, or `from_pretrained` for `transformers.GPT2TokenizerFast.from_pretrained` after `from transformers import GPT2TokenizerFast`.
+    The call keeps the row when one import binds the name and its full name has the row. Otherwise it is an uncertain call of the row of the first full name with one, by the judgment rule on ends of names, e.g. `requests.get` for `http.get(u)` after `import requests as http` in a `try` and `import httpx as http` in its `except`.
+    So several imports of one name never confirm a call, since they bind it to different full names, which share no row of the whole name.
+    When no full name nor an end of it has a row, the call takes the row of its name as written or of its longest end, as an uncertain call too, since a module may give a function under the name of a catalog row, e.g. `fetch` for `fetch(u)` after `const fetch = require("node-fetch")`.
+    The rule on rows of a module is not asked, since an import wins over an assignment.
+    A call without any such row is a call without a row, counted as an unknown input under the first full name, e.g. `mylib.compute` for `m.compute(x)` after `import mylib as m`.
+    """
+    catalog_call_names = [
+        _catalog_call_name_of(full_call_name, code_language, knowledge)
+        for full_call_name in full_call_names
+    ]
+    first_catalog_call_name = next(
+        (
+            catalog_call_name
+            for catalog_call_name in catalog_call_names
+            if catalog_call_name is not None
+        ),
+        None,
     )
-    return code_call.name if shorter_call_name is None else shorter_call_name
+    if first_catalog_call_name is None:
+        first_catalog_call_name = _catalog_call_name_of(
+            call_name, code_language, knowledge
+        )
+        if first_catalog_call_name is None:
+            return knowledge.code_call_label(code_language, full_call_names[0]), None
+    code_call_label = knowledge.code_call_label(code_language, first_catalog_call_name)
+    assert isinstance(code_call_label, CodeCallLabel)
+    if full_call_names == (first_catalog_call_name,):
+        return code_call_label, None
+    return _label_and_uncertainty_reason_of_call_that_may_be_another_function(
+        call_name, code_call_label, judgment_rule_use_counts=judgment_rule_use_counts
+    )
+
+
+def _catalog_call_name_of(
+    call_name: str, code_language: CodeLanguage, knowledge: NetworkRequestKnowledge
+) -> str | None:
+    """Find the name of the row that a call name takes, the name itself when it has a row, else its longest end with a row, e.g. `page.goto` for `self.page.goto`, or None."""
+    if knowledge.has_code_call_row(code_language, call_name):
+        return call_name
+    name_parts = call_name.split(".")
+    for start in range(1, len(name_parts)):
+        call_name_end = ".".join(name_parts[start:])
+        if knowledge.has_code_call_row(code_language, call_name_end):
+            return call_name_end
+    return None
+
+
+def _label_and_uncertainty_reason_of_call_that_may_be_another_function(
+    call_name: str,
+    code_call_label: CodeCallLabel,
+    *,
+    judgment_rule_use_counts: Counter[str],
+) -> tuple[
+    CodeCallLabel | UnknownCodeCallLabel, NetworkRequestUncertaintyReason | None
+]:
+    """Give the label of a call that the text does not show to be the function of its row, with the reason its own request is uncertain, as the judgment rule on ends of names decides.
+
+    On the answer of an uncertain call, a row that sends a request gives `CALL_NAME_MAY_BE_ANOTHER_FUNCTION`, and a row that sends no request makes a call without a row, since another function of that name may send one.
+    """
+    if not treat_call_name_that_ends_with_catalog_name_as_uncertain_call_of_that_name(
+        call_name, use_counts=judgment_rule_use_counts
+    ):
+        return code_call_label, None
+    match code_call_label.effect:
+        case CodeCallEffect.SENDS_NO_NETWORK_REQUEST:
+            return UnknownCodeCallLabel(), None
+        case CodeCallEffect.SENDS_NETWORK_REQUEST:
+            return (
+                code_call_label,
+                NetworkRequestUncertaintyReason.CALL_NAME_MAY_BE_ANOTHER_FUNCTION,
+            )
+        case _:
+            return code_call_label, None
 
 
 def _target_holding_call_of(
@@ -340,8 +455,10 @@ def _add_sending_code_call_network_request(
     target_code_call_label: CodeCallLabel,
     parsed_code: ParsedCode,
     code_text_requests: _CodeTextRequests,
+    *,
+    uncertainty_reason: NetworkRequestUncertaintyReason | None,
 ) -> None:
-    """Add the confirmed request of a call that sends one, with the target its text shows, or one request of unknown target per call name and hosts when the text shows none.
+    """Add the request of a call that sends one, confirmed unless an uncertainty reason is given, with the target its text shows, or one request of unknown target per call name, hosts and uncertainty reason when the text shows none.
 
     The target is read from the target call by the target notation and kind of its row, and the target call is the sending call itself or the call that holds its target, e.g. `Request` of `urlopen(req)` after `req = Request("http://api:8000/x")`.
     The URLs in the other strings of the target call are no requests, e.g. the referer in `requests.get(u, headers={"Referer": "https://b.org"})`, and neither is a call around the sending call, e.g. `print` of `print(requests.get(u))`.
@@ -363,14 +480,18 @@ def _add_sending_code_call_network_request(
                 assigned_url, host_name = assigned_url_and_host_name
                 code_text_requests.target_assignment_values.add(assigned_url)
                 host_names = tuple(dict.fromkeys((host_name, *host_names)))
-        call_name_and_host_names = (call_name, host_names)
+        call_name_host_names_and_uncertainty_reason = (
+            call_name,
+            host_names,
+            uncertainty_reason,
+        )
         if (
-            call_name_and_host_names
-            in code_text_requests.call_names_and_host_names_without_visible_target
+            call_name_host_names_and_uncertainty_reason
+            in code_text_requests.call_names_host_names_and_uncertainty_reasons_without_visible_target
         ):
             return
-        code_text_requests.call_names_and_host_names_without_visible_target.add(
-            call_name_and_host_names
+        code_text_requests.call_names_host_names_and_uncertainty_reasons_without_visible_target.add(
+            call_name_host_names_and_uncertainty_reason
         )
         code_text_requests.add(
             call_name,
@@ -379,7 +500,7 @@ def _add_sending_code_call_network_request(
             ),
             target_kind,
             host_names,
-            None,
+            uncertainty_reason,
         )
         return
     if (
@@ -408,7 +529,7 @@ def _add_sending_code_call_network_request(
         target_text,
         target_kind if parsed_target.target_kind is None else parsed_target.target_kind,
         () if host_name is None else (host_name,),
-        None,
+        uncertainty_reason,
     )
 
 

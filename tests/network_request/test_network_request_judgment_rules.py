@@ -6,8 +6,8 @@ import pytest
 
 from tb_internet_use.expanded_tool_call.model import VariableValues
 from tb_internet_use.network_request.judgment_rules import (
-    treat_call_name_that_ends_with_catalog_name_as_that_call,
-    treat_call_of_module_name_that_code_binds_without_import_as_call_without_row,
+    treat_call_name_that_ends_with_catalog_name_as_uncertain_call_of_that_name,
+    treat_call_of_module_row_through_name_that_code_binds_without_import_as_call_without_row,
     treat_dotted_host_name_as_public,
     treat_single_label_or_templated_host_name_as_possibly_public,
     treat_url_of_namespace_host_as_no_target,
@@ -110,61 +110,43 @@ def test_web_find_is_an_uncertain_request_and_counted():
     assert use_counts == Counter({"treat_web_find_as_uncertain_request": 1})
 
 
-@pytest.mark.parametrize(
-    ("call_name", "names_with_row", "expected"),
-    [
-        ("urllib.request.urlopen", {"urlopen"}, "urlopen"),
-        # The longest end with a row wins.
-        ("a.http.get", {"http.get", "get"}, "http.get"),
-        # The name itself is never tried, since only a name without a row is asked.
-        ("fetch", {"fetch"}, None),
-        ("urllib.request.Request", {"urlopen"}, None),
-    ],
-)
-def test_call_name_is_read_as_its_longest_end_with_a_row_and_counted_when_found(
-    call_name, names_with_row, expected
-):
+def test_call_name_that_ends_with_catalog_name_is_an_uncertain_call_and_counted():
     use_counts: Counter[str] = Counter()
 
-    assert (
-        treat_call_name_that_ends_with_catalog_name_as_that_call(
-            call_name, names_with_row.__contains__, use_counts=use_counts
-        )
-        == expected
+    assert treat_call_name_that_ends_with_catalog_name_as_uncertain_call_of_that_name(
+        "self.page.goto", use_counts=use_counts
     )
     assert use_counts == Counter(
-        {}
-        if expected is None
-        else {"treat_call_name_that_ends_with_catalog_name_as_that_call": 1}
+        {
+            "treat_call_name_that_ends_with_catalog_name_as_uncertain_call_of_that_name": 1
+        }
     )
 
 
 @pytest.mark.parametrize(
-    ("module_name", "imported_module_names", "bound_names", "expected"),
+    ("first_name_part", "bound_names", "expected"),
     [
-        ("requests", frozenset(), frozenset({"requests"}), True),
-        ("requests", frozenset({"os"}), frozenset({"requests", "x"}), True),
-        # An import wins over a binding, e.g. `import requests` then `requests = requests.Session()`.
-        ("requests", frozenset({"requests"}), frozenset({"requests"}), False),
-        # A name that is neither imported nor bound may come from a star import.
-        ("subprocess", frozenset(), frozenset(), False),
-        ("requests", frozenset({"requests"}), frozenset(), False),
+        # `requests = {}` then `requests.get(rid)`, or `ctx.requests.get(rid)` in `def f(ctx):`.
+        ("requests", frozenset({"requests"}), True),
+        ("ctx", frozenset({"ctx", "x"}), True),
+        # A name that is neither imported nor bound may come from a star import, e.g. `subprocess.run(cmd)` after `from helpers import *`.
+        ("subprocess", frozenset({"x"}), False),
     ],
 )
-def test_call_of_a_module_name_bound_without_import_is_a_call_without_row_and_counted(
-    module_name, imported_module_names, bound_names, expected
+def test_call_of_a_module_row_through_a_bound_name_is_a_call_without_row_and_counted(
+    first_name_part, bound_names, expected
 ):
     use_counts: Counter[str] = Counter()
 
     assert (
-        treat_call_of_module_name_that_code_binds_without_import_as_call_without_row(
-            module_name, imported_module_names, bound_names, use_counts=use_counts
+        treat_call_of_module_row_through_name_that_code_binds_without_import_as_call_without_row(
+            first_name_part, bound_names, use_counts=use_counts
         )
         is expected
     )
     assert use_counts == Counter(
         {
-            "treat_call_of_module_name_that_code_binds_without_import_as_call_without_row": 1
+            "treat_call_of_module_row_through_name_that_code_binds_without_import_as_call_without_row": 1
         }
         if expected
         else {}

@@ -145,7 +145,7 @@ class NetworkRequestKnowledge:
         return fetches
 
     def has_code_call_row(self, code_language: CodeLanguage, call_name: str) -> bool:
-        """Tell whether a call name of a code language has a row, without counting, for the judgment rule that picks the name a dotted call is asked under.
+        """Tell whether a call name of a code language has a row, without counting, so that `extract_code_network_requests` can find the end of a dotted call name that has a row, e.g. `page.goto` of `self.page.goto`, before it asks about one name.
 
         Only `code_call_label` counts, so a call is counted once under the name it is asked about.
         """
@@ -156,7 +156,7 @@ class NetworkRequestKnowledge:
     ) -> CodeCallLabel | UnknownCodeCallLabel:
         """Answer whether a call in code sends a request, holds the target of one, runs a program or does none of these, and how its target is written, or `UnknownCodeCallLabel` for a name without a row.
 
-        Only the row of exactly that name answers, e.g. `requests.get`, and the shorter name of a dotted call is picked before by `extract_code_network_requests`.
+        Only the row of exactly that name answers, e.g. `requests.get`, and `extract_code_network_requests` picks the name before, the full name that an import gives, e.g. `requests.get` for `rq.get`, the name as written or an end of it.
         One lookup counts the row or the input `(code_language, call_name)`.
         """
         row = self._catalogs.code_calls.lookup(
@@ -336,7 +336,7 @@ def _module_name_from_columns(
 ) -> str | None:
     """Read `module_name` of a row, None when it is blank, raising ValueError on a module that is not the first dotted part of `call_name`, e.g. `os` for `subprocess.run`, or on a module of a JavaScript row.
 
-    A JavaScript row leaves it blank, since `parse_code` reads no import of JavaScript.
+    A JavaScript row leaves it blank, since `parse_code` records no bound names of JavaScript, which the judgment rule on rows of a module reads beside `module_name`.
     """
     module_name = columns["module_name"]
     if not module_name:

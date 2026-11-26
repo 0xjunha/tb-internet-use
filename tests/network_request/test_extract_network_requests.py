@@ -36,7 +36,7 @@ from tb_internet_use.knowledge.network_request_knowledge import (
 )
 from tb_internet_use.network_request import extract_network_requests
 from tb_internet_use.network_request.judgment_rules import (
-    treat_call_name_that_ends_with_catalog_name_as_that_call,
+    treat_call_name_that_ends_with_catalog_name_as_uncertain_call_of_that_name,
     treat_single_label_or_templated_host_name_as_possibly_public,
     treat_web_find_as_uncertain_request,
 )
@@ -793,7 +793,7 @@ def test_every_use_of_a_judgment_rule_and_every_run_without_request_adds_to_the_
         catalogs_dir,
         _call(1, "mytool http://db:5432; echo hi"),
         _call(2, WebFindAction(("https://a.org/guide",))),
-        # python runs the code text, which reads `x.print` as the call `print`, known not to fetch.
+        # python runs the code text, whose `x.print` ends with the call `print` that has a row and sends no request, so the rule makes it an uncertain call of `print`, which is a call without a row, here without a URL.
         _call(3, _python_code('x.print("hi")')),
         judgment_rule_use_counts=judgment_rule_use_counts,
         no_network_request_counts=no_network_request_counts,
@@ -804,14 +804,14 @@ def test_every_use_of_a_judgment_rule_and_every_run_without_request_adds_to_the_
             "rule of an earlier trial": 1,
             treat_single_label_or_templated_host_name_as_possibly_public.__name__: 1,
             treat_web_find_as_uncertain_request.__name__: 1,
-            treat_call_name_that_ends_with_catalog_name_as_that_call.__name__: 1,
+            treat_call_name_that_ends_with_catalog_name_as_uncertain_call_of_that_name.__name__: 1,
         }
     )
     assert no_network_request_counts == Counter(
         {
             NoNetworkRequestReason.NON_FETCHING_PROGRAM: 2,
             NoNetworkRequestReason.PROGRAM_RUNS_SOMETHING_ELSE: 1,
-            NoNetworkRequestReason.NON_FETCHING_CODE_CALL: 1,
+            NoNetworkRequestReason.NO_URL_THAT_MAY_BE_PUBLIC: 1,
         }
     )
 

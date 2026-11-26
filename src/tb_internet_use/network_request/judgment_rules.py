@@ -10,7 +10,6 @@ A rule is provisional until the user decides it. The last paragraph of each docs
 """
 
 from collections import Counter
-from collections.abc import Callable
 
 from tb_internet_use.expanded_tool_call.model import VariableValues
 from tb_internet_use.network_request.model import (
@@ -123,53 +122,46 @@ def treat_web_find_as_uncertain_request(*, use_counts: Counter[str]) -> bool:
     return True
 
 
-def treat_call_name_that_ends_with_catalog_name_as_that_call(
-    call_name: str, has_row: Callable[[str], bool], *, use_counts: Counter[str]
-) -> str | None:
-    """Read a dotted call name in code that has no row of the code call catalog as the call of the longest end of it that has one, e.g. `urlopen` for `urllib.request.urlopen` or `fetch` for `mylib.fetch` in JavaScript.
+def treat_call_name_that_ends_with_catalog_name_as_uncertain_call_of_that_name(
+    call_name: str, *, use_counts: Counter[str]
+) -> bool:
+    """Read a call in code whose name ends with the name of a row of the code call catalog, and has no row of its own or a first name part that the code text binds otherwise than by an import, as an uncertain call of that row, e.g. `self.page.goto(u)`, `route.fetch()` in JavaScript, `MyTok.from_pretrained(p)`, `GPT2TokenizerFast.from_pretrained(m)` after `from transformers import GPT2TokenizerFast` or `page.goto(u)` after `page = browser.new_page()`.
 
-    `extract_code_network_requests` asks it only for a call name without a row, with `has_row` telling whether a name has a row of the code language.
-    It drops the leading parts one by one and returns the first shorter name that has a row, so `mylib.fetch` takes the row of `fetch` although `mylib` may be any library.
-    It returns None when no shorter name has a row, and the call stays a call without a row.
-    Were it to return None always, `urllib.request.urlopen(u)` would be a call without a row, giving an uncertain request for a public URL and none for a URL the code builds.
-    A use is such a call name that it maps to a shorter one.
+    The text does not give the type of the object that the call is made on, or the catalog has no row of the full name that an import gives, so the call may be another function of the same name.
+    `extract_code_network_requests` asks it when only an end of the name has a row, of the name as written or of the full name that an import gives its first part, e.g. `page.goto` for `self.page.goto` or `from_pretrained` for `transformers.GPT2TokenizerFast.from_pretrained`. It also asks it when the whole name has a row and the text binds its first name part by an assignment, a parameter or a loop and does not import it, e.g. `page.goto` after `page = browser.new_page()`, when imports bind the first name part to several full names and one of them gives a row, e.g. `requests.get` for `http.get(u)` after `import requests as http` in a `try` and `import httpx as http` in its `except`, and when no full name from imports nor an end of it has a row but the name as written or its end has one, e.g. `fetch` for `fetch(u)` after `const fetch = require("node-fetch")`.
+    It is not asked for a row that `treat_call_of_module_row_through_name_that_code_binds_without_import_as_call_without_row` sets aside, nor for a whole name with a row whose first part an import binds or the text neither imports nor binds, e.g. `u.urlopen(x)` after `import urllib.request as u`, `page.goto(u)` alone or `fetch(u)`, which keeps its row.
+    On `True` a call whose row sends a request gives an uncertain request with the reason `CALL_NAME_MAY_BE_ANOTHER_FUNCTION`, a call whose row runs a program gives the uncertain requests that any program run by code gives, a call whose row holds a target gives it to the sending call that reads it, and a call whose row sends no request is a call without a row, since another function of that name may send one. On `False` the call takes the row as a call of it, so `self.page.goto(u)` gives a confirmed request.
+    Were it to make such a call a call without a row, as the rule did from 2026-11-24, real calls would leave the upper bound, e.g. `globalThis.fetch(u)` or `this.page.goto(u)` with a URL that the code builds.
+    A use is such a call name.
 
-    Provisional. It keeps the choice of the earlier code, whose patterns matched a call by its last name, e.g. `urlopen(` and `fetch(`.
+    Provisional. The earlier code matched a call by the end of its name and took the row as a call of it, i.e. `False`, which counts a method of any object with that name as a confirmed request. The review of 2026-11-24 made such a call a call without a row, and on 2026-11-25 it became an uncertain call, which keeps it in the upper bound and out of the lower bound. The user has not yet confirmed it.
     """
-    name_parts = call_name.split(".")
-    for start in range(1, len(name_parts)):
-        shorter_call_name = ".".join(name_parts[start:])
-        if has_row(shorter_call_name):
-            use_counts[
-                treat_call_name_that_ends_with_catalog_name_as_that_call.__name__
-            ] += 1
-            return shorter_call_name
-    return None
+    use_counts[
+        treat_call_name_that_ends_with_catalog_name_as_uncertain_call_of_that_name.__name__
+    ] += 1
+    return True
 
 
-def treat_call_of_module_name_that_code_binds_without_import_as_call_without_row(
-    module_name: str,
-    imported_module_names: frozenset[str],
+def treat_call_of_module_row_through_name_that_code_binds_without_import_as_call_without_row(
+    first_name_part: str,
     names_bound_by_assignment_parameter_or_loop: frozenset[str],
     *,
     use_counts: Counter[str],
 ) -> bool:
-    """Read a Python call whose row of the code call catalog names a module that the code text binds to something else and does not import as a call without a row, e.g. `requests.get(rid)` after `requests = {}`.
+    """Read a Python call whose row of the code call catalog names a module, and whose first name part the code text binds to something else and does not import, as a call without a row, e.g. `requests.get(rid)` after `requests = {}` or `ctx.requests.get(rid)` where `ctx` is a parameter.
 
-    `extract_code_network_requests` asks it for every Python call whose row names a module in `module_name`, whatever the effect of the row, with the names that `parse_code` found imported as a module and those it found bound by an assignment, a parameter or a loop.
+    `extract_code_network_requests` asks it for every Python call whose first name part no import of the text binds, whose whole name with a row the text does not keep, and whose row names a module in `module_name`, whatever the effect of the row, with the names that `parse_code` found bound by an assignment, a parameter or a loop. The row is that of the whole name or of the longest end of it with a row.
+    A name that an import of the text binds is not asked about, since the import wins over an assignment. Its call takes the row of the full name that the import gives, e.g. `requests.get(rid)` after `import requests` and `requests = {}`, or an uncertain call of the row of an end of it, e.g. `requests.get(u)` after `from pip._vendor import requests`.
     On `True` the call takes `UnknownCodeCallLabel`, so a URL in its strings that may be public gives an uncertain request, and a call without such a URL gives none, e.g. `prev = requests.get(rid)`.
-    On `False` the call keeps its row, e.g. `requests.get(u)` after `import requests`, or `subprocess.run(cmd)` after `from helpers import *`, whose text neither imports nor binds `subprocess`.
-    Were it to return `False` always, a dict named `requests` would give confirmed requests of the library with a target built in code. Were it to set aside every call whose module is not imported, it would also drop real calls of a module that comes from a star import, from `__import__` in another file or from a part of a file, and lower the upper bound.
-    A use is such a call of a bound name without the import.
+    On `False` the call keeps its row, e.g. `subprocess.run(cmd)` after `from helpers import *`, whose text neither imports nor binds `subprocess`, or, for a row of an end of its name, goes on to `treat_call_name_that_ends_with_catalog_name_as_uncertain_call_of_that_name`, e.g. `foo.requests.get(u)` where nothing binds `foo`.
+    Were it to return `False` always, a dict named `requests` would give confirmed requests of the library with a target built in code, and a dict held in an attribute named `requests` would give uncertain ones, e.g. `ctx.requests.get(rid)`. Were it to set aside every call whose module is not imported, it would also drop real calls of a module that comes from a star import, from `__import__` in another file or from a part of a file, and lower the upper bound.
+    A use is such a call through a bound name.
 
-    Decided. The user decided it on 2026-11-22 and narrowed it the same day to names that the text binds, since a call of a module name that the text binds to something else is no call of the library, while one that the text neither imports nor binds may still be.
+    Decided. The user decided it on 2026-11-22 and narrowed it the same day to names that the text binds, since a call of a module name that the text binds to something else is no call of the library, while one that the text neither imports nor binds may still be. On 2026-11-25 it was widened to a row of an end of the name, e.g. `ctx.requests.get(rid)`, since the call is then made on a value that the text binds and not on the module, which the user has not yet confirmed.
     """
-    if (
-        module_name in imported_module_names
-        or module_name not in names_bound_by_assignment_parameter_or_loop
-    ):
+    if first_name_part not in names_bound_by_assignment_parameter_or_loop:
         return False
     use_counts[
-        treat_call_of_module_name_that_code_binds_without_import_as_call_without_row.__name__
+        treat_call_of_module_row_through_name_that_code_binds_without_import_as_call_without_row.__name__
     ] += 1
     return True

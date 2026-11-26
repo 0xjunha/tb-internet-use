@@ -5,6 +5,7 @@ One command can ask for several things, e.g. `pip install requests git+https://g
 The module also holds the answers of `NetworkRequestKnowledge` and of the reading functions that `extract_network_requests` tells apart when it runs, e.g. `UnknownProgramNetworkRequestLabel`, since a step never imports its knowledge class when it runs.
 """
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 
@@ -105,6 +106,8 @@ def _is_uncertainty_reason_possible_for_source(
             )
         case NetworkRequestUncertaintyReason.PROGRAM_RUN_BY_CODE:
             return isinstance(source, FromCode) and isinstance(source.call_name, str)
+        case NetworkRequestUncertaintyReason.CALL_NAME_MAY_BE_ANOTHER_FUNCTION:
+            return isinstance(source, FromCode) and isinstance(source.call_name, str)
         case NetworkRequestUncertaintyReason.FINDS_TEXT_IN_OPENED_PAGE:
             return isinstance(source, FromWebTool)
 
@@ -145,7 +148,7 @@ class FromCode:
     # Where the code is.
     code_text_source: CodeTextSource
     code_language: CodeLanguage
-    # The call that sends it, e.g. `requests.get`. An `UnknownCodeCall` when the request comes from a URL that no call with a row is known to send, e.g. one in a call without a row, in a `Request` that no call with a row sends or in no call at all.
+    # The name of the row of the call that sends it, e.g. `requests.get`, also for `rq.get(u)` after `import requests as rq`. An `UnknownCodeCall` when the request comes from a URL that no call with a row is known to send, e.g. one in a call without a row, in a `Request` that no call with a row sends or in no call at all.
     call_name: str | UnknownCodeCall
 
 
@@ -272,6 +275,8 @@ class NetworkRequestUncertaintyReason(StrEnum):
     URL_OUTSIDE_CODE_CALL = "url_outside_code_call"
     # Code runs a program that may fetch, and its words are not read, e.g. `subprocess.run(["pip", "install", "x"])`.
     PROGRAM_RUN_BY_CODE = "program_run_by_code"
+    # A call in code has the name of a row that sends a request only at its end, also after an import of the code text gives its full name, or as a whole after the text binds its first part to a value and does not import it, so the text does not show that it is the function of the row, e.g. `self.page.goto(u)`, `GPT2TokenizerFast.from_pretrained(m)` after `from transformers import GPT2TokenizerFast` or `page.goto(u)` after `page = browser.new_page()`.
+    CALL_NAME_MAY_BE_ANOTHER_FUNCTION = "call_name_may_be_another_function"
     # The program fetches only what is missing, e.g. `npx tsc`. A line of its output that shows a download settles that it fetched, e.g. `info: mathlib: cloning https://github.com/x/y` of `lake build`, and nothing settles that it did not.
     FETCHES_ONLY_WHAT_IS_MISSING = "fetches_only_what_is_missing"
     # The words of the command may hold words of another command, since `parse_shell_text` left lines joined that tree-sitter-bash still read as one after three repairs and marked the command with `structure_may_be_wrong`, e.g. a next line `echo https://b.org` read as more words of `curl -s http://localhost:8000/x`. No added fact settles it.
@@ -445,9 +450,9 @@ class ParsedCode:
     code_calls: tuple[CodeCall, ...]
     string_assignments: tuple[CodeStringAssignment, ...]
     call_assignments: tuple[CodeCallAssignment, ...]
-    # The names that Python binds to the module of the same name, by an `import` statement or by a call that imports, e.g. `os` and `sys` for `import os, sys`, `urllib` for `import urllib.request` or `subprocess` for `subprocess = __import__("subprocess")`, but none for `import requests as rq`. Empty for JavaScript.
-    # It exists because a call is found by its form, so `requests.get(rid)` is a call of the library when the text imports `requests`, and not when the text binds `requests` to a dict instead.
-    imported_module_names: frozenset[str]
+    # The distinct full names that the imports of the text bind to each name, in the order of the text, e.g. `("requests",)` for `rq` of `import requests as rq`, `("urllib.request.urlopen",)` for `urlopen` of `from urllib.request import urlopen`, `("urllib",)` for `urllib` of `import urllib.request`, `("child_process.execSync",)` for `execSync` of `const { execSync } = require("child_process")` or `("requests", "httpx")` for `http` of `import requests as http` in a `try` and `import httpx as http` in its `except`.
+    # It exists because a call is found by its form, so `rq.get(u)` is a call of `requests.get` only through this name, and `requests.get(rid)` is a call of the library when the text imports `requests` and not when it binds `requests` to a dict instead.
+    imported_full_names_by_name: Mapping[str, tuple[str, ...]]
     # The bare names that Python binds by an assignment at the start of a line, a parameter of a `def` or `lambda` or the variable of a `for` loop that starts a line, e.g. `requests` of `requests = {}`, `def plan(requests, pk):` or `for requests in batches:`. Empty for JavaScript.
     # It exists so that a call through a name that the text binds to something else, e.g. `requests.get(rid)` after `requests = {}`, is not read as a call of the module, while a call through a name the text neither imports nor binds, e.g. after `from helpers import *`, still is.
     names_bound_by_assignment_parameter_or_loop: frozenset[str]

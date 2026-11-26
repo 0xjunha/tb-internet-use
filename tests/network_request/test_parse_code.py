@@ -642,39 +642,169 @@ def test_text_after_a_multi_line_string_or_block_comment_that_never_closes_is_un
 
 
 @pytest.mark.parametrize(
-    ("code", "code_language", "imported_module_names"),
+    ("code", "code_language", "imported_full_names_by_name"),
     [
-        ("import requests\nrequests.get(u)", PYTHON, {"requests"}),
-        ("import os, sys", PYTHON, {"os", "sys"}),
-        ("import urllib.request", PYTHON, {"urllib"}),
-        ("import requests as rq", PYTHON, set()),
-        ("import os, requests as rq", PYTHON, {"os"}),
-        ("import urllib.request as ur", PYTHON, set()),
-        ("from requests import get", PYTHON, set()),
+        # Python `import` statements bind the first dotted part of a module, or its `as` name to the whole module.
+        ("import requests\nrequests.get(u)", PYTHON, {"requests": ("requests",)}),
+        ("import os, sys", PYTHON, {"os": ("os",), "sys": ("sys",)}),
+        ("import urllib.request", PYTHON, {"urllib": ("urllib",)}),
+        ("import requests as rq", PYTHON, {"rq": ("requests",)}),
+        ("import urllib.request as u", PYTHON, {"u": ("urllib.request",)}),
+        ("import os, requests as rq", PYTHON, {"os": ("os",), "rq": ("requests",)}),
+        # Python `from` statements bind a member of a module, also a class.
+        (
+            "from urllib.request import urlopen",
+            PYTHON,
+            {"urlopen": ("urllib.request.urlopen",)},
+        ),
+        (
+            "from urllib.request import urlopen as fetch_url",
+            PYTHON,
+            {"fetch_url": ("urllib.request.urlopen",)},
+        ),
+        (
+            "from urllib.request import urlopen, Request",
+            PYTHON,
+            {
+                "urlopen": ("urllib.request.urlopen",),
+                "Request": ("urllib.request.Request",),
+            },
+        ),
+        (
+            "from transformers import AutoTokenizer",
+            PYTHON,
+            {"AutoTokenizer": ("transformers.AutoTokenizer",)},
+        ),
+        (
+            "from urllib.request import (\n    urlopen,  # opens\n    Request as R,\n)",
+            PYTHON,
+            {"urlopen": ("urllib.request.urlopen",), "R": ("urllib.request.Request",)},
+        ),
+        ("from .net import urlopen", PYTHON, {"urlopen": (".net.urlopen",)}),
+        ("from . import net", PYTHON, {"net": (".net",)}),
+        ("from helpers import *", PYTHON, {}),
+        # A statement counts after indentation and after `;`, but not inside other text.
         (
             "def f():\n    import requests\n    return requests.get(u)",
             PYTHON,
-            {"requests"},
+            {"requests": ("requests",)},
         ),
-        ("try:\n\timport httpx\nexcept ImportError:\n    pass", PYTHON, {"httpx"}),
-        ("import socket  # for the port check", PYTHON, {"socket"}),
-        # Only the statement that starts the line is read.
-        ("import os; import sys", PYTHON, {"os"}),
-        # A word that only starts with `import` is no statement.
-        ("importlib.import_module('requests')", PYTHON, set()),
-        ("x = 1  # import requests", PYTHON, set()),
-        ('subprocess = __import__("subprocess")', PYTHON, {"subprocess"}),
-        ('requests = importlib.import_module("requests")', PYTHON, {"requests"}),
-        ('requests = __import__("httpx")', PYTHON, set()),
-        ("import requests from 'requests'", JAVASCRIPT, set()),
-        ("const requests = require('requests')", JAVASCRIPT, set()),
+        (
+            "try:\n\timport httpx\nexcept ImportError:\n    pass",
+            PYTHON,
+            {"httpx": ("httpx",)},
+        ),
+        ("import socket  # for the port check", PYTHON, {"socket": ("socket",)}),
+        (
+            "import os; import urllib.request as u",
+            PYTHON,
+            {"os": ("os",), "u": ("urllib.request",)},
+        ),
+        ("x = 1; from requests import get", PYTHON, {"get": ("requests.get",)}),
+        ("importlib.import_module('requests')", PYTHON, {}),
+        ("x = 1  # import requests", PYTHON, {}),
+        # A comment holds no import, also after `;` in it.
+        ("x = 1  # see a; import requests as rq", PYTHON, {}),
+        ("// const fetch = require('node-fetch')\nfetch(u)", JAVASCRIPT, {}),
+        ("x = 1 // see a; import fetch from 'node-fetch'", JAVASCRIPT, {}),
+        (
+            (
+                "/* import fetch from 'node-fetch'\nimport ws from 'ws' */\n"
+                "const cp = require('child_process')"
+            ),
+            JAVASCRIPT,
+            {"cp": ("child_process",)},
+        ),
+        # Known limit. A statement that a backslash continues is read up to the backslash.
+        ("import os, \\\n    sys", PYTHON, {"os": ("os",)}),
+        # A call that imports binds the name it is assigned to.
+        (
+            'subprocess = __import__("subprocess")',
+            PYTHON,
+            {"subprocess": ("subprocess",)},
+        ),
+        ('sp = __import__("subprocess")', PYTHON, {"sp": ("subprocess",)}),
+        ('requests = __import__("httpx")', PYTHON, {"requests": ("httpx",)}),
+        ('p = __import__("os.path")', PYTHON, {"p": ("os",)}),
+        ('p = importlib.import_module("os.path")', PYTHON, {"p": ("os.path",)}),
+        # Imports that bind one name to several full names keep each, in the order of the text.
+        (
+            (
+                "try:\n    from urllib.request import urlopen\n"
+                "except ImportError:\n    from urllib2 import urlopen"
+            ),
+            PYTHON,
+            {"urlopen": ("urllib.request.urlopen", "urllib2.urlopen")},
+        ),
+        (
+            "x = __import__('httpx')\nimport requests as x",
+            PYTHON,
+            {"x": ("httpx", "requests")},
+        ),
+        (
+            "import requests\nimport requests",
+            PYTHON,
+            {"requests": ("requests",)},
+        ),
+        # JavaScript `require` bindings, also after another declaration.
+        (
+            'const cp = require("child_process")',
+            JAVASCRIPT,
+            {"cp": ("child_process",)},
+        ),
+        (
+            'const { execSync, spawn: run } = require("child_process");',
+            JAVASCRIPT,
+            {"execSync": ("child_process.execSync",), "run": ("child_process.spawn",)},
+        ),
+        (
+            'const run = require("child_process").execSync',
+            JAVASCRIPT,
+            {"run": ("child_process.execSync",)},
+        ),
+        (
+            "const fs=require('fs'),{execSync}=require('child_process');",
+            JAVASCRIPT,
+            {"fs": ("fs",), "execSync": ("child_process.execSync",)},
+        ),
+        ('this.cp = require("child_process")', JAVASCRIPT, {}),
+        # JavaScript `import` statements, without the prefix `node:`.
+        ("import http from 'node:http'", JAVASCRIPT, {"http": ("http",)}),
+        (
+            'import { execSync } from "node:child_process"',
+            JAVASCRIPT,
+            {"execSync": ("child_process.execSync",)},
+        ),
+        (
+            'import { execSync as run } from "child_process"',
+            JAVASCRIPT,
+            {"run": ("child_process.execSync",)},
+        ),
+        (
+            'import * as cp from "node:child_process"',
+            JAVASCRIPT,
+            {"cp": ("child_process",)},
+        ),
+        (
+            "import fs from 'fs'; import { execSync } from 'child_process';",
+            JAVASCRIPT,
+            {"fs": ("fs",), "execSync": ("child_process.execSync",)},
+        ),
+        # Known limit. A dynamic import binds no name.
+        ('const cp = await import("child_process")', JAVASCRIPT, {}),
+        # Each language reads only its own statements.
+        ("import requests", JAVASCRIPT, {}),
+        ("const cp = require('child_process')", PYTHON, {}),
     ],
 )
-def test_imported_module_names_are_the_names_that_python_imports_bind_to_their_module(
-    code: str, code_language: CodeLanguage, imported_module_names: set[str]
+def test_imported_full_names_by_name_give_the_full_names_that_imports_bind_to_a_name(
+    code: str,
+    code_language: CodeLanguage,
+    imported_full_names_by_name: dict[str, tuple[str, ...]],
 ):
-    assert parse_code(code, code_language).imported_module_names == frozenset(
-        imported_module_names
+    assert (
+        parse_code(code, code_language).imported_full_names_by_name
+        == imported_full_names_by_name
     )
 
 
@@ -733,6 +863,11 @@ def test_bound_names_are_the_bare_names_of_python_assignments_parameters_and_loo
         ("/*" + "x" * 1_000_000, JAVASCRIPT, 0),
         ("import " + "a" * 1_000_000 + " !", PYTHON, 0),
         ("import " + "a." * 300_000 + " !", PYTHON, 0),
+        ("from " + "a." * 300_000 + " import b", PYTHON, 0),
+        ("from a import (\n" * 200_000, PYTHON, 0),
+        ("import { a;" * 200_000, JAVASCRIPT, 0),
+        ("{ a" * 300_000 + "} = require('x')", JAVASCRIPT, 1),
+        ("a" * 1_000_000 + " = require('x')", JAVASCRIPT, 1),
         ("`" + "${a}" * 300_000, JAVASCRIPT, 0),
     ],
 )

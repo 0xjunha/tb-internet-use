@@ -59,6 +59,9 @@ FETCHES_ONLY_WHAT_IS_MISSING = (
 )
 STRUCTURE_MAY_BE_WRONG = NetworkRequestUncertaintyReason.STRUCTURE_MAY_BE_WRONG
 FINDS_TEXT_IN_OPENED_PAGE = NetworkRequestUncertaintyReason.FINDS_TEXT_IN_OPENED_PAGE
+CALL_NAME_MAY_BE_ANOTHER_FUNCTION = (
+    NetworkRequestUncertaintyReason.CALL_NAME_MAY_BE_ANOTHER_FUNCTION
+)
 # One source of each kind that gives requests of different reasons.
 SOURCES_BY_NAME: dict[str, NetworkRequestSource] = {
     "command of a program with a row": CURL_SOURCE,
@@ -88,8 +91,13 @@ ACCEPTED_UNCERTAINTY_REASONS_OF_SOURCE: dict[
     },
     # `mytool https://a.org/x`.
     "command of a program without a row": {UNKNOWN_PROGRAM},
-    # `requests.get(u)`, `subprocess.run(["pip", "install", "x"])` and a program without a row that code runs, e.g. `subprocess.run(["mytool", u])`.
-    "code call with a row": {None, PROGRAM_RUN_BY_CODE, UNKNOWN_PROGRAM},
+    # `requests.get(u)`, `subprocess.run(["pip", "install", "x"])`, a program without a row that code runs, e.g. `subprocess.run(["mytool", u])`, and `self.page.goto(u)`.
+    "code call with a row": {
+        None,
+        PROGRAM_RUN_BY_CODE,
+        UNKNOWN_PROGRAM,
+        CALL_NAME_MAY_BE_ANOTHER_FUNCTION,
+    },
     # `mylib.fetch(u)` and `URL = u`.
     "code without a known call": {UNKNOWN_CODE_CALL, URL_OUTSIDE_CODE_CALL},
     # A web search or fetch, and a web find, which may search a page that its tool already holds.
