@@ -273,12 +273,8 @@ RESULT_FORMAT_CASES: list[tuple[str, str, ToolCallResult]] = [
     (
         "exec",
         "Shell sh1 still has a running command. Wait for it first.",
-        ToolCallResult(
-            "",
-            S.NOT_RUN,
-            handles=_SHELL_1,
-            harness_result_format=_format("rejected_busy"),
-        ),
+        # The refused call started nothing, so a later poll of sh1 is not tied to it.
+        ToolCallResult("", S.NOT_RUN, harness_result_format=_format("rejected_busy")),
     ),
     (
         "get_output",
@@ -337,6 +333,13 @@ RESULT_FORMAT_CASES: list[tuple[str, str, ToolCallResult]] = [
     _rejected_case("get_output"),
     (
         "get_output",
+        "Failed to configure output monitoring. Please try again.",
+        ToolCallResult(
+            "", S.NOT_RUN, harness_result_format=_format("failed_monitoring")
+        ),
+    ),
+    (
+        "get_output",
         "more lines\n",
         ToolCallResult(
             "more lines\n", S.RUNNING, harness_result_format=_format("running")
@@ -346,7 +349,7 @@ RESULT_FORMAT_CASES: list[tuple[str, str, ToolCallResult]] = [
         "kill_shell",
         "Shell sh1 terminated successfully",
         ToolCallResult(
-            "", S.KILLED, handles=_SHELL_1, harness_result_format=_format("killed")
+            None, S.KILLED, handles=_SHELL_1, harness_result_format=_format("killed")
         ),
     ),
     _rejected_case("kill_shell"),
@@ -354,7 +357,7 @@ RESULT_FORMAT_CASES: list[tuple[str, str, ToolCallResult]] = [
         "write_to_process",
         "Written 3 bytes to shell sh1",
         ToolCallResult(
-            "", S.RUNNING, handles=_SHELL_1, harness_result_format=_format("written")
+            None, S.RUNNING, handles=_SHELL_1, harness_result_format=_format("written")
         ),
     ),
     (

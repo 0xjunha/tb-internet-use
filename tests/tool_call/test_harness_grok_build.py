@@ -105,7 +105,7 @@ def _format(name: str) -> MatchedFormat:
 
 
 def _task_result(
-    text: str, status: ExecutionStatus, format_name: str, **fields: Any
+    text: str | None, status: ExecutionStatus, format_name: str, **fields: Any
 ) -> ToolCallResult:
     """Give the expected result of a poll on the task `call1`, whose output file is `/t.log`."""
     return ToolCallResult(
@@ -201,7 +201,7 @@ RESULT_FORMAT_CASES: list[tuple[str, str, ToolCallResult]] = [
         "get_command_or_subagent_output",
         _DONE + "(no output)" + _TAIL,
         _task_result(
-            "", S.FINISHED, "done_empty_truncated", exit_code=0, is_truncated=True
+            None, S.FINISHED, "done_empty_truncated", exit_code=0, is_truncated=True
         ),
     ),
     (
@@ -210,7 +210,7 @@ RESULT_FORMAT_CASES: list[tuple[str, str, ToolCallResult]] = [
         + "head\n\n[Output truncated - 52000 bytes total. Use read_file on /t.log for full content]"
         + _TAIL,
         _task_result(
-            "head\n", S.FINISHED, "done_truncated_bytes", exit_code=0, is_truncated=True
+            "head", S.FINISHED, "done_truncated_bytes", exit_code=0, is_truncated=True
         ),
     ),
     (
@@ -229,7 +229,7 @@ RESULT_FORMAT_CASES: list[tuple[str, str, ToolCallResult]] = [
         "get_command_or_subagent_output",
         _FAILED + "(no output)" + _TAIL,
         _task_result(
-            "", S.FINISHED, "failed_empty_truncated", exit_code=1, is_truncated=True
+            None, S.FINISHED, "failed_empty_truncated", exit_code=1, is_truncated=True
         ),
     ),
     (
@@ -376,7 +376,7 @@ RESULT_FORMAT_CASES: list[tuple[str, str, ToolCallResult]] = [
     ),
     (
         "write",
-        "Wrote file successfully to /f",
+        "Wrote file successfully to /f.",
         ToolCallResult("", S.FINISHED, harness_result_format=_format("written")),
     ),
     (

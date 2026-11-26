@@ -128,19 +128,19 @@ FORMATS_BY_JUDGMENT_RULE: dict[str, list[tuple[str, str, str]]] = {
         ("claude-code", "Read", "tool_use_error"),
         ("claude-code", "Write", "tool_use_error"),
         ("claude-code", "Edit", "tool_use_error"),
+        ("claude-code", "WebFetch", "tool_use_error"),
         ("claude-code", "Monitor", "tool_use_error"),
         ("claude-code", "TaskStop", "tool_use_error"),
         ("codex", "exec_command", "rejected"),
         ("codex", "exec_command", "rejected_command"),
-        ("codex", "exec_command", "rejected_arguments"),
         ("codex", "write_stdin", "rejected_stdin"),
-        ("codex", "wait", "rejected_arguments"),
         ("copilot-cli", "read_bash", "invalid_delay"),
         ("copilot-cli", "create", "invalid_input"),
         ("copilot-cli", "edit", "invalid_input"),
         ("copilot-cli", "read_agent", "invalid_input"),
         ("devin", "exec", "rejected"),
         ("devin", "get_output", "rejected"),
+        ("devin", "get_output", "failed_monitoring"),
         ("devin", "kill_shell", "rejected"),
         ("devin", "read", "rejected"),
         ("devin", "write", "rejected"),
@@ -333,3 +333,30 @@ def test_review_record_has_one_row_per_declared_format_in_the_declared_order():
         if r["reviewed"] not in ("", "yes")
     ]
     assert not bad_reviewed, f"`reviewed` is neither empty nor `yes` in {bad_reviewed}"
+
+
+@pytest.mark.parametrize(
+    ("harness", "tool", "result_text", "format_name"),
+    [
+        ("grok-build", "write", "Wrote file successfully to /app/a.py.", "written"),
+        (
+            "muse-code",
+            "write_file",
+            "wrote 12 bytes to /app/a.py; note: created the parent folder",
+            "written_note",
+        ),
+    ],
+)
+def test_the_path_of_a_write_result_leaves_out_the_text_after_it(
+    harness, tool, result_text, format_name
+):
+    # The harness writes a `.` or a `;` right after the path, which is no part of the path that the call wrote.
+    declaration = harness_result_formats.RESULT_FORMATS_BY_HARNESS[harness][tool]
+
+    matched = declaration.harness_result_format_of(
+        result_text, None, is_marked_as_error=False
+    )
+
+    assert not isinstance(matched, UnmatchedFormat)
+    assert matched.format.name == format_name
+    assert matched.matched_values["path"] == "/app/a.py"

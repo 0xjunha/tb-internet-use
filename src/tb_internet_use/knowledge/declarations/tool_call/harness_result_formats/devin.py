@@ -175,11 +175,11 @@ _EXEC = HarnessResultFormatList[str](
             "`env` can only be set when starting a new shell; {reason:text}",
             S.NOT_RUN,
         ),
+        # The refused call starts no command, so the shell it names is no handle of the call.
         Text(
             "rejected_busy",
-            "Shell {handle:id} still has a running command. {reason:text}",
+            "Shell {shell:id} still has a running command. {reason:text}",
             S.NOT_RUN,
-            fixed_handle_kind=ExecutionHandleKind.COMMAND,
         ),
     ),
     notices=_NOTICES,
@@ -243,6 +243,12 @@ _GET_OUTPUT = HarnessResultFormatList[str](
             "Tool 'get_output' validation failed: {reason:text}",
             judgment_rule="treat_tool_failure_message_as_not_run",
         ),
+        # Devin writes this alone when it could not watch the shell, so the poll shows no output.
+        Text(
+            "failed_monitoring",
+            "Failed to configure output monitoring. Please try again.",
+            judgment_rule="treat_tool_failure_message_as_not_run",
+        ),
         Text(
             "running",
             "{tool_output:text}",
@@ -260,6 +266,7 @@ _KILL_SHELL = HarnessResultFormatList[str](
             "Shell {handle:id} terminated successfully",
             S.KILLED,
             fixed_handle_kind=ExecutionHandleKind.COMMAND,
+            no_tool_output_text=True,
         ),
         Text(
             "rejected",
@@ -276,6 +283,7 @@ _WRITE_TO_PROCESS = HarnessResultFormatList[str](
             "Written {bytes:int} bytes to shell {handle:id}",
             judgment_rule="treat_written_input_as_running_target",
             fixed_handle_kind=ExecutionHandleKind.COMMAND,
+            no_tool_output_text=True,
         ),
     )
 )

@@ -8,6 +8,7 @@ from tb_internet_use.knowledge.declarations.tool_call.harness_result_format_decl
     HarnessTextResultFormat,
     HarnessToolResultDeclaration,
     JsonObject,
+    MatchedValues,
 )
 from tb_internet_use.tool_call.model import (
     ExecutionHandleKind,
@@ -31,15 +32,22 @@ _TRUNCATED_NO_LINE_COUNT = (
 _V2 = "Wall time: {seconds:line_without_brackets} seconds\nOutput:\n"
 
 # Codex writes this when the arguments of a call are not of the types the tool takes, e.g. an `exec_command` whose `cmd` is a list of words.
+# It reads the arguments before it starts or polls anything, so the call ran nothing.
 _REJECTED_ARGUMENTS = Text(
     "rejected_arguments",
     "failed to parse function arguments: {reason:text}",
-    judgment_rule="treat_tool_failure_message_as_not_run",
+    S.NOT_RUN,
 )
 # Formats that exec_command and write_stdin share, of a command that exited or still runs.
 _SHELL_EXITED_TRUNCATED = Text(
     "exited_truncated",
     _HEAD + _PROCESS_EXITED + _TOKENS + _TRUNCATED + "{tool_output:text}",
+    S.FINISHED,
+    is_truncated=True,
+)
+_SHELL_EXITED_TRUNCATED_NO_LINE_COUNT = Text(
+    "exited_truncated_no_line_count",
+    _HEAD + _PROCESS_EXITED + _TOKENS + _TRUNCATED_NO_LINE_COUNT + "{tool_output:text}",
     S.FINISHED,
     is_truncated=True,
 )
@@ -55,6 +63,17 @@ _SHELL_RUNNING_TRUNCATED = Text(
     is_truncated=True,
     fixed_handle_kind=ExecutionHandleKind.COMMAND,
 )
+_SHELL_RUNNING_TRUNCATED_NO_LINE_COUNT = Text(
+    "running_truncated_no_line_count",
+    _HEAD
+    + _PROCESS_RUNNING
+    + _TOKENS
+    + _TRUNCATED_NO_LINE_COUNT
+    + "{tool_output:text}",
+    S.RUNNING,
+    is_truncated=True,
+    fixed_handle_kind=ExecutionHandleKind.COMMAND,
+)
 _SHELL_RUNNING = Text(
     "running",
     _HEAD + _PROCESS_RUNNING + _TOKENS + "{tool_output:text}",
@@ -64,18 +83,10 @@ _SHELL_RUNNING = Text(
 _EXEC_COMMAND = HarnessResultFormatList[str](
     (
         _SHELL_EXITED_TRUNCATED,
-        Text(
-            "exited_truncated_no_line_count",
-            _HEAD
-            + _PROCESS_EXITED
-            + _TOKENS
-            + _TRUNCATED_NO_LINE_COUNT
-            + "{tool_output:text}",
-            S.FINISHED,
-            is_truncated=True,
-        ),
+        _SHELL_EXITED_TRUNCATED_NO_LINE_COUNT,
         _SHELL_EXITED,
         _SHELL_RUNNING_TRUNCATED,
+        _SHELL_RUNNING_TRUNCATED_NO_LINE_COUNT,
         _SHELL_RUNNING,
         Text(
             "v2_exited",
@@ -104,8 +115,10 @@ _EXEC_COMMAND = HarnessResultFormatList[str](
 _WRITE_STDIN = HarnessResultFormatList[str](
     (
         _SHELL_EXITED_TRUNCATED,
+        _SHELL_EXITED_TRUNCATED_NO_LINE_COUNT,
         _SHELL_EXITED,
         _SHELL_RUNNING_TRUNCATED,
+        _SHELL_RUNNING_TRUNCATED_NO_LINE_COUNT,
         _SHELL_RUNNING,
         Text(
             "rejected_stdin",
@@ -128,8 +141,26 @@ _COMPLETED_TRUNCATED = Text(
     is_truncated=True,
 )
 _COMPLETED = Text("completed", _SCRIPT_COMPLETED + "{tool_output:text}", S.FINISHED)
+# Codex adds the error of a failed script as its last item, under a line `Script error:` of its own.
+_SCRIPT_ERROR_HEAD = "Script error:\n"
+
+
+def _failed_script_output_text_of(matched_values: MatchedValues) -> str:
+    """Give what a failed script printed and its error, without the line `Script error:` that Codex writes before the error."""
+    text = str(matched_values.get("tool_output", ""))
+    index = text.rfind(_SCRIPT_ERROR_HEAD)
+    if index == -1 or (index > 0 and text[index - 1] != "\n"):
+        return text
+    return text[:index] + text[index + len(_SCRIPT_ERROR_HEAD) :]
+
+
 # A failed script ran until its error, which stays in the tool output.
-_FAILED = Text("failed", _SCRIPT_FAILED + "{tool_output:text}", S.FINISHED)
+_FAILED = Text(
+    "failed",
+    _SCRIPT_FAILED + "{tool_output:text}",
+    S.FINISHED,
+    text_from_matched_values=_failed_script_output_text_of,
+)
 _RUNNING_TRUNCATED = Text(
     "running_truncated",
     _SCRIPT_RUNNING + _TRUNCATED + "{tool_output:text}",

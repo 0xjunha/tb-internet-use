@@ -1,5 +1,6 @@
 """Declare the result formats of Claude Code tools and the notices Claude Code adds to their results."""
 
+import re
 from collections.abc import Mapping
 
 from tb_internet_use.knowledge.declarations.tool_call.harness_result_format_declaration import (
@@ -10,6 +11,7 @@ from tb_internet_use.knowledge.declarations.tool_call.harness_result_format_decl
     HarnessToolResultDeclaration,
     JsonCondition,
     JsonObject,
+    MatchedValues,
 )
 from tb_internet_use.tool_call.model import (
     ExecutionHandleKind,
@@ -119,7 +121,7 @@ _BASH_OK = HarnessResultFormatList[str](
         ),
         Text(
             "persisted_output_partial",
-            _PERSISTED_PARTIAL_HEAD + "{tool_output:text}\n</persisted-output>",
+            _PERSISTED_PARTIAL_HEAD + "{tool_output:text}\n...\n</persisted-output>",
             judgment_rule="treat_bash_output_without_exit_code_line_as_finished",
             is_truncated=True,
         ),
@@ -327,6 +329,7 @@ _EDIT = HarnessResultFormatList[str](
 
 _WEB_FETCH = HarnessResultFormatList[str](
     (
+        _TOOL_USE_ERROR,
         Text("no_model_response", "No response from model", S.FINISHED),
         Text(
             "no_model_response_binary_saved",
@@ -401,6 +404,19 @@ _COMMAND_SUMMARY = 'Background command "{command:text}" '
 # The `<event>` of a `Monitor` holds the lines its command printed since the last event.
 _MONITOR_SUMMARY = 'Monitor "{description:text}" '
 _EVENT_TAIL = "</summary>\n<event>{tool_output:text}</event>\n</task-notification>"
+# Claude Code writes `&`, `<` and `>` of the lines in an `<event>` as `&amp;`, `&lt;` and `&gt;`, e.g. `loss 2757 -&gt; 1158`.
+_EVENT_ESCAPES = {"&amp;": "&", "&lt;": "<", "&gt;": ">"}
+_EVENT_ESCAPE = re.compile("|".join(_EVENT_ESCAPES))
+
+
+def _event_text_of(matched_values: MatchedValues) -> str:
+    """Give the lines of an `<event>` as the command printed them, with the escapes that Claude Code wrote turned back in one pass."""
+    return _EVENT_ESCAPE.sub(
+        lambda found: _EVENT_ESCAPES[found.group()],
+        str(matched_values.get("tool_output", "")),
+    )
+
+
 _TASK_NOTIFICATION = HarnessResultFormatList[str](
     (
         Text(
@@ -445,6 +461,16 @@ _TASK_NOTIFICATION = HarnessResultFormatList[str](
             fixed_handle_kind=ExecutionHandleKind.COMMAND,
             no_tool_output_text=True,
         ),
+        # Claude Code writes this as the last event of a Monitor whose time ran out, which stops its command.
+        Text(
+            "monitor_expired",
+            "<task-notification>\n<task-id>{handle:id}</task-id>\n"
+            + '<summary>Monitor event: "{description:text}"</summary>\n'
+            + "<event>[Monitor expired after {rest:text}]</event>\n</task-notification>",
+            S.TIMED_OUT,
+            fixed_handle_kind=ExecutionHandleKind.COMMAND,
+            no_tool_output_text=True,
+        ),
         # An event holds lines that the command printed but does not say whether the command still runs, so its status is unknown.
         Text(
             "monitor_event",
@@ -453,12 +479,14 @@ _TASK_NOTIFICATION = HarnessResultFormatList[str](
             + "<event>{tool_output:text}</event>\n</task-notification>",
             S.UNKNOWN,
             fixed_handle_kind=ExecutionHandleKind.COMMAND,
+            text_from_matched_values=_event_text_of,
         ),
         Text(
             "monitor_ended",
             _TASK_COMPLETED + _MONITOR_SUMMARY + "stream ended" + _EVENT_TAIL,
             S.FINISHED,
             fixed_handle_kind=ExecutionHandleKind.COMMAND,
+            text_from_matched_values=_event_text_of,
         ),
         Text(
             "monitor_failed",
@@ -468,6 +496,7 @@ _TASK_NOTIFICATION = HarnessResultFormatList[str](
             + _EVENT_TAIL,
             S.FINISHED,
             fixed_handle_kind=ExecutionHandleKind.COMMAND,
+            text_from_matched_values=_event_text_of,
         ),
     )
 )
@@ -484,6 +513,7 @@ _TASK_STOP = HarnessResultFormatList[JsonObject](
             {"handle": "task_id", "handle_kind_name": "task_type"},
             present_paths=("task_id", "message"),
             handle_kind_by_name=_HANDLE_KIND_BY_TASK_TYPE,
+            no_tool_output_text=True,
         ),
     )
 )

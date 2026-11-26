@@ -213,7 +213,7 @@ RESULT_FORMAT_CASES: list[tuple[str, str, ToolCallResult]] = [
         "manage_task",
         f'{TIMESTAMPS}Task "{TASK_ID}" cancelled.',
         ToolCallResult(
-            "",
+            None,
             S.KILLED,
             handles=_task_handles(),
             harness_result_format=_format("cancelled"),
@@ -223,7 +223,7 @@ RESULT_FORMAT_CASES: list[tuple[str, str, ToolCallResult]] = [
         "manage_task",
         f'{TIMESTAMPS_ONCE}Encountered error in step execution: cannot kill task "{TASK_ID}": task is not running (status: DONE)',
         ToolCallResult(
-            "",
+            None,
             S.FINISHED,
             handles=_task_handles(),
             harness_result_format=_format("already_done"),
@@ -233,7 +233,7 @@ RESULT_FORMAT_CASES: list[tuple[str, str, ToolCallResult]] = [
         "manage_task",
         f'{TIMESTAMPS_ONCE}Encountered error in step execution: cannot kill task "{TASK_ID}": task is not running (status: CANCELED)',
         ToolCallResult(
-            "",
+            None,
             S.KILLED,
             handles=_task_handles(),
             harness_result_format=_format("already_cancelled"),
@@ -243,7 +243,7 @@ RESULT_FORMAT_CASES: list[tuple[str, str, ToolCallResult]] = [
         "manage_task",
         f'{TIMESTAMPS}Input sent to task "{TASK_ID}".',
         ToolCallResult(
-            "",
+            None,
             S.RUNNING,
             handles=_task_handles(),
             harness_result_format=_format("input_sent"),

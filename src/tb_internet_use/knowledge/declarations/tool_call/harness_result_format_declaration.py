@@ -28,7 +28,7 @@ _NO_OUTPUT_TEXT = ""
 #   exit_code         exit_code
 #   http_status       http_status
 #   output_path       output_path
-#   is_truncated      is_truncated, a bool (JSON only)
+#   is_truncated      is_truncated, a bool or a number of characters left out (JSON only)
 # A format that gives `handle` or `handles` states the kind of its handles, and a format that gives neither states no kind.
 # What every result of a format shares, such as `status`, is a field of the format.
 # A format states its `status`, or names the `judgment_rule` that decides it when the result text does not say, never both.
@@ -374,7 +374,7 @@ class HarnessJsonResultFormat:
     absent_paths: tuple[str, ...] = ()
     # A test on one JSON value that every result of this format passes.
     condition: JsonCondition | None = None
-    # Whether every result of this format has a truncated tool output. None takes it from the value named `is_truncated`, if there is one.
+    # Whether every result of this format has a truncated tool output. None takes it from the value named `is_truncated`, if there is one, which is a bool or the number of characters left out, e.g. `elided_chars` of mini-swe-agent.
     is_truncated: bool | None = None
     # The kind of every handle this format gives, when the result does not name it. A format with a `handle` or `handles` value path states this or `handle_kind_by_name`, and any other format states neither.
     fixed_handle_kind: ExecutionHandleKind | None = None
@@ -436,7 +436,10 @@ class HarnessJsonResultFormat:
         if self.is_truncated is not None:
             return self.is_truncated
         truncated = matched_values.get("is_truncated")
-        return truncated if isinstance(truncated, bool) else None
+        if isinstance(truncated, bool):
+            return truncated
+        # A number of characters left out, which is 0 when nothing was cut.
+        return truncated > 0 if isinstance(truncated, int) else None
 
     def tool_output_text_of(self, matched_values: MatchedValues) -> str | None:
         if self.no_tool_output_text:

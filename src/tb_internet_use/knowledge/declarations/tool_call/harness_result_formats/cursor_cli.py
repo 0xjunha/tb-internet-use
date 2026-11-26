@@ -57,7 +57,6 @@ _SHELL_TOOL_CALL = HarnessResultFormatList[JsonObject](
                 "output_path": "success.outputLocation.filePath",
             },
             present_paths=("success.exitCode", "success.outputLocation"),
-            is_truncated=True,
         ),
         Json(
             "exited",
@@ -74,7 +73,6 @@ _SHELL_TOOL_CALL = HarnessResultFormatList[JsonObject](
                 "output_path": "failure.outputLocation.filePath",
             },
             present_paths=("failure.exitCode", "failure.outputLocation"),
-            is_truncated=True,
         ),
         Json(
             "failed",
@@ -94,6 +92,21 @@ _AWAIT_TOOL_CALL = HarnessResultFormatList[JsonObject](
             present_paths=("success.complete",),
             condition=JsonCondition("success.complete.taskId", "==", ""),
         ),
+        # A poll whose pattern matched nothing holds no text of the output, which stays in the output file.
+        Json(
+            "complete_without_match",
+            S.FINISHED,
+            {
+                "exit_code": "success.complete.exitCode",
+                "handle": "success.complete.taskId",
+                "output_path": "success.complete.outputFilePath",
+            },
+            present_paths=("success.complete",),
+            absent_paths=("success.complete.regexMatch",),
+            condition=JsonCondition("success.complete.taskId", "!=", ""),
+            fixed_handle_kind=ExecutionHandleKind.COMMAND,
+            no_tool_output_text=True,
+        ),
         Json(
             "complete",
             S.FINISHED,
@@ -106,6 +119,18 @@ _AWAIT_TOOL_CALL = HarnessResultFormatList[JsonObject](
             present_paths=("success.complete",),
             condition=JsonCondition("success.complete.taskId", "!=", ""),
             fixed_handle_kind=ExecutionHandleKind.COMMAND,
+        ),
+        Json(
+            "still_running_without_match",
+            S.RUNNING,
+            {
+                "handle": "success.stillRunning.taskId",
+                "output_path": "success.stillRunning.outputFilePath",
+            },
+            present_paths=("success.stillRunning",),
+            absent_paths=("success.stillRunning.regexMatch",),
+            fixed_handle_kind=ExecutionHandleKind.COMMAND,
+            no_tool_output_text=True,
         ),
         Json(
             "still_running",
@@ -175,7 +200,6 @@ _WEB_FETCH_TOOL_CALL = HarnessResultFormatList[JsonObject](
                 "output_path": "success.outputLocation.filePath",
             },
             present_paths=("success.markdown", "success.outputLocation"),
-            is_truncated=True,
         ),
         Json(
             "page",

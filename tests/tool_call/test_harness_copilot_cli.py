@@ -96,7 +96,7 @@ def _format(name: str) -> MatchedFormat:
 
 
 def _shell_result(
-    text: str, status: ExecutionStatus, format_name: str, **fields: Any
+    text: str | None, status: ExecutionStatus, format_name: str, **fields: Any
 ) -> ToolCallResult:
     """Give the expected result of a shell call that names the shell `4`."""
     return ToolCallResult(
@@ -343,7 +343,7 @@ RESULT_FORMAT_CASES: list[tuple[str, dict[str, Any], ToolCallResult]] = [
     (
         "stop_bash",
         _result("<command with id: 4 stopped>"),
-        _shell_result("", S.KILLED, "stopped"),
+        _shell_result(None, S.KILLED, "stopped"),
     ),
     (
         "view",

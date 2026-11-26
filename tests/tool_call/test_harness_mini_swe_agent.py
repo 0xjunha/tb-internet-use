@@ -98,6 +98,23 @@ RESULT_FORMAT_CASES: list[tuple[str, dict[str, Any], ToolCallResult]] = [
             harness_result_format=MatchedFormat("exited_truncated"),
         ),
     ),
+    # An output of exactly 10000 characters is kept as a head and a tail too, with no character left out.
+    (
+        "bash",
+        {
+            "output_head": "a\n",
+            "output_tail": "z",
+            "elided_chars": 0,
+            "returncode": 0,
+        },
+        ToolCallResult(
+            "a\nz",
+            S.FINISHED,
+            0,
+            is_truncated=False,
+            harness_result_format=MatchedFormat("exited_truncated"),
+        ),
+    ),
 ]
 
 

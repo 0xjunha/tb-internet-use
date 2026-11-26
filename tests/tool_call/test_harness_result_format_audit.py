@@ -70,7 +70,7 @@ TABLE_ROW_CASES = [
             "template": "present=task_id,message",
             "status": "killed",
             "is_truncated": "",
-            "no_tool_output_text": "",
+            "no_tool_output_text": "True",
             "handle_kind": "by task_type",
         },
     ),

@@ -169,6 +169,28 @@ def _shell_cases(tool: str) -> list[tuple[str, str | None, ToolCallResult]]:
         ),
         (
             tool,
+            _EXITED.format(0) + WARNING + "body\n",
+            ToolCallResult(
+                "body\n",
+                S.FINISHED,
+                0,
+                is_truncated=True,
+                harness_result_format=_format("exited_truncated_no_line_count"),
+            ),
+        ),
+        (
+            tool,
+            _RUNNING + WARNING + "x",
+            ToolCallResult(
+                "x",
+                S.RUNNING,
+                handles=_SESSION_7,
+                is_truncated=True,
+                harness_result_format=_format("running_truncated_no_line_count"),
+            ),
+        ),
+        (
+            tool,
             _RUNNING,
             ToolCallResult(
                 "",
@@ -203,9 +225,11 @@ def _script_cases(tool: str) -> list[tuple[str, str | None, ToolCallResult]]:
         # A failed script ran until its error, which stays in the tool output.
         (
             tool,
-            _script_result("Script failed", _printed("Script error:\nboom")),
+            _script_result(
+                "Script failed", _printed("a"), _printed("Script error:\nboom")
+            ),
             ToolCallResult(
-                "Script error:\nboom",
+                "a\nboom",
                 S.FINISHED,
                 harness_result_format=_format("failed"),
             ),
@@ -238,18 +262,6 @@ def _script_cases(tool: str) -> list[tuple[str, str | None, ToolCallResult]]:
 # (tool, content of the result entry in the trajectory or None for an entry without it, expected result)
 RESULT_FORMAT_CASES: list[tuple[str, str | None, ToolCallResult]] = [
     *_shell_cases("exec_command"),
-    (
-        "exec_command",
-        _EXITED.format(0)
-        + "Warning: truncated output (original token count: 9000)\nbody\n",
-        ToolCallResult(
-            "body\n",
-            S.FINISHED,
-            0,
-            is_truncated=True,
-            harness_result_format=_format("exited_truncated_no_line_count"),
-        ),
-    ),
     (
         "exec_command",
         "Wall time: 0.5 seconds\nOutput:\nExit code: 0\nWall time: 0.5 seconds\nOutput:\nhi",

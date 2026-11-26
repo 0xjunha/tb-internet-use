@@ -170,13 +170,21 @@ _MONITOR = HarnessResultFormatList[JsonObject](
 
 _READ_HEAD = "Read text file `{path:line}`{detail:rest_of_line}\n"
 _ABOVE = "({above:int} line(s) above)"
+# What Muse Code writes at the end of a listed line that it cut, e.g. a line of more than 8192 bytes.
+_CUT_LINE_MARKER = "[line truncated: original_bytes={original_bytes:int}, visible_bytes={visible_bytes:int}]"
 _READ_FILE = HarnessResultFormatList[str](
     (
-        Text("listing", _READ_HEAD + "{tool_output:numbered_pipe}", S.FINISHED),
+        Text(
+            "listing",
+            _READ_HEAD + "{tool_output:numbered_pipe}",
+            S.FINISHED,
+            truncation_marker=_CUT_LINE_MARKER,
+        ),
         Text(
             "listing_after",
             _READ_HEAD + _ABOVE + "\n{tool_output:numbered_pipe}",
             S.FINISHED,
+            truncation_marker=_CUT_LINE_MARKER,
         ),
         Text(
             "listing_before",
@@ -207,7 +215,7 @@ _WRITE_FILE = HarnessResultFormatList[str](
     (
         Text(
             "written_note",
-            "wrote {bytes:int} bytes to {path:line} note: {note:text}",
+            "wrote {bytes:int} bytes to {path:line}; note: {note:text}",
             S.FINISHED,
         ),
         Text("written", "wrote {bytes:int} bytes to {path:rest_of_line}", S.FINISHED),

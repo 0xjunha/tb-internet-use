@@ -555,7 +555,7 @@ EXAMPLE_LINES: list[
         "  Downloaded serde v1.0",
         "downloaded",
         K.DOWNLOADED,
-        _DOWNLOADS,
+        (frozenset({P.UV, P.CODE}), True),
         {"package_names_text": "serde"},
     ),
     (

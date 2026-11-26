@@ -105,6 +105,17 @@ RESULT_FORMAT_CASES: list[tuple[str, str | dict[str, Any], ToolCallResult]] = [
     ),
     (
         "read_file",
+        _READ_HEAD
+        + "\n1|ab[line truncated: original_bytes=9000, visible_bytes=2]\n2|c",
+        ToolCallResult(
+            "ab[line truncated: original_bytes=9000, visible_bytes=2]\nc",
+            S.FINISHED,
+            is_truncated=True,
+            harness_result_format=_format("listing"),
+        ),
+    ),
+    (
+        "read_file",
         _READ_HEAD + "\n1|a\n2|b\n(more lines below)",
         ToolCallResult(
             "a\nb", S.FINISHED, harness_result_format=_format("listing_before")
@@ -141,7 +152,7 @@ RESULT_FORMAT_CASES: list[tuple[str, str | dict[str, Any], ToolCallResult]] = [
     ),
     (
         "write_file",
-        "wrote 12 bytes to /f note: created the parent folder",
+        "wrote 12 bytes to /f; note: created the parent folder",
         ToolCallResult("", S.FINISHED, harness_result_format=_format("written_note")),
     ),
     (

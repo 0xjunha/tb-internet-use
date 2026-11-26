@@ -97,7 +97,6 @@ RESULT_FORMAT_CASES: list[tuple[str, dict[str, Any], ToolCallResult]] = [
             S.FINISHED,
             0,
             output_path="/o.txt",
-            is_truncated=True,
             harness_result_format=_format("exited_saved"),
         ),
     ),
@@ -128,7 +127,6 @@ RESULT_FORMAT_CASES: list[tuple[str, dict[str, Any], ToolCallResult]] = [
             S.FINISHED,
             1,
             output_path="/e.txt",
-            is_truncated=True,
             harness_result_format=_format("failed_saved"),
         ),
     ),
@@ -152,6 +150,38 @@ RESULT_FORMAT_CASES: list[tuple[str, dict[str, Any], ToolCallResult]] = [
             }
         },
         ToolCallResult("", S.UNKNOWN, harness_result_format=_format("no_task")),
+    ),
+    # Without a match the poll holds no text of the output, which stays in the output file.
+    (
+        "awaitToolCall",
+        {
+            "success": {
+                "complete": {
+                    "exitCode": 0,
+                    "taskId": "9",
+                    "outputFilePath": "/t.out",
+                }
+            }
+        },
+        ToolCallResult(
+            None,
+            S.FINISHED,
+            0,
+            handles=_command_handles("9"),
+            output_path="/t.out",
+            harness_result_format=_format("complete_without_match"),
+        ),
+    ),
+    (
+        "awaitToolCall",
+        {"success": {"stillRunning": {"taskId": "9", "outputFilePath": "/t.out"}}},
+        ToolCallResult(
+            None,
+            S.RUNNING,
+            handles=_command_handles("9"),
+            output_path="/t.out",
+            harness_result_format=_format("still_running_without_match"),
+        ),
     ),
     (
         "awaitToolCall",
@@ -230,7 +260,6 @@ RESULT_FORMAT_CASES: list[tuple[str, dict[str, Any], ToolCallResult]] = [
             "# Page",
             S.FINISHED,
             output_path="/p.md",
-            is_truncated=True,
             harness_result_format=_format("page_saved"),
         ),
     ),

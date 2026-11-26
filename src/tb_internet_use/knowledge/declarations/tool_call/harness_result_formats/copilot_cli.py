@@ -150,6 +150,7 @@ _STOP_BASH = HarnessResultFormatList[str](
             "<command with id: {handle:id} stopped>",
             S.KILLED,
             fixed_handle_kind=ExecutionHandleKind.COMMAND,
+            no_tool_output_text=True,
         ),
     )
 )

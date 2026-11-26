@@ -20,7 +20,7 @@ A row is what the format declares. A format whose result text does not tell the 
 - **`kind`:** `text` or `json`.
 - **`status`:** the status of every result of the format, or `by <judgment rule>` when a rule of `judgment_rules.py` decides it.
 - **`template`:** the template of a text format, or the present paths, absent paths and condition of a JSON format. A carriage return is written as `\r`, so that editors keep it, and a backslash as `\\`.
-- **`is_truncated`:** `True` or `False` for every result of the format, empty when the format does not tell, `when <marker>` when a marker in the tool output tells, or `by <path>` when the value at that path of the result tells.
+- **`is_truncated`:** `True` or `False` for every result of the format, empty when the format does not tell, `when <marker>` when a marker in the tool output tells, or `by <path>` when the value at that path of the result tells, a bool or a number of characters left out that is above 0 when the output was cut.
 - **`no_tool_output_text`:** `True` when the trajectory holds no text of what the tool returned, e.g. an image, so `tool_output_text` is None.
 - **`handle_kind`:** kind of the handles the format gives, empty when it gives none. `by <path>`, e.g. `by task.task_type`, means the value at that path of the result names the kind.
 

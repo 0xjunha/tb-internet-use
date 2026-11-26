@@ -248,12 +248,12 @@ PROGRAM_OUTPUT_LINE_PATTERNS = OutputLinePatternTable(
             r"^(?:\[info\] )?downloading https?://\S+ \.\.\.",
             printed_only_by=PrintingProgram.IVY,
         ),
-        # cargo prints this line too, and has no printing program.
+        # uv prints this after a download, e.g. ` Downloaded scipy`, and so can code. cargo prints this line too, and has no printing program.
         _make_program_output_pattern(
             "downloaded",
             OutputLineKind.DOWNLOADED,
             r"^[ \t]*Downloaded (?P<package_names_text>[\w.-]+)",
-            printed_also_by=_DOWNLOAD_PRINTING_PROGRAMS,
+            printed_also_by=(PrintingProgram.UV, PrintingProgram.CODE),
         ),
         # A package's Get line ends with its name, architecture, version and size. An index's does not.
         _make_program_output_pattern(

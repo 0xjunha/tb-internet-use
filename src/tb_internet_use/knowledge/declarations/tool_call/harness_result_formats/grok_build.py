@@ -91,7 +91,7 @@ _TASK = "=== Task {handle:id} ===\nCommand: {command:text}\n"
 _OUTPUT = "Output File: {output_path:line}\n\n=== Output ===\n"
 _TRUNCATED_TAIL = "\n[truncated - use read_file on output_file for full content]"
 # A line some truncated results have before `_TRUNCATED_TAIL`.
-_TRUNCATED_BYTES = "\n[Output truncated - {bytes:int} bytes total. Use read_file on {saved_to:line_without_brackets} for full content]"
+_TRUNCATED_BYTES = "\n\n[Output truncated - {bytes:int} bytes total. Use read_file on {saved_to:line_without_brackets} for full content]"
 _MISSING = Text(
     "missing",
     "Error: {path:line} does not exist.",
@@ -139,6 +139,8 @@ _GET_OUTPUT = HarnessResultFormatList[str](
             S.FINISHED,
             is_truncated=True,
             fixed_handle_kind=ExecutionHandleKind.COMMAND,
+            # The output of the command is in the output file and in no part of this result.
+            no_tool_output_text=True,
         ),
         Text(
             "done_truncated_bytes",
@@ -166,6 +168,8 @@ _GET_OUTPUT = HarnessResultFormatList[str](
             S.FINISHED,
             is_truncated=True,
             fixed_handle_kind=ExecutionHandleKind.COMMAND,
+            # The output of the command is in the output file and in no part of this result.
+            no_tool_output_text=True,
         ),
         Text(
             "failed_truncated",
@@ -309,7 +313,7 @@ _READ_FILE = HarnessResultFormatList[str](
 
 _WRITE = HarnessResultFormatList[str](
     (
-        Text("written", "Wrote file successfully to {path:rest_of_line}", S.FINISHED),
+        Text("written", "Wrote file successfully to {path:line}.", S.FINISHED),
         Text("created", "The file {path:line} has been created.", S.FINISHED),
     ),
     notices=_NOTICES,

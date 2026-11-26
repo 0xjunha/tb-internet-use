@@ -19,6 +19,8 @@ Json = HarnessJsonResultFormat
 _TOOL_OUTPUT_PATHS = ("output", "output_head", "output_tail")
 _ENDED_VALUE_PATHS = {"tool_output": _TOOL_OUTPUT_PATHS, "exit_code": "returncode"}
 _STOPPED_VALUE_PATHS = {"tool_output": _TOOL_OUTPUT_PATHS}
+# An output of 10000 characters or more is kept as a head and a tail with the number of characters left out between them, which is 0 for an output of exactly 10000 characters.
+_TRUNCATED_VALUE_PATHS = {"is_truncated": "elided_chars"}
 _TIMED_OUT_CONDITION = JsonCondition("exception_info", "contains", "timed out")
 _NOT_EXECUTED_CONDITION = JsonCondition(
     "exception_info", "startswith", "action was not executed"
@@ -39,10 +41,9 @@ _BASH = HarnessResultFormatList[JsonObject](
         Json(
             "timed_out_truncated",
             S.TIMED_OUT,
-            _STOPPED_VALUE_PATHS,
+            _STOPPED_VALUE_PATHS | _TRUNCATED_VALUE_PATHS,
             present_paths=("elided_chars",),
             condition=_TIMED_OUT_CONDITION,
-            is_truncated=True,
         ),
         Json(
             "killed",
@@ -55,11 +56,10 @@ _BASH = HarnessResultFormatList[JsonObject](
         Json(
             "killed_truncated",
             S.KILLED,
-            _STOPPED_VALUE_PATHS,
+            _STOPPED_VALUE_PATHS | _TRUNCATED_VALUE_PATHS,
             present_paths=("output_head",),
             absent_paths=("exception_info",),
             condition=_SIGNALED_CONDITION,
-            is_truncated=True,
         ),
         Json(
             "exited",
@@ -72,11 +72,10 @@ _BASH = HarnessResultFormatList[JsonObject](
         Json(
             "exited_truncated",
             S.FINISHED,
-            _ENDED_VALUE_PATHS,
+            _ENDED_VALUE_PATHS | _TRUNCATED_VALUE_PATHS,
             present_paths=("output_head", "output_tail"),
             absent_paths=("exception_info",),
             condition=_EXITED_CONDITION,
-            is_truncated=True,
         ),
     )
 )

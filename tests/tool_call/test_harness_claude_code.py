@@ -356,7 +356,7 @@ RESULT_FORMAT_CASES: list[tuple[str, dict[str, Any], ToolCallResult]] = [
         "Bash",
         _result(
             "<persisted-output>\nOutput exceeded the 64MB persist limit; only the first 64MB were saved to: /tmp/p.txt\n\n"
-            "Preview (first 2KB):\nhead\n</persisted-output>"
+            "Preview (first 2KB):\nhead\n...\n</persisted-output>"
         ),
         ToolCallResult(
             "head",
@@ -369,6 +369,8 @@ RESULT_FORMAT_CASES: list[tuple[str, dict[str, Any], ToolCallResult]] = [
     # Without a structured result, 0 and the 1 of grep look the same, so no exit code.
     ("Bash", _result("hello"), _finished_result("bare_output", "hello")),
     ("Read", _result(_TOOL_USE_ERROR), _not_run_result("tool_use_error")),
+    # A refused fetch is no page.
+    ("WebFetch", _result(_TOOL_USE_ERROR), _not_run_result("tool_use_error")),
     (
         "Read",
         _result("Interrupted: " + _CLASSIFIER),
@@ -682,14 +684,30 @@ RESULT_FORMAT_CASES: list[tuple[str, dict[str, Any], ToolCallResult]] = [
         ),
         _task_end("monitor_event", S.UNKNOWN, None, "HTTP 200\nready"),
     ),
+    # Claude Code escapes `&`, `<` and `>` of the printed lines, which the tool output text gives as printed.
+    (
+        "task-notification",
+        _task_notification(
+            '<task-notification>\n<task-id>b1</task-id>\n<summary>Monitor event: "train log"</summary>\n<event>loss 2757 -&gt; 1158 &amp;&lt;ok&gt;</event>\n</task-notification>'
+        ),
+        _task_end("monitor_event", S.UNKNOWN, None, "loss 2757 -> 1158 &<ok>"),
+    ),
+    # The last event of a `Monitor` whose time ran out holds no printed line.
+    (
+        "task-notification",
+        _task_notification(
+            '<task-notification>\n<task-id>b1</task-id>\n<summary>Monitor event: "server log"</summary>\n<event>[Monitor expired after 300s with 4 events]</event>\n</task-notification>'
+        ),
+        _task_end("monitor_expired", S.TIMED_OUT, None),
+    ),
     # The end of a `Monitor` gives no exit code, only its last lines.
     (
         "task-notification",
         _task_notification(
             TASK_HEAD
-            + '<status>completed</status>\n<summary>Monitor "server log" stream ended</summary>\n<event>done</event>\n</task-notification>'
+            + '<status>completed</status>\n<summary>Monitor "server log" stream ended</summary>\n<event>done &gt; 1</event>\n</task-notification>'
         ),
-        _task_end("monitor_ended", S.FINISHED, None, "done"),
+        _task_end("monitor_ended", S.FINISHED, None, "done > 1"),
     ),
     (
         "task-notification",
@@ -726,7 +744,7 @@ RESULT_FORMAT_CASES: list[tuple[str, dict[str, Any], ToolCallResult]] = [
             '{"message":"Successfully stopped task: t1 (sleep 99)","task_id":"t1","task_type":"local_bash","command":"sleep 99"}'
         ),
         ToolCallResult(
-            "",
+            None,
             S.KILLED,
             handles=(ExecutionHandle(ExecutionHandleKind.COMMAND, "t1"),),
             harness_result_format=_format("stopped"),
