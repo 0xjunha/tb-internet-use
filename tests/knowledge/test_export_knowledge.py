@@ -373,7 +373,9 @@ def test_real_catalogs_load_and_answer_for_the_rows_they_hold():
     ) == PackageRegistry("pypi", ("pypi.org",))
     assert real_knowledge.package_registry(
         _program_invocation("apt-get", "update")
-    ) == PackageRegistry("apt", ("deb.debian.org", "archive.ubuntu.com"))
+    ) == PackageRegistry(
+        "apt", ("deb.debian.org", "archive.ubuntu.com", "security.ubuntu.com")
+    )
     assert real_knowledge.package_registry(
         _program_invocation("go", "build")
     ) == PackageRegistry("go_module_proxy", ("proxy.golang.org",))

@@ -1855,12 +1855,7 @@ def test_exit_zero_of_a_and_b_shows_that_both_ran():
     ("words", "program_invocation", "level", "stop_reason"),
     [
         ("curl -s -o x https://a.org/x", CURL, REACHED, NOT_VISIBLE),
-        (
-            "curl -f -s https://a.org/x -o x",
-            program("curl", options=(option("-f"),)),
-            RECEIVED,
-            None,
-        ),
+        ("wget https://a.org/x", program("wget"), RECEIVED, None),
     ],
 )
 def test_exit_zero_of_a_program_whose_catalog_row_says_more_asks_the_rule(
@@ -1924,12 +1919,10 @@ def test_exit_zero_is_read_through_an_outer_program_only_when_it_ends_with_the_n
     outer_program_invocation: ProgramInvocation | UnknownProgramInvocation,
     is_read: bool,
 ):
-    curl_f = program("curl", options=(option("-f"),))
-    sudo_curl = command(
-        0, "sudo curl -f https://a.org/x -o x", outer_program_invocation, curl_f
-    )
-    network_request = request(K1, from_command(sudo_curl), "https://a.org/x")
-    decided = decide(network_request, [call(K1, sudo_curl, exit_code=0)])
+    wget = program("wget")
+    sudo_wget = command(0, "sudo wget https://a.org/x", outer_program_invocation, wget)
+    network_request = request(K1, from_command(sudo_wget), "https://a.org/x")
+    decided = decide(network_request, [call(K1, sudo_wget, exit_code=0)])
     if is_read:
         assert decided.evidence_with_levels == (
             exit_zero_evidence(RECEIVED, None, rests_on_judgment_rule=True),

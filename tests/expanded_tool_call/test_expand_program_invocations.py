@@ -1661,7 +1661,7 @@ def test_wrapper_chain_shell_option_with_a_plus_and_echo_are_read_on_the_real_ca
             exits_with_exit_code_of_next_program=unknown_exits,
         ),
         _program_invocation(
-            "curl", arguments=("u",), exits_with_exit_code_of_next_program=unknown_exits
+            "curl", arguments=("u",), exits_with_exit_code_of_next_program=False
         ),
     )
     assert wrapper_chain[3] == (0, 1, 2, 4)

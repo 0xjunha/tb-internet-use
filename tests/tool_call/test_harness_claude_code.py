@@ -343,6 +343,17 @@ RESULT_FORMAT_CASES: list[tuple[str, dict[str, Any], ToolCallResult]] = [
     ),
     (
         "Bash",
+        _result(_PERSISTED_HEAD + "head\n...\n</persisted-output>"),
+        ToolCallResult(
+            "head",
+            S.FINISHED,
+            output_path="/tmp/p.txt",
+            is_truncated=True,
+            harness_result_format=_format("persisted_output_cut_preview"),
+        ),
+    ),
+    (
+        "Bash",
         _result(
             "<persisted-output>\nOutput exceeded the 64MB persist limit; only the first 64MB were saved to: /tmp/p.txt\n\n"
             "Preview (first 2KB):\nhead\n</persisted-output>"

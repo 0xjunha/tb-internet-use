@@ -371,9 +371,13 @@ def _destination(
             id="wget -O - u, whose row says own_file",
         ),
         pytest.param(
-            {"program_invocation": _invocation("nc", (), arguments=("a.org", "80"))},
+            {
+                "program_invocation": _invocation(
+                    "rsync", (), arguments=("a.org:/x", "x")
+                )
+            },
             UnknownReceivedContentDestination(),
-            id="nc a.org 80, whose row leaves the route blank",
+            id="rsync a.org:/x x, whose row leaves the route blank",
         ),
         pytest.param(
             {

@@ -245,13 +245,13 @@ _CASES_OF_COMMANDS = [
     ),
     pytest.param(
         _invocation("pip", ("install",), options=(("-i", "https://pypi.org/simple"),)),
-        [(None, PACKAGE_NAME, ("pypi.org",))],
-        id="pip install -i https://pypi.org/simple, a request without a target",
+        [],
+        id="pip install -i https://pypi.org/simple without a requirement, which ends with an error before a request",
     ),
     pytest.param(
         _invocation("pip", ("install",), options=(("-e", None),)),
-        [(None, PACKAGE_NAME, ())],
-        id="pip install -e without a value names no target",
+        [],
+        id="pip install -e without a value names no target and so sends no request",
     ),
     pytest.param(
         _invocation("pip", ("install",), options=(("-i", None),), arguments=("x",)),

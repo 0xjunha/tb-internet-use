@@ -83,6 +83,7 @@ _RESULTS_OF_FORMATS_NEVER_SEEN = (
 # Each judgment rule with the formats that name it, as (harness, tool, format).
 FORMATS_BY_JUDGMENT_RULE: dict[str, list[tuple[str, str, str]]] = {
     "treat_bash_output_without_exit_code_line_as_finished": [
+        ("claude-code", "Bash", "persisted_output_cut_preview"),
         ("claude-code", "Bash", "persisted_output"),
         ("claude-code", "Bash", "persisted_output_partial"),
         ("claude-code", "Bash", "bare_output"),

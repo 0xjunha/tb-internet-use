@@ -69,7 +69,7 @@ PROGRAM_OUTPUT_LINE_PATTERNS = OutputLinePatternTable(
         _make_program_output_pattern(
             "pip_externally_managed",
             OutputLineKind.REFUSED_LOCALLY,
-            r"externally-managed-environment",
+            r"^error: externally-managed-environment",
             r"^hint: See PEP 668",
             printed_only_by=PrintingProgram.PIP,
         ),
@@ -94,9 +94,11 @@ PROGRAM_OUTPUT_LINE_PATTERNS = OutputLinePatternTable(
             OutputLineKind.NAME_NOT_RESOLVED,
             r"Temporary failure in name resolution",
             r"Name or service not known",
-            r"nodename nor servname",
             r"No address associated with hostname",
             r"curl: \(6\)",
+            # Node.js and Go, e.g. `getaddrinfo ENOTFOUND registry.npmjs.org` and `dial tcp: lookup a.org: no such host`.
+            r"getaddrinfo ENOTFOUND",
+            r": no such host",
         ),
         _make_program_output_pattern(
             "tls_failure",
@@ -157,6 +159,8 @@ PROGRAM_OUTPUT_LINE_PATTERNS = OutputLinePatternTable(
             OutputLineKind.HTTP_STATUS,
             r"(?P<status_code>[45]\d\d) (?:Client|Server) Error",
             r"HTTP Error (?P<status_code>[45]\d\d)",
+            # httpx `raise_for_status`, e.g. `Client error '401 Unauthorized' for url 'https://a.org/x'`.
+            r"(?:Client|Server) error '(?P<status_code>[45]\d\d) ",
         ),
         _make_program_output_pattern(
             "npm_http_error",
@@ -176,6 +180,7 @@ PROGRAM_OUTPUT_LINE_PATTERNS = OutputLinePatternTable(
             OutputLineKind.NOT_FOUND,
             r"^E: Unable to locate package (?P<package_names_text>\S+)",
             r"^E: Package '(?P<package_names_text>[^']+)' has no installation candidate",
+            r"^E: Couldn't find any package by (?:glob|regex) '(?P<package_names_text>[^']+)'",
             printed_only_by=PrintingProgram.APT,
         ),
         _make_program_output_pattern(
@@ -216,12 +221,11 @@ PROGRAM_OUTPUT_LINE_PATTERNS = OutputLinePatternTable(
             printed_only_by=PrintingProgram.PIP_INDEX,
         ),
         # pip prints this for the metadata of a wheel, also when the wheel itself then comes from its cache as `Using cached x.whl`, so the line shows that the index answered but is no download of a package file.
-        # It keeps the printing programs of `downloading`, whose lines it took before.
         _make_program_output_pattern(
             "pip_downloading_metadata",
             OutputLineKind.SERVER_ANSWERED,
             r"^[ \t]*Downloading (?P<package_names_text>[\w.-]+\.metadata)\b",
-            printed_also_by=_DOWNLOAD_PRINTING_PROGRAMS,
+            printed_only_by=PrintingProgram.PIP,
         ),
         _make_program_output_pattern(
             "downloading",

@@ -825,9 +825,12 @@ _REAL_CATALOG_CASES = [
         "npm --prefix /app install",
         [UnknownNetworkRequestTarget(UnknownNetworkRequestTargetReason.NAMED_IN_FILE)],
     ),
-    ("git -C /app fetch", [None]),
+    # Without a repository word git fetch asks the remote that the configuration of the repository names.
+    (
+        "git -C /app fetch",
+        [UnknownNetworkRequestTarget(UnknownNetworkRequestTargetReason.NAMED_IN_FILE)],
+    ),
     ("git pull https://github.com/a/b", ["https://github.com/a/b"]),
-    ("git submodule update", [None]),
     # An option without a row of pip stops the reading before the subcommand, so no request is made from words that were not read.
     ("pip --foo install x", []),
 ]
@@ -885,6 +888,12 @@ _REVIEWED_REAL_CATALOG_CASES = [
     ("dnf install -y curl", [("curl", PACKAGE_NAME, (), CONFIRMED)], set()),
     ("bun add -d x", [("x", PACKAGE_NAME, (), CONFIRMED)], set()),
     ("sbt -batch compile", [(NAMED_IN_FILE, PACKAGE_NAME, (), UNCERTAIN)], set()),
+    # git submodule update fetches only the commits that are not there yet, from the addresses that .gitmodules names.
+    (
+        "git submodule update",
+        [(NAMED_IN_FILE, REPOSITORY_URL, (), UNCERTAIN)],
+        set(),
+    ),
     # The wrappers have no row of their own in the request catalog, and the request is that of curl.
     (
         "strace -f -o t.txt -e trace=network curl https://a.org",

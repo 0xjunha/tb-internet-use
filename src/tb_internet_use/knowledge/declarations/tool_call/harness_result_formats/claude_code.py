@@ -104,6 +104,13 @@ _BASH_OK = HarnessResultFormatList[str](
             fixed_handle_kind=ExecutionHandleKind.COMMAND,
         ),
         # The text says only that the output was too large and where it was saved, not how the command ended, so the status comes from the rule of `bare_output`.
+        # Claude Code writes `...` after a preview that more output follows, which every such result of terminal-bench 4.1 has.
+        Text(
+            "persisted_output_cut_preview",
+            _PERSISTED_HEAD + "{tool_output:text}\n...\n</persisted-output>",
+            judgment_rule="treat_bash_output_without_exit_code_line_as_finished",
+            is_truncated=True,
+        ),
         Text(
             "persisted_output",
             _PERSISTED_HEAD + "{tool_output:text}\n</persisted-output>",

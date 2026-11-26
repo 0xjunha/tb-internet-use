@@ -22,7 +22,7 @@ A cell holds a fact, a word that stands for a value, e.g. `none` or `changes_not
 | `printing_programs` | both | `PrintingProgram` values split by one space, e.g. `uv pip`, the names that the output line patterns give to what prints their lines. `none` in a program row for a run that prints no line of a pattern, `changes_nothing` in an option row | Unknown |
 | `prints_status_code` | both | `yes` when the run prints a bare status code, e.g. curl with `-w '%{http_code}'`, `no`, or `changes_nothing` in an option row | Unknown |
 
-[`program_exit_codes.csv`](program_exit_codes.csv) has one row per program run or option and exit code. The meaning of an option row that is not `changes_nothing` takes the place of that of the program row, e.g. `request_succeeded` for exit 0 of `curl -f`, and two such option rows that differ make the answer unknown. A blank meaning in any row of the run, the program row included, makes the answer unknown.
+[`program_exit_codes.csv`](program_exit_codes.csv) has one row per program run or option and exit code. The meaning of an option row that is not `changes_nothing` takes the place of that of the program row, and two such option rows that differ make the answer unknown. Exit 0 of `curl -f` keeps the meaning of the program row, since curl ends with 0 also after an answer 401, 407 or 3xx. A blank meaning in any row of the run, the program row included, makes the answer unknown.
 
 | Column | Row | Cell | Blank |
 |---|---|---|---|

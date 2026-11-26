@@ -213,7 +213,7 @@ Each use of a rule is counted in the `judgment_rule_use_counts` of `convert_tool
 
 | Function | Where it is applied | Choice |
 |---|---|---|
-| `treat_bash_output_without_exit_code_line_as_finished` | Claude Code `Bash` formats `bare_output`, `persisted_output` and `persisted_output_partial` | Output without an `Exit code` line is a finished command |
+| `treat_bash_output_without_exit_code_line_as_finished` | Claude Code `Bash` formats `bare_output`, `persisted_output_cut_preview`, `persisted_output` and `persisted_output_partial` | Output without an `Exit code` line is a finished command |
 | `treat_bash_output_without_exit_code_line_as_exit_code_0` | [claude_code.py](harnesses/claude_code.py) | Such a command that its structured result does not call interrupted or give a `returnCodeInterpretation` exited 0 |
 | `treat_script_syntax_error_as_not_run` | Codex `exec` format `failed_syntax` | A script that failed with a `SyntaxError` ran nothing |
 | `treat_web_search_call_without_content_as_finished` | Codex `web_search_call` format `no_content` | A `web_search_call` result without content is a finished search |

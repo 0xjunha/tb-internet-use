@@ -196,7 +196,14 @@ EXAMPLE_LINES: list[
         {},
     ),
     (
-        "nodename nor servname provided",
+        "Error: getaddrinfo ENOTFOUND registry.npmjs.org",
+        "name_resolution_failure",
+        K.NAME_NOT_RESOLVED,
+        _ANY,
+        {},
+    ),
+    (
+        "dial tcp: lookup a.org on 127.0.0.11:53: no such host",
         "name_resolution_failure",
         K.NAME_NOT_RESOLVED,
         _ANY,
@@ -498,7 +505,7 @@ EXAMPLE_LINES: list[
         "  Downloading music21-10.5.2-py3-none-any.whl.metadata (6.5 kB)",
         "pip_downloading_metadata",
         K.SERVER_ANSWERED,
-        _DOWNLOADS,
+        _only(P.PIP),
         {"package_names_text": "music21-10.5.2-py3-none-any.whl.metadata"},
     ),
     (
@@ -676,6 +683,8 @@ LINES_WITHOUT_MEANING = [
     "curl: (28) Operation timed out after 5000 milliseconds",
     "Max retries exceeded with url: /x",
     "cat: /tmp/missing.txt: No such file or directory",
+    # The BSD and macOS wording of a failed name lookup, which a Linux container does not print.
+    "nodename nor servname provided, or not known",
     "Successfully built x",
     "Error response from daemon: not found",
     "echo Downloading x",
@@ -999,27 +1008,27 @@ _PRINTING_PROGRAMS_NOT_GIVEN_BY_A_PROGRAM_ROW = {P.CODE}
 # (program, subcommand words, answer of `program_output_lines`, answer of `program_exit_code_meaning` for exit 0) of real program rows, with every subcommand of several words.
 # The answers were read from the two CSVs by hand, so that a changed cell or a row lost from either file fails.
 _ANSWERS_OF_REAL_PROGRAM_ROWS = [
-    ("agent-browser", ("install",), _lines(P.PLAYWRIGHT, P.APT), _UNKNOWN_MEANING),
+    ("agent-browser", ("install",), _lines(P.PLAYWRIGHT), _UNKNOWN_MEANING),
     ("apt", ("install",), _lines(P.APT), M.NOTHING),
     ("apt-get", ("update",), _lines(P.APT), M.NOTHING),
     ("bunx", (), _lines(P.NPM), M.NOTHING),
     ("conda", ("install",), UnknownProgramOutputLines(), M.NOTHING),
     ("curl", (), _lines(P.CURL), M.SERVER_ANSWERED),
     ("getent", ("hosts",), _lines(), M.NOTHING),
-    ("gh", ("api",), _lines(P.GIT), M.REQUEST_SUCCEEDED),
+    ("gh", ("api",), _lines(), M.REQUEST_SUCCEEDED),
     ("git", ("clone",), _lines(P.GIT), M.REQUEST_SUCCEEDED),
     ("git", ("submodule", "update"), _lines(P.GIT), M.NOTHING),
     ("go", ("mod", "tidy"), UnknownProgramOutputLines(), M.NOTHING),
     ("huggingface-cli", ("download",), UnknownProgramOutputLines(), M.NOTHING),
     ("npm", ("audit",), _lines(P.NPM), _UNKNOWN_MEANING),
-    ("npm", ("view",), _lines(P.NPM), M.REQUEST_SUCCEEDED),
+    ("npm", ("view",), _lines(P.NPM), M.NOTHING),
     ("pip", ("index", "versions"), _lines(P.PIP, P.PIP_INDEX), _UNKNOWN_MEANING),
     ("pip", ("install",), _lines(P.PIP), M.NOTHING),
-    ("playwright", ("install-deps",), _lines(P.PLAYWRIGHT, P.APT), _UNKNOWN_MEANING),
+    ("playwright", ("install-deps",), _lines(P.APT), _UNKNOWN_MEANING),
     ("lake", ("build",), _lines(P.LAKE), M.NOTHING),
     ("sbt", (), _lines(P.IVY), M.NOTHING),
-    ("uv", ("pip", "install"), _lines(P.UV, P.PIP), M.NOTHING),
-    ("uv", ("run",), _lines(P.UV, P.PIP), M.NOTHING),
+    ("uv", ("pip", "install"), _lines(P.UV), M.NOTHING),
+    ("uv", ("run",), _lines(P.UV), M.NOTHING),
     ("wget", (), _lines(P.WGET), M.REQUEST_SUCCEEDED),
 ]
 _NOT_CHECKED = "not checked, from the old table"
@@ -1628,15 +1637,16 @@ def test_real_catalog_holds_the_curl_and_wget_options_of_the_old_rules(
 
 
 @pytest.mark.parametrize("option_name", ["-f", "--fail", "--fail-with-body"])
-def test_real_catalog_says_that_exit_zero_of_curl_with_a_fail_option_means_success(
+def test_real_catalog_says_that_exit_zero_of_curl_with_a_fail_option_means_only_an_answer(
     option_name,
 ):
+    # curl ends with 0 also after an answer 401, 407 or 3xx, which the fail options let through.
     knowledge = NetworkRequestResultKnowledge()
     invocation = _invocation("curl", options=(ProgramOption(option_name, None),))
 
     assert (
         knowledge.program_exit_code_meaning(invocation, 0)
-        == ProgramExitCodeMeaning.REQUEST_SUCCEEDED
+        == ProgramExitCodeMeaning.SERVER_ANSWERED
     )
     assert (
         knowledge.program_exit_code_meaning(_invocation("curl"), 0)
@@ -1709,7 +1719,7 @@ _ANSWERS_OF_REAL_RUNS_WITH_OPTIONS = [
         (),
         _options("-f", "-s", "-O"),
         _lines(P.CURL, P.HTTP_FAILURE),
-        M.REQUEST_SUCCEEDED,
+        M.SERVER_ANSWERED,
     ),
     (
         "curl",

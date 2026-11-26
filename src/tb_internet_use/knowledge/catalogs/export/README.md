@@ -31,7 +31,7 @@ In each file a blank is unknown only in the column that answers the question of 
 | `program_name` | The program name of the row of `program_behaviors.csv`, e.g. `pip` | Fails the load |
 | `subcommand` | The subcommand words split by one space, e.g. `index versions` | The program without subcommand words, e.g. `npx` |
 | `package_registry` | The registry name, e.g. `pypi` | Unknown, and then `package_registry_host_names` is blank too |
-| `package_registry_host_names` | The hosts that the program asks when no configuration names another, in lower case and split by one space, e.g. `deb.debian.org archive.ubuntu.com` for `apt-get` | Blank exactly when `package_registry` is |
+| `package_registry_host_names` | The hosts that the program asks when no configuration names another, in lower case and split by one space, without the hosts of the files that the answers link to, e.g. `files.pythonhosted.org` of pip, e.g. `deb.debian.org archive.ubuntu.com security.ubuntu.com` for `apt-get` | Blank exactly when `package_registry` is |
 
 The default hosts hold only where no configuration that the trajectory does not show, e.g. `pip.conf` or `PIP_INDEX_URL`, names another.
 
@@ -43,6 +43,6 @@ All three files end with the same three columns.
 | `reviewed` | `yes` once a person has reviewed the row, `agents` once three agents each checked the row against a primary source and all found every value right, two of them seeing the values and one filling them without seeing them | Not reviewed yet |
 | `note` | Free text, e.g. what the check does not cover | Nothing to note |
 
-A host enters `public_hosts.csv` only when a page of the host itself, or a page of the service that runs it, says which `HostService` it gives, e.g. the GitHub documentation for `github.com`. Host names come from the trajectories, so a row holds only the host of a widely used public service. Such a host gets a row even when it occurs in the trajectories of one task only, while a host that is no such service gets none, since its name could show the content of a task. A host that serves an API, e.g. `rest.uniprot.org`, gets the service `web_api`, and a path that serves search results gets `search_engine`, e.g. `/search/` of `api.github.com`.
+A host enters `public_hosts.csv` only when a page of the host itself, or a page of the service that runs it, says which `HostService` it gives, e.g. the GitHub documentation for `github.com`. Host names come from the trajectories, so a row holds only the host of a widely used public service. Such a host gets a row even when it occurs in the trajectories of one task only, while a host that is no such service gets none, since its name could show the content of a task. A host that serves an API, e.g. `rest.uniprot.org`, gets the service `web_api`, also when the API searches one database, e.g. `search.rcsb.org`, and a path that serves search results gets `search_engine`, e.g. `/search/` of `api.github.com`.
 
 A row that `export_rows` cannot use raises `ValueError` when the catalog is loaded, e.g. a host name with a capital letter, a `path_prefix` that does not start with `/`, a `service` that is no `HostService`, a `sender` of `unknown` or host names without a registry. No script writes the three CSVs.

@@ -834,7 +834,7 @@ def test_a_line_without_an_owner_is_counted_first_as_no_place_then_as_file_conte
         lines(K1, "Downloading torch-2.3.0")
         + lines(K2, "Downloading x")
         + lines(K3, "Connection refused")
-        + lines(key_of(4), "externally-managed-environment"),
+        + lines(key_of(4), "error: externally-managed-environment"),
         [call(K1, cat), call(K2, *cat_and_setup), call(K3, setup), call(key_of(4))],
         [],
     )
@@ -926,14 +926,14 @@ def test_code_typed_through_a_poll_owns_lines_of_the_typing_call_and_of_later_pl
 
 
 def test_a_request_in_code_reaches_a_place_through_the_command_that_ran_the_code_and_prints_what_its_last_program_prints():
-    # `python get.py; python put.py > /dev/null`, each with a request in its code, and `Connection refused`. `sudo uv run get.py`, whose last program `uv run` prints lines of uv and pip and none of npm, while sudo has no row.
+    # `python get.py; python put.py > /dev/null`, each with a request in its code, and `Connection refused`. `sudo uv run get.py`, whose last program `uv run` prints lines of uv and none of npm, while sudo has no row.
     get = command(0, "python get.py", program("python"))
     put = command(1, "python put.py", program("python"))
     uv_run = command(0, "sudo uv run get.py", program("sudo"), program("uv", "run"))
     decided = decide(
         [place(K1, (K1, (0,))), place(K2, (K2, (0,)))],
         lines(K1, "Connection refused")
-        + lines(K2, "Requirement already satisfied: x\nnpm ERR! code E404"),
+        + lines(K2, "Audited 1 package\nnpm ERR! code E404"),
         [call(K1, get, put), call(K2, uv_run)],
         [
             request(K1, from_code(0, "get.py"), "https://a.org/x"),

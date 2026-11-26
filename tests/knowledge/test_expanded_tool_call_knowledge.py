@@ -257,8 +257,8 @@ _CODE_RUNNER_ROWS_THAT_CANNOT_LOAD = [
 _PROGRAMS_LEFT_OUT = frozenset({"clang", "stdbuf", "tsx"})
 # Wrappers whose page shows no `NAME=value` words before the command, which the old tables let them skip, e.g. `time [option ...] command [argument ...]` of time(1), since the bash reserved word time is no program.
 _WRAPPERS_THAT_SKIP_NO_ASSIGNMENT_WORDS_BY_THE_PAGE = frozenset({"time"})
-# Programs that the old tables let read stdin, whose page says what they show when they read stdin but not that they read it when no file is given, e.g. strings(1).
-_FILE_READERS_WITHOUT_STDIN_BY_THE_PAGE = frozenset({"strings"})
+# Programs that the old tables let read stdin, which read it only for a word `-`, e.g. `diff - b`, so their stdin_role is none.
+_FILE_READERS_READING_STDIN_ONLY_FOR_A_DASH = frozenset({"diff"})
 # Options that the old tables gave every shell and that only bash has, since dash(1) lists no -O or +O.
 _SHELL_OPTIONS_OF_BASH_ONLY = frozenset({"-O", "+O"})
 # Programs whose option rows of the old tables went to a subcommand row, since the old tables gave them to every subcommand, with that subcommand, or None when no one subcommand holds them and some were left out, e.g. git `-b`, which no row of `git clone` or `git checkout` holds.
@@ -275,6 +275,12 @@ _SUBCOMMAND_HOLDING_OPTIONS_BY_PROGRAM_NAME = {
 _PROGRAMS_WHOSE_OPTIONS_END_AT_FIRST_ARGUMENT_BY_THE_PAGE = frozenset(
     {"awk", "npx", "pnpm", "uv"}
 )
+# Options of the old tables that the program does not have, so they have no row, by program, e.g. `-e` of `uv run`, which uv answers with `unexpected argument '-e' found`.
+_OPTIONS_LEFT_OUT_BY_THE_PAGE = {"pnpm": {"-p"}, "uv": {"-e"}}
+# Programs whose page shows a name with a version at its end, which the old tables did not allow, e.g. `/usr/bin/g++-12` of the Debian package g++-12.
+_PROGRAMS_WITH_VERSIONED_NAMES_BY_THE_PAGE = frozenset({"g++", "perl"})
+# Programs whose one-letter options do not join in one word by the source, which the old tables let join, e.g. node, whose `-pe` is an option of its own.
+_PROGRAMS_WHOSE_ONE_LETTER_OPTIONS_DO_NOT_JOIN_BY_THE_PAGE = frozenset({"node"})
 # Options whose page says they take no value, which the old tables read as taking one, by program.
 _OPTIONS_THAT_TAKE_NO_VALUE_BY_THE_PAGE = {
     # python -c and -m end the options of python, so they make the first argument the code or the module instead of taking a value.
@@ -1361,6 +1367,17 @@ def test_real_catalog_holds_no_invisible_control_characters(file_name):
     assert not [byte for byte in data if (byte < 0x20 and byte != 0x0A) or byte == 0x7F]
 
 
+@pytest.mark.parametrize(
+    "file_name", [PROGRAM_BEHAVIORS_CSV, PROGRAM_OPTION_BEHAVIORS_CSV, CODE_RUNNERS_CSV]
+)
+def test_real_catalog_rows_have_as_many_cells_as_the_header(file_name):
+    # A note with an unquoted comma splits into cells that the load does not read, e.g. the end of a note of torchrun.
+    with (EXPANDED_TOOL_CALL_CATALOGS_DIR / file_name).open(newline="") as csv_file:
+        header, *rows = csv.reader(csv_file)
+
+    assert [row[0] for row in rows if len(row) != len(header)] == []
+
+
 def test_real_catalogs_load(real_knowledge):
     # The load refuses a blank checked_against, a word that no column allows, two rows with one key and an option row whose program has no row.
     assert real_knowledge.program_behavior("cat", ()) != UnknownProgramBehavior()
@@ -1502,7 +1519,9 @@ def test_versioned_programs_of_the_old_tables_are_the_rows_that_allow_a_version(
         if row["name_may_end_with_version"] == "yes"
     }
 
-    assert versioned_names == _OLD_VERSIONED_PROGRAMS - _PROGRAMS_LEFT_OUT
+    assert versioned_names == (
+        _OLD_VERSIONED_PROGRAMS - _PROGRAMS_LEFT_OUT
+    ) | _PROGRAMS_WITH_VERSIONED_NAMES_BY_THE_PAGE
 
 
 def test_option_syntax_of_the_old_tables_is_in_the_option_rows(real_knowledge):
@@ -1518,11 +1537,14 @@ def test_option_syntax_of_the_old_tables_is_in_the_option_rows(real_knowledge):
             syntax.options_end_at_first_plain_argument
             or name in _PROGRAMS_WHOSE_OPTIONS_END_AT_FIRST_ARGUMENT_BY_THE_PAGE
         ), name
-        assert program_behavior.takes_one_letter_options_joined, name
+        assert program_behavior.takes_one_letter_options_joined is (
+            name not in _PROGRAMS_WHOSE_ONE_LETTER_OPTIONS_DO_NOT_JOIN_BY_THE_PAGE
+        ), name
         value_options = {f"-{letter}" for letter in syntax.short_options_with_value}
         value_options |= syntax.long_options_with_value
         taking_no_value = _OPTIONS_THAT_TAKE_NO_VALUE_BY_THE_PAGE.get(name, set())
-        for option_name in value_options | syntax.script_options:
+        left_out = _OPTIONS_LEFT_OUT_BY_THE_PAGE.get(name, set())
+        for option_name in (value_options | syntax.script_options) - left_out:
             option_behavior = _option_behavior_of(
                 real_knowledge, program_behavior, option_name
             )
@@ -1553,8 +1575,8 @@ def test_old_program_catalog_rows_that_read_files_or_run_the_next_program_are_ke
         program_behavior = _program_behavior_of(real_knowledge, name)
         assert program_behavior.argument_role == ProgramWordRole.READ_FILE, name
         assert program_behavior.stdin_role == (
-            UnknownProgramWordRole()
-            if name in _FILE_READERS_WITHOUT_STDIN_BY_THE_PAGE
+            None
+            if name in _FILE_READERS_READING_STDIN_ONLY_FOR_A_DASH
             else ProgramWordRole.READ_FILE
         ), name
     for name, subcommand_words in _OLD_PROGRAM_CATALOG_NEXT_PROGRAM_RUNNERS:

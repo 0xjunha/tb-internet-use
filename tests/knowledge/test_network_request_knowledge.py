@@ -282,6 +282,10 @@ _OPTION_ROWS_IN_THE_ORDER_THEY_ARE_TRIED = [
     ),
 ]
 # (program name, subcommand, option name, option value, effect) of the old option tables, as the real catalog must hold them.
+# Programs that the old tables let fetch always and whose source fetches only what is not there yet, e.g. `git submodule update`, which fetches nothing when the commit it needs is there.
+_PROGRAMS_THAT_FETCH_ONLY_WHAT_IS_MISSING_BY_THE_SOURCE = frozenset(
+    {("git", "submodule update"), ("go", "mod tidy"), ("npm", "create")}
+)
 _OPTION_EFFECTS_OF_THE_OLD_TABLES = [
     ("curl", "", "--version", "", ProgramOptionEffect.SENDS_NO_REQUEST),
     ("pip", "", "--help", "", ProgramOptionEffect.SENDS_NO_REQUEST),
@@ -299,7 +303,8 @@ _OPTION_EFFECTS_OF_THE_OLD_TABLES = [
         ProgramOptionEffect.FETCHES_ONLY_WHAT_IS_MISSING,
     ),
     ("pnpm", "", "--offline", "", ProgramOptionEffect.SENDS_NO_REQUEST),
-    ("npx", "", "--no-install", "", ProgramOptionEffect.SENDS_NO_REQUEST),
+    # The old tables said sends_no_request, but npx asks the registry for a package that is not there before --no-install stops it.
+    ("npx", "", "--no-install", "", ProgramOptionEffect.NONE),
     ("pip", "", "-i", "", ProgramOptionEffect.NAMES_HOST_IN_VALUE),
     ("pip", "", "--index-url", "", ProgramOptionEffect.NAMES_HOST_IN_VALUE),
     ("pip", "", "--extra-index-url", "", ProgramOptionEffect.NAMES_HOST_IN_VALUE),
@@ -347,7 +352,7 @@ _FETCHING_PROGRAM_LABELS_OF_NAMED_ROWS = [
             target_kind=NetworkRequestTargetKind.URL,
             target_notation=TargetNotation.URL,
             target_without_target_arguments=TargetWithoutTargetArguments.NO_TARGET,
-            content_route=UnknownProgramContentRoute(),
+            content_route=ProgramContentRoute.OWN_FILE,
         ),
     ),
     (
@@ -369,7 +374,7 @@ _FETCHING_PROGRAM_LABELS_OF_NAMED_ROWS = [
             fetches_only_what_is_missing=False,
             target_arguments=TargetArguments.ALL,
             target_kind=NetworkRequestTargetKind.URL,
-            target_notation=TargetNotation.URL,
+            target_notation=TargetNotation.URL_OR_SCHEMELESS_URL,
             target_without_target_arguments=TargetWithoutTargetArguments.NO_REQUEST,
             content_route=ProgramContentRoute.OWN_FILE,
         ),
@@ -383,7 +388,7 @@ _FETCHING_PROGRAM_LABELS_OF_NAMED_ROWS = [
             target_arguments=TargetArguments.FIRST,
             target_kind=NetworkRequestTargetKind.PACKAGE_NAME,
             target_notation=TargetNotation.NAME,
-            target_without_target_arguments=TargetWithoutTargetArguments.NO_TARGET,
+            target_without_target_arguments=TargetWithoutTargetArguments.NAMED_IN_FILE,
             content_route=ProgramContentRoute.STDOUT,
         ),
     ),
@@ -392,12 +397,12 @@ _FETCHING_PROGRAM_LABELS_OF_NAMED_ROWS = [
         "npm",
         ("create",),
         FetchingProgramLabel(
-            fetches_only_what_is_missing=False,
+            fetches_only_what_is_missing=True,
             target_arguments=TargetArguments.FIRST,
             target_kind=NetworkRequestTargetKind.PACKAGE_NAME,
             target_notation=TargetNotation.NAME,
-            target_without_target_arguments=TargetWithoutTargetArguments.NO_TARGET,
-            content_route=UnknownProgramContentRoute(),
+            target_without_target_arguments=TargetWithoutTargetArguments.NO_REQUEST,
+            content_route=ProgramContentRoute.OWN_FILE,
         ),
     ),
     (
@@ -408,7 +413,7 @@ _FETCHING_PROGRAM_LABELS_OF_NAMED_ROWS = [
             target_arguments=TargetArguments.ALL,
             target_kind=NetworkRequestTargetKind.PACKAGE_NAME,
             target_notation=TargetNotation.PIP_REQUIREMENT,
-            target_without_target_arguments=TargetWithoutTargetArguments.NO_TARGET,
+            target_without_target_arguments=TargetWithoutTargetArguments.NO_REQUEST,
             content_route=ProgramContentRoute.OWN_FILE,
         ),
     ),
@@ -420,7 +425,7 @@ _FETCHING_PROGRAM_LABELS_OF_NAMED_ROWS = [
             target_arguments=TargetArguments.FIRST,
             target_kind=NetworkRequestTargetKind.REPOSITORY_URL,
             target_notation=TargetNotation.URL_OR_SCP_LIKE_ADDRESS,
-            target_without_target_arguments=TargetWithoutTargetArguments.NO_TARGET,
+            target_without_target_arguments=TargetWithoutTargetArguments.NO_REQUEST,
             content_route=ProgramContentRoute.OWN_FILE,
         ),
     ),
@@ -433,7 +438,7 @@ _FETCHING_PROGRAM_LABELS_OF_NAMED_ROWS = [
             target_kind=NetworkRequestTargetKind.PACKAGE_NAME,
             target_notation=TargetNotation.NAME,
             target_without_target_arguments=TargetWithoutTargetArguments.NO_REQUEST,
-            content_route=UnknownProgramContentRoute(),
+            content_route=ProgramContentRoute.OWN_FILE,
         ),
     ),
     (
@@ -453,7 +458,7 @@ _FETCHING_PROGRAM_LABELS_OF_NAMED_ROWS = [
         (),
         FetchingProgramLabel(
             fetches_only_what_is_missing=False,
-            target_arguments=TargetArguments.FIRST,
+            target_arguments=TargetArguments.ALL,
             target_kind=NetworkRequestTargetKind.HOST,
             target_notation=TargetNotation.HOST_NAME,
             target_without_target_arguments=TargetWithoutTargetArguments.NO_REQUEST,
@@ -466,7 +471,7 @@ _FETCHING_PROGRAM_LABELS_OF_NAMED_ROWS = [
         FetchingProgramLabel(
             fetches_only_what_is_missing=False,
             target_arguments=TargetArguments.ALL,
-            target_kind=NetworkRequestTargetKind.HOST,
+            target_kind=NetworkRequestTargetKind.URL,
             target_notation=TargetNotation.RSYNC_ADDRESS,
             target_without_target_arguments=TargetWithoutTargetArguments.NO_REQUEST,
             content_route=UnknownProgramContentRoute(),
@@ -860,7 +865,10 @@ def test_every_program_row_of_the_old_catalog_has_a_row_with_the_cells_it_states
             continue
         if not old.request_kind:
             expected_fetches = "no"
-        elif old.fetches_only_to_run_or_build == "yes":
+        elif (
+            old.fetches_only_to_run_or_build == "yes"
+            or key in _PROGRAMS_THAT_FETCH_ONLY_WHAT_IS_MISSING_BY_THE_SOURCE
+        ):
             expected_fetches = "only_what_is_missing"
         else:
             expected_fetches = "yes"
