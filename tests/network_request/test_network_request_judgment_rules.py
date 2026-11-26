@@ -11,7 +11,7 @@ from tb_internet_use.network_request.judgment_rules import (
     treat_dotted_host_name_as_public,
     treat_single_label_or_templated_host_name_as_possibly_public,
     treat_url_of_namespace_host_as_no_target,
-    treat_values_outside_their_for_loop_as_one_request_each,
+    treat_values_outside_their_for_loop_as_unknown_target,
     treat_web_find_as_request,
 )
 from tb_internet_use.network_request.model import (
@@ -66,13 +66,13 @@ def test_values_outside_their_for_loop_give_no_request_of_their_own_and_are_coun
     branches = VariableValues("A", ("1", "2"), False, False)
 
     assert (
-        treat_values_outside_their_for_loop_as_one_request_each(
+        treat_values_outside_their_for_loop_as_unknown_target(
             branches, use_counts=use_counts
         )
         == ()
     )
     assert use_counts == Counter(
-        {"treat_values_outside_their_for_loop_as_one_request_each": 1}
+        {"treat_values_outside_their_for_loop_as_unknown_target": 1}
     )
 
 

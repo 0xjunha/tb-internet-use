@@ -15,9 +15,9 @@ from tb_internet_use.expanded_tool_call._expand_ran_texts import (
     RanTextsOfToolCall,
 )
 from tb_internet_use.expanded_tool_call.judgment_rules import (
-    treat_poll_result_as_showing_every_command_of_starter,
+    treat_poll_result_of_several_commands_as_showing_none,
     treat_read_of_output_path_of_several_calls_as_showing_each,
-    treat_script_step_output_as_shown_in_call_result,
+    treat_script_step_output_as_not_shown_in_call_result,
 )
 from tb_internet_use.expanded_tool_call.model import (
     CallCommandText,
@@ -61,7 +61,7 @@ def expand_output_places(
     `ran_texts_of_tool_calls` and `poll_links` are what `expand_ran_texts` and `expand_poll_links` gave for the same calls.
     A command reaches a place when one of its output routes ends in the result, e.g. both commands of `curl u | tail -1`, and not when they all end in a file, are captured by `$(...)` or are thrown away.
     A place is a result that the trajectory holds, so a call without a result, a result without tool output text and a result that is `NOT_RUN` show nothing, and a call whose own result is `NOT_RUN` has no places.
-    Every use of `treat_script_step_output_as_shown_in_call_result`, `treat_poll_result_as_showing_every_command_of_starter` and `treat_read_of_output_path_of_several_calls_as_showing_each` adds one to `judgment_rule_use_counts`.
+    Every use of `treat_script_step_output_as_not_shown_in_call_result`, `treat_poll_result_of_several_commands_as_showing_none` and `treat_read_of_output_path_of_several_calls_as_showing_each` adds one to `judgment_rule_use_counts`.
     """
     tool_call_by_key = {
         tool_call.harness_tool_call.key: tool_call for tool_call in tool_calls
@@ -219,13 +219,13 @@ def _result_command_groups_of(
 def _is_shown_in_own_result(
     result_command_group: _ResultCommandGroup, judgment_rule_use_counts: Counter[str]
 ) -> bool:
-    """Tell whether the call's own result shows the output of a group, asking `treat_script_step_output_as_shown_in_call_result` for a step of a tool script, whose one result is what its code prints."""
+    """Tell whether the call's own result shows the output of a group, asking `treat_script_step_output_as_not_shown_in_call_result` for a step of a tool script, whose one result is what its code prints."""
     match result_command_group.own_text_source:
         case (
             ScriptStepText(step_index=step_index)
             | PollInputText(step_index=int() as step_index)
         ):
-            return treat_script_step_output_as_shown_in_call_result(
+            return not treat_script_step_output_as_not_shown_in_call_result(
                 step_index, use_counts=judgment_rule_use_counts
             )
         case _:
@@ -238,7 +238,7 @@ def _expand_output_places_of_polls(
     tool_call_by_key: Mapping[ToolCallKey, ToolCall],
     judgment_rule_use_counts: Counter[str],
 ) -> list[OutputPlace]:
-    """Expand the polls whose results show the output of commands that run in what they poll, asking `treat_poll_result_as_showing_every_command_of_starter` for each poll when there are several commands."""
+    """Expand the polls whose results show the output of commands that run in what they poll, asking `treat_poll_result_of_several_commands_as_showing_none` for each poll when there are several commands."""
     if not command_ids:
         return []
     return [
@@ -247,7 +247,7 @@ def _expand_output_places_of_polls(
         if _has_result_showing_output(tool_call_by_key[poll_tool_call_key])
         and (
             len(command_ids) == 1
-            or treat_poll_result_as_showing_every_command_of_starter(
+            or not treat_poll_result_of_several_commands_as_showing_none(
                 use_counts=judgment_rule_use_counts
             )
         )

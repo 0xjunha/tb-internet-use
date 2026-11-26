@@ -13,7 +13,7 @@ from tb_internet_use.expanded_tool_call import (
     expand_tool_calls,
 )
 from tb_internet_use.expanded_tool_call.judgment_rules import (
-    treat_word_with_expansion_as_one_argument,
+    treat_word_with_expansion_as_start_of_unread_words,
 )
 from tb_internet_use.expanded_tool_call.model import (
     ArgumentText,
@@ -680,13 +680,13 @@ def test_the_counts_of_every_piece_reach_the_counter_of_the_caller(knowledge):
     assert judgment_rule_use_counts == Counter(
         {
             # From `expand_poll_links`, for the handle of c6 that c1 and c5 started.
-            "treat_poll_as_reading_latest_earlier_start_of_handle": 1,
+            "treat_poll_of_handle_that_several_calls_started_as_not_linked": 1,
             # From `expand_ran_texts`, which matches run.sh to /app/run.sh once to follow its text and once to record its use.
             "treat_path_that_ends_another_as_same_file": 2,
             # From `expand_command_text_status`.
             "treat_first_poll_that_saw_end_as_command_text_status": 1,
             # From `expand_output_places`, for the two commands of c1 in its poll c2.
-            "treat_poll_result_as_showing_every_command_of_starter": 1,
+            "treat_poll_result_of_several_commands_as_showing_none": 1,
         }
     )
     assert knowledge.uses.unknown_input_counts == Counter(
@@ -773,8 +773,8 @@ def test_a_value_set_at_run_time_is_unknown(knowledge, monkeypatch):
     # The text of bash -c is followed only on the other answer of the rule on words with an expansion, which reads `"$CMD"` as one argument.
     monkeypatch.setattr(
         _expand_program_invocations,
-        treat_word_with_expansion_as_one_argument.__name__,
-        lambda word, *, use_counts: True,
+        treat_word_with_expansion_as_start_of_unread_words.__name__,
+        lambda word, *, use_counts: False,
     )
     substitution, built_text = _expand(
         knowledge, _call(1, "curl $(cat urls.txt)"), _call(2, 'bash -c "$CMD"')

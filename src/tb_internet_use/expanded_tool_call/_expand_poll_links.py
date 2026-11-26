@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 from tb_internet_use.expanded_tool_call.judgment_rules import (
     treat_calls_of_other_trajectory_as_not_linked,
-    treat_poll_as_reading_latest_earlier_start_of_handle,
+    treat_poll_of_handle_that_several_calls_started_as_not_linked,
     treat_script_poll_step_naming_no_handle_as_polling_none,
 )
 from tb_internet_use.tool_call.model import (
@@ -68,7 +68,7 @@ def expand_poll_links(
     """Link each poll of one trial to the calls that started the handles it names, and each starter to its later polls, in the order of `tool_calls`.
 
     A handle is matched by its id and its kind, since `ExecutionHandle` carries both and a command and a subagent can have the same id.
-    Every use of `treat_script_poll_step_naming_no_handle_as_polling_none`, `treat_poll_as_reading_latest_earlier_start_of_handle` and `treat_calls_of_other_trajectory_as_not_linked` adds one to `judgment_rule_use_counts`.
+    Every use of `treat_script_poll_step_naming_no_handle_as_polling_none`, `treat_poll_of_handle_that_several_calls_started_as_not_linked` and `treat_calls_of_other_trajectory_as_not_linked` adds one to `judgment_rule_use_counts`.
     """
     polled_handles_of_tool_calls = [
         _polled_handles_of(tool_call, judgment_rule_use_counts)
@@ -267,14 +267,14 @@ def _choose_latest_starter_tool_call_key(
     earlier_handle_starts: Sequence[_HandleStart],
     judgment_rule_use_counts: Counter[str],
 ) -> ToolCallKey | None:
-    """Choose the latest of the earlier calls that started a handle, asking `treat_poll_as_reading_latest_earlier_start_of_handle` when there are several."""
+    """Choose the one earlier call that started a handle, or the latest of several unless `treat_poll_of_handle_that_several_calls_started_as_not_linked` leaves the poll unlinked."""
     if len(earlier_handle_starts) == 1:
         return earlier_handle_starts[0].starter_tool_call_key
-    if treat_poll_as_reading_latest_earlier_start_of_handle(
+    if treat_poll_of_handle_that_several_calls_started_as_not_linked(
         use_counts=judgment_rule_use_counts
     ):
-        return earlier_handle_starts[-1].starter_tool_call_key
-    return None
+        return None
+    return earlier_handle_starts[-1].starter_tool_call_key
 
 
 def trajectory_of(tool_call: ToolCall) -> Trajectory:

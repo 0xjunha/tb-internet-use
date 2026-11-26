@@ -18,7 +18,7 @@ from tb_internet_use.expanded_tool_call._expand_written_files import (
     expand_written_files,
 )
 from tb_internet_use.expanded_tool_call.judgment_rules import (
-    treat_use_of_path_that_fits_several_written_files_as_use_of_each,
+    treat_use_of_path_that_fits_several_written_files_as_use_of_none,
 )
 from tb_internet_use.expanded_tool_call.model import (
     FileUse,
@@ -418,8 +418,8 @@ def test_a_use_whose_path_fits_several_written_files_is_on_none_or_on_each_and_m
 ):
     monkeypatch.setattr(
         _expand_ran_texts,
-        treat_use_of_path_that_fits_several_written_files_as_use_of_each.__name__,
-        lambda path, *, use_counts: is_use_of_each,
+        treat_use_of_path_that_fits_several_written_files_as_use_of_none.__name__,
+        lambda path, *, use_counts: not is_use_of_each,
     )
     written_files = _written_files(
         knowledge,

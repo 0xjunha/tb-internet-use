@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 from tb_internet_use.expanded_tool_call import _expand_ran_texts, expand_tool_calls
 from tb_internet_use.expanded_tool_call.judgment_rules import (
-    treat_last_command_of_starter_as_reader_of_typed_text,
+    treat_typed_text_as_of_unknown_language,
 )
 from tb_internet_use.expanded_tool_call.model import (
     ArgumentText,
@@ -874,8 +874,8 @@ def test_code_typed_through_a_poll_owns_lines_of_the_typing_call_and_of_later_pl
     # The typed text is code only on the other answer of the rule on the reader of typed text, which takes `python3` as its reader.
     monkeypatch.setattr(
         _expand_ran_texts,
-        treat_last_command_of_starter_as_reader_of_typed_text.__name__,
-        lambda *, use_counts: True,
+        treat_typed_text_as_of_unknown_language.__name__,
+        lambda *, use_counts: False,
     )
     handle = ExecutionHandle(ExecutionHandleKind.COMMAND, "s")
     running = ToolCallResult(

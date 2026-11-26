@@ -21,11 +21,11 @@ from tb_internet_use.expanded_tool_call._expand_ran_texts import (
 )
 from tb_internet_use.expanded_tool_call.judgment_rules import (
     treat_calls_of_other_trajectory_as_not_linked,
-    treat_copy_with_two_arguments_as_same_content,
-    treat_extension_of_file_without_interpreter_line_as_its_language,
-    treat_last_command_of_starter_as_reader_of_typed_text,
-    treat_use_of_path_that_fits_several_written_files_as_use_of_each,
-    treat_word_with_expansion_as_one_argument,
+    treat_copy_with_two_arguments_as_unknown_content,
+    treat_file_without_interpreter_line_as_of_unknown_language,
+    treat_typed_text_as_of_unknown_language,
+    treat_use_of_path_that_fits_several_written_files_as_use_of_none,
+    treat_word_with_expansion_as_start_of_unread_words,
 )
 from tb_internet_use.expanded_tool_call.model import (
     ArgumentText,
@@ -77,17 +77,15 @@ NOT_RUN = ToolCallResult(execution_status=ExecutionStatus.NOT_RUN)
 HANDLE = ExecutionHandle(ExecutionHandleKind.COMMAND, "h1")
 RUNNING = ToolCallResult(execution_status=ExecutionStatus.RUNNING, handles=(HANDLE,))
 OTHER_TRAJECTORY_RULE_NAME = treat_calls_of_other_trajectory_as_not_linked.__name__
-COPY_RULE_NAME = treat_copy_with_two_arguments_as_same_content.__name__
+COPY_RULE_NAME = treat_copy_with_two_arguments_as_unknown_content.__name__
 EXTENSION_RULE_NAME = (
-    treat_extension_of_file_without_interpreter_line_as_its_language.__name__
+    treat_file_without_interpreter_line_as_of_unknown_language.__name__
 )
-TYPED_TEXT_READER_RULE_NAME = (
-    treat_last_command_of_starter_as_reader_of_typed_text.__name__
-)
+TYPED_TEXT_LANGUAGE_RULE_NAME = treat_typed_text_as_of_unknown_language.__name__
 SEVERAL_WRITTEN_FILES_USE_RULE_NAME = (
-    treat_use_of_path_that_fits_several_written_files_as_use_of_each.__name__
+    treat_use_of_path_that_fits_several_written_files_as_use_of_none.__name__
 )
-EXPANSION_RULE_NAME = treat_word_with_expansion_as_one_argument.__name__
+EXPANSION_RULE_NAME = treat_word_with_expansion_as_start_of_unread_words.__name__
 
 # Made-up rows, each named by the program and the cells that differ from the defaults of `conftest.py`. mytool, gdb and test have no row, and the row of echo gives its words no file role.
 PROGRAM_BEHAVIOR_ROWS: list[dict[str, str]] = [
@@ -321,7 +319,7 @@ def expansion_word_read_as_one_word(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         _expand_program_invocations,
         EXPANSION_RULE_NAME,
-        lambda word, *, use_counts: True,
+        lambda word, *, use_counts: False,
     )
 
 
@@ -621,7 +619,7 @@ FILE_CHANGE_CASES = [
 
 
 # (case id, text typed into the handle that the starting call started, the command of the starting call or None when no call started it, the expected texts of the poll)
-# On the other answer of `treat_last_command_of_starter_as_reader_of_typed_text`, the reader of typed text is the innermost program of the last command of the starting call.
+# On the other answer of `treat_typed_text_as_of_unknown_language`, the reader of typed text is the innermost program of the last command of the starting call.
 TYPED_TEXT_CASES = [
     ("shell", "curl u\n", "bash", [(PollInputText(None, K1), (("curl", "u"),))]),
     ("code", "import x\n", "python3", [(PollInputText(None, K1), "python:import x\n")]),
@@ -1040,7 +1038,7 @@ def test_a_path_that_fits_several_written_files(knowledge: ExpandedToolCallKnowl
 def test_a_use_of_a_path_that_fits_several_written_files_is_on_each_on_the_other_answer(
     knowledge: ExpandedToolCallKnowledge, monkeypatch: pytest.MonkeyPatch
 ):
-    _answer(monkeypatch, SEVERAL_WRITTEN_FILES_USE_RULE_NAME, True)
+    _answer(monkeypatch, SEVERAL_WRITTEN_FILES_USE_RULE_NAME, False)
     results = _expand(
         knowledge,
         _call(1, WriteFileAction("/a/fetch.sh", "curl a")),
@@ -1502,7 +1500,7 @@ def test_language_of_a_written_file_that_a_command_runs(
 def test_a_file_without_an_interpreter_line_is_read_by_its_extension_on_the_other_answer(
     knowledge: ExpandedToolCallKnowledge, monkeypatch: pytest.MonkeyPatch
 ):
-    _answer(monkeypatch, EXTENSION_RULE_NAME, True)
+    _answer(monkeypatch, EXTENSION_RULE_NAME, False)
     by_extension, without_extension = (
         _last_text(
             knowledge, _call(1, WriteFileAction(path, "import x")), _call(2, path)
@@ -1519,7 +1517,7 @@ def test_a_file_without_an_interpreter_line_is_read_by_its_extension_on_the_othe
 def test_a_copy_has_the_content_of_its_source_on_the_other_answer(
     knowledge: ExpandedToolCallKnowledge, monkeypatch: pytest.MonkeyPatch
 ):
-    _answer(monkeypatch, COPY_RULE_NAME, True)
+    _answer(monkeypatch, COPY_RULE_NAME, False)
     ran_text = _last_text(
         knowledge,
         _call(1, WriteFileAction("f.sh", "curl a")),
@@ -1695,7 +1693,7 @@ def test_text_typed_into_a_started_handle_on_the_other_answer_of_the_reader_rule
     ran_texts: list[tuple[object, object]],
 ):
     use_counts: Counter[str] = Counter()
-    _answer(monkeypatch, TYPED_TEXT_READER_RULE_NAME, True)
+    _answer(monkeypatch, TYPED_TEXT_LANGUAGE_RULE_NAME, False)
     # Without a starter text the first call ends and starts no handle.
     results = _expand(
         knowledge,
@@ -1728,7 +1726,7 @@ def test_text_typed_into_a_started_handle_is_of_a_language_not_known(
     assert _texts_with_words(results[-1].ran_texts) == [
         (PollInputText(None, K1), Reason.LANGUAGE_NOT_KNOWN)
     ]
-    assert use_counts[TYPED_TEXT_READER_RULE_NAME] == 1
+    assert use_counts[TYPED_TEXT_LANGUAGE_RULE_NAME] == 1
 
 
 @pytest.mark.parametrize(
@@ -1793,7 +1791,7 @@ def test_rules_counted_by_their_situation(knowledge: ExpandedToolCallKnowledge):
     )
 
     assert use_counts["treat_command_under_run_condition_as_run"] == 1
-    assert use_counts["treat_copy_with_two_arguments_as_same_content"] == 1
+    assert use_counts["treat_copy_with_two_arguments_as_unknown_content"] == 1
     assert use_counts["treat_outer_assignment_as_not_visible_in_new_shell"] == 1
     assert use_counts["treat_file_not_named_by_command_words_as_untouched"] == 1
     # The use of f.sh by cat asks the rule on two paths, and the copy, whose content is unknown by a rule, does not look up its source.
@@ -2083,7 +2081,7 @@ def test_a_copy_with_three_arguments_writes_no_copy(
     assert run.ran_texts[-1] == UnknownRanText(
         FileTextWithoutKnownWriter(0, "c.sh"), Reason.NOT_WRITTEN_IN_TRIAL
     )
-    assert use_counts["treat_copy_with_two_arguments_as_same_content"] == 0
+    assert use_counts["treat_copy_with_two_arguments_as_unknown_content"] == 0
 
 
 def test_two_files_that_run_each_other_are_followed_once_each(

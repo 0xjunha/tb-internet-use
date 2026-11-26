@@ -18,7 +18,7 @@ from tb_internet_use.expanded_tool_call import (
     expand_tool_calls,
 )
 from tb_internet_use.expanded_tool_call.judgment_rules import (
-    treat_word_with_expansion_as_one_argument,
+    treat_word_with_expansion_as_start_of_unread_words,
 )
 from tb_internet_use.expanded_tool_call.model import (
     ArgumentText,
@@ -628,8 +628,8 @@ def test_a_loop_gives_one_request_per_value_when_a_word_with_an_expansion_is_one
 ):
     monkeypatch.setattr(
         _expand_program_invocations,
-        treat_word_with_expansion_as_one_argument.__name__,
-        lambda word, *, use_counts: True,
+        treat_word_with_expansion_as_start_of_unread_words.__name__,
+        lambda word, *, use_counts: False,
     )
     network_requests = _requests(catalogs_dir, command_text)
 

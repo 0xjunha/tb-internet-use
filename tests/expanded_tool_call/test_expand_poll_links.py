@@ -11,7 +11,7 @@ from tb_internet_use.expanded_tool_call._expand_poll_links import (
 )
 from tb_internet_use.expanded_tool_call.judgment_rules import (
     treat_calls_of_other_trajectory_as_not_linked,
-    treat_poll_as_reading_latest_earlier_start_of_handle,
+    treat_poll_of_handle_that_several_calls_started_as_not_linked,
     treat_script_poll_step_naming_no_handle_as_polling_none,
 )
 from tb_internet_use.tool_call.model import (
@@ -30,7 +30,9 @@ from tb_internet_use.tool_call.model import (
     ToolCallResult,
 )
 
-LATEST_START_RULE_NAME = treat_poll_as_reading_latest_earlier_start_of_handle.__name__
+SEVERAL_STARTS_RULE_NAME = (
+    treat_poll_of_handle_that_several_calls_started_as_not_linked.__name__
+)
 OTHER_TRAJECTORY_RULE_NAME = treat_calls_of_other_trajectory_as_not_linked.__name__
 SCRIPT_POLL_STEP_RULE_NAME = (
     treat_script_poll_step_naming_no_handle_as_polling_none.__name__
@@ -126,7 +128,7 @@ def test_a_handle_id_started_again_leaves_later_polls_without_starter():
         _key(first_start): (_key(first_poll),),
     }
     # Only the second poll comes after two starts of h1.
-    assert judgment_rule_use_counts == Counter({LATEST_START_RULE_NAME: 1})
+    assert judgment_rule_use_counts == Counter({SEVERAL_STARTS_RULE_NAME: 1})
 
 
 def test_a_poll_without_an_earlier_start_in_the_trial_has_no_starter():
@@ -374,8 +376,8 @@ def test_the_other_choice_of_the_latest_start_rule_links_a_reused_handle_to_the_
 ):
     monkeypatch.setattr(
         _expand_poll_links,
-        LATEST_START_RULE_NAME,
-        lambda *, use_counts: True,
+        SEVERAL_STARTS_RULE_NAME,
+        lambda *, use_counts: False,
     )
     first_start, second_start = _tool_call(1, START, "h1"), _tool_call(2, START, "h1")
     poll = _tool_call(3, _poll("h1"))

@@ -17,7 +17,7 @@ from tb_internet_use.network_request._extract_network_request_targets import (
     extract_network_request_targets,
 )
 from tb_internet_use.network_request.judgment_rules import (
-    treat_values_outside_their_for_loop_as_one_request_each,
+    treat_values_outside_their_for_loop_as_unknown_target,
 )
 from tb_internet_use.network_request.model import (
     FetchingProgramLabel,
@@ -41,7 +41,7 @@ UNKNOWN_OPTION_EFFECT = UnknownNetworkRequestTarget(
     UnknownNetworkRequestTargetReason.UNKNOWN_OPTION_EFFECT
 )
 VALUES_OUTSIDE_LOOP_RULE_NAME = (
-    treat_values_outside_their_for_loop_as_one_request_each.__name__
+    treat_values_outside_their_for_loop_as_unknown_target.__name__
 )
 LOOP = VariableValues("p", ("A", "B", "C"), True, False)
 BRANCHES = VariableValues("A", ("1", "2"), False, False)

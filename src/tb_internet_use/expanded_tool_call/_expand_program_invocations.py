@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from tb_internet_use.expanded_tool_call.judgment_rules import (
-    treat_word_with_expansion_as_one_argument,
+    treat_word_with_expansion_as_start_of_unread_words,
 )
 from tb_internet_use.expanded_tool_call.model import (
     ProgramArgumentWord,
@@ -82,7 +82,7 @@ def expand_program_invocations(
     The rows have one entry per program, in the order of the programs, and `UnknownProgramBehavior` for an `UnknownProgramInvocation`.
     They are given so that later code reads a fact of a program, e.g. how much of piped input tail passes on, without asking `ExpandedToolCallKnowledge` again, which would count the row twice.
     The program word indexes are 0-based in `shell_command.words`, one per program in the order of the programs, e.g. `(0, 3)` for find and ./run.sh in `find . -exec ./run.sh ;`, so that later code finds the word of a program that words of an outer program follow.
-    Every use of `treat_word_with_expansion_as_one_argument` adds one to `judgment_rule_use_counts`.
+    Every use of `treat_word_with_expansion_as_start_of_unread_words` adds one to `judgment_rule_use_counts`.
     """
     command_state = _CommandState(shell_command, knowledge, judgment_rule_use_counts)
     command_state.add_program_invocations(
@@ -448,7 +448,7 @@ class _ProgramWordsState:
         )
 
     def settle_places(self) -> None:
-        """Settle what the placed words are once all are placed, i.e. the letters of option clusters, an argument that later options make a next program, and the words that `treat_word_with_expansion_as_one_argument` reads."""
+        """Settle what the placed words are once all are placed, i.e. the letters of option clusters, an argument that later options make a next program, and the words that `treat_word_with_expansion_as_start_of_unread_words` reads."""
         self.place_option_clusters()
         self.make_words_unread_from_late_next_program_word()
         self.place_expansion_words_by_judgment_rule()
@@ -543,7 +543,7 @@ class _ProgramWordsState:
             self.make_words_unread_from(late_next_program_word_index)
 
     def place_expansion_words_by_judgment_rule(self) -> None:
-        """Ask `treat_word_with_expansion_as_one_argument` about each word with an expansion that ends as an argument or as the value of an option, e.g. `$OPTS` of `curl $OPTS u` and `$F` of `curl -o $F u`, and make it unread with the words after it when the rule says no.
+        """Ask `treat_word_with_expansion_as_start_of_unread_words` about each word with an expansion that ends as an argument or as the value of an option, e.g. `$OPTS` of `curl $OPTS u` and `$F` of `curl -o $F u`, and make it unread with the words after it when the rule says so.
 
         For a value, the word of its option becomes unread too, since the option is then missing its value.
         """
@@ -566,7 +566,7 @@ class _ProgramWordsState:
                 first_unread_word_index = word_index
             else:
                 continue
-            if not treat_word_with_expansion_as_one_argument(
+            if treat_word_with_expansion_as_start_of_unread_words(
                 command_state.words[word_index],
                 use_counts=command_state.judgment_rule_use_counts,
             ):

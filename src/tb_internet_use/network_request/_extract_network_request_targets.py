@@ -13,7 +13,7 @@ from tb_internet_use.expanded_tool_call.model import (
     VariableValues,
 )
 from tb_internet_use.network_request.judgment_rules import (
-    treat_values_outside_their_for_loop_as_one_request_each,
+    treat_values_outside_their_for_loop_as_unknown_target,
 )
 from tb_internet_use.network_request.model import (
     FetchingProgramLabel,
@@ -206,7 +206,7 @@ def _target_values_from_word(
     """Fill in the variables of one target word, giving a target per value that the command runs with and an unknown target for a value set when it runs.
 
     A word without a variable is its own target. Variables of one value are filled in, e.g. `https://a.org/x` for `https://$U/x` after `U=a.org`.
-    One variable of several values gives a target per value when it is the item of the innermost for loop around the command, e.g. `A`, `B` and `C` for `$p` in `for p in A B C`, and otherwise as many as `treat_values_outside_their_for_loop_as_one_request_each` gives.
+    One variable of several values gives a target per value when it is the item of the innermost for loop around the command, e.g. `A`, `B` and `C` for `$p` in `for p in A B C`, and otherwise as many as `treat_values_outside_their_for_loop_as_unknown_target` gives.
     The target is one unknown target when a variable has no literal value, a command substitution or backtick is left, or two variables have several values, e.g. `$PKG`, `$(cat f)` or `$a-$b`.
     One unknown target is added after the literal ones when a variable of the word may also get a value set when it runs, e.g. `U=$(cat u.txt)`.
     """
@@ -247,7 +247,7 @@ def _target_values_from_word(
         values_of_variable = (
             several_valued_variable_values.values
             if several_valued_variable_values.takes_each_value_in_turn
-            else treat_values_outside_their_for_loop_as_one_request_each(
+            else treat_values_outside_their_for_loop_as_unknown_target(
                 several_valued_variable_values, use_counts=judgment_rule_use_counts
             )
         )

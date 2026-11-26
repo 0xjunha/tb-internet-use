@@ -24,19 +24,19 @@ from tb_internet_use.expanded_tool_call._expand_ran_commands import (
 from tb_internet_use.expanded_tool_call.judgment_rules import (
     treat_calls_of_other_trajectory_as_not_linked,
     treat_command_under_run_condition_as_run,
-    treat_copy_with_two_arguments_as_same_content,
+    treat_copy_with_two_arguments_as_unknown_content,
     treat_deleted_file_as_never_written,
     treat_edit_of_text_not_found_once_as_unknown_content,
-    treat_extension_of_file_without_interpreter_line_as_its_language,
     treat_file_not_named_by_command_words_as_untouched,
+    treat_file_without_interpreter_line_as_of_unknown_language,
     treat_input_of_key_presses_only_as_no_text,
-    treat_last_command_of_starter_as_reader_of_typed_text,
     treat_outer_assignment_as_not_visible_in_new_shell,
     treat_path_that_ends_another_as_same_file,
     treat_path_that_fits_several_written_files_as_unknown_text,
     treat_tool_call_not_marked_not_run_as_maybe_run,
+    treat_typed_text_as_of_unknown_language,
     treat_use_after_later_overwrite_as_use_of_later_write,
-    treat_use_of_path_that_fits_several_written_files_as_use_of_each,
+    treat_use_of_path_that_fits_several_written_files_as_use_of_none,
 )
 from tb_internet_use.expanded_tool_call.model import (
     ArgumentText,
@@ -563,10 +563,8 @@ def _expand_ran_text_of_typed_text(
     )
     source = PollInputText(step_index, starter_tool_call_key)
     typed_text_reader = None
-    if starter_tool_call_key is not None and (
-        treat_last_command_of_starter_as_reader_of_typed_text(
-            use_counts=judgment_rule_use_counts
-        )
+    if starter_tool_call_key is not None and not (
+        treat_typed_text_as_of_unknown_language(use_counts=judgment_rule_use_counts)
     ):
         typed_text_reader = typed_text_readers_by_tool_call_key[starter_tool_call_key]
     if (
@@ -1500,7 +1498,7 @@ def _expand_ran_text_of_file_run_by_path(
                 interpreter_line.interpreter_name
             )
         file_extension = _file_extension_of(path)
-        if not treat_extension_of_file_without_interpreter_line_as_its_language(
+        if treat_file_without_interpreter_line_as_of_unknown_language(
             path, use_counts=judgment_rule_use_counts
         ):
             return UnknownRanTextLanguage()
@@ -1919,11 +1917,11 @@ class TrialFileContents:
         if self._is_glob(source_path):
             return None
         content = (
-            self._sure_content_of(source_path)
-            if treat_copy_with_two_arguments_as_same_content(
+            None
+            if treat_copy_with_two_arguments_as_unknown_content(
                 use_counts=self._judgment_rule_use_counts
             )
-            else None
+            else self._sure_content_of(source_path)
         )
         return self.record_write(
             tool_call_key,
@@ -1997,8 +1995,8 @@ class TrialFileContents:
         if kind == FileTouchKind.UNKNOWN_USE:
             for written_file_history in written_file_histories:
                 written_file_history.content = None
-        fits_several_written_files = len(written_file_histories) > 1 and (
-            treat_use_of_path_that_fits_several_written_files_as_use_of_each(
+        fits_several_written_files = len(written_file_histories) > 1 and not (
+            treat_use_of_path_that_fits_several_written_files_as_use_of_none(
                 path, use_counts=self._judgment_rule_use_counts
             )
         )

@@ -11,7 +11,7 @@ from tb_internet_use.expanded_tool_call._expand_program_invocations import (
     expand_program_invocations,
 )
 from tb_internet_use.expanded_tool_call.judgment_rules import (
-    treat_word_with_expansion_as_one_argument,
+    treat_word_with_expansion_as_start_of_unread_words,
 )
 from tb_internet_use.expanded_tool_call.model import (
     ProgramBehavior,
@@ -35,7 +35,7 @@ from tb_internet_use.tool_call.model import ShellCommand
 
 UNKNOWN_ROLE = UnknownProgramWordRole()
 UNKNOWN_EXITS_WITH_EXIT_CODE_OF_NEXT_PROGRAM = UnknownExitsWithExitCodeOfNextProgram()
-EXPANSION_RULE_NAME = treat_word_with_expansion_as_one_argument.__name__
+EXPANSION_RULE_NAME = treat_word_with_expansion_as_start_of_unread_words.__name__
 
 _RUNS_NEXT_PROGRAM = {
     "argument_role": "program",
@@ -1616,7 +1616,7 @@ EXPANSION_WORD_CASES = [
         "words",
         "expansion_word_indexes",
         "program_invocation",
-        "program_invocation_on_true",
+        "program_invocation_on_false",
     ),
     EXPANSION_WORD_CASES,
 )
@@ -1626,18 +1626,18 @@ def test_word_with_an_expansion_starts_the_unread_words_and_is_one_word_on_the_o
     words,
     expansion_word_indexes,
     program_invocation,
-    program_invocation_on_true,
+    program_invocation_on_false,
 ):
     expansion = _expansion_of(catalogs_dir, words, expansion_word_indexes)
     monkeypatch.setattr(
         _expand_program_invocations,
         EXPANSION_RULE_NAME,
-        lambda word, *, use_counts: True,
+        lambda word, *, use_counts: False,
     )
-    expansion_on_true = _expansion_of(catalogs_dir, words, expansion_word_indexes)
+    expansion_on_false = _expansion_of(catalogs_dir, words, expansion_word_indexes)
 
     assert expansion.program_invocations == (program_invocation,)
-    assert expansion_on_true.program_invocations == (program_invocation_on_true,)
+    assert expansion_on_false.program_invocations == (program_invocation_on_false,)
 
 
 def test_wrapper_chain_shell_option_with_a_plus_and_echo_are_read_on_the_real_catalogs():

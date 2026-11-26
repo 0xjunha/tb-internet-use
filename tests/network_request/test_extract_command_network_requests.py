@@ -41,7 +41,7 @@ from tb_internet_use.network_request._extract_command_network_requests import (
 from tb_internet_use.network_request.judgment_rules import (
     treat_dotted_host_name_as_public,
     treat_single_label_or_templated_host_name_as_possibly_public,
-    treat_values_outside_their_for_loop_as_one_request_each,
+    treat_values_outside_their_for_loop_as_unknown_target,
 )
 from tb_internet_use.network_request.model import (
     ContentSaved,
@@ -783,7 +783,7 @@ def test_variable_values_of_the_command_give_its_targets():
     )
     assert _targets(extraction.network_requests) == [VALUE_SET_AT_RUN_TIME]
     assert extraction.judgment_rule_use_counts == Counter(
-        {treat_values_outside_their_for_loop_as_one_request_each.__name__: 1}
+        {treat_values_outside_their_for_loop_as_unknown_target.__name__: 1}
     )
 
 

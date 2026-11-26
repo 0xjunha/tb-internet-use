@@ -9,7 +9,7 @@ from tb_internet_use.expanded_tool_call._expand_ran_commands import (
 )
 from tb_internet_use.expanded_tool_call.judgment_rules import (
     treat_values_outside_their_for_loop_as_one_of_them,
-    treat_word_with_expansion_as_one_argument,
+    treat_word_with_expansion_as_start_of_unread_words,
 )
 from tb_internet_use.expanded_tool_call.model import (
     OutputRoute,
@@ -34,7 +34,7 @@ from tb_internet_use.tool_call.model import (
 from tb_internet_use.tool_call.parse_shell_text import parse_shell_text
 
 OUTSIDE_LOOP_RULE_NAME = treat_values_outside_their_for_loop_as_one_of_them.__name__
-EXPANSION_RULE_NAME = treat_word_with_expansion_as_one_argument.__name__
+EXPANSION_RULE_NAME = treat_word_with_expansion_as_start_of_unread_words.__name__
 WHOLE_RESULT_ROUTE = OutputRoute((), ResultDestination(), OutputVisibility.WHOLE)
 NAME_SET_AT_RUN_TIME = ProgramWordRole.VARIABLE_NAME_SET_AT_RUN_TIME
 

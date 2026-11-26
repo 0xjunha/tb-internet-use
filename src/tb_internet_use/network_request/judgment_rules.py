@@ -71,10 +71,10 @@ def treat_single_label_or_templated_host_name_as_possibly_public(
     return True
 
 
-def treat_values_outside_their_for_loop_as_one_request_each(
+def treat_values_outside_their_for_loop_as_unknown_target(
     variable_values: VariableValues, *, use_counts: Counter[str]
 ) -> tuple[str, ...]:
-    """Read each value of a variable that the command runs with only one of as the value of a request of its own, e.g. `pkg1` and `pkg2` for `pip install pkg$A` after `A=1` in one if branch and `A=2` in the other.
+    """Read a target word whose variable has several values that the command runs with only one of as a target that is not known, e.g. `pip install pkg$A` after `A=1` in one if branch and `A=2` in the other.
 
     The trial does not show which of the values the command ran with, since `takes_each_value_in_turn` is False.
     `extract_network_request_targets` asks it for a target word whose only variable of several values is such a variable.
@@ -84,7 +84,7 @@ def treat_values_outside_their_for_loop_as_one_request_each(
 
     Decided. The user decided on 2026-11-24 to return no value, since the trial does not show which value the command ran with, e.g. `U` of `curl -s $U -o x` after `U=http://localhost:8000/x` in one if branch and `U=https://a.org/x` in the other. The earlier code made a target of each value.
     """
-    use_counts[treat_values_outside_their_for_loop_as_one_request_each.__name__] += 1
+    use_counts[treat_values_outside_their_for_loop_as_unknown_target.__name__] += 1
     return ()
 
 

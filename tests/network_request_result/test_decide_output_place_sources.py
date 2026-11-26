@@ -571,7 +571,7 @@ def test_tool_script_with_a_web_step_mixes_page_text_into_command_output_or_is_p
     [
         # The script's code prints what `cat build.log` printed.
         ("step output shown", (0,), ((K1, (0,)), (K2, (0,)))),
-        # The step's stdout ends in the result, but no `OutputPlace` of the call names it, as when `treat_script_step_output_as_shown_in_call_result` answers `False`.
+        # The step's stdout ends in the result, but no `OutputPlace` of the call names it, as when `treat_script_step_output_as_not_shown_in_call_result` answers `False`.
         ("step output not shown", (), ()),
     ],
 )

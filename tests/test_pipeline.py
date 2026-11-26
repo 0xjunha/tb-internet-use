@@ -283,7 +283,7 @@ def test_each_step_counts_its_lookups_in_its_own_knowledge_class_and_its_rules_i
     assert expanded_tool_call_judgment_rule_use_counts == Counter(
         {
             "treat_first_poll_that_saw_end_as_command_text_status": 1,
-            "treat_poll_result_as_showing_every_command_of_starter": 1,
+            "treat_poll_result_of_several_commands_as_showing_none": 1,
         }
     )
     # The last `Bash` result has no exit code line, which a rule of `convert_tool_calls` reads.
@@ -398,7 +398,7 @@ def test_runs_the_extraction_of_network_requests_after_the_expansion_with_its_ow
     assert expanded_tool_call_judgment_rule_use_counts == Counter(
         {
             "treat_first_poll_that_saw_end_as_command_text_status": 1,
-            "treat_poll_result_as_showing_every_command_of_starter": 1,
+            "treat_poll_result_of_several_commands_as_showing_none": 1,
         }
     )
     assert tool_call_judgment_rule_use_counts == Counter(
